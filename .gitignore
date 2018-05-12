@@ -590,4 +590,7 @@ algs/subgraph-isomorphism/target/*
 **/export
 **/\$global/*
 **/resolution-cache/*
+**/target/streams/*
+**/target/test-reports/*
+**/target/.history
 # End of https://www.gitignore.io/api/sbt,tex,java,latex,bazel,scala,python,intellij,intellij+all
