@@ -593,4 +593,5 @@ algs/subgraph-isomorphism/target/*
 **/target/streams/*
 **/target/test-reports/*
 **/target/.history
+.arcconfig
 # End of https://www.gitignore.io/api/sbt,tex,java,latex,bazel,scala,python,intellij,intellij+all
