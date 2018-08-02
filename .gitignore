@@ -595,6 +595,7 @@ algs/subgraph-isomorphism/target/*
 **/target/.history
 .arcconfig
 **/prism/target/*
+**/compiler/project/target/*
 **/target/streams/*
 *.pdf
 *.gv
