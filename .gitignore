@@ -1,5 +1,9 @@
 # Created by https://www.gitignore.io/api/sbt,tex,java,latex,bazel,scala,python,intellij,intellij+all
 
+
+### STAROEM ###
+./device_drivers/hamiltonserver/pyhamilton/pyhamilton/STAR-OEM/
+
 ### Bazel ###
 /bazel-*
 
