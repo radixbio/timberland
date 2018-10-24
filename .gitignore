@@ -590,6 +590,12 @@ docs/_build/
 compiler/target/*
 algs/hmrpp/target/*
 algs/subgraph-isomorphism/target/*
+utils/prism/target/*
+utils/prism-uservice/target/*
+shared/shared/target/*
+shared/shared/shared/shared/target/*
+shared/shared/shared/js/target/*
+shared/shared/shared/jvm/target/*
 *.cache
 **/export
 **/\$global/*
@@ -603,4 +609,7 @@ algs/subgraph-isomorphism/target/*
 **/target/streams/*
 *.pdf
 *.gv
+**/target/*
+utils/prism-uservice/journal/*
+**/highlight.css
 # End of https://www.gitignore.io/api/sbt,tex,java,latex,bazel,scala,python,intellij,intellij+all
