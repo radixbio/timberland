@@ -612,4 +612,6 @@ shared/shared/shared/jvm/target/*
 **/target/*
 utils/prism-uservice/journal/*
 **/highlight.css
+**/.ensime_cache/*
+**/.ensime
 # End of https://www.gitignore.io/api/sbt,tex,java,latex,bazel,scala,python,intellij,intellij+all
