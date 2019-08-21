@@ -1,0 +1,5 @@
+plugin "docker" {
+  config {
+    endpoint = "unix:///var/run/weave/weave.sock"
+  }
+}

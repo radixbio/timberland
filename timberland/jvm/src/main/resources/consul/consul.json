@@ -1,0 +1,10 @@
+{
+    "datacenter" : "dc1",
+    "data_dir" : "/tmp/radix/consul",
+    "server" : false,
+    "ui" : true,
+    "retry_join" : [],
+    "client_addr": "",
+    "recursors" : ["8.8.8.8", "1.1.1.1", "8.8.4.4"],
+    "bootstrap_expect": 3
+}
