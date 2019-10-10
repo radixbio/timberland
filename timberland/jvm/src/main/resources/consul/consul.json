@@ -1,10 +1,18 @@
 {
-    "datacenter" : "dc1",
-    "data_dir" : "/tmp/radix/consul",
-    "server" : false,
-    "ui" : true,
-    "retry_join" : [],
-    "client_addr": "",
-    "recursors" : ["8.8.8.8", "1.1.1.1", "8.8.4.4"],
-    "bootstrap_expect": 3
+  "bind_addr" : "",
+  "datacenter" : "dc1",
+  "data_dir" : "/tmp/radix/consul",
+  "server" : true,
+  "ui" : true,
+  "retry_join" : [],
+  "client_addr": "",
+  "bootstrap_expect": 3,
+  "addresses": {
+    "http": "0.0.0.0",
+    "dns": "169.254.1.1"
+  },
+  "ports": {
+    "dns": 53
+  },
+  "recursors": ["127.0.0.53"]
 }

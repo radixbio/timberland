@@ -1,4 +1,4 @@
-{{ range $tag, $services := service "radix-daemons-kafka-zookeeper|any" | byTag }}
+{{ range $tag, $services := service "radix-daemons-zookeeper-zookeeper|any" | byTag }}
 {{ if $tag | contains "client" }}
 {{ range $services }}
 {{ scratch.MapSet .Address "client" .Port }}
@@ -23,7 +23,7 @@
 {{ end }}
 {{ scratch.Set "index" 1 }}
 {{ scratch.Set "ZOO_SERVERS" "" }}
-{{ range $i, $services := service "radix-daemons-kafka-zookeeper|any" }}
+{{ range $i, $services := service "radix-daemons-zookeeper-zookeeper|any" }}
 {{ if ($services.Tags | contains "zookeeper-quorum") }}
 {{ $addr := (scratch.Get .Address)}}
 {{ if not (index $addr "done" | parseBool) }}

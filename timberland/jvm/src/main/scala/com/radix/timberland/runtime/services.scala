@@ -2,6 +2,7 @@ package com.radix.timberland.runtime
 
 import cats._
 import cats.data._
+import cats.data.NonEmptyList.fromList
 import cats.effect.{ContextShift, Effect, IO}
 import cats.implicits._
 import ammonite._
@@ -86,36 +87,18 @@ object Mock {
       }.flatMap(res => IO.shift *> IO.pure(res))
     }
 
-    override def startConsul(consulwd: Path, bind_addr: String, conf: Path, server: Boolean): F[os.SubProcess] =
+    override def startConsul(bind_addr: String, consulSeedsO: Option[String]): F[Unit] =
       F.delay {
-        val proc = List(
-          "/usr/bin/sudo",
-          consulwd.wrapped.toAbsolutePath.toString + "/src/main/resources/consul",
-          "agent",
-          if (server) { "-server" } else { "" },
-          s"""-config-file=${conf.wrapped.toAbsolutePath}""",
-          s"-bind=$bind_addr"
-        )
-        scribe.debug(s"would have started consul with $proc")
-        os.proc("/bin/echo", s""" "consul launched with server: $server, conf: $conf, bind_addr: $bind_addr"  """)
-          .spawn(consulwd, stdout = os.Inherit, stderr = os.Inherit)
+        scribe.debug(s"would have started consul with systemd (bind_addr: $bind_addr)")
       }
-    override def startNomad(nomadwd: Path, bind_addr: String, conf: Path, server: Boolean): F[os.SubProcess] = F.delay {
-      val proc = List(
-        "/usr/bin/sudo",
-        nomadwd.wrapped.toAbsolutePath.toString + "/nomad",
-        "agent",
-        if (server) { "-server" } else { "" },
-        s"""-config=${conf.wrapped.toAbsolutePath}""",
-        s"""-bind=$bind_addr"""
-      )
-      scribe.debug(s"would have started nomad with $proc")
-      os.proc("/bin/echo", s""""nomad launched with ${conf.toString()}"""")
-        .spawn(nomadwd, stdout = os.Inherit, stderr = os.Inherit)
-    }
-    override def startWeave(hosts: List[String]): F[Unit] = F.delay {
-      scribe.debug(s"would have launched weave with hosts ${hosts.mkString(" ")}")
-    }
+    override def startNomad(bind_addr: String): F[Unit] =
+      F.delay {
+        scribe.debug(s"would have started nomad with systemd (bind_addr: $bind_addr)")
+      }
+    override def startWeave(hosts: List[String]): F[Unit] =
+      F.delay {
+        scribe.debug(s"would have launched weave with hosts ${hosts.mkString(" ")}")
+      }
 
     override def parseJson(json: String): F[Json] = F.fromEither {
       parse(json)
@@ -178,40 +161,40 @@ object Run {
       } <* IO.shift
     }
 
-    override def startConsul(consulwd: Path, bind_addr: String, conf: Path, server: Boolean): F[os.SubProcess] =
+    override def startConsul(bind_addr: String, consulSeedsO: Option[String]): F[Unit] =
       F.delay {
-        scribe.info("spawning consul")
-        val proc = os
-          .proc(
-            "/usr/bin/sudo",
-            consulwd.wrapped.toAbsolutePath.toString + "/consul",
-            "agent",
-            if (server) { "-server" } else { "" },
-            s"""-config-file=${conf.wrapped.toAbsolutePath}""",
-            s"-bind=$bind_addr"
-          )
-          .spawn(consulwd, stdout = os.Inherit, stderr = os.Inherit)
-        scribe.info(s"done spawning consul")
-        proc
+        scribe.info("spawning consul via systemd")
+
+        val baseArgs = s"-bind=$bind_addr"
+        val baseArgsWithSeeds = consulSeedsO match {
+          case Some(seedString) =>
+            seedString
+              .split(',')
+              .map { host => s"-retry-join=$host" }
+              .foldLeft(baseArgs){ (currentArgs, arg) => currentArgs + ' ' + arg }
+
+          case None => baseArgs
+        }
+
+        os.proc("/usr/bin/sudo", "/bin/systemctl", "set-environment", s"""CONSUL_CMD_ARGS=$baseArgsWithSeeds""").spawn()
+        os.proc("/usr/bin/sudo", "/bin/systemctl", "restart", "consul").spawn(null, stdout = os.Inherit, stderr = os.Inherit)
       }
-    override def startNomad(nomadwd: Path, bind_addr: String, conf: Path, server: Boolean): F[os.SubProcess] = F.delay {
-      scribe.info("spawning nomad")
-      val proc = os
-        .proc(
-          "/usr/bin/sudo",
-          nomadwd.wrapped.toAbsolutePath.toString + "/nomad",
-          "agent",
-          if (server) { "-server" } else { "-client" },
-          s"""-config=${conf.wrapped.toAbsolutePath}""",
-          s"-bind=$bind_addr"
-        )
-        .spawn(nomadwd, stdout = os.Inherit, stderr = os.Inherit)
-      scribe.info("done spawning nomad")
-      proc
-    }
+
+    override def startNomad(bind_addr: String): F[Unit] =
+      F.delay {
+        scribe.info("spawning nomad via systemd")
+        os.proc("/usr/bin/sudo", "/bin/systemctl", "set-environment", s"""NOMAD_CMD_ARGS=-bind=$bind_addr""").spawn()
+        os.proc("/usr/bin/sudo", "/bin/systemctl", "restart", "nomad").spawn(null, stdout = os.Inherit, stderr = os.Inherit)
+      }
+
     override def startWeave(hosts: List[String]): F[Unit] = F.delay {
-      os.proc(s"/usr/local/bin/weave", "launch", hosts.mkString(" "))
-        .call(cwd = pwd, check = false, stdout = os.Inherit, stderr = os.Inherit)
+      os.proc("/usr/bin/docker", "plugin", "disable", "weaveworks/net-plugin:latest_release").call(check = false, cwd = pwd, stdout = os.Inherit, stderr = os.Inherit)
+      os.proc("/usr/bin/docker", "plugin", "set", "weaveworks/net-plugin:latest_release", "IPALLOC_RANGE=10.48.0.0/12").call(check = false, stdout = os.Inherit, stderr = os.Inherit)
+      os.proc("/usr/bin/docker", "plugin", "enable", "weaveworks/net-plugin:latest_release").call(stdout = os.Inherit, stderr = os.Inherit)
+//      os.proc(s"/usr/local/bin/weave", "launch", hosts.mkString(" "), "--ipalloc-range", "10.48.0.0/12")
+//        .call(cwd = pwd, check = false, stdout = os.Inherit, stderr = os.Inherit)
+//      os.proc(s"/usr/local/bin/weave", "connect", hosts.mkString(" "))
+//        .call(check = false, stdout = os.Inherit, stderr = os.Inherit)
       ()
     }
 
@@ -227,38 +210,82 @@ object Run {
     * actually bootstraps and starts consul and nomad
     * @param consulwd what's the working directory where we can find the consul configuration and executable binary
     * @param nomadwd what's the working directory where we can find the nomad configuration and executable binary
-    * @param bind_ip are we binding to a specific host IP?
+    * @param bind_addr are we binding to a specific host IP?
     * @param H the implementation of the RuntimeServicesAlg to actually give us the ability to start consul and nomad
     * @param F the effect, F
     * @tparam F the effect type
     * @return a started consul and nomad
     */
-  def initializeRuntimeProg[F[_]](consulwd: Path, nomadwd: Path, bind_ip: Option[String])(
+  def initializeRuntimeProg[F[_]](consulwd: Path, nomadwd: Path, bind_addr: Option[String], consulSeedsO: Option[String])(
       implicit H: RuntimeServicesAlg[F],
       F: Effect[F]) = {
-    def socks(ifaces: List[String]) = {
-      F.liftIO((F.toIO(H.searchForPort(ifaces, 8301)), F.toIO(H.searchForPort(ifaces, 6783))).parMapN {
-        case (a, b) => (a, b)
+
+      val maybe_consuls_split = {
+        maybe_consuls match {
+          case Some(consul_list) => fromList(consul_list.split(",").toList)
+          case None => None
+        }
+      }
+
+      val maybe_weaves_split = {
+        maybe_weaves match {
+          case Some(weaves_list) => fromList(weaves_list.split(",").toList)
+          case None => None
+        }
+      }
+
+      def socks(ifaces: List[String]): F[(Option[cats.data.NonEmptyList[String]], Option[cats.data.NonEmptyList[String]])] = {
+      F.liftIO((F.toIO(H.searchForPort(ifaces, 8301)), F.toIO(H.searchForPort(ifaces,6783))).parMapN {
+        case (a,b) => (a,b)
       })
     }
+
+    def socksWeave(ifaces: List[String]): F[Option[cats.data.NonEmptyList[String]]] = {
+      maybe_weaves_split match {
+        case None => {
+          val weaves = F.liftIO(F.toIO(H.searchForPort(ifaces, 6783)).map {
+            case a => a
+          })
+          weaves
+        }
+
+        case Some(weaves) => {
+          F.pure(maybe_weaves_split)
+        }
+      }
+    }
+
+    def socksConsul(ifaces: List[String]): F[Option[cats.data.NonEmptyList[String]]] = {
+      maybe_consuls match {
+        case None => {
+          val consuls = F.liftIO(F.toIO(H.searchForPort(ifaces, 8301)).map {
+            case a => a
+          })
+          consuls
+        }
+
+        case Some(consuls) => {
+          F.pure(maybe_consuls_split)
+        }
+      }
+    }
+
     for {
-      ifaces <- bind_ip match {
+      ifaces <- bind_addr match {
         case Some(bind) => F.pure(List(bind.split('.').dropRight(1).mkString(".") + "."))
         case None =>
           H.getNetworkInterfaces.map(
             _.filter(x => x.startsWith("192.") || x.startsWith("10."))
-              .map(_.split("\\.").toList.dropRight(1).mkString(".") + "."))
+            .map(_.split("\\.").toList.dropRight(1).mkString(".") + "."))
       }
       ipaddrswithcoresrvs <- socks(ifaces)
-      weave  = ipaddrswithcoresrvs._2
+      weave = ipaddrswithcoresrvs._2
       consul = ipaddrswithcoresrvs._1
-      _         <- F.liftIO(Run.putStrLn(s"weave peers: $weave"))
-      _         <- F.liftIO(Run.putStrLn(s"consul peers: $consul"))
-      consulcfg <- H.readConfig(consulwd, fname = "consul.json")
-      nomadcfg  <- H.readConfig(nomadwd, fname = "nomad.hcl")
-      consulcfg <- H.parseJson(consulcfg)
-      bind_addr <- F.delay {
-        bind_ip match {
+      _ <- F.liftIO(Run.putStrLn(s"weave peers: $weave"))
+      _ <- F.liftIO(Run.putStrLn(s"consul peers: $consul"))
+
+      final_bind_addr <- F.delay {
+        bind_addr match {
           case Some(ip) => ip
           case None => {
             val sock = new java.net.DatagramSocket()
@@ -267,78 +294,10 @@ object Run {
           }
         }
       }
-      consulSubprocess <- {
-        val cfg: OptionT[F, Path] = for {
-          cnsul <- OptionT(F.pure(consul))
-          conf <- OptionT(
-            F.delay(
-              consulcfg.hcursor
-                .downField("server")
-                .set(Json.fromBoolean(cnsul.length <= 5))
-                .up
-                .downField("retry_join")
-                .set(Json.fromValues(cnsul.map(Json.fromString).toList))
-                .up
-                .downField("client_addr")
-                .set(Json.fromString(bind_addr))
-                .top))
-          _    <- OptionT.liftF(F.liftIO(Run.putStrLn(s"consul starting with config ${conf.toString}")))
-          path <- OptionT.liftF(H.mkTempFile(conf.toString, "consul"))
 
-        } yield path
-        val res: F[os.SubProcess] = cfg.value
-          .map({
-            case Some(io) => F.pure(io)
-            case None => {
-              val cfg = consulcfg.hcursor
-                .downField("server")
-                .set(Json.fromBoolean(true))
-                .up
-                .downField("client_addr")
-                .set(Json.fromString(bind_addr))
-                .top
-                .get
-                .toString
-              for {
-                conf <- H.mkTempFile(cfg, "consul")
-                _    <- F.liftIO(Run.putStrLn(s"consul starting with config $cfg"))
-              } yield conf
-            }
-          })
-          .flatten
-          .flatMap(conf =>
-            for {
-              _ <- F.liftIO(Run.putStrLn(s"consul starting on $bind_addr"))
-              c <- H.startConsul(consulwd, conf = conf, bind_addr = bind_addr, server = {
-                consul match {
-                  case None => true
-                  case Some(nel) =>
-                    nel.length match {
-                      case t if t <= 5 => true
-                      case _         => false
-                    }
-                }
-              })
-            } yield c
-          )
-        res
-      }
-      _         <- F.liftIO(Run.putStrLn("consul up"))
-      _         <- H.startWeave(weave.map(_.toList).getOrElse(List.empty[String]))
-      _         <- F.liftIO(Run.putStrLn("weave up"))
-      nomadconf <- H.mkTempFile(nomadcfg.toString +
-                                s"""
-                                  |    network_interface = "${NetworkInterface.getByInetAddress(InetAddress.getByName(bind_addr)).getName}"
-                                  |}
-                                  |consul {
-                                  | address = "$bind_addr:8500"
-                                  |}
-                                  |
-                                  |bind_addr = "$bind_addr"
-                                """.stripMargin, "nomad", "hcl")
-      nomadSubprocess         <- H.startNomad(nomadwd, conf = nomadconf, bind_addr = bind_addr, server = true)
-      _         <- F.liftIO(Run.putStrLn("nomad up"))
-    } yield (consulSubprocess, nomadSubprocess)
+      consulRestartProc <- H.startConsul(final_bind_addr, consulSeedsO)
+      nomadRestartProc <- H.startNomad(final_bind_addr)
+      _ <- F.liftIO(Run.putStrLn("started consul and nomad"))
+    } yield (consulRestartProc, nomadRestartProc)
   }
-
 }

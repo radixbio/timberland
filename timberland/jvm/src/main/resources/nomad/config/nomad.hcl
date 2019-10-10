@@ -1,9 +1,21 @@
 data_dir = "/tmp/radix/nomad"
-datacenter = "dc1"
+
 server {
-    enabled = true
-    bootstrap_expect = 3
+  enabled          = true
+  bootstrap_expect = 3
 }
-//This lack of end paren is intentional, it gets filled in from timberland's launch.
+
 client {
+  enabled       = true
+  network_speed = 1000
+}
+
+plugin "raw_exec" {
+  config {
     enabled = true
+  }
+}
+
+consul {
+  address = "localhost:8500"
+}

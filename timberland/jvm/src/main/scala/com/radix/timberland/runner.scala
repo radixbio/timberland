@@ -2,13 +2,14 @@ package com.radix.timberland
 
 import cats._
 import cats.data._
-import cats.effect.{ContextShift, Effect, IO, Timer, Clock}
+import cats.effect.{Clock, ContextShift, Effect, ExitCase, IO, Timer}
 import cats.implicits._
 import ammonite._
 import ammonite.ops._
 import io.circe.{Parser => _, _}
 import io.circe.generic.auto._
-import io.circe.parser._
+//import io.circe.parser._
+import matryoshka.data.Fix
 
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
@@ -61,15 +62,15 @@ import sun.misc.{Signal, SignalHandler}
   */
 
 sealed trait RadixCMD
-sealed trait Dev                     extends RadixCMD
-sealed trait CI                      extends Dev
-case class Compile(target: Option[String], dir: Option[String])   extends CI
-case class Test(targer: Option[String], dir: Option[String])      extends CI
-case object Pass extends CI
-object DevList                       extends CI
-case object Native                   extends Dev
-case object InstallDeps              extends Dev
-sealed trait Runtime                 extends RadixCMD
+sealed trait Dev                                                extends RadixCMD
+sealed trait CI                                                 extends Dev
+case class Compile(target: Option[String], dir: Option[String]) extends CI
+case class Test(targer: Option[String], dir: Option[String])    extends CI
+case object Pass                                                extends CI
+object DevList                                                  extends CI
+case object Native                                              extends Dev
+case object InstallDeps                                         extends Dev
+sealed trait Runtime                                            extends RadixCMD
 //case class Dry(run: Runtime) extends Runtime
 sealed trait Launch         extends Runtime
 case object LaunchZookeeper extends Launch
@@ -79,10 +80,17 @@ case object Install         extends Local
 case class Start(
     dummy: Boolean = false,
     loglevel: scribe.Level = scribe.Level.Debug,
-    bindIP: Option[String] = None
+    bindIP: Option[String] = None,
+    consulSeeds: Option[String] = None
 ) extends Local
-case object Nuke       extends Local
-case object StartNomad extends Local
+case object Nuke                                                    extends Local
+case object StartNomad                                              extends Local
+sealed trait DNS                                                    extends Runtime
+case class DNSUp(service: Option[String], bindIP: Option[String])   extends DNS
+case class DNSDown(service: Option[String], bindIP: Option[String]) extends DNS
+sealed trait Prism                                                  extends RadixCMD
+case object PList                                                   extends Prism
+case class PPath(path: String)                                      extends Prism
 
 case class ScriptHead(cmd: RadixCMD)
 
@@ -143,7 +151,16 @@ object runner {
                     case str @ Some(_) => exist.copy(bindIP = str)
                     case None          => exist
                   }
-                }),
+                }) <*> optional(
+                strOption(long("consul-seeds"),
+                  help("comma separated list of seed nodes for consul (maps to retry_join in consul.json)")))
+                  .map(seeds => {
+                    exist: Start =>
+                      seeds match {
+                        case list@Some(_) => exist.copy(consulSeeds = list)
+                        case None => exist
+                      }
+                  }),
               progDesc("start the radix core services on the current system")
             )
           ),
@@ -156,6 +173,19 @@ object runner {
                       info(pure(LaunchZookeeper), progDesc("launch zookeeper at runtime, launched from nomad"))),
               command("kafka", info(pure(LaunchKafka), progDesc("launch kafka at runtime, launched from nomad")))
             ).weaken[Runtime])
+          ),
+          command(
+            "dns",
+            info(subparser[DNS](
+              command("up",
+                      info(^(optional(strOption(long("service"))), optional(strOption(long("force-bind-ip"))))(DNSUp),
+                           progDesc("inject consul into dns resolution"))),
+              command(
+                "down",
+                info(^(optional(strOption(long("service"))), optional(strOption(long("force-bind-ip"))))(DNSDown),
+                     progDesc("deinject consul from dns resolution"))
+              ),
+            ).weaken[Runtime])
           )
         ),
         progDesc("radix runtime component")
@@ -163,7 +193,13 @@ object runner {
     )
   ) <*> helper
 
-  val res: Parser[RadixCMD] = dev.weaken[RadixCMD] <|> runtime.weaken[RadixCMD]
+  val prism = subparser[Prism](
+    command("prism", info(subparser[Prism](
+      command("list", info(pure(PList), progDesc("list prism tree"))),
+      command("path", info(strArgument(metavar("PATH")).map(PPath),
+                           progDesc("idk make a path or s/t")))))))
+
+  val res: Parser[RadixCMD] = dev.weaken[RadixCMD] <|> runtime.weaken[RadixCMD] <|> prism.weaken[RadixCMD]
 
   val opts =
     info(res <*> helper,
@@ -209,30 +245,58 @@ object runner {
       val targetOpts = Map("compiler" -> Opt("compiler"),
                            "runtime" -> Opt("runtime"),
                            "pipettelinearizer" -> Opt("algs" / "pipette-linearizer"),
-                           "frontend" -> Opt("interface", flags=Seq("-J-Xmx4G", "-J-Xss64m")))
+                           "frontend" -> Opt("interface", flags=Seq("-J-Xmx4G", "-J-Xss64m", "-J-XX:MaxMetaspaceSize=1G")))
 
       sealed trait Action
       case object Compile extends Action
       case object Test extends Action
 
-      def callSbt(action: Action, target: String) = {
+      def callSbt(action: Action, target: String, dir: Option[String]) = {
+        println(dir)
         val invocation: Seq[os.Shellable] = Seq("sbt", action match {
           case Compile => "compile"
           case Test => "test"
-        })
+        }
+        val dir: String = optionalDir getOrElse (sys.env.get("RADIX_MONOREPO_DIR") getOrElse "pwd".!!.trim)
 
         os.proc(invocation ++ targetOpts(target).flags: _*)
-          .call(cwd = os.pwd / targetOpts(target).dir, stdout = os.Inherit, stderr = os.Inherit)
+          .call(cwd = (dir map { dir: String => os.Path(dir) } getOrElse os.pwd) / targetOpts(target).dir,
+                stdout = os.Inherit, stderr = os.Inherit)
       }
 
-      def compile(target: String) = {
+      def compile(target: String, dir: Option[String]) = {
         scribe.info(s"building $target")
-        callSbt(Compile, target)
+        callSbt(Compile, target, dir)
       }
 
-      def test(target: String) = {
+      def test(target: String, dir: Option[String]) = {
         scribe.info(s"testing $target")
-        callSbt(Test, target)
+        callSbt(Test, target, dir)
+      }
+    }
+
+    // helper object containing parsers for command-line representation of prism containers and paths
+    object PrismParse {
+      import scala.util.parsing.combinator._
+      import scala.util.parsing.input.CharSequenceReader
+      import com.radix.shared.util.prism._
+      import squants.space._
+
+      object PathParser extends RegexParsers {
+        def parens[A](p: Parser[A]): Parser[A] = "(" ~ p ~ ")" ^^ { case _ ~ p ~ _ => p }
+        def number: Parser[Double] = """\d+(\.\d*)?""".r ^^ { _.toDouble }
+
+        def offset1: Parser[Offset] = number ^^ { case n => Offset(Meters(n)) }
+        def offset2: Parser[Offset] = (number ~ "," ~ number) ^^
+          { case s ~ _ ~ t => Offset(Meters(s), Meters(t)) }
+        def offset3: Parser[Offset] = (number ~ "," ~ number ~ "," ~ number) ^^
+          { case s ~ _ ~ t ~ _ ~ u => Offset(Meters(s), Meters(t), Meters(u)) }
+        def offset: Parser[Offset] = offset3 | offset2 | offset1 | parens(offset)
+
+        def terminal: Parser[Fix[Container]] = offset ^^ { case offset => Fix(Shim(offset, Seq())) }
+        def nonterminal: Parser[Fix[Container]] = offset ~ "/" ~ container ^^
+          { case offset ~ _ ~ container => Fix(Shim(offset, Seq(container))) }
+        def container: Parser[Fix[Container]] = nonterminal | terminal
       }
     }
 
@@ -243,16 +307,15 @@ object runner {
             case ci: CI =>
               ci match {
                 case Compile(target, dir) => target match {
-                  case None | Some("all") => Dev.targetOpts.keys.map(Dev.compile(_))
-                  case Some(target) => Dev.compile(target)
+                  case None | Some("all") => Dev.targetOpts.keys.map(Dev.compile(_, dir))
+                  case Some(target) => Dev.compile(target, dir)
                 }
                 case Test(target, dir) => target match {
-                  case None | Some("all") => Dev.targetOpts.keys.map(Dev.test(_))
-                  case Some(target) => Dev.test(target)
+                  case None | Some("all") => Dev.targetOpts.keys.map(Dev.test(_, dir))
+                  case Some(target) => Dev.test(target, dir)
                 }
                 case Pass =>
-                  checkSudo
-                  println(sudopw)
+                 ???
                 case DevList => Dev.targetOpts.keys.map(scribe.info(_))
               }
             case Native => {
@@ -263,6 +326,7 @@ object runner {
                 ()
               }
               val prog = for {
+                _ <- Build.submodules(NUM_CORES)
                 _ <- builds
               } yield ()
 
@@ -306,6 +370,25 @@ object runner {
                       } yield ()
                       _ <- resourceMover.fncopy(Path("/consul/consul.json"), Path(consul.getParentFile.toPath))
                       _ <- resourceMover.fncopy(Path("/nomad/config"), Path(nomad.getParentFile.toPath))
+
+                      _ <- resourceMover.fncopy(Path("/systemd/consul.service"), Path("/etc/systemd/system"))
+                      _ <- resourceMover.fncopy(Path("/systemd/nomad.service"), Path("/etc/systemd/system"))
+
+                      hookDestinationDir = "/etc/networkd-dispatcher/routable.d/"
+
+                      _ <- resourceMover.fncopy(Path("/systemd/10-radix-consul"), Path(hookDestinationDir))
+                      _ <- resourceMover.fncopy(Path("/systemd/10-radix-nomad"), Path(hookDestinationDir))
+
+                      consulHookFile = new File(hookDestinationDir + "10-radix-consul")
+                      nomadHookFile = new File(hookDestinationDir + "10-radix-nomad")
+
+                      _ <- IO {
+                        consulHookFile.setExecutable(true)
+                        nomadHookFile.setExecutable(true)
+                      }
+
+                      _ <- IO(os.proc("/usr/bin/sudo /bin/systemctl daemon-reload".split(' ')).spawn())
+                      _ <- IO(os.proc("/usr/bin/docker plugin install weaveworks/net-plugin:latest_release".split(' ')).call(cwd = os.root, stdin = "y\n", stdout = os.Inherit, check = false))
                     } yield ()
                     prog.unsafeRunSync()
 
@@ -318,7 +401,7 @@ object runner {
 
                 }
                 case Nuke => Right(Unit)
-                case cmd @ Start(dummy, loglevel, bindIP) => {
+                case cmd @ Start(dummy, loglevel, bindIP, consulSeedsO) => {
                   scribe.Logger.root
                     .clearHandlers()
                     .clearModifiers()
@@ -330,7 +413,7 @@ object runner {
                     implicit val host = new Mock.RuntimeNolaunch[IO]
                     Right(
                       println(Run
-                        .initializeRuntimeProg[IO](Path(consul.toPath.getParent), Path(nomad.toPath.getParent), bindIP)
+                        .initializeRuntimeProg[IO](Path(consul.toPath.getParent), Path(nomad.toPath.getParent), bindIP, consulSeedsO)
                         .unsafeRunSync)
                     )
                     System.exit(0)
@@ -338,7 +421,7 @@ object runner {
                     implicit val host = new Run.RuntimeServicesExec[IO]
                     Right(
                       println(Run
-                        .initializeRuntimeProg[IO](Path(consul.toPath.getParent), Path(nomad.toPath.getParent), bindIP)
+                        .initializeRuntimeProg[IO](Path(consul.toPath.getParent), Path(nomad.toPath.getParent), bindIP, consulSeedsO)
                         .unsafeRunSync)
                     )
                   }
@@ -385,8 +468,50 @@ object runner {
 
                 }
               }
+            case dns: DNS => {
+              scribe.Logger.root
+                .clearHandlers()
+                .clearModifiers()
+                .withHandler(minimumLevel = Some(scribe.Level.Debug))
+                .replace()
+              dns match {
+                case DNSUp(service, bindIP) =>
+                  val ip = bindIP.getOrElse(Util.getDefaultGateway)
+                  service.getOrElse(launch.dns.identifyDNS) match {
+                    case "dnsmasq"  => launch.dns.upDnsmasq(ip, Util.getIfFromIP(ip)).unsafeRunSync()
+                    case "systemd"  => launch.dns.upSystemd(ip).unsafeRunSync()
+                    case "iptables" => launch.dns.upIptables(ip).unsafeRunSync()
+                    case unrecognized =>
+                      scribe.info("unrecognized dns service: " + unrecognized)
+                  }
+                case DNSDown(service, bindIP) =>
+                  val ip = bindIP.getOrElse(Util.getDefaultGateway)
+                  service.getOrElse(launch.dns.identifyDNS) match {
+                    case "dnsmasq"  => launch.dns.downDnsmasq(ip).unsafeRunSync()
+                    case "systemd"  => launch.dns.downSystemd(ip).unsafeRunSync()
+                    case "iptables" => launch.dns.downIptables(ip).unsafeRunSync()
+                    case unrecognized =>
+                      scribe.info("unrecognized dns service: " + unrecognized)
+                  }
+              }
+            }
           }
 
+        case prism: Prism => {
+          prism match {
+            case PList => {
+              // TODO(lily) this should query prism (how?) and display the kd tree in some form
+            }
+            case PPath(path) => {
+              // this just tends parsing logic
+              import PrismParse.PathParser
+              println(PathParser.parseAll(PathParser.container, path))
+
+              // TODO(lily) we should do something to a) convert the parsed container into an actual
+              // path, and b) check that that path is a valid index into the prism
+            }
+          }
+        }
       }
     }
 

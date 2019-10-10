@@ -29,7 +29,7 @@ import os.Shellable
 import scala.collection.JavaConverters._
 
 package object zookeeper {
-  implicit val timer = IO.timer(global)
+  private [this] implicit val timer = IO.timer(global)
   sealed trait TemplateOps {
     def getTemplate(path: Path): IO[Set[String]] =
       IO(os.read(path).split('\n').filter(_.startsWith("server")).toSet)
@@ -46,22 +46,43 @@ package object zookeeper {
     * @return Either a failure to get the servers together to form a quorum, or a list of servers to create ZK with
     */
   private[this] def reconfigDynFile(
-      templatePath: Path): IndexedStateT[IO, NoMinQuorum.type, Either[NoMinQuorum.type, MinQuorumFound], Unit] =
-    for {
-      state                <- IndexedStateT.get[IO, NoMinQuorum.type]
-      templatefilecontents <- IndexedStateT.liftF(state.getTemplate(templatePath))
-      _ <- templatefilecontents match {
-        case quorum if quorum.size >= 3 && !quorum.map(_.contains("nil")).reduce(_ || _) =>
-          for {
-            _ <- IndexedStateT.liftF(IO(scribe.debug(s"found zookeeper quorum, $quorum")))
-            _ <- IndexedStateT.set[IO, NoMinQuorum.type, Either[NoMinQuorum.type, MinQuorumFound]](
-              Right(MinQuorumFound(quorum)))
-          } yield ()
-        case _ =>
-          IndexedStateT.set[IO, NoMinQuorum.type, Either[NoMinQuorum.type, MinQuorumFound]](Left(NoMinQuorum))
-      }
+      templatePath: Path): IndexedStateT[IO, NoMinQuorum.type, Either[NoMinQuorum.type, MinQuorumFound], Unit] = {
+    // TODO does querying consul directly work?
+    // I couldn't get this to work when I was debugging something, turns out it was something lower in the stack
+    // So this may still be viable
+    //    for {
+    //    state <- IndexedStateT.get[IO, NoMinQuorum.type]
+    //    zks <- IndexedStateT.liftF(consulutil.getZKs.value)
+    //    res <- zks match {
+    //      case Some(quorum) => for {
+    //       _ <- IndexedStateT.set[IO, NoMinQuorum.type, Either[NoMinQuorum.type, MinQuorumFound]](Right(MinQuorumFound(quorum.split(",").toSet)))
+    //      } yield ()
+    //      case None => for {
+    //      _ <- IndexedStateT.set[IO, NoMinQuorum.type, Either[NoMinQuorum.type, MinQuorumFound]](Left(state))
+    //      } yield ()
+    //    }
+    //    } yield res
 
-    } yield ()
+
+        for {
+          state                <- IndexedStateT.get[IO, NoMinQuorum.type]
+          templatefilecontents <- IndexedStateT.liftF(state.getTemplate(templatePath))
+          _ <- templatefilecontents match {
+            case quorum if quorum.size >= 3 && !quorum.map(_.contains("nil")).reduce(_ || _) =>
+              for {
+                _ <- IndexedStateT.liftF(IO(scribe.debug(s"found zookeeper quorum, $quorum")))
+                _ <- IndexedStateT.set[IO, NoMinQuorum.type, Either[NoMinQuorum.type, MinQuorumFound]](
+                  Right(MinQuorumFound(quorum)))
+              } yield ()
+            case _ =>
+              for {
+              _ <- IndexedStateT.liftF(IO(scribe.warn(s"template file not in consistent state! $templatefilecontents")))
+              res <- IndexedStateT.set[IO, NoMinQuorum.type, Either[NoMinQuorum.type, MinQuorumFound]](Left(NoMinQuorum))
+              } yield res
+          }
+
+        } yield ()
+  }
 
   /**
     * This method gets the current zookeeper configuration as well as what's rendered by the template to

@@ -14,6 +14,8 @@ import universal.UniversalPlugin.autoImport._
 import com.typesafe.sbt.packager.MappingsHelper._
 
 import com.radix.utils.helm.{Dependencies => HelmDeps}
+import com.radix.utils.prism.{Dependencies => PrismDeps}
+import com.radix.shared.{Dependencies => SharedDeps}
 
 object Versions {
   val scala                = "2.12.8"
@@ -48,13 +50,17 @@ object Dependencies {
       "io.circe"           %% "circe-parser"         % "0.10.0",
       "com.lihaoyi"        %% "os-lib"               % "0.2.7",
       "com.outr"           %% "scribe"               % "2.7.3",
-      "com.github.xuwei-k" %% "optparse-applicative" % "0.8.0"
+      "com.github.xuwei-k" %% "optparse-applicative" % "0.8.0",
+      "org.scala-lang.modules" %% "scala-parser-combinators" % "1.1.2"
     )
   )
 
   lazy val helm       = HelmDeps.helm in file("./first-party/helm") dependsOn (helmCore, helmHttp4s) aggregate (helmCore, helmHttp4s)
   lazy val helmCore   = HelmDeps.helmcore in file("./first-party/helm/core")
   lazy val helmHttp4s = HelmDeps.helmhttp4s in file("./first-pary/helm/http4s") dependsOn (helmCore) aggregate (helmCore)
+
+  lazy val prismProject  = PrismDeps.prism in file("./first-party/prism")
+  lazy val sharedProject = SharedDeps.shared in file("./first-party/shared/shared")
 
   val timberland =
     crossProject(JVMPlatform)
