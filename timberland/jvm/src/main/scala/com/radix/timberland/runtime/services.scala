@@ -220,55 +220,13 @@ object Run {
       implicit H: RuntimeServicesAlg[F],
       F: Effect[F]) = {
 
-      val maybe_consuls_split = {
-        maybe_consuls match {
-          case Some(consul_list) => fromList(consul_list.split(",").toList)
-          case None => None
-        }
-      }
-
-      val maybe_weaves_split = {
-        maybe_weaves match {
-          case Some(weaves_list) => fromList(weaves_list.split(",").toList)
-          case None => None
-        }
-      }
-
       def socks(ifaces: List[String]): F[(Option[cats.data.NonEmptyList[String]], Option[cats.data.NonEmptyList[String]])] = {
       F.liftIO((F.toIO(H.searchForPort(ifaces, 8301)), F.toIO(H.searchForPort(ifaces,6783))).parMapN {
         case (a,b) => (a,b)
       })
     }
 
-    def socksWeave(ifaces: List[String]): F[Option[cats.data.NonEmptyList[String]]] = {
-      maybe_weaves_split match {
-        case None => {
-          val weaves = F.liftIO(F.toIO(H.searchForPort(ifaces, 6783)).map {
-            case a => a
-          })
-          weaves
-        }
 
-        case Some(weaves) => {
-          F.pure(maybe_weaves_split)
-        }
-      }
-    }
-
-    def socksConsul(ifaces: List[String]): F[Option[cats.data.NonEmptyList[String]]] = {
-      maybe_consuls match {
-        case None => {
-          val consuls = F.liftIO(F.toIO(H.searchForPort(ifaces, 8301)).map {
-            case a => a
-          })
-          consuls
-        }
-
-        case Some(consuls) => {
-          F.pure(maybe_consuls_split)
-        }
-      }
-    }
 
     for {
       ifaces <- bind_addr match {

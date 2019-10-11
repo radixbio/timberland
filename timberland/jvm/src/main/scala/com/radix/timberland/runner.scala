@@ -256,8 +256,8 @@ object runner {
         val invocation: Seq[os.Shellable] = Seq("sbt", action match {
           case Compile => "compile"
           case Test => "test"
-        }
-        val dir: String = optionalDir getOrElse (sys.env.get("RADIX_MONOREPO_DIR") getOrElse "pwd".!!.trim)
+        })
+//        val dir: String = optionalDir getOrElse (sys.env.get("RADIX_MONOREPO_DIR") getOrElse "pwd".!!.trim)
 
         os.proc(invocation ++ targetOpts(target).flags: _*)
           .call(cwd = (dir map { dir: String => os.Path(dir) } getOrElse os.pwd) / targetOpts(target).dir,
