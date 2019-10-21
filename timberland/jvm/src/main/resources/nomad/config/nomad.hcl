@@ -16,6 +16,14 @@ plugin "raw_exec" {
   }
 }
 
+plugin "docker" {
+  config {
+    auth {
+      config = "/root/.docker/config.json"
+    }
+  }
+}
+
 consul {
   address = "localhost:8500"
 }
