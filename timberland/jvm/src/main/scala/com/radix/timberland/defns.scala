@@ -80,8 +80,8 @@ package object radixdefs {
     def readConfig(wd: Path, fname: String): F[String]
     def parseJson(json: String): F[Json]
     def mkTempFile(contents: String, fname: String, exn: String = "json"): F[Path]
-    def startConsul(bind_addr: String, consulSeedsO: Option[String]): F[Unit]
-    def startNomad(bind_addr: String): F[Unit]
+    def startConsul(bind_addr: String, consulSeedsO: Option[String], bootstrapExpect: Int): F[Unit]
+    def startNomad(bind_addr: String, bootstrapExpect: Int): F[Unit]
     def startWeave(hosts: List[String]): F[Unit]
   }
 }

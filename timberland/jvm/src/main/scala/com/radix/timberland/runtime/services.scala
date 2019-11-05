@@ -87,11 +87,11 @@ object Mock {
       }.flatMap(res => IO.shift *> IO.pure(res))
     }
 
-    override def startConsul(bind_addr: String, consulSeedsO: Option[String]): F[Unit] =
+    override def startConsul(bind_addr: String, consulSeedsO: Option[String], bootstrapExpect: Int): F[Unit] =
       F.delay {
         scribe.debug(s"would have started consul with systemd (bind_addr: $bind_addr)")
       }
-    override def startNomad(bind_addr: String): F[Unit] =
+    override def startNomad(bind_addr: String, bootstrapExpect: Int): F[Unit] =
       F.delay {
         scribe.debug(s"would have started nomad with systemd (bind_addr: $bind_addr)")
       }
@@ -108,10 +108,11 @@ object Mock {
 }
 
 object Run {
-  implicit val ec                             = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(256))
+  implicit val ec = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(256))
   implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.Implicits.global)
-  val bcs: ContextShift[IO]                   = IO.contextShift(ec)
-  def putStrLn(str: String): IO[Unit]         = IO(println(str))
+  val bcs: ContextShift[IO] = IO.contextShift(ec)
+
+  def putStrLn(str: String): IO[Unit] = IO(println(str))
 
   def putStrLn(str: Vector[String]): IO[Unit] =
     if (str.isEmpty) {
@@ -138,6 +139,7 @@ object Run {
       }
       IO.shift(bcs) *> addrs.toList.map(F.toIO).parSequence.map(_.flatten).map(NonEmptyList.fromList) <* IO.shift
     }
+
     override def readConfig(wd: Path = pwd, fname: String): F[String] = F.liftIO {
       IO.shift(bcs) *> IO {
         val src = scala.io.Source.fromFile(wd.toIO.toString + "/" + fname)
@@ -149,7 +151,7 @@ object Run {
 
     override def mkTempFile(contents: String, fname: String, exn: String = "json"): F[Path] = F.liftIO {
       IO.shift(bcs) *> IO {
-        val f  = File.createTempFile(fname, "." + exn)
+        val f = File.createTempFile(fname, "." + exn)
         val fw = new FileWriter(f)
         val bw = new BufferedWriter(fw)
         bw.write(contents)
@@ -161,17 +163,17 @@ object Run {
       } <* IO.shift
     }
 
-    override def startConsul(bind_addr: String, consulSeedsO: Option[String]): F[Unit] =
+    override def startConsul(bind_addr: String, consulSeedsO: Option[String], bootstrapExpect: Int): F[Unit] =
       F.delay {
         scribe.info("spawning consul via systemd")
 
-        val baseArgs = s"-bind=$bind_addr"
+        val baseArgs = s"-bind=$bind_addr -bootstrap-expect=$bootstrapExpect"
         val baseArgsWithSeeds = consulSeedsO match {
           case Some(seedString) =>
             seedString
               .split(',')
               .map { host => s"-retry-join=$host" }
-              .foldLeft(baseArgs){ (currentArgs, arg) => currentArgs + ' ' + arg }
+              .foldLeft(baseArgs) { (currentArgs, arg) => currentArgs + ' ' + arg }
 
           case None => baseArgs
         }
@@ -180,10 +182,11 @@ object Run {
         os.proc("/usr/bin/sudo", "/bin/systemctl", "restart", "consul").spawn(null, stdout = os.Inherit, stderr = os.Inherit)
       }
 
-    override def startNomad(bind_addr: String): F[Unit] =
+
+    override def startNomad(bind_addr: String, bootstrapExpect: Int): F[Unit] =
       F.delay {
         scribe.info("spawning nomad via systemd")
-        os.proc("/usr/bin/sudo", "/bin/systemctl", "set-environment", s"""NOMAD_CMD_ARGS=-bind=$bind_addr""").spawn()
+        os.proc("/usr/bin/sudo", "/bin/systemctl", "set-environment", s"""NOMAD_CMD_ARGS=-bind=$bind_addr -bootstrap-expect=$bootstrapExpect""").spawn()
         os.proc("/usr/bin/sudo", "/bin/systemctl", "restart", "nomad").spawn(null, stdout = os.Inherit, stderr = os.Inherit)
       }
 
@@ -191,71 +194,73 @@ object Run {
       os.proc("/usr/bin/docker", "plugin", "disable", "weaveworks/net-plugin:latest_release").call(check = false, cwd = pwd, stdout = os.Inherit, stderr = os.Inherit)
       os.proc("/usr/bin/docker", "plugin", "set", "weaveworks/net-plugin:latest_release", "IPALLOC_RANGE=10.48.0.0/12").call(check = false, stdout = os.Inherit, stderr = os.Inherit)
       os.proc("/usr/bin/docker", "plugin", "enable", "weaveworks/net-plugin:latest_release").call(stdout = os.Inherit, stderr = os.Inherit)
-//      os.proc(s"/usr/local/bin/weave", "launch", hosts.mkString(" "), "--ipalloc-range", "10.48.0.0/12")
-//        .call(cwd = pwd, check = false, stdout = os.Inherit, stderr = os.Inherit)
-//      os.proc(s"/usr/local/bin/weave", "connect", hosts.mkString(" "))
-//        .call(check = false, stdout = os.Inherit, stderr = os.Inherit)
+      //      os.proc(s"/usr/local/bin/weave", "launch", hosts.mkString(" "), "--ipalloc-range", "10.48.0.0/12")
+      //        .call(cwd = pwd, check = false, stdout = os.Inherit, stderr = os.Inherit)
+      //      os.proc(s"/usr/local/bin/weave", "connect", hosts.mkString(" "))
+      //        .call(check = false, stdout = os.Inherit, stderr = os.Inherit)
       ()
     }
 
     override def parseJson(json: String): F[Json] = F.fromEither {
       parse(json)
     }
-
   }
 
-  /**
-    * This method actually initializes the runtime given a runtime algebra executor.
-    * It parses and rewrites default nomad and consul configuration, discovers peers, and
-    * actually bootstraps and starts consul and nomad
-    * @param consulwd what's the working directory where we can find the consul configuration and executable binary
-    * @param nomadwd what's the working directory where we can find the nomad configuration and executable binary
-    * @param bind_addr are we binding to a specific host IP?
-    * @param H the implementation of the RuntimeServicesAlg to actually give us the ability to start consul and nomad
-    * @param F the effect, F
-    * @tparam F the effect type
-    * @return a started consul and nomad
-    */
-  def initializeRuntimeProg[F[_]](consulwd: Path, nomadwd: Path, bind_addr: Option[String], consulSeedsO: Option[String])(
+
+    /**
+     * This method actually initializes the runtime given a runtime algebra executor.
+     * It parses and rewrites default nomad and consul configuration, discovers peers, and
+     * actually bootstraps and starts consul and nomad
+     *
+     * @param consulwd  what's the working directory where we can find the consul configuration and executable binary
+     * @param nomadwd   what's the working directory where we can find the nomad configuration and executable binary
+     * @param bind_addr are we binding to a specific host IP?
+     * @param H         the implementation of the RuntimeServicesAlg to actually give us the ability to start consul and nomad
+     * @param F         the effect, F
+     * @tparam F the effect type
+     * @return a started consul and nomad
+     */
+    def initializeRuntimeProg[F[_]](consulwd: Path, nomadwd: Path, bind_addr: Option[String], consulSeedsO: Option[String], bootstrapExpect: Int)(
       implicit H: RuntimeServicesAlg[F],
       F: Effect[F]) = {
 
       def socks(ifaces: List[String]): F[(Option[cats.data.NonEmptyList[String]], Option[cats.data.NonEmptyList[String]])] = {
-      F.liftIO((F.toIO(H.searchForPort(ifaces, 8301)), F.toIO(H.searchForPort(ifaces,6783))).parMapN {
-        case (a,b) => (a,b)
-      })
-    }
-
-
-
-    for {
-      ifaces <- bind_addr match {
-        case Some(bind) => F.pure(List(bind.split('.').dropRight(1).mkString(".") + "."))
-        case None =>
-          H.getNetworkInterfaces.map(
-            _.filter(x => x.startsWith("192.") || x.startsWith("10."))
-            .map(_.split("\\.").toList.dropRight(1).mkString(".") + "."))
+        F.liftIO((F.toIO(H.searchForPort(ifaces, 8301)), F.toIO(H.searchForPort(ifaces, 6783))).parMapN {
+          case (a, b) => (a, b)
+        })
       }
-      ipaddrswithcoresrvs <- socks(ifaces)
-      weave = ipaddrswithcoresrvs._2
-      consul = ipaddrswithcoresrvs._1
-      _ <- F.liftIO(Run.putStrLn(s"weave peers: $weave"))
-      _ <- F.liftIO(Run.putStrLn(s"consul peers: $consul"))
 
-      final_bind_addr <- F.delay {
-        bind_addr match {
-          case Some(ip) => ip
-          case None => {
-            val sock = new java.net.DatagramSocket()
-            sock.connect(InetAddress.getByName("8.8.8.8"), 10002)
-            sock.getLocalAddress.getHostAddress
+
+      for {
+        ifaces <- bind_addr match {
+          case Some(bind) => F.pure(List(bind.split('.').dropRight(1).mkString(".") + "."))
+          case None =>
+            H.getNetworkInterfaces.map(
+              _.filter(x => x.startsWith("192.") || x.startsWith("10."))
+                .map(_.split("\\.").toList.dropRight(1).mkString(".") + "."))
+        }
+        ipaddrswithcoresrvs <- socks(ifaces)
+        weave = ipaddrswithcoresrvs._2
+        consul = ipaddrswithcoresrvs._1
+        _ <- F.liftIO(Run.putStrLn(s"weave peers: $weave"))
+        _ <- F.liftIO(Run.putStrLn(s"consul peers: $consul"))
+
+        final_bind_addr <- F.delay {
+          bind_addr match {
+            case Some(ip) => ip
+            case None => {
+              val sock = new java.net.DatagramSocket()
+              sock.connect(InetAddress.getByName("8.8.8.8"), 10002)
+              sock.getLocalAddress.getHostAddress
+            }
           }
         }
-      }
 
-      consulRestartProc <- H.startConsul(final_bind_addr, consulSeedsO)
-      nomadRestartProc <- H.startNomad(final_bind_addr)
-      _ <- F.liftIO(Run.putStrLn("started consul and nomad"))
-    } yield (consulRestartProc, nomadRestartProc)
-  }
+        consulRestartProc <- H.startConsul(final_bind_addr, consulSeedsO, bootstrapExpect)
+        nomadRestartProc <- H.startNomad(final_bind_addr, bootstrapExpect)
+        _ <- F.liftIO(Run.putStrLn("started consul and nomad"))
+      } yield (consulRestartProc, nomadRestartProc)
+    }
+
 }
+

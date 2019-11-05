@@ -46,7 +46,7 @@ package object zookeeper {
     * @return Either a failure to get the servers together to form a quorum, or a list of servers to create ZK with
     */
   private[this] def reconfigDynFile(
-      templatePath: Path): IndexedStateT[IO, NoMinQuorum.type, Either[NoMinQuorum.type, MinQuorumFound], Unit] = {
+      templatePath: Path, minQuorumSize: Int): IndexedStateT[IO, NoMinQuorum.type, Either[NoMinQuorum.type, MinQuorumFound], Unit] = {
     // TODO does querying consul directly work?
     // I couldn't get this to work when I was debugging something, turns out it was something lower in the stack
     // So this may still be viable
@@ -68,7 +68,7 @@ package object zookeeper {
           state                <- IndexedStateT.get[IO, NoMinQuorum.type]
           templatefilecontents <- IndexedStateT.liftF(state.getTemplate(templatePath))
           _ <- templatefilecontents match {
-            case quorum if quorum.size >= 3 && !quorum.map(_.contains("nil")).reduce(_ || _) =>
+            case quorum if quorum.size >= minQuorumSize && !quorum.map(_.contains("nil")).reduce(_ || _) =>
               for {
                 _ <- IndexedStateT.liftF(IO(scribe.debug(s"found zookeeper quorum, $quorum")))
                 _ <- IndexedStateT.set[IO, NoMinQuorum.type, Either[NoMinQuorum.type, MinQuorumFound]](
@@ -189,10 +189,11 @@ package object zookeeper {
     */
   def startZookeeper(templatePath: Path,
                      zooconf: Path,
-                     zoodynconf: Path): IndexedStateT[IO, NoMinQuorum.type, ZKStarted, Unit] = {
+                     zoodynconf: Path,
+                     minQuorumSize: Int): IndexedStateT[IO, NoMinQuorum.type, ZKStarted, Unit] = {
     implicit val netinfo = new NetworkInfoExec[IO]
     for {
-      _     <- reconfigDynFile(templatePath)
+      _     <- reconfigDynFile(templatePath, minQuorumSize)
       state <- IndexedStateT.get[IO, Either[NoMinQuorum.type, MinQuorumFound]]
       _ <- state match {
         case Right(minquorum) =>
@@ -206,7 +207,7 @@ package object zookeeper {
           for {
             _ <- IndexedStateT.set[IO, Either[NoMinQuorum.type, MinQuorumFound], NoMinQuorum.type](noquorum)
             _ <- IndexedStateT.liftF(IO.sleep(1.second))
-            _ <- startZookeeper(templatePath, zooconf, zoodynconf)
+            _ <- startZookeeper(templatePath, zooconf, zoodynconf, minQuorumSize)
           } yield ()
       }
     } yield ()

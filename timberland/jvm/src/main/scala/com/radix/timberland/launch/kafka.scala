@@ -19,17 +19,21 @@ import org.http4s.Uri.uri
 
 package object kafka {
   private[this] implicit val timer: Timer[IO]     = IO.timer(global)
-//  private[this] implicit val cs: ContextShift[IO] = IO.contextShift(global)
+  //  private[this] implicit val cs: ContextShift[IO] = IO.contextShift(global)
 
-  val startKafka: IO[Unit] = {
+  def startKafka(implicit minQuorumSize: Int): IO[Unit] = {
     for {
-      zk_connect_env <- consulutil.waitForService("radix-daemons-zookeeper-zookeeper", Set("zookeeper-client", "zookeeper-quorum"), 3)
+      zk_connect_env <- consulutil.waitForService("zookeeper-daemons-zookeeper-zookeeper", Set("zookeeper-client", "zookeeper-quorum"), minQuorumSize)
         .map(nel => nel.map(sr => s"${sr.serviceAddress}:${sr.servicePort}").mkString_(","))
       _ <- IO(scribe.debug(s"found extant zookeeper servers for kafka $zk_connect_env"))
       _ <- IO {
         //The weave network is the one to bind to for kafka
         val weave = NetworkInterface.getNetworkInterfaces.asScala.toList
-          .map(x => (x.getName, x.getInetAddresses.asScala.toList.find(_.getAddress.length == 4))) // IPV4 only
+          .map(
+            x =>
+              (x.getName,
+                x.getInetAddresses.asScala.toList.find(
+                  _.getAddress.length == 4))) // IPV4 only
           .flatMap({
             case (r, Some(v)) => Some((r, v.getHostAddress))
             case (_, None)    => None

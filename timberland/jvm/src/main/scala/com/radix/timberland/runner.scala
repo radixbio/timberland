@@ -1,5 +1,6 @@
 package com.radix.timberland
 
+
 import cats._
 import cats.data._
 import cats.effect.{Clock, ContextShift, Effect, ExitCase, IO, Timer}
@@ -11,34 +12,36 @@ import io.circe.generic.auto._
 //import io.circe.parser._
 import matryoshka.data.Fix
 
-import scala.concurrent.{Await, Future}
-import scala.concurrent.duration._
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.Symbol
-import java.net.{InetAddress, NetworkInterface, Socket}
-import java.nio.file.{Files, StandardCopyOption}
-import java.io.{File, FileInputStream}
+import java.io.File
+import scala.io.StdIn.{readLine}
 
-import scala.util.{Failure, Success, Try}
-import scala.collection.JavaConverters._
-import runtime.{Download, Installer, Mock, Run}
-import dev._
+
+import ammonite.ops._
+import cats.effect.{ContextShift, IO}
+import cats.implicits._
+import com.radix.timberland.dev._
+import com.radix.timberland.launch.daemonutil
+import com.radix.timberland.runtime.{Download, Installer, Mock, Run}
+import com.radix.timberland.util.Util
+import io.circe.{Parser => _}
 import optparse_applicative._
-import optparse_applicative.types.{BindP, NilP, Parser}
+import optparse_applicative.types.Parser
 import scalaz.syntax.apply._
 import util.Util
 
 import sun.misc.{Signal, SignalHandler}
 
+import scala.concurrent.ExecutionContext.Implicits.global
+
 /**
   * radix|- dev|- ci|
   *      |     |    |- compile
   *      |     |    |- test
-  *      |     |- native
-  *      |     |- install
+ * |     |- native <RADIX_MONOREPO_DIR>
+ * |     |- install <RADIX_MONOREPO_DIR>
   *      |- runtime|
   *                |- install
-  *                |- start [debug] [dry-run] [force-bind-ip]
+  *                |- start [debug] [dry-run] [force-bind-ip] [dev]
   *                |- trace
   *                |- nuke
   *                |- start_nomad
@@ -53,8 +56,8 @@ import sun.misc.{Signal, SignalHandler}
   *                |           |- remove <uuid>
   *                |           |- move <uuid> <offset> [new_parent_uuid]
   *                |- launch|
-  *                         |- zookeeper <tname...>
-  *                         |- kafka <tname...>
+  *                         |- zookeeper <tname...> [dev]
+  *                         |- kafka <tname...> [dev]
   *
   *
   *
@@ -62,26 +65,30 @@ import sun.misc.{Signal, SignalHandler}
   */
 
 sealed trait RadixCMD
-sealed trait Dev                                                extends RadixCMD
-sealed trait CI                                                 extends Dev
-case class Compile(target: Option[String], dir: Option[String]) extends CI
-case class Test(targer: Option[String], dir: Option[String])    extends CI
-case object Pass                                                extends CI
-object DevList                                                  extends CI
-case object Native                                              extends Dev
-case object InstallDeps                                         extends Dev
-sealed trait Runtime                                            extends RadixCMD
+sealed trait Dev                     extends RadixCMD
+sealed trait CI                      extends Dev
+case class Compile(target: Option[String], dir: Option[String])   extends CI
+case class Test(targer: Option[String], dir: Option[String])      extends CI
+case object Pass extends CI
+object DevList                       extends CI
+
+case class Native(dir: Option[String]) extends Dev
+
+case class InstallDeps(dir: Option[String]) extends Dev
+sealed trait Runtime                 extends RadixCMD
+
 //case class Dry(run: Runtime) extends Runtime
 sealed trait Launch         extends Runtime
-case object LaunchZookeeper extends Launch
-case object LaunchKafka     extends Launch
+case class LaunchZookeeper(dev: Boolean) extends Launch
+case class LaunchKafka(dev: Boolean)     extends Launch
 sealed trait Local          extends Runtime
 case object Install         extends Local
 case class Start(
     dummy: Boolean = false,
     loglevel: scribe.Level = scribe.Level.Debug,
     bindIP: Option[String] = None,
-    consulSeeds: Option[String] = None
+    consulSeeds: Option[String] = None,
+    dev: Boolean = false
 ) extends Local
 case object Nuke                                                    extends Local
 case object StartNomad                                              extends Local
@@ -115,9 +122,9 @@ object runner {
       )
     ))
 
-  val native =
-    subparser[Dev](command("native", info(pure(Native), progDesc("build all the native dependencies of radix core"))))
-  val bindepinstall = subparser[Dev](command("install", info(pure(InstallDeps), progDesc("install the native dependencies required to build radix"))))
+  val native = (
+    subparser[Dev](command("native", info(optional(strOption(long("dir"))).map(Native(_)), progDesc("build all the native dependencies of radix core")))))
+  val bindepinstall = subparser[Dev](command("install", info(optional(strOption(long("dir"))).map(InstallDeps(_)), progDesc("install the native dependencies required to build radix"))))
   val dev = subparser[Dev](
     command("dev", info(ci.weaken[Dev] <|> native <|> bindepinstall, progDesc("developer tools for radix"))))
 
@@ -160,7 +167,12 @@ object runner {
                         case list@Some(_) => exist.copy(consulSeeds = list)
                         case None => exist
                       }
-                  }),
+                }) <*> optional(switch(long("dev"), help("force services to start in development mode"))).map(dev => { exist: Start =>
+                dev match {
+                  case bool @ Some(true) => exist.copy(dev = bool.get)
+                  case _ => exist
+                }
+              }),
               progDesc("start the radix core services on the current system")
             )
           ),
@@ -170,8 +182,8 @@ object runner {
             "launch",
             info(subparser[Launch](
               command("zookeeper",
-                      info(pure(LaunchZookeeper), progDesc("launch zookeeper at runtime, launched from nomad"))),
-              command("kafka", info(pure(LaunchKafka), progDesc("launch kafka at runtime, launched from nomad")))
+                      info(switch(long("dev"), help("start zookeeper in dev mode")).map ( { dev => LaunchZookeeper(dev)}), progDesc("launch zookeeper at runtime, launched from nomad"))),
+              command("kafka", info(switch(long("dev"), help("start kafka in dev mode")).map ( { dev => LaunchKafka(dev)}), progDesc("launch kafka at runtime, launched from nomad")))
             ).weaken[Runtime])
           ),
           command(
@@ -318,7 +330,7 @@ object runner {
                  ???
                 case DevList => Dev.targetOpts.keys.map(scribe.info(_))
               }
-            case Native => {
+            case Native(dir) => {
               implicit val cs: ContextShift[IO] = IO.contextShift(global)
               val NUM_CORES                     = Runtime.getRuntime().availableProcessors()
 
@@ -333,13 +345,31 @@ object runner {
               prog.unsafeRunSync()
               sys.exit(0)
             }
-            case InstallDeps => {
+            case InstallDeps(dir) => {
               import sys.process._
+              val installDir: String = dir getOrElse (sys.env.get("RADIX_MONOREPO_DIR") getOrElse "pwd".!!.trim)
               scribe.info("installing dependencies")
+              val invokeSoftwareProperties =
+                Seq("sudo", "apt", "install", "software-properties-common", "-y")
+              val addAnsiblePPA =
+                Seq("sudo", "apt-add-repository", "ppa:ansible/ansible", "-y")
+              val updateAPT =
+                Seq("sudo", "apt", "update", "-y")
+              val installAnsible =
+                Seq("sudo", "apt", "install", "ansible", "-y")
               val invocation =
-                Seq("sudo", "ansible-playbook", "../getdeps.yml")
+                Seq("sudo", "ansible-playbook", installDir + "/getdeps.yml", "--extra-vars", "monorepo-dir=" + installDir)
               //scribe.info(s"building compiler with: $invocation")
-              invocation !
+              os.proc(invokeSoftwareProperties).call()
+              os.proc(addAnsiblePPA).call()
+              os.proc(updateAPT).call()
+              os.proc(installAnsible).call()
+              os.proc(invocation).call()
+              //invokeSoftwareProperties !
+              //addAnsiblePPA !
+              //updateAPT !
+              //installAnsible !
+              //invocation !
             }
           }
         case run: Runtime =>
@@ -401,19 +431,23 @@ object runner {
 
                 }
                 case Nuke => Right(Unit)
-                case cmd @ Start(dummy, loglevel, bindIP, consulSeedsO) => {
-                  scribe.Logger.root
+                case cmd @ Start(dummy, loglevel, bindIP, consulSeedsO, dev) => {
+                    scribe.Logger.root
                     .clearHandlers()
                     .clearModifiers()
                     .withHandler(minimumLevel = Some(loglevel))
                     .replace()
                   scribe.info(s"starting runtime with $cmd")
                   import ammonite.ops._
+                  var bootstrapExpect: Int = 3
+                  if (dev) {
+                    bootstrapExpect = 1
+                  }
                   if (dummy) {
                     implicit val host = new Mock.RuntimeNolaunch[IO]
                     Right(
                       println(Run
-                        .initializeRuntimeProg[IO](Path(consul.toPath.getParent), Path(nomad.toPath.getParent), bindIP, consulSeedsO)
+                        .initializeRuntimeProg[IO](Path(consul.toPath.getParent), Path(nomad.toPath.getParent), bindIP, consulSeedsO, bootstrapExpect)
                         .unsafeRunSync)
                     )
                     System.exit(0)
@@ -421,8 +455,13 @@ object runner {
                     implicit val host = new Run.RuntimeServicesExec[IO]
                     Right(
                       println(Run
-                        .initializeRuntimeProg[IO](Path(consul.toPath.getParent), Path(nomad.toPath.getParent), bindIP, consulSeedsO)
+                        .initializeRuntimeProg[IO](Path(consul.toPath.getParent), Path(nomad.toPath.getParent), bindIP, consulSeedsO, bootstrapExpect)
                         .unsafeRunSync)
+                    )
+                    scribe.info("Launching daemons")
+                    Right(
+
+                      println(daemonutil.waitForQuorum(bootstrapExpect).unsafeRunSync)
                     )
                   }
                 }
@@ -430,7 +469,11 @@ object runner {
               }
             case launcher: Launch =>
               launcher match {
-                case LaunchZookeeper => {
+                case LaunchZookeeper(dev) => {
+                  var minQuorumSize: Int = 3
+                  if (dev) {
+                    minQuorumSize = 1
+                  }
                   scribe.Logger.root
                     .clearHandlers()
                     .clearModifiers()
@@ -447,14 +490,19 @@ object runner {
                     zk <- launch.zookeeper
                       .startZookeeper(Path("/local/conf/zoo_servers"),
                                       Path("/conf/zoo.cfg"),
-                                      Path("/conf/zoo_replicated.cfg.dynamic"))
+                                      Path("/conf/zoo_replicated.cfg.dynamic"),
+                        minQuorumSize)
                       .run(launch.zookeeper.NoMinQuorum)
                     _ <- IO(scribe.debug("zookeeper started!"))
                     _ <- IO.never
                   } yield ()
                   prog.unsafeRunSync()
                 }
-                case LaunchKafka => {
+                case LaunchKafka(dev) => {
+                  implicit var minQuorumSize: Int = 3
+                  if (dev) {
+                    minQuorumSize = 1
+                  }
                   scribe.Logger.root
                     .clearHandlers()
                     .clearModifiers()
