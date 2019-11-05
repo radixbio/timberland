@@ -417,6 +417,10 @@ object runner {
                         nomadHookFile.setExecutable(true)
                       }
 
+                      _ <- resourceMover.fncopy(Path("/systemd/dummy0.netdev"), Path("/etc/systemd/network"))
+                      _ <- resourceMover.fncopy(Path("/systemd/dummy0.network"), Path("/etc/systemd/network"))
+
+
                       _ <- IO(os.proc("/usr/bin/sudo /bin/systemctl daemon-reload".split(' ')).spawn())
                       _ <- IO(os.proc("/usr/bin/docker plugin install weaveworks/net-plugin:latest_release".split(' ')).call(cwd = os.root, stdin = "y\n", stdout = os.Inherit, check = false))
                     } yield ()

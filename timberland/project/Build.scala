@@ -71,15 +71,15 @@ object Dependencies {
         jvmLibraryDependencies,
         mappings in Universal := {
           val universalMappings = (mappings in Universal).value
-        universalMappings
-          .foldLeft(Set.empty[(java.io.File, String)]) {
-            case (accum, next) =>
-              if ((next._2.endsWith(".so") && accum.map(_._2).contains(next._2)) || (next._2
-                .endsWith(".jar") && accum.map(_._2).contains(next._2))) accum
+          universalMappings
+            .foldLeft(Set.empty[(java.io.File, String)]) {
+              case (accum, next) =>
+                if ((next._2.endsWith(".so") && accum.map(_._2).contains(next._2)) || (next._2
+                      .endsWith(".jar") && accum.map(_._2).contains(next._2))) accum
               else accum + next
           } toSeq
-},
-        //        enablePlugins(JavaAppPackaging),
+        },
+//        enablePlugins(JavaAppPackaging),
         maintainer := "Dhasharath Shrivathsa <dhash@radix.bio>",
         packageSummary := "The swiss army knife of the radix toolchain",
         packageDescription := """Timberland contains a toolchain utilities like installing dev dependencies,
