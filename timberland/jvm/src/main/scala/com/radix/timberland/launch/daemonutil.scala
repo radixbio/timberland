@@ -172,7 +172,7 @@ package object daemonutil {
                                     client)
         val zk = Zookeeper()
         val kafka = Kafka()
-        val kafkaCompanions = KafkaCompanions()
+        val kafkaCompanions = KafkaCompanions()(1)
         for {
           nomadQuorumStatus <- Nomad.waitForQuorum
           zkStart <- zk.start
