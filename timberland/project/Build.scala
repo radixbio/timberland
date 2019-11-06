@@ -38,7 +38,7 @@ object Dependencies {
     mainClass in Compile := Some("com.radix.timberland.runner"),
     scalacOptions += "-Ypartial-unification",
     resolvers += Resolver.sonatypeRepo("releases"),
-    addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.10.0")
+    addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.10.3")
   )
   val jvmLibraryDependencies = Def.settings(
     libraryDependencies ++= Seq(

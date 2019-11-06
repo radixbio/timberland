@@ -587,6 +587,9 @@ docs/_build/
 ### TeX Patch ###
 # glossaries
 
+**/*.oauth2
+**/*credentials.json
+*.history
 compiler/target/*
 algs/hmrpp/target/*
 algs/subgraph-isomorphism/target/*
