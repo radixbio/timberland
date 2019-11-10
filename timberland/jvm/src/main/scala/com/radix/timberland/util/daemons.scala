@@ -412,7 +412,7 @@ object KafkaDaemons extends Job {
       }
 
       object config extends Config {
-        val image = "confluentinc/cp-kafka:5.2.1"
+        val image = "confluentinc/cp-kafka:5.3.1"
         val hostname = "${attr.unique.hostname}-kafka"
         val entrypoint = List(
           "/timberland/jvm/target/universal/stage/bin/timberland").some
@@ -488,7 +488,7 @@ object KafkaCompanionDaemons extends Job {
       val services = List(kafkaServiceRegistry)
       val template = None
       object config extends Config {
-        val image = "confluentinc/cp-schema-registry:5.1.2"
+        val image = "confluentinc/cp-schema-registry:5.3.1"
         val hostname = "${attr.unique.hostname}-kafka-schema-registry"
         val dns_servers = List("169.254.1.1")
         val port_map = Map("registry_listener" -> 8081)
@@ -528,7 +528,7 @@ object KafkaCompanionDaemons extends Job {
         "KAFKA_REST_LISTENERS" -> "http://0.0.0.0:8082"
       ).some
       object config extends Config {
-        val image = "confluentinc/cp-kafka-rest:5.1.2"
+        val image = "confluentinc/cp-kafka-rest:5.3.1"
         val hostname = "${attr.unique.hostname}-kafka-rest-proxy"
         val dns_servers = List("169.254.1.1")
         val port_map = Map("rest" -> 8082)
@@ -570,9 +570,9 @@ object KafkaCompanionDaemons extends Job {
         "CONNECT_OFFSET_STORAGE_TOPIC" -> "kafka-connect-daemons-connect-offsets",
         "CONNECT_STATUS_STORAGE_TOPIC" -> "kafka-connect-daemons-connect-status",
         "CONNECT_KEY_CONVERTER" -> "io.confluent.connect.avro.AvroConverter",
-        "CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL" -> "http://kafka-companion-daemons-kafkaCompanions-kafkaSchemaRegistry:8081",
+        "CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL" -> "http://kafka-companion-daemons-kafkaCompanions-schemaRegistry:8081",
         "CONNECT_VALUE_CONVERTER" -> "io.confluent.connect.avro.AvroConverter",
-        "CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL" -> "http://kafka-companion-daemons-kafkaCompanions-kafkaSchemaRegistry:8081",
+        "CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL" -> "http://kafka-companion-daemons-kafkaCompanions-schemaRegistry:8081",
         "CONNECT_INTERNAL_KEY_CONVERTER" -> "org.apache.kafka.connect.json.JsonConverter",
         "CONNECT_INTERNAL_VALUE_CONVERTER" -> "org.apache.kafka.connect.json.JsonConverter",
         "CONNECT_REST_ADVERTISED_HOST_NAME" -> "${attr.unique.hostname}-kafka-connect",
@@ -595,7 +595,7 @@ object KafkaCompanionDaemons extends Job {
         "CONNECT_STATUS_STORAGE_REPLICATION_FACTOR" -> "1",
       )
       object config extends Config {
-        val image = "confluentinc/cp-kafka-connect:5.1.2"
+        val image = "confluentinc/cp-kafka-connect:5.3.1"
         val hostname = "${attr.unique.hostname}-kafka-connect"
         val port_map = Map("connect" -> 8083)
         val entrypoint = None
@@ -636,7 +636,7 @@ object KafkaCompanionDaemons extends Job {
         "PROXY" -> "true"
       ).some
       object config extends Config {
-        val image = "confluentinc/cp-ksql-server:5.1.2"
+        val image = "confluentinc/cp-ksql-server:5.3.1"
         val hostname = "${attr.unique.hostname}-kafka-ksql-server"
         val port_map = Map("ui" -> 8000)
         val entrypoint = None

@@ -385,7 +385,7 @@ object runner {
                   //TODO swap out with nicer install detection, possibly via the shavtable stuff
                   if (!consul.exists() && !nomad.exists()) {
                     val dl =
-                      Download.downloadConsulAndNomad[IO]("1.4.4", "0.9.0", List(osname, arch), List(osname, arch))
+                      Download.downloadConsulAndNomad[IO]("1.6.1", "0.10.0", List(osname, arch), List(osname, arch))
                     val resourceMover = new Installer.MoveFromJVMResources[IO]()
                     val prog = for {
                       file <- dl
