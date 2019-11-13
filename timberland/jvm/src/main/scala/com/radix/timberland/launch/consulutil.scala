@@ -17,10 +17,10 @@ object consulutil {
   private[this] implicit val timer: Timer[IO] = IO.timer(global)
   private[this] implicit val cs: ContextShift[IO] = IO.contextShift(global)
 
-  def waitForService(serviceName: String, tags: Set[String], quorum: Int)(
+  def waitForService(serviceName: String, tags: Set[String], quorum: Int, fail: Boolean = false)(
       implicit poll_interval: FiniteDuration = 1.second,
       timer: Timer[IO])
-    : IO[NonEmptyList[CatalogListNodesForServiceResponse]] = {
+    : IO[List[CatalogListNodesForServiceResponse]] = {
     BlazeClientBuilder[IO](global).resource.use(client => {
       val interpreter =
         new Http4sConsulClient[IO](uri("http://consul.service.consul:8500"),
@@ -70,19 +70,27 @@ object consulutil {
         quorumDescision <- matchedAndHealthyNodes match {
           case Some(nel) =>
             if (nel.size < quorum) {
-              IO {
-                scribe.debug(
-                  s"quorum size of $quorum not found, ${nel.size} out of $quorum so far.")
-              } *> IO.sleep(poll_interval) *> waitForService(serviceName,
-                                                             tags,
-                                                             quorum)
-            } else IO.pure(nel)
+              if (fail) {
+                IO.pure(List())
+              } else {
+                IO {
+                  scribe.debug(
+                    s"quorum size of $quorum not found, ${nel.size} out of $quorum so far.")
+                } *> IO.sleep(poll_interval) *> waitForService(serviceName,
+                  tags,
+                  quorum)
+              }
+            } else IO.pure(nel.toList)
           case None =>
-            IO {
-              scribe.debug(s"no nodes for $serviceName with tags $tags found")
-            } *> IO.sleep(poll_interval) *> waitForService(serviceName,
-                                                           tags,
-                                                           quorum)
+            if(fail) {
+              IO.pure(List())
+            } else {
+              IO {
+                scribe.debug(s"no nodes for $serviceName with tags $tags found")
+              } *> IO.sleep(poll_interval) *> waitForService(serviceName,
+                tags,
+                quorum)
+            }
         }
       } yield quorumDescision
     })
