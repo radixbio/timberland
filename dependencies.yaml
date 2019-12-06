@@ -1,0 +1,266 @@
+options:
+  languages: ["scala:2.12.8", "java"]
+  buildHeader:
+    - load("@io_bazel_rules_scala//scala:scala_import.bzl", "scala_import")
+  strictVisibility: true
+#  transitivity: "runtime_deps"
+  resolvers:
+    - id: "mavencentral"
+      type: "default"
+      url: https://repo.maven.apache.org/maven2/
+    - id: "confluent"
+      type: "default"
+      url: https://packages.confluent.io/maven/
+dependencies:
+  org.scala-graph:
+    graph-core_2.12:
+      version: 1.12.5
+      lang: java
+    graph-dot_2.12:
+      version: 1.12.1
+      lang: java
+  org.typelevel:
+    squants:
+      version: 1.3.0
+      lang: scala
+    spire:
+      version: 0.16.0
+      lang: scala
+    cats:
+      lang: scala
+      version: 2.0.0
+      modules: [core, effect, free, kernel, macros]
+    kind:
+      lang: scala
+      modules: [projector]
+      version: 0.10.3
+  io.jvm.uuid:
+    scala-uuid:
+      lang: scala
+      version: 0.3.1
+  org.http4s:
+    http4s:
+      lang: scala
+      version: 0.20.10
+      modules: [blaze-client, argonaut, blaze-server, dsl, circe]
+    parboiled:
+      lang: scala
+      version: 2.0.1
+  com.lihaoyi:
+    ammonite-ops:
+      lang: scala
+      version: 1.6.3
+    autowire:
+      lang: scala
+      version: 0.2.6
+    upickle:
+      lang: scala
+      version: 0.6.6
+    ujson:
+      lang: scala
+      version: 0.6.6
+    scalatags:
+      lang: scala
+      version: 0.7.0
+    pprint:
+      lang: scala
+      version: 0.5.5
+    fansi:
+      lang: scala
+      version: 0.2.7
+    sourcecode:
+      lang: scala
+      version: 0.1.7
+    fastparse:
+      lang: scala
+      version: 2.1.3
+  com.lambdista:
+    config:
+      version: 0.5.4
+      lang: scala
+  com.chuusai:
+    shapeless:
+      version: 2.3.3
+      lang: scala
+  com.typesafe.akka:
+    akka:
+      modules: [actor, testkit, persistence, slf4j, stream, distributed-data, remote, persistence-query, persistence-tck, cluster, cluster-typed, actor-typed]
+      lang: scala
+      version: 2.5.23
+    akka-stream-kafka:
+      lang: scala
+      version: 1.1.0
+    akka-http:
+      lang: scala
+      version: 10.1.10
+  com.sksamuel.avro4s:
+    avro4s:
+      version: 3.0.4
+      lang: scala
+      modules: [core]
+  org.apache.avro:
+    avro:
+      lang: java
+      version: 1.9.1
+  org.apache.kafka:
+    kafka:
+      lang: scala
+      version: 2.3.1
+    kafka-streams-scala:
+      lang: scala
+      version: 2.3.1
+  com.google.guava:
+    guava:
+      lang: java
+      version: "27.0-jre"
+  io.circe:
+    circe:
+      lang: scala
+      version: 0.12.3
+      modules: [parser, core, generic, literal]
+    circe-derivation:
+      lang: scala
+      version: 0.12.0-M7
+    circe-generic-extras:
+      lang: scala
+      version: 0.12.2
+    circe-fs2:
+      lang: scala
+      version: 0.12.0
+  com.outr:
+    scribe:
+      lang: scala
+      version: 2.7.3
+  com.github.xuwei-k:
+    optparse-applicative:
+      lang: scala
+      version: 0.8.0
+  com.slamdata:
+    matryoshka:
+      lang: scala
+      version: 0.21.3
+      modules: [core]
+  org.scalaz:
+    scalaz-core:
+      lang: scala
+      version: 7.2.29
+  io.github.embeddedkafka:
+    embedded:
+      lang: scala
+      version: 5.3.1
+      modules: [kafka-schema-registry]
+  com.github.julien-truffaut:
+    monocle:
+      lang: scala
+      version: 1.4.0
+      modules: [core]
+  com.github.ghik:
+    silencer:
+      modules: [plugin, lib]
+      version: 1.2.1
+      lang: scala
+  com.propensive:
+    magnolia:
+      lang: scala
+      version: 0.12.0
+  io.confluent:
+    kafka:
+      lang: java
+      version: 5.3.1
+      modules: [avro-serializer]
+  org.scalactic:
+    scalactic:
+      version: "3.0.8"
+      lang: scala
+  io.7mind.izumi:
+    logstage:
+      lang: scala
+      modules: [core, rendering-circe, adapter-slf4j, api, config, di, sink-slf4j]
+      version: 0.9.16
+    fundamentals:
+      lang: scala
+      modules: [platform]
+      version: 0.9.16
+  io.argonaut:
+    argonaut:
+      lang: scala
+      version: 6.2.2
+  com.dimafeng:
+    testcontainers:
+      lang: scala
+      modules: [scala]
+      version: 0.33.0
+  org.scalacheck:
+    scalacheck:
+      lang: scala
+      version: 1.14.1
+  org.tpolecat:
+    atto:
+      lang: scala
+      version: 0.7.1
+      modules: [core, refined]
+  eu.timepit:
+    refined:
+      lang: scala
+      version: 0.9.10
+      modules: [cats, "", scalacheck]
+  com.pepegar:
+    hammock:
+      version: 0.10.0
+      lang: scala
+      modules: [core, akka-http, circe, apache-http]
+  io.getquill:
+    quill:
+      lang: scala
+      version: 3.4.2
+      modules: [core, jdbc]
+  com.h2database:
+    h2:
+      version: 1.4.192
+      lang: java
+  com.codecommit:
+    shims:
+      lang: scala
+      version: 1.7.0
+  com.typesafe:
+    config:
+      lang: java
+      version: 1.4.0
+  com.beachape:
+    enumeratum:
+      lang: scala
+      version: 1.5.13
+  org.scala-lang.modules:
+    scala-parser-combinators:
+      lang: scala
+      version: 1.1.2
+
+
+
+
+
+
+#
+#replacements:
+#  org.scala-lang:
+#    scala-library:
+#      lang: scala/unmangled
+#      target: "@io_bazel_rules_scala_scala_library//:io_bazel_rules_scala_scala_library"
+#    scala-reflect:
+#      lang: scala/unmangled
+#      target: "@io_bazel_rules_scala_scala_reflect//:io_bazel_rules_scala_scala_reflect"
+#    scala-compiler:
+#      lang: scala/unmangled
+#      target: "@io_bazel_rules_scala_scala_compiler//:io_bazel_rules_scala_scala_compiler"
+#
+#  org.scala-lang.modules:
+#    scala-parser-combinators:
+#      lang: scala
+#      target:
+#        "@io_bazel_rules_scala_scala_parser_combinators//:io_bazel_rules_scala_scala_parser_combinators"
+#    scala-xml:
+#      lang: scala
+#      target:
+#        "@io_bazel_rules_scala_scala_xml//:io_bazel_rules_scala_scala_xml"
+#
+#

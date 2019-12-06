@@ -2,7 +2,6 @@ package com.radix.timberland.launch
 
 import java.nio.channels.UnresolvedAddressException
 
-import akka.remote.WireFormats.TimeUnit
 import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
 import com.radix.timberland.daemons

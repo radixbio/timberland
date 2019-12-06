@@ -6,6 +6,7 @@
 
 ### Bazel ###
 /bazel-*
+**/bazel-*
 
 ### Intellij ###
 # Covers JetBrains IDEs: IntelliJ, RubyMine, PhpStorm, AppCode, PyCharm, CLion, Android Studio and Webstorm
@@ -621,3 +622,8 @@ utils/prism-uservice/journal/*
 **/.bloop
 **/.DS_Store
 # End of https://www.gitignore.io/api/sbt,tex,java,latex,bazel,scala,python,intellij,intellij+all
+
+# Bazel
+.ijwb/
+rules_scala/
+3rdparty/
