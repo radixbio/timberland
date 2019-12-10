@@ -84,7 +84,7 @@ dependencies:
       lang: scala
   com.typesafe.akka:
     akka:
-      modules: [actor, testkit, persistence, slf4j, stream, distributed-data, remote, persistence-query, persistence-tck, cluster, cluster-typed, actor-typed]
+      modules: [actor, testkit, persistence, slf4j, stream, stream-typed, distributed-data, remote, persistence-query, persistence-tck, cluster, cluster-typed, actor-typed]
       lang: scala
       version: 2.5.23
     akka-stream-kafka:
@@ -93,6 +93,10 @@ dependencies:
     akka-http:
       lang: scala
       version: 10.1.10
+  com.lightbend.akka:
+    akka-stream-alpakka-file:
+      lang: scala
+      version: 1.1.1
   com.sksamuel.avro4s:
     avro4s:
       version: 3.0.4
@@ -234,11 +238,25 @@ dependencies:
     scala-parser-combinators:
       lang: scala
       version: 1.1.2
-
-
-
-
-
+  com.github.tototoshi:
+    scala-csv:
+      lang: scala
+      version: 1.3.6
+  com.nrinaudo:
+    kantan.xpath:
+      lang: scala
+      version: 0.5.0
+    kantan.codecs:
+      lang: scala
+      version: 0.5.0
+  com.propensive:
+    contextual:
+      lang: scala
+      version: 1.1.0
+  org.apache.poi:
+    poi:
+      lang: java
+      version: 4.1.1
 
 #
 #replacements:
