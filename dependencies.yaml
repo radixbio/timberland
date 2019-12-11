@@ -166,7 +166,10 @@ dependencies:
   com.propensive:
     magnolia:
       lang: scala
-      version: 0.12.0
+      version: 0.12.3
+    contextual:
+      lang: scala
+      version: 1.1.0
   io.confluent:
     kafka:
       lang: java
@@ -249,10 +252,6 @@ dependencies:
     kantan.codecs:
       lang: scala
       version: 0.5.0
-  com.propensive:
-    contextual:
-      lang: scala
-      version: 1.1.0
   org.apache.poi:
     poi:
       lang: java
