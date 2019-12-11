@@ -1,4 +1,4 @@
-data_dir = "/tmp/radix/nomad"
+data_dir = "/opt/radix/nomad"
 
 server {
   enabled          = true
@@ -8,6 +8,9 @@ server {
 client {
   enabled       = true
   network_speed = 1000
+  options {
+      docker.privileged.enabled = "true"
+    }
 }
 
 plugin "raw_exec" {
@@ -17,7 +20,10 @@ plugin "raw_exec" {
 }
 
 plugin "docker" {
+
   config {
+    allow_privileged = true
+    allow_caps = ["ALL"]
     auth {
       config = "/root/.docker/config.json"
     }

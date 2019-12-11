@@ -3,13 +3,13 @@ Description="HashiCorp Consul"
 Documentation=https://www.consul.io/
 Requires=network-online.target
 After=network-online.target
-ConditionFileNotEmpty=/tmp/radix/timberland/consul/consul.json
+ConditionFileNotEmpty=/opt/radix/timberland/consul/consul.json
 
 [Service]
 #User=consul
 #Group=consul
-ExecStart=/tmp/radix/timberland/consul/consul agent $CONSUL_CMD_ARGS -config-dir=/tmp/radix/timberland/consul
-ExecReload=/tmp/radix/timberland/consul/consul reload
+ExecStart=/opt/radix/timberland/consul/consul agent $CONSUL_CMD_ARGS -config-dir=/opt/radix/timberland/consul
+ExecReload=/opt/radix/timberland/consul/consul reload
 KillMode=process
 Restart=on-failure
 LimitNOFILE=65536

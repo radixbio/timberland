@@ -6,7 +6,8 @@ import com.radix.utils.helm.NomadHCL.syntax.{
   JobShim,
   PortShim,
   ServiceShim,
-  TaskShim
+  TaskShim,
+TemplateShim
 }
 import com.radix.utils.helm.NomadHCL.{HCLAble, defs}
 
@@ -43,14 +44,20 @@ trait Constraint {
 }
 
 trait Template {
-  def source: String
+  def source: Option[String] = None
 
   def destination: String
 
-  def assemble: defs.Template =
-    defs.Template(source = source.some,
+  val data: Option[String] = None
+
+  val perms: String = "644"
+
+  def assemble: TemplateShim =
+    TemplateShim(defs.Template(source = source,
                   destination = destination,
-                  change_mode = change_mode)
+                  change_mode = change_mode,
+                  data = data,
+                  perms = perms))
 
   def change_mode: String = "noop"
 }
@@ -70,6 +77,12 @@ trait Config {
 
   def volumes: Option[List[String]]
 
+  def cap_add: Option[List[String]] = List().some
+
+  def ulimit: Option[Map[String, String]] = None
+
+  def privileged: Option[Boolean] = false.some
+
   def assemble: defs.DockerConfig =
     defs.DockerConfig(
       image = image,
@@ -79,18 +92,21 @@ trait Config {
       args = args,
       port_map = port_map.some,
       network_mode = network_mode.some,
-      volumes = volumes
+      volumes = volumes,
+      cap_add = cap_add,
+      ulimit = ulimit,
+      privileged = privileged
     )
 
   def network_mode: String = "weave"
 }
 
 trait Network {
-  def networkPorts: Map[String, Int]
+  def networkPorts: Map[String, Option[Int]]
 
   def assemble: Option[defs.Network] = {
     val portShims: List[PortShim] =
-      networkPorts.map(kv => PortShim(kv._1, defs.Port(kv._2.some))).to[List]
+      networkPorts.map(kv => PortShim(kv._1, defs.Port(kv._2))).to[List]
     //    for ((key, value) <- networkPorts) {
     //      val shim = PortShim(key, defs.Port(value.some))
     //      finalNetwork = defs.Network(port = shim)
@@ -134,10 +150,15 @@ trait Service {
 
   def checks: List[Check]
 
+  def name: Option[String] = None
+
   def assemble: ServiceShim = {
     val assembledChecks: Option[List[defs.Check]] = checks.map(_.assemble).some
     ServiceShim(
-      defs.Service(tags = tags.some, port = port, check = assembledChecks))
+      defs.Service(tags = tags.some,
+                   port = port,
+                   name = name,
+                   check = assembledChecks))
   }
 }
 
@@ -146,7 +167,7 @@ trait Task {
 
   def driver = "docker"
 
-  def template: Option[Template]
+  def templates: Option[List[Template]]
 
   def config: Config
 
@@ -156,33 +177,40 @@ trait Task {
 
   def services: List[Service]
 
+  def user: Option[String] = None
+
   def assemble: TaskShim = {
     val assembledServices = services.map(_.assemble).some
-    (env, template) match {
+    val assembledTemplates = templates.getOrElse(List()).map(_.assemble).some
+    (env, assembledTemplates) match {
       case (Some(e), None) =>
         TaskShim(name,
                  defs.Task(services = assembledServices,
                            config = config.assemble.some,
                            resources = resources.assemble,
-                           env = e.some))
+                           env = e.some,
+                           user = user))
       case (None, Some(t)) =>
         TaskShim(name,
                  defs.Task(services = assembledServices,
                            config = config.assemble.some,
                            resources = resources.assemble,
-                           template = t.assemble.some))
+                           template = assembledTemplates,
+                           user = user))
       case (Some(e), Some(t)) =>
         TaskShim(name,
                  defs.Task(services = assembledServices,
                            config = config.assemble.some,
                            resources = resources.assemble,
                            env = e.some,
-                           template = t.assemble.some))
+                           template = assembledTemplates,
+                           user = user))
       case (None, None) =>
         TaskShim(name,
                  defs.Task(services = assembledServices,
                            config = config.assemble.some,
-                           resources = resources.assemble))
+                           resources = resources.assemble,
+                           user = user))
     }
 
   }
@@ -236,19 +264,23 @@ trait Job {
     val assembledGroups: List[GroupShim] = groups.map(_.assemble)
 
     update match {
-      case Some(update) => defs.Job(datacenters = datacenters,
-        update = update.assemble.some,
-        group = assembledGroups,
-        constraint = assembledConstraints, `type` = `type`.getOrElse("service"))
-      case None => defs.Job(datacenters = datacenters,
-        group = assembledGroups,
-        constraint = assembledConstraints, `type` = `type`.getOrElse("service"))
+      case Some(update) =>
+        defs.Job(datacenters = datacenters,
+                 update = update.assemble.some,
+                 group = assembledGroups,
+                 constraint = assembledConstraints,
+                 `type` = `type`.getOrElse("service"))
+      case None =>
+        defs.Job(datacenters = datacenters,
+                 group = assembledGroups,
+                 constraint = assembledConstraints,
+                 `type` = `type`.getOrElse("service"))
     }
 
   }
 }
 
-object ZookeeperDaemons extends Job {
+case class ZookeeperDaemons(dev: Boolean, quorumSize: Int) extends Job {
   val name = "zookeeper-daemons"
   val datacenters: List[String] = List("dc1")
   val constraints = Some(List(kernelConstraint))
@@ -270,7 +302,7 @@ object ZookeeperDaemons extends Job {
 
   object zookeeper extends Group {
     val name = "zookeeper"
-    var count = 3
+    val count = quorumSize
     val constraints = List(distinctHost).some
     val tasks = List(zookeeper)
 
@@ -288,8 +320,8 @@ object ZookeeperDaemons extends Job {
         List(zookeeperClient, zookeeperFollower, zookeeperOthersrvs)
 
       object zookeeperTemplate extends Template {
-        val source =
-          "/mnt/timberland/jvm/src/main/resources/nomad/config/zookeeper/zoo.tpl"
+        override val source =
+          "/mnt/timberland/jvm/src/main/resources/nomad/config/zookeeper/zoo.tpl".some
         val destination = "local/conf/zoo_servers"
       }
 
@@ -301,7 +333,10 @@ object ZookeeperDaemons extends Job {
         val entrypoint = List(
           "/timberland/jvm/target/universal/stage/bin/timberland").some
         val command = "runtime".some
-        var args = List("launch", "zookeeper").some
+        var args = dev match {
+          case true => List("launch", "zookeeper", "--dev").some
+          case false => List("launch", "zookeeper").some
+        }
         val port_map =
           Map("client" -> 2181, "follower" -> 2888, "othersrvs" -> 3888)
         //                dns_servers = ["${attr.unique.network.ip-address}"]
@@ -310,14 +345,16 @@ object ZookeeperDaemons extends Job {
           "/mnt/timberland/:/timberland"
         ).some
       }
-
+      val templates = List(zookeeperTemplate).some
       object resources extends Resources {
         val cpu = 1000
         val memory = 2048
 
         object network extends Network {
           val networkPorts =
-            Map("client" -> 2181, "follower" -> 2888, "othersrvs" -> 3888)
+            Map("client" -> 2181.some,
+                "follower" -> 2888.some,
+                "othersrvs" -> 3888.some)
 
         }
 
@@ -363,10 +400,10 @@ object ZookeeperDaemons extends Job {
 
   }
 
-  val jobshim: JobShim = JobShim(name, ZookeeperDaemons.assemble)
+  def jobshim(): JobShim = JobShim(name, ZookeeperDaemons(dev, quorumSize).assemble)
 }
 
-object KafkaDaemons extends Job {
+case class KafkaDaemons(dev: Boolean, quorumSize: Int, servicePort: Int = 9092) extends Job {
   val name = "kafka-daemons"
   val datacenters: List[String] = List("dc1")
   val constraints = Some(List(kernelConstraint))
@@ -388,7 +425,7 @@ object KafkaDaemons extends Job {
 
   object kafka extends Group {
     val name = "kafka"
-    var count = 3
+    val count: Int = quorumSize
     val constraints = List(distinctHost).some
     val tasks = List(kafkaTask)
 
@@ -400,25 +437,31 @@ object KafkaDaemons extends Job {
 
     object kafkaTask extends Task {
       val name = "kafka"
-      val template = kafkaTemplate.some
-      var env = Map("KAFKA_BROKER_ID" -> "${NOMAD_ALLOC_INDEX}",
-                    "TOPIC_AUTO_CREATE" -> "true").some
+      var env: Option[Map[String, String]] = dev match {
+        case true => Map("KAFKA_BROKER_ID" -> "${NOMAD_ALLOC_INDEX}",
+            "TOPIC_AUTO_CREATE" -> "true").some
+        case false => Map("KAFKA_BROKER_ID" -> "${NOMAD_ALLOC_INDEX}",
+          "TOPIC_AUTO_CREATE" -> "true", "KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR" -> "1").some
+      }
       val services = List(kafkaPlaintext)
 
       object kafkaTemplate extends Template {
-        val source =
-          "/mnt/timberland/jvm/src/main/resources/nomad/config/zookeeper/zoo.tpl"
+        override val source =
+          "/mnt/timberland/jvm/src/main/resources/nomad/config/zookeeper/zoo.tpl".some
         val destination = "local/conf/zoo_servers"
       }
-
+      val templates = List(kafkaTemplate).some
       object config extends Config {
         val image = "confluentinc/cp-kafka:5.3.1"
         val hostname = "${attr.unique.hostname}-kafka"
         val entrypoint = List(
           "/timberland/jvm/target/universal/stage/bin/timberland").some
         val command = "runtime".some
-        var args = List("launch", "kafka").some
-        val port_map = Map("kafka" -> 9092)
+        var args = dev match {
+          case true => List("launch", "kafka", "--dev").some
+          case false => List("launch", "kafka").some
+        }
+        val port_map = Map("kafka" -> servicePort)
         val volumes = List("/mnt/timberland/:/timberland").some
       }
 
@@ -427,9 +470,10 @@ object KafkaDaemons extends Job {
         val memory = 2048
 
         object network extends Network {
-          val networkPorts = Map("kafka" -> 9092)
+          val networkPorts = Map("kafka" -> servicePort.some)
         }
 
+        val templates = List(kafkaTemplate).some
       }
 
       object kafkaPlaintext extends Service {
@@ -447,10 +491,85 @@ object KafkaDaemons extends Job {
 
   }
 
-  val jobshim: JobShim = JobShim(name, KafkaDaemons.assemble)
+  def jobshim(): JobShim = JobShim(name, KafkaDaemons(dev, quorumSize, servicePort).assemble)
 }
 
-object KafkaCompanionDaemons extends Job {
+case class VaultDaemon(dev: Boolean, quorumSize: Int) extends Job {
+  val name = "vault-daemon"
+  val datacenters: List[String] = List("dc1")
+
+  object VaultDaemonUpdate extends Update {
+    val stagger = "10s"
+    val max_parallel = 1
+    val min_healthy_time = "10s"
+  }
+
+  object kernelConstraint extends Constraint {
+    val operator = None
+    val attribute = "${attr.kernel.name}".some
+    val value = "linux"
+  }
+
+  val constraints = List(kernelConstraint).some
+  override val update = VaultDaemonUpdate.some
+
+  val groups = List(VaultGroup)
+
+  object VaultGroup extends Group {
+    val name = "vault"
+    val count = quorumSize
+    val tasks = List(VaultTask)
+
+    object distinctHost extends Constraint {
+      val operator = "distinct_hosts".some
+      val attribute = None
+      val value = "true"
+    }
+
+    val constraints = List(distinctHost).some
+
+    object VaultTask extends Task {
+      val name = "vault"
+      val env = Map("" -> "").some
+//      val env = Map("VAULT_LOCAL_CONFIG" -> "\n                storage \"consul\" {\n                    address = \"127.0.0.1:8500\"\n                    path = \"vault\"\n                }\n                listener \"tcp\" {\n                    address = \"127.0.0.1:8200\"\n                \n                }\n                telemetry {\n                    statsite_address = \"127.0.0.1:8125\"\n                }\n                plugin-directory = \"/opt/plugins/\"\n                ").some
+      object config extends Config {
+        val image = "registry.gitlab.com/radix-labs/monorepo/vault"
+        val command = "vault".some
+        val port_map = Map("vault_listen" -> 8200, "telemetry" -> 8125)
+        override val cap_add = List("IPC_LOCK").some
+        val volumes = None
+        val hostname = "${attr.unique.hostname}-vault"
+        val entrypoint = None
+        val args = List("server", "-config", "/opt/vault_config.conf").some
+        override val privileged = true.some
+      }
+      object VaultListen extends Service {
+        val tags = List("vault", "vault-listen")
+        val port = "vault_listen".some
+        val checks = List(check)
+        object check extends Check {
+          val `type` = "tcp"
+          val port = "vault_listen"
+        }
+      }
+
+      val services = List(VaultListen)
+      val templates = None
+
+      object resources extends Resources {
+        val cpu = 1000
+        val memory = 1000
+        object network extends Network {
+          val networkPorts =
+            Map("vault_listen" -> 8200.some, "telemetry" -> 8125.some)
+        }
+      }
+    }
+  }
+  def jobshim() = JobShim(name, VaultDaemon(dev, quorumSize).assemble)
+}
+
+case class KafkaCompanionDaemons(dev: Boolean, servicePort: Int = 9092, registryListenerPort: Int = 8081) extends Job {
   val name = "kafka-companion-daemons"
   val datacenters: List[String] = List("dc1")
   val constraints = Some(List(kernelConstraint))
@@ -480,29 +599,28 @@ object KafkaCompanionDaemons extends Job {
       val name = "schemaRegistry"
       val env = Map(
 //        "SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL" -> "zookeeper-daemons-zookeeper-zookeeper.service.consul:2181",
-        "SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS" -> "PLAINTEXT://kafka-daemons-kafka-kafka.service.consul:9092",
+        "SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS" -> (s"PLAINTEXT://kafka-daemons-kafka-kafka.service.consul:${servicePort}"),
         "SCHEMA_REGISTRY_HOST_NAME" -> "${attr.unique.hostname}-kafka-schema-registry",
-        "SCHEMA_REGISTRY_LISTENERS" -> "http://0.0.0.0:8081"
+        "SCHEMA_REGISTRY_LISTENERS" -> (s"http://0.0.0.0:${registryListenerPort}")
       ).some
 
       val services = List(kafkaServiceRegistry)
-      val template = None
       object config extends Config {
         val image = "confluentinc/cp-schema-registry:5.3.1"
         val hostname = "${attr.unique.hostname}-kafka-schema-registry"
         val dns_servers = List("169.254.1.1")
-        val port_map = Map("registry_listener" -> 8081)
+        val port_map = Map("registry_listener" -> registryListenerPort)
         val entrypoint = None
         val command = None
         val args = None
         val volumes = None
       }
-
+      val templates = None
       object resources extends Resources {
         val cpu = 1000
         val memory = 1000
         object network extends Network {
-          val networkPorts = Map("registry_listener" -> 8081)
+          val networkPorts = Map("registry_listener" -> registryListenerPort.some)
         }
       }
 
@@ -519,11 +637,11 @@ object KafkaCompanionDaemons extends Job {
 
     object kafkaRestProxy extends Task {
       val name = "kafkaRestProxy"
-      val template = None
+      val templates = None
       val env = Map(
 //        "KAFKA_REST_ZOOKEEPER_CONNECT" -> "zookeeper-daemons-zookeeper-zookeeper.service.consul:2181",
         "KAFKA_REST_BOOTSTRAP_SERVERS" -> "INSIDE://kafka-daemons-kafka-kafka.service.consul:29092",
-        "KAFKA_REST_SCHEMA_REGISTRY_URL" -> "http://kafka-companion-daemons-kafkaCompanions-schemaRegistry.service.consul:8081",
+        "KAFKA_REST_SCHEMA_REGISTRY_URL" -> s"http://kafka-companion-daemons-kafkaCompanions-schemaRegistry.service.consul:${registryListenerPort}",
         "KAFKA_REST_HOST_NAME" -> "${attr.unique.hostname}-kafka-rest-proxy",
         "KAFKA_REST_LISTENERS" -> "http://0.0.0.0:8082"
       ).some
@@ -542,7 +660,7 @@ object KafkaCompanionDaemons extends Job {
         val cpu = 1000
         val memory = 1000
         object network extends Network {
-          val networkPorts = Map("rest" -> 8082)
+          val networkPorts = Map("rest" -> 8082.some)
         }
       }
 
@@ -562,38 +680,56 @@ object KafkaCompanionDaemons extends Job {
     object kafkaConnect extends Task {
       val name = "kafkaConnect"
       val template = None
-      var env = Map(
-        "CONNECT_BOOTSTRAP_SERVERS" -> "INSIDE://kafka-daemons-kafka-kafka.service.consul:29092",
-        "CONNECT_REST_PORT" -> "8083",
-        "CONNECT_GROUP_ID" -> "kafka-daemons-connect-group",
-        "CONNECT_CONFIG_STORAGE_TOPIC" -> "kafka-connect-daemons-connect-configs",
-        "CONNECT_OFFSET_STORAGE_TOPIC" -> "kafka-connect-daemons-connect-offsets",
-        "CONNECT_STATUS_STORAGE_TOPIC" -> "kafka-connect-daemons-connect-status",
-        "CONNECT_KEY_CONVERTER" -> "io.confluent.connect.avro.AvroConverter",
-        "CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL" -> "http://kafka-companion-daemons-kafkaCompanions-schemaRegistry:8081",
-        "CONNECT_VALUE_CONVERTER" -> "io.confluent.connect.avro.AvroConverter",
-        "CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL" -> "http://kafka-companion-daemons-kafkaCompanions-schemaRegistry:8081",
-        "CONNECT_INTERNAL_KEY_CONVERTER" -> "org.apache.kafka.connect.json.JsonConverter",
-        "CONNECT_INTERNAL_VALUE_CONVERTER" -> "org.apache.kafka.connect.json.JsonConverter",
-        "CONNECT_REST_ADVERTISED_HOST_NAME" -> "${attr.unique.hostname}-kafka-connect",
-        "CONNECT_LOG4J_ROOT_LOGLEVEL" -> "INFO",
-        "CONNECT_LOG4J_LOGGERS" -> "org.apache.kafka.connect.runtime.rest=WARN,org.reflections=ERROR",
-        "CONNECT_PLUGIN_PATH" -> "/usr/share/java,/etc/kafka-connect/jars",
-        "KAFKA_REST_PROXY_URL" -> "http://kafka-companion-daemons-kafkaCompanions-kafkaRestProxy.service.consul:8082",
-        "PROXY" -> "true"
+      val templates = None
+      val env = dev match {
+        case true => Map(
+          "CONNECT_BOOTSTRAP_SERVERS" -> "INSIDE://kafka-daemons-kafka-kafka.service.consul:29092",
+          "CONNECT_REST_PORT" -> "8083",
+          "CONNECT_GROUP_ID" -> "kafka-daemons-connect-group",
+          "CONNECT_CONFIG_STORAGE_TOPIC" -> "kafka-connect-daemons-connect-configs",
+          "CONNECT_OFFSET_STORAGE_TOPIC" -> "kafka-connect-daemons-connect-offsets",
+          "CONNECT_STATUS_STORAGE_TOPIC" -> "kafka-connect-daemons-connect-status",
+          "CONNECT_KEY_CONVERTER" -> "io.confluent.connect.avro.AvroConverter",
+          "CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL" -> s"http://kafka-companion-daemons-kafkaCompanions-kafkaSchemaRegistry:${registryListenerPort}",
+          "CONNECT_VALUE_CONVERTER" -> "io.confluent.connect.avro.AvroConverter",
+          "CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL" -> s"http://kafka-companion-daemons-kafkaCompanions-kafkaSchemaRegistry:${registryListenerPort}",
+          "CONNECT_INTERNAL_KEY_CONVERTER" -> "org.apache.kafka.connect.json.JsonConverter",
+          "CONNECT_INTERNAL_VALUE_CONVERTER" -> "org.apache.kafka.connect.json.JsonConverter",
+          "CONNECT_REST_ADVERTISED_HOST_NAME" -> "${attr.unique.hostname}-kafka-connect",
+          "CONNECT_LOG4J_ROOT_LOGLEVEL" -> "INFO",
+          "CONNECT_LOG4J_LOGGERS" -> "org.apache.kafka.connect.runtime.rest=WARN,org.reflections=ERROR",
+          "CONNECT_PLUGIN_PATH" -> "/usr/share/java,/etc/kafka-connect/jars",
+          "KAFKA_REST_PROXY_URL" -> "http://kafka-companion-daemons-kafkaCompanions-kafkaRestProxy.service.consul:8082",
+          "PROXY" -> "true",
+          "CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR" -> "1",
+      "CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR" -> "1",
+      "CONNECT_STATUS_STORAGE_REPLICATION_FACTOR" -> "1",
+        ).some
+        case false => Map(
+          "CONNECT_BOOTSTRAP_SERVERS" -> "INSIDE://kafka-daemons-kafka-kafka.service.consul:29092",
+          "CONNECT_REST_PORT" -> "8083",
+          "CONNECT_GROUP_ID" -> "kafka-daemons-connect-group",
+          "CONNECT_CONFIG_STORAGE_TOPIC" -> "kafka-connect-daemons-connect-configs",
+          "CONNECT_OFFSET_STORAGE_TOPIC" -> "kafka-connect-daemons-connect-offsets",
+          "CONNECT_STATUS_STORAGE_TOPIC" -> "kafka-connect-daemons-connect-status",
+          "CONNECT_KEY_CONVERTER" -> "io.confluent.connect.avro.AvroConverter",
+          "CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL" -> s"http://kafka-companion-daemons-kafkaCompanions-kafkaSchemaRegistry:${registryListenerPort}",
+          "CONNECT_VALUE_CONVERTER" -> "io.confluent.connect.avro.AvroConverter",
+          "CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL" -> s"http://kafka-companion-daemons-kafkaCompanions-kafkaSchemaRegistry:${registryListenerPort}",
+          "CONNECT_INTERNAL_KEY_CONVERTER" -> "org.apache.kafka.connect.json.JsonConverter",
+          "CONNECT_INTERNAL_VALUE_CONVERTER" -> "org.apache.kafka.connect.json.JsonConverter",
+          "CONNECT_REST_ADVERTISED_HOST_NAME" -> "${attr.unique.hostname}-kafka-connect",
+          "CONNECT_LOG4J_ROOT_LOGLEVEL" -> "INFO",
+          "CONNECT_LOG4J_LOGGERS" -> "org.apache.kafka.connect.runtime.rest=WARN,org.reflections=ERROR",
+          "CONNECT_PLUGIN_PATH" -> "/usr/share/java,/etc/kafka-connect/jars",
+          "KAFKA_REST_PROXY_URL" -> "http://kafka-companion-daemons-kafkaCompanions-kafkaRestProxy.service.consul:8082",
+          "PROXY" -> "true",
+          "CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR" -> "3",
+      "CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR" -> "3",
+      "CONNECT_STATUS_STORAGE_REPLICATION_FACTOR" -> "3",
       ).some
+      }
 
-      val prodEnv = Map(
-        "CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR" -> "3",
-        "CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR" -> "3",
-        "CONNECT_STATUS_STORAGE_REPLICATION_FACTOR" -> "3",
-      )
-
-      val devEnv = Map(
-        "CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR" -> "1",
-        "CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR" -> "1",
-        "CONNECT_STATUS_STORAGE_REPLICATION_FACTOR" -> "1",
-      )
       object config extends Config {
         val image = "confluentinc/cp-kafka-connect:5.3.1"
         val hostname = "${attr.unique.hostname}-kafka-connect"
@@ -608,7 +744,7 @@ object KafkaCompanionDaemons extends Job {
         val cpu = 1000
         val memory = 2000
         object network extends Network {
-          val networkPorts = Map("connect" -> 8083) //TODO: This differs from the standard
+          val networkPorts = Map("connect" -> 8083.some) //TODO: This differs from the standard
         }
       }
 
@@ -627,7 +763,7 @@ object KafkaCompanionDaemons extends Job {
 
     object kSQL extends Task {
       val name = "kSQL"
-      val template = None
+      val templates = None
       val env = Map(
         "KAFKA_REST_PROXY_URL" -> "http://kafka-companion-daemons-kafkaCompanions-kafkaRestProxy.service.consul:8082",
         "KSQL_BOOTSTRAP_SERVERS" -> "INSIDE://kafka-daemons-kafka-kafka.service.consul:29092",
@@ -649,7 +785,7 @@ object KafkaCompanionDaemons extends Job {
         val cpu = 1000
         val memory = 1000
         object network extends Network {
-          val networkPorts = Map("ui" -> 8000) //TODO: This differs from the standard
+          val networkPorts = Map("ui" -> 8000.some) //TODO: This differs from the standard
         }
       }
 
@@ -668,5 +804,121 @@ object KafkaCompanionDaemons extends Job {
 
   }
 
-  val jobshim: JobShim = JobShim(name, KafkaCompanionDaemons.assemble)
+  def jobshim(): JobShim = JobShim(name, KafkaCompanionDaemons(dev, servicePort, registryListenerPort).assemble)
 }
+
+case class Elasticsearch(dev: Boolean, quorumSize: Int) extends Job {
+  val name = "elasticsearch"
+  val datacenters: List[String] = List("dc1")
+
+  object ElasticsearchDaemonUpdate extends Update {
+    val stagger = "10s"
+    val max_parallel = 1
+    val min_healthy_time = "10s"
+  }
+
+  object kernelConstraint extends Constraint {
+    val operator = None
+    val attribute = "${attr.kernel.name}".some
+    val value = "linux"
+  }
+
+  val constraints = List(kernelConstraint).some
+  override val update = ElasticsearchDaemonUpdate.some
+
+  val groups = List(ElasticsearchGroup)
+
+  object ElasticsearchGroup extends Group {
+    val name = "elasticsearch"
+    val count = quorumSize
+    val tasks = List(EsGenericNode)
+
+    object distinctHost extends Constraint {
+      val operator = "distinct_hosts".some
+      val attribute = None
+      val value = "true"
+    }
+
+    val constraints = List(distinctHost).some
+
+    object EsGenericNode extends Task {
+      val name = "es-generic-node"
+      override val user = "elasticsearch".some
+      val env = Map("ES_JAVA_OPTS" -> "-Xms8g -Xmx8g").some
+      object config extends Config {
+        val image = "elasticsearch:7.3.2"
+        val command = "/local/start.sh".some
+        val port_map = Map("rest" -> 9200, "transport" -> 9300)
+        //        override val cap_add = List("IPC_LOCK").some
+        val volumes = None
+        val hostname = "es${NOMAD_ALLOC_INDEX+1}"
+        val entrypoint = None
+        val args = List(
+          "-Ebootstrap.memory_lock=true",
+          "-Ecluster.name=radix-es",
+          "-Ediscovery.seed_providers=file",
+          "-Ecluster.initial_master_nodes=es1,es2,es3",
+          "-Expack.license.self_generated.type=basic"
+        ).some
+        //override val ulimit = Map("nofie" -> "65536", "noproc" -> "8192").some //TODO: Doesnt have memlock
+      }
+
+      object ESTransport extends Service {
+        override val name = "${NOMAD_GROUP_NAME}-discovery".some
+        val tags = List("elasticsearch", "transport")
+        val port = "transport".some
+        val checks = List(check)
+        object check extends Check {
+          val `type` = "tcp"
+          val port = "transport"
+        }
+      }
+
+      object ESRest extends Service {
+        override val name = "${NOMAD_GROUP_NAME}".some
+        val tags = List("elasticsearch", "rest")
+        val port = "rest".some
+        val checks = List(tcpcheck)//, httpcheck)
+        object tcpcheck extends Check {
+          val `type` = "tcp"
+          val port = "rest"
+        }
+        object httpcheck extends Check {
+          val `type` = "http"
+          val port = "rest"
+        }
+
+      }
+
+      val services = List(ESTransport, ESRest)
+      object startTemplate extends Template {
+        val destination = "local/start.sh"
+        override val perms = "755"
+        override val data =
+          """<<EOF\nln -s /local/unicast_hosts.txt /usr/share/elasticsearch/config/unicast_hosts.txt\nelasticsearch $@\nEOF""".some
+      }
+
+      object unicastTemplate extends Template {
+        val destination = "local/unicast_hosts.txt"
+        override val data =
+          """<<EOF\n{{- range service (printf \"%s-discovery|passing\" (env \"NOMAD_GROUP_NAME\")) }}\n{{ .Address }}:{{ .Port }}{{ end }}\nEOF""".some
+      }
+
+      val templates = List(startTemplate, unicastTemplate).some
+
+      object resources extends Resources {
+        val cpu = 2500
+        val memory = 10000
+        object network extends Network {
+          val networkPorts = Map("rest" -> None, "transport" -> None)
+        }
+      }
+    }
+  }
+  def jobshim() = JobShim(name, Elasticsearch(dev, quorumSize).assemble)
+}
+
+//object main extends App {
+//  val shim = Elasticsearch.jobshim
+//  println(shim.asHCL)
+//}

@@ -37,7 +37,9 @@ case object ZookeeperStarted extends ZookeeperState
 
 case object ZookeeperQuorumEstablished extends ZookeeperState with DaemonRunning
 
-case object ZookeeperQuorumNotEstablished extends ZookeeperState with DaemonNotRunning
+case object ZookeeperQuorumNotEstablished
+    extends ZookeeperState
+    with DaemonNotRunning
 
 case object KafkaStarted extends KafkaState
 case object KafkaQuorumEstablished extends KafkaState with DaemonRunning
@@ -48,8 +50,22 @@ case object KafkaTopicsCreated extends KafkaState
 case object KafkaTopicsFailed extends KafkaState
 
 case object KafkaCompanionsStarted extends KafkaCompanionState
-case object KafkaCompanionsQuorumEstablished extends KafkaCompanionState with DaemonRunning
-case object KafkaCompanionsQuorumNotEstablished extends KafkaCompanionState with DaemonNotRunning
+case object KafkaCompanionsQuorumEstablished
+    extends KafkaCompanionState
+    with DaemonRunning
+case object KafkaCompanionsQuorumNotEstablished
+    extends KafkaCompanionState
+    with DaemonNotRunning
+
+sealed trait VaultState extends DaemonState
+case object VaultStarted extends VaultState
+case object VaultQuorumEstablished extends VaultState with DaemonRunning
+case object VaultQuorumNotEstablished extends VaultState with DaemonNotRunning
+
+sealed trait ESState extends DaemonState
+case object ESStarted extends ESState
+case object ESQuorumEstablished extends ESState with DaemonRunning
+case object ESQuorumNotEstablished extends ESState with DaemonNotRunning
 
 case object AllDaemonsStarted extends DaemonState
 
@@ -59,6 +75,8 @@ package object daemonutil {
 
   trait Daemon[A, T] {
     def quorumCount: Int
+
+//    def daemonName: String
 
     def daemonJob: JobShim
 
@@ -72,35 +90,41 @@ package object daemonutil {
     val daemonQuorumNotEstablished: T
   }
 
-  case class Zookeeper(implicit quorumSize: Int)
+  case class Zookeeper(startInDevMode: Boolean, quorumSize: Int)
       extends Daemon[Zookeeper.type, ZookeeperState] {
     val quorumCount: Int = quorumSize
-    daemons.ZookeeperDaemons.zookeeper.count = quorumSize
-    if (quorumSize === 1) {
-      daemons.ZookeeperDaemons.zookeeper.zookeeper.config.args =
-        (daemons.ZookeeperDaemons.zookeeper.zookeeper.config.args.get :+ "--dev").some
+    val zookeeperDaemons = daemons.ZookeeperDaemons(startInDevMode, quorumSize)
+//    daemons.ZookeeperDaemons.zookeeper.count = quorumSize
 
-    }
-    val daemonJob: JobShim = daemons.ZookeeperDaemons.jobshim
+//    if (quorumSize == 1) {
+//      daemons.ZookeeperDaemons.zookeeper.zookeeper.config.args =
+//        (daemons.ZookeeperDaemons.zookeeper.zookeeper.config.args.get :+ "--dev").some
+//    }
+    val daemonJob: JobShim = zookeeperDaemons.jobshim
+    val daemonName: String = zookeeperDaemons.name
     val service = "zookeeper-daemons-zookeeper-zookeeper"
     val tags =
       Set("zookeeper-quorum", "zookeeper-client")
     val daemonStarted: ZookeeperState = ZookeeperStarted
     val daemonQuorumEstablished: ZookeeperState = ZookeeperQuorumEstablished
-    val daemonQuorumNotEstablished: ZookeeperState = ZookeeperQuorumNotEstablished
+    val daemonQuorumNotEstablished: ZookeeperState =
+      ZookeeperQuorumNotEstablished
   }
 
-  case class Kafka(implicit quorumSize: Int) extends Daemon[Kafka.type, KafkaState] {
+  case class Kafka(startInDevMode: Boolean, quorumSize: Int, servicePort: Int = 9092)
+      extends Daemon[Kafka.type, KafkaState] {
     val quorumCount: Int = quorumSize
-    daemons.KafkaDaemons.kafka.count = quorumSize
-    if (quorumSize === 1) {
-      daemons.KafkaDaemons.kafka.kafkaTask.config.args =
-        (daemons.KafkaDaemons.kafka.kafkaTask.config.args.get :+ "--dev").some
-      daemons.KafkaDaemons.kafka.kafkaTask.env =
-        (daemons.KafkaDaemons.kafka.kafkaTask.env.get ++ Map(
-          "KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR" -> "1")).some
-    }
-    val daemonJob: JobShim = daemons.KafkaDaemons.jobshim
+    val kafkaDaemons = daemons.KafkaDaemons(startInDevMode, quorumSize, servicePort)
+//    val daemonName: String = kafkaDaemons.name
+//    kafkaDaemons.kafka.count = quorumSize
+//    if (quorumSize == 1) {
+//      kafkaDaemons.kafka.kafkaTask.config.args =
+//        (kafkaDaemons.kafka.kafkaTask.config.args.get :+ "--dev").some
+//      kafkaDaemons.kafka.kafkaTask.env =
+//        (kafkaDaemons.kafka.kafkaTask.env.get ++ Map(
+//          "KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR" -> "1")).some
+//    }
+    val daemonJob: JobShim = kafkaDaemons.jobshim
     val service = "kafka-daemons-kafka-kafka"
     val tags =
       Set("kafka-quorum", "kafka-plaintext")
@@ -109,25 +133,48 @@ package object daemonutil {
     val daemonQuorumNotEstablished: KafkaState = KafkaTopicsFailed
   }
 
-  case class KafkaCompanions(implicit quorumSize: Int)
+  case class KafkaCompanions(startInDevMode: Boolean, servicePort: Int = 9092, registryListenerPort: Int = 8081)
       extends Daemon[KafkaCompanions.type, KafkaCompanionState] {
-    val quorumCount: Int = quorumSize
-    if (quorumSize === 1) {
-      val newEnv =
-        (daemons.KafkaCompanionDaemons.kafkaCompainions.kafkaConnect.env.get ++ daemons.KafkaCompanionDaemons.kafkaCompainions.kafkaConnect.devEnv).some
-      daemons.KafkaCompanionDaemons.kafkaCompainions.kafkaConnect.env = newEnv
-    } else {
-      daemons.KafkaCompanionDaemons.kafkaCompainions.kafkaConnect.env = Some(
-        daemons.KafkaCompanionDaemons.kafkaCompainions.kafkaConnect.env.get ++ daemons.KafkaCompanionDaemons.kafkaCompainions.kafkaConnect.prodEnv)
-    }
-    val daemonJob: JobShim = daemons.KafkaCompanionDaemons.jobshim
+    val quorumCount: Int = 1
+    val kafkaCompanionDaemons = daemons.KafkaCompanionDaemons(startInDevMode, servicePort, registryListenerPort)
+    val daemonName: String = kafkaCompanionDaemons.name
+    val daemonJob: JobShim = kafkaCompanionDaemons.jobshim
     val service = "kafka-companion-daemons-kafkaCompanions-kafkaConnect" //TODO: This domain has many services. DO we check just one or check all of them?
     val tags =
       Set("kafka-companion", "kafka-connect")
     val daemonStarted: KafkaCompanionState = KafkaCompanionsStarted
     val daemonQuorumEstablished: KafkaCompanionState =
       KafkaCompanionsQuorumEstablished
-    val daemonQuorumNotEstablished: KafkaCompanionState = KafkaCompanionsQuorumNotEstablished
+    val daemonQuorumNotEstablished: KafkaCompanionState =
+      KafkaCompanionsQuorumNotEstablished
+  }
+
+  case class Vault(startInDevMode: Boolean, quorumSize: Int)
+      extends Daemon[Vault.type, VaultState] {
+    val quorumCount: Int = quorumSize
+    val vaultDaemons = daemons.VaultDaemon(startInDevMode, quorumSize)
+    val daemonJob: JobShim = vaultDaemons.jobshim
+    val daemonName: String = vaultDaemons.name
+    val service = "vault-daemon-vault-vault"
+    val tags =
+      Set("vault", "vault-listen")
+    val daemonStarted: VaultState = VaultStarted
+    val daemonQuorumEstablished: VaultState = VaultQuorumEstablished
+    val daemonQuorumNotEstablished: VaultState = VaultQuorumNotEstablished
+  }
+
+  case class Elasticsearch(startInDevMode: Boolean, quorumSize: Int)
+      extends Daemon[Elasticsearch.type, ESState] {
+    val quorumCount: Int = quorumSize
+    val esDaemons = daemons.Elasticsearch(startInDevMode, quorumSize)
+    val daemonJob: JobShim = esDaemons.jobshim
+    val daemonName: String = esDaemons.name
+    val service = "elasticsearch-elasticsearch-es-general-node"
+    val tags =
+      Set("elasticsearch", "rest")
+    val daemonStarted: ESState = ESStarted
+    val daemonQuorumEstablished: ESState = ESQuorumEstablished
+    val daemonQuorumNotEstablished: ESState = ESQuorumNotEstablished
   }
 
   def timeoutTo[A](fa: IO[A], after: FiniteDuration, fallback: IO[A])(
@@ -152,9 +199,11 @@ package object daemonutil {
     def start(implicit interp: Http4sNomadClient[IO]): IO[T] = {
       for {
         serviceState <- daemon.checkServiceState(fail = true)
-        _ <- IO.pure(scribe.info(s"COMPLETED INITIAL SERVICE CHECK FOR ${daemon.getClass.getSimpleName}"))
+        _ <- IO.pure(scribe.info(
+          s"COMPLETED INITIAL SERVICE CHECK FOR ${daemon.getClass.getSimpleName}"))
         res <- if (serviceState == daemon.daemonQuorumEstablished) {
-          IO.pure(scribe.info(s"QUORUM FOUND DURING INITIAL SERVICE CHECK FOR ${daemon.getClass.getSimpleName}"))
+          IO.pure(scribe.info(
+            s"QUORUM FOUND DURING INITIAL SERVICE CHECK FOR ${daemon.getClass.getSimpleName}"))
           IO.pure(daemon.daemonQuorumEstablished)
         } else {
           for {
@@ -182,6 +231,13 @@ package object daemonutil {
       } yield res
     }
 
+//    def stop(implicit interp: Http4sNomadClient[IO]): IO[T] = {
+//      for {
+//        _ <- NomadOp.nomadStopJob(daemon.daemonName).foldMap(interp)
+//        resp <- IO.pure(daemon.daemonQuorumNotEstablished)
+//      } yield resp
+//    }
+
     def waitForQuorum: IO[T] = {
       for {
         serviceState <- daemon.checkServiceState()
@@ -195,10 +251,10 @@ package object daemonutil {
 
     def checkServiceState(fail: Boolean = false): IO[T] = {
       for {
-        tasksRunning <- consulutil.waitForService(
-          daemon.service,
-          daemon.tags,
-          daemon.quorumCount, fail)(1.seconds, timer)
+        tasksRunning <- consulutil.waitForService(daemon.service,
+                                                  daemon.tags,
+                                                  daemon.quorumCount,
+                                                  fail)(1.seconds, timer)
         res <- if (tasksRunning.size >= daemon.quorumCount) {
           IO.pure(daemon.daemonQuorumEstablished)
         } else {
@@ -230,7 +286,11 @@ package object daemonutil {
     } yield res
   }
 
-  def waitForQuorum(implicit quorumSize: Int): IO[DaemonState] = {
+  def waitForQuorum(quorumSize: Int,
+                    dev: Boolean,
+                    core: Boolean,
+                    vaultStart: Boolean,
+                    esStart: Boolean, servicePort: Int, registryListenerPort: Int): IO[DaemonState] = {
 
     BlazeClientBuilder[IO](global).resource.use(implicit client => {
       scribe.info("Checking Nomad Quorum...")
@@ -238,35 +298,97 @@ package object daemonutil {
       implicit val interp: Http4sNomadClient[IO] =
         new Http4sNomadClient[IO](uri("http://nomad.service.consul:4646"),
                                   client)
-      val zk = Zookeeper()
-      val kafka = Kafka()
-      val kafkaCompanions = KafkaCompanions()(1)
+      val startInDevMode: Boolean = quorumSize match {
+        case 1 => true
+        case _ => false
+      }
 
-
+      val zk = Zookeeper(startInDevMode, quorumSize)
+      val kafka = Kafka(startInDevMode, quorumSize, servicePort)
+      val kafkaCompanions = KafkaCompanions(startInDevMode, servicePort, registryListenerPort)
+      val es = Elasticsearch(startInDevMode, quorumSize)
+      val vault = Vault(startInDevMode, quorumSize)
 
       val result = for {
-        nomadQuorumStatus <- timeout(Nomad.waitForQuorum,
-          new FiniteDuration(2, duration.MINUTES))
-        zkStart <- zk.start
-        zkQuorumStatus <- timeout(zk.waitForQuorum,
-                                  new FiniteDuration(60, duration.SECONDS))
-        kafkaStart <- kafka.start
-        kafkaQuorumStatus <- timeout(kafka.waitForQuorum,
-                                     new FiniteDuration(60, duration.SECONDS))
-        kafkaCompanionStart <- kafkaCompanions.start
-        kafkaCompanionQuorumStatus <- timeout(
-          kafkaCompanions.waitForQuorum,
-          new FiniteDuration(60, duration.SECONDS))
-      } yield kafkaCompanionQuorumStatus
+        coreStatus <- core match {
+          case true => {
+            for {
+              nomadQuorumStatus <- timeout(
+                Nomad.waitForQuorum(interp, quorumSize),
+                new FiniteDuration(2, duration.MINUTES))
+              zkStart <- zk.start
+              zkQuorumStatus <- timeout(
+                zk.waitForQuorum,
+                new FiniteDuration(60, duration.SECONDS))
+              kafkaStart <- kafka.start
+              kafkaQuorumStatus <- timeout(
+                kafka.waitForQuorum,
+                new FiniteDuration(60, duration.SECONDS))
+              kafkaCompanionStart <- kafkaCompanions.start
+              kafkaCompanionQuorumStatus <- timeout(
+                kafkaCompanions.waitForQuorum,
+                new FiniteDuration(120, duration.SECONDS))
+            } yield kafkaCompanionQuorumStatus
+          }
+          case false => IO.sleep(1.second)
+        }
+        vaultQuorumStatus <- vaultStart match {
+          case true => {
+            for {
+              vaultStart <- vault.start
+              vaultQuorumStatus <- timeout(
+                vault.waitForQuorum,
+                new FiniteDuration(60, duration.SECONDS))
+            } yield vaultQuorumStatus
+          }
+          case false => IO.sleep(1.second)
+        }
+        esQuorumStatus <- esStart match {
+          case true => {
+            for {
+              esStart <- es.start
+              esQuorumStatus <- timeout(
+                es.waitForQuorum,
+                new FiniteDuration(120, duration.SECONDS))
+            } yield esQuorumStatus
+          }
+          case false => IO.sleep(1.second)
+        }
+
+      } yield esQuorumStatus
       result.attempt.flatMap {
         case Left(a) =>
-          timeout(waitForQuorum, new FiniteDuration(10, duration.MINUTES))
+          timeout(waitForQuorum(quorumSize, dev, core, vaultStart, esStart, servicePort, registryListenerPort),
+                  new FiniteDuration(10, duration.MINUTES))
         case Right(a) =>
           IO.pure(AllDaemonsStarted)
 
       }
     })
   }
+
+//  def stopAllServices(): IO[DaemonState] = {
+//    BlazeClientBuilder[IO](global).resource.use(implicit client => {
+//      scribe.info("Checking Nomad Quorum...")
+//
+//      implicit val interp: Http4sNomadClient[IO] =
+//        new Http4sNomadClient[IO](uri("http://nomad.service.consul:4646"),
+//          client)
+//      val zk = Zookeeper(1)
+//      val kafka = Kafka(1)
+//      val kafkaCompanions = KafkaCompanions(1)
+//      val es = Elasticsearch(1)
+//      val vault = Vault(1)
+//
+//      for {
+////        _ <- zk.stop
+////        _ <- kafka.stop
+////        _ <- kafkaCompanions.stop
+////        _ <- es.stop
+////        vaultStatus <- vault.stop
+//      } yield vaultStatus
+//    })
+//  }
 
   case object Nomad {
     def waitForQuorum(implicit interp: Http4sNomadClient[IO],

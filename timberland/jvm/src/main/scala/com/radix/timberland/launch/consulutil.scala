@@ -26,6 +26,7 @@ object consulutil {
         new Http4sConsulClient[IO](uri("http://consul.service.consul:8500"),
                                    client)
       for {
+        _ <- IO(scribe.debug(s"checking for services that match $serviceName"))
         servicespossiblyempty <- helm
           .run(interpreter, ConsulOp.catalogListNodesForService(serviceName))
         services <- IO.pure(NonEmptyList.fromList(servicespossiblyempty))
@@ -67,7 +68,7 @@ object consulutil {
           } yield healthy
           srvs.value
         }
-        quorumDescision <- matchedAndHealthyNodes match {
+        quorumDecision <- matchedAndHealthyNodes match {
           case Some(nel) =>
             if (nel.size < quorum) {
               if (fail) {
@@ -92,7 +93,7 @@ object consulutil {
                 quorum)
             }
         }
-      } yield quorumDescision
+      } yield quorumDecision
     })
   }
   val getZKs: OptionT[IO, String] = {

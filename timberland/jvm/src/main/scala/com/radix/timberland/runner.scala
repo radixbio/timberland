@@ -41,7 +41,8 @@ import scala.concurrent.ExecutionContext.Implicits.global
  * |     |- install <RADIX_MONOREPO_DIR>
   *      |- runtime|
   *                |- install
-  *                |- start [debug] [dry-run] [force-bind-ip] [dev]
+  *                |- start [debug] [dry-run] [force-bind-ip] [dev] [vault] [es] [core] [service-port] [registry-listener-port]
+  *                |- stop
   *                |- trace
   *                |- nuke
   *                |- start_nomad
@@ -88,8 +89,14 @@ case class Start(
     loglevel: scribe.Level = scribe.Level.Debug,
     bindIP: Option[String] = None,
     consulSeeds: Option[String] = None,
-    dev: Boolean = false
+    dev: Boolean = false,
+    core: Boolean = false,
+    vault: Boolean = false,
+    es: Boolean = false,
+    servicePort: Int = 9092,
+    registryListenerPort: Int = 8081
 ) extends Local
+case object Stop extends Local
 case object Nuke                                                    extends Local
 case object StartNomad                                              extends Local
 sealed trait DNS                                                    extends Runtime
@@ -172,10 +179,42 @@ object runner {
                   case bool @ Some(true) => exist.copy(dev = bool.get)
                   case _ => exist
                 }
-              }),
+              }) <*> optional(switch(long("core"), help("start core services"))).map(dev => { exist: Start =>
+                dev match {
+                  case bool @ Some(true) => exist.copy(dev = bool.get)
+                  case _ => exist
+                }
+              }) <*> optional(switch(long("vault"), help("start vault only"))).map(vault => { exist: Start =>
+                vault match {
+                  case bool @ Some(true) => exist.copy(vault = bool.get)
+                  case _ => exist
+                }
+              }) <*> optional(switch(long("es"), help("start elasticsearch only"))).map(es => { exist: Start =>
+                es match {
+                  case bool @ Some(true) => exist.copy(es = bool.get)
+                  case _ => exist
+                }
+              }) <*> optional(
+                intOption(long("service-port"),
+                  help("Kafka service port")))
+                .map(sp => { exist: Start =>
+                  sp match {
+                    case str @ Some(_) => exist.copy(servicePort = str.get)
+                    case None          => exist
+                  }
+                }) <*> optional(
+                intOption(long("registry-listener-port"),
+                  help("Kafka registry listener port")))
+                .map(rlp => { exist: Start =>
+                  rlp match {
+                    case str @ Some(_) => exist.copy(registryListenerPort = rlp.get)
+                    case None          => exist
+                  }
+                }),
               progDesc("start the radix core services on the current system")
             )
           ),
+          command("stop", info(pure(Stop), progDesc("stop services across all nodes"))),
           command("nuke", info(pure(Nuke), progDesc("remove radix core services from the node"))),
           command("start_nomad", info(pure(StartNomad), progDesc("start a nomad job"))),
           command(
@@ -244,7 +283,7 @@ object runner {
       case _                                                                           => "arm"
     }
 
-    val persistentdir = "/tmp/radix/timberland/" // TODO make configurable
+    val persistentdir = "/opt/radix/timberland/" // TODO make configurable
     val appdatadir    = new File(persistentdir)
     val consul        = new File(persistentdir + "/consul/consul")
     val nomad         = new File(persistentdir + "/nomad/nomad")
@@ -435,7 +474,7 @@ object runner {
 
                 }
                 case Nuke => Right(Unit)
-                case cmd @ Start(dummy, loglevel, bindIP, consulSeedsO, dev) => {
+                case cmd @ Start(dummy, loglevel, bindIP, consulSeedsO, dev, core, vault, es, servicePort, registryListenerPort) => {
                     scribe.Logger.root
                     .clearHandlers()
                     .clearModifiers()
@@ -447,6 +486,17 @@ object runner {
                   if (dev) {
                     bootstrapExpect = 1
                   }
+
+                  var startCore = core
+                  var startVault = vault
+                  var startEs = es
+
+                  if (!startCore && !startVault && !startEs) {
+                    startCore = true
+                    startVault = true
+                    startEs = true
+                  }
+
                   if (dummy) {
                     implicit val host = new Mock.RuntimeNolaunch[IO]
                     Right(
@@ -463,12 +513,18 @@ object runner {
                         .unsafeRunSync)
                     )
                     scribe.info("Launching daemons")
+                    scribe.info(s"***********DAEMON SIZE${bootstrapExpect}***************")
                     Right(
 
-                      println(daemonutil.waitForQuorum(bootstrapExpect).unsafeRunSync)
+                      println(daemonutil.waitForQuorum(bootstrapExpect, dev, startCore, startVault, startEs, servicePort, registryListenerPort).unsafeRunSync)
                     )
                   }
                 }
+//                case Stop => {
+//                  Right(println(daemonutil.stopAllServices.unsafeRunSync))
+//                  scribe.info("All services stopped")
+//                  sys.exit(0)
+//                }
                 case StartNomad => Right(Unit)
               }
             case launcher: Launch =>
