@@ -230,6 +230,21 @@ object Run {
         })
       }
 
+      //Check for dummy network
+      for {
+        ifaces <- H.getNetworkInterfaces.map(_.filter(x => x.startsWith("169.")))
+        dummyStatus <- F.delay {
+          ifaces.length match {
+            case 0 => {
+              scribe.error("Dummy network not running")
+              sys.exit(1)
+            }
+            case _ => scribe.debug("Dummy network running")
+          }
+        }
+      } yield dummyStatus
+
+
 
       for {
         ifaces <- bind_addr match {
