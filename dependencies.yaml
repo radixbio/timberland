@@ -256,7 +256,7 @@ dependencies:
     poi:
       lang: java
       version: 4.1.1
-
+      modules: ["", ooxml, ooxml-schemas]
 #
 #replacements:
 #  org.scala-lang:
