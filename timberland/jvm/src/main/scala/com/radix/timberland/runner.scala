@@ -93,6 +93,7 @@ case class Start(
     core: Boolean = false,
     vault: Boolean = false,
     es: Boolean = false,
+    retool: Boolean = false,
     servicePort: Int = 9092,
     registryListenerPort: Int = 8081
 ) extends Local
@@ -192,6 +193,11 @@ object runner {
               }) <*> optional(switch(long("es"), help("start elasticsearch only"))).map(es => { exist: Start =>
                 es match {
                   case bool @ Some(true) => exist.copy(es = bool.get)
+                  case _ => exist
+                }
+              })  <*> optional(switch(long("retool"), help("start retool only"))).map(retool => { exist: Start =>
+                retool match {
+                  case bool @ Some(true) => exist.copy(retool = bool.get)
                   case _ => exist
                 }
               }) <*> optional(
@@ -474,7 +480,7 @@ object runner {
 
                 }
                 case Nuke => Right(Unit)
-                case cmd @ Start(dummy, loglevel, bindIP, consulSeedsO, dev, core, vault, es, servicePort, registryListenerPort) => {
+                case cmd @ Start(dummy, loglevel, bindIP, consulSeedsO, dev, core, vault, es, retool, servicePort, registryListenerPort) => {
                     scribe.Logger.root
                     .clearHandlers()
                     .clearModifiers()
@@ -490,11 +496,13 @@ object runner {
                   var startCore = core
                   var startVault = vault
                   var startEs = es
+                  var startRetool = retool
 
-                  if (!startCore && !startVault && !startEs) {
+                  if (!startCore && !startVault && !startEs && !startRetool) {
                     startCore = true
                     startVault = true
                     startEs = true
+                    startRetool = true
                   }
 
                   if (dummy) {
@@ -516,7 +524,7 @@ object runner {
                     scribe.info(s"***********DAEMON SIZE${bootstrapExpect}***************")
                     Right(
 
-                      println(daemonutil.waitForQuorum(bootstrapExpect, dev, startCore, startVault, startEs, servicePort, registryListenerPort).unsafeRunSync)
+                      println(daemonutil.waitForQuorum(bootstrapExpect, dev, startCore, startVault, startEs, startRetool, servicePort, registryListenerPort).unsafeRunSync)
                     )
                   }
                 }

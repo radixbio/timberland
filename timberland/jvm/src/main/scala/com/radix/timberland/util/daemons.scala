@@ -7,7 +7,7 @@ import com.radix.utils.helm.NomadHCL.syntax.{
   PortShim,
   ServiceShim,
   TaskShim,
-TemplateShim
+  TemplateShim
 }
 import com.radix.utils.helm.NomadHCL.{HCLAble, defs}
 
@@ -53,11 +53,12 @@ trait Template {
   val perms: String = "644"
 
   def assemble: TemplateShim =
-    TemplateShim(defs.Template(source = source,
-                  destination = destination,
-                  change_mode = change_mode,
-                  data = data,
-                  perms = perms))
+    TemplateShim(
+      defs.Template(source = source,
+                    destination = destination,
+                    change_mode = change_mode,
+                    data = data,
+                    perms = perms))
 
   def change_mode: String = "noop"
 }
@@ -334,7 +335,7 @@ case class ZookeeperDaemons(dev: Boolean, quorumSize: Int) extends Job {
           "/timberland/jvm/target/universal/stage/bin/timberland").some
         val command = "runtime".some
         var args = dev match {
-          case true => List("launch", "zookeeper", "--dev").some
+          case true  => List("launch", "zookeeper", "--dev").some
           case false => List("launch", "zookeeper").some
         }
         val port_map =
@@ -400,10 +401,12 @@ case class ZookeeperDaemons(dev: Boolean, quorumSize: Int) extends Job {
 
   }
 
-  def jobshim(): JobShim = JobShim(name, ZookeeperDaemons(dev, quorumSize).assemble)
+  def jobshim(): JobShim =
+    JobShim(name, ZookeeperDaemons(dev, quorumSize).assemble)
 }
 
-case class KafkaDaemons(dev: Boolean, quorumSize: Int, servicePort: Int = 9092) extends Job {
+case class KafkaDaemons(dev: Boolean, quorumSize: Int, servicePort: Int = 9092)
+    extends Job {
   val name = "kafka-daemons"
   val datacenters: List[String] = List("dc1")
   val constraints = Some(List(kernelConstraint))
@@ -438,10 +441,13 @@ case class KafkaDaemons(dev: Boolean, quorumSize: Int, servicePort: Int = 9092) 
     object kafkaTask extends Task {
       val name = "kafka"
       var env: Option[Map[String, String]] = dev match {
-        case true => Map("KAFKA_BROKER_ID" -> "${NOMAD_ALLOC_INDEX}",
-            "TOPIC_AUTO_CREATE" -> "true").some
-        case false => Map("KAFKA_BROKER_ID" -> "${NOMAD_ALLOC_INDEX}",
-          "TOPIC_AUTO_CREATE" -> "true", "KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR" -> "1").some
+        case true =>
+          Map("KAFKA_BROKER_ID" -> "${NOMAD_ALLOC_INDEX}",
+              "TOPIC_AUTO_CREATE" -> "true").some
+        case false =>
+          Map("KAFKA_BROKER_ID" -> "${NOMAD_ALLOC_INDEX}",
+              "TOPIC_AUTO_CREATE" -> "true",
+              "KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR" -> "1").some
       }
       val services = List(kafkaPlaintext)
 
@@ -458,7 +464,7 @@ case class KafkaDaemons(dev: Boolean, quorumSize: Int, servicePort: Int = 9092) 
           "/timberland/jvm/target/universal/stage/bin/timberland").some
         val command = "runtime".some
         var args = dev match {
-          case true => List("launch", "kafka", "--dev").some
+          case true  => List("launch", "kafka", "--dev").some
           case false => List("launch", "kafka").some
         }
         val port_map = Map("kafka" -> servicePort)
@@ -491,7 +497,8 @@ case class KafkaDaemons(dev: Boolean, quorumSize: Int, servicePort: Int = 9092) 
 
   }
 
-  def jobshim(): JobShim = JobShim(name, KafkaDaemons(dev, quorumSize, servicePort).assemble)
+  def jobshim(): JobShim =
+    JobShim(name, KafkaDaemons(dev, quorumSize, servicePort).assemble)
 }
 
 case class VaultDaemon(dev: Boolean, quorumSize: Int) extends Job {
@@ -569,7 +576,10 @@ case class VaultDaemon(dev: Boolean, quorumSize: Int) extends Job {
   def jobshim() = JobShim(name, VaultDaemon(dev, quorumSize).assemble)
 }
 
-case class KafkaCompanionDaemons(dev: Boolean, servicePort: Int = 9092, registryListenerPort: Int = 8081) extends Job {
+case class KafkaCompanionDaemons(dev: Boolean,
+                                 servicePort: Int = 9092,
+                                 registryListenerPort: Int = 8081)
+    extends Job {
   val name = "kafka-companion-daemons"
   val datacenters: List[String] = List("dc1")
   val constraints = Some(List(kernelConstraint))
@@ -620,7 +630,8 @@ case class KafkaCompanionDaemons(dev: Boolean, servicePort: Int = 9092, registry
         val cpu = 1000
         val memory = 1000
         object network extends Network {
-          val networkPorts = Map("registry_listener" -> registryListenerPort.some)
+          val networkPorts = Map(
+            "registry_listener" -> registryListenerPort.some)
         }
       }
 
@@ -682,52 +693,54 @@ case class KafkaCompanionDaemons(dev: Boolean, servicePort: Int = 9092, registry
       val template = None
       val templates = None
       val env = dev match {
-        case true => Map(
-          "CONNECT_BOOTSTRAP_SERVERS" -> "INSIDE://kafka-daemons-kafka-kafka.service.consul:29092",
-          "CONNECT_REST_PORT" -> "8083",
-          "CONNECT_GROUP_ID" -> "kafka-daemons-connect-group",
-          "CONNECT_CONFIG_STORAGE_TOPIC" -> "kafka-connect-daemons-connect-configs",
-          "CONNECT_OFFSET_STORAGE_TOPIC" -> "kafka-connect-daemons-connect-offsets",
-          "CONNECT_STATUS_STORAGE_TOPIC" -> "kafka-connect-daemons-connect-status",
-          "CONNECT_KEY_CONVERTER" -> "io.confluent.connect.avro.AvroConverter",
-          "CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL" -> s"http://kafka-companion-daemons-kafkaCompanions-kafkaSchemaRegistry:${registryListenerPort}",
-          "CONNECT_VALUE_CONVERTER" -> "io.confluent.connect.avro.AvroConverter",
-          "CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL" -> s"http://kafka-companion-daemons-kafkaCompanions-kafkaSchemaRegistry:${registryListenerPort}",
-          "CONNECT_INTERNAL_KEY_CONVERTER" -> "org.apache.kafka.connect.json.JsonConverter",
-          "CONNECT_INTERNAL_VALUE_CONVERTER" -> "org.apache.kafka.connect.json.JsonConverter",
-          "CONNECT_REST_ADVERTISED_HOST_NAME" -> "${attr.unique.hostname}-kafka-connect",
-          "CONNECT_LOG4J_ROOT_LOGLEVEL" -> "INFO",
-          "CONNECT_LOG4J_LOGGERS" -> "org.apache.kafka.connect.runtime.rest=WARN,org.reflections=ERROR",
-          "CONNECT_PLUGIN_PATH" -> "/usr/share/java,/etc/kafka-connect/jars",
-          "KAFKA_REST_PROXY_URL" -> "http://kafka-companion-daemons-kafkaCompanions-kafkaRestProxy.service.consul:8082",
-          "PROXY" -> "true",
-          "CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR" -> "1",
-      "CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR" -> "1",
-      "CONNECT_STATUS_STORAGE_REPLICATION_FACTOR" -> "1",
-        ).some
-        case false => Map(
-          "CONNECT_BOOTSTRAP_SERVERS" -> "INSIDE://kafka-daemons-kafka-kafka.service.consul:29092",
-          "CONNECT_REST_PORT" -> "8083",
-          "CONNECT_GROUP_ID" -> "kafka-daemons-connect-group",
-          "CONNECT_CONFIG_STORAGE_TOPIC" -> "kafka-connect-daemons-connect-configs",
-          "CONNECT_OFFSET_STORAGE_TOPIC" -> "kafka-connect-daemons-connect-offsets",
-          "CONNECT_STATUS_STORAGE_TOPIC" -> "kafka-connect-daemons-connect-status",
-          "CONNECT_KEY_CONVERTER" -> "io.confluent.connect.avro.AvroConverter",
-          "CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL" -> s"http://kafka-companion-daemons-kafkaCompanions-kafkaSchemaRegistry:${registryListenerPort}",
-          "CONNECT_VALUE_CONVERTER" -> "io.confluent.connect.avro.AvroConverter",
-          "CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL" -> s"http://kafka-companion-daemons-kafkaCompanions-kafkaSchemaRegistry:${registryListenerPort}",
-          "CONNECT_INTERNAL_KEY_CONVERTER" -> "org.apache.kafka.connect.json.JsonConverter",
-          "CONNECT_INTERNAL_VALUE_CONVERTER" -> "org.apache.kafka.connect.json.JsonConverter",
-          "CONNECT_REST_ADVERTISED_HOST_NAME" -> "${attr.unique.hostname}-kafka-connect",
-          "CONNECT_LOG4J_ROOT_LOGLEVEL" -> "INFO",
-          "CONNECT_LOG4J_LOGGERS" -> "org.apache.kafka.connect.runtime.rest=WARN,org.reflections=ERROR",
-          "CONNECT_PLUGIN_PATH" -> "/usr/share/java,/etc/kafka-connect/jars",
-          "KAFKA_REST_PROXY_URL" -> "http://kafka-companion-daemons-kafkaCompanions-kafkaRestProxy.service.consul:8082",
-          "PROXY" -> "true",
-          "CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR" -> "3",
-      "CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR" -> "3",
-      "CONNECT_STATUS_STORAGE_REPLICATION_FACTOR" -> "3",
-      ).some
+        case true =>
+          Map(
+            "CONNECT_BOOTSTRAP_SERVERS" -> "INSIDE://kafka-daemons-kafka-kafka.service.consul:29092",
+            "CONNECT_REST_PORT" -> "8083",
+            "CONNECT_GROUP_ID" -> "kafka-daemons-connect-group",
+            "CONNECT_CONFIG_STORAGE_TOPIC" -> "kafka-connect-daemons-connect-configs",
+            "CONNECT_OFFSET_STORAGE_TOPIC" -> "kafka-connect-daemons-connect-offsets",
+            "CONNECT_STATUS_STORAGE_TOPIC" -> "kafka-connect-daemons-connect-status",
+            "CONNECT_KEY_CONVERTER" -> "io.confluent.connect.avro.AvroConverter",
+            "CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL" -> s"http://kafka-companion-daemons-kafkaCompanions-kafkaSchemaRegistry:${registryListenerPort}",
+            "CONNECT_VALUE_CONVERTER" -> "io.confluent.connect.avro.AvroConverter",
+            "CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL" -> s"http://kafka-companion-daemons-kafkaCompanions-kafkaSchemaRegistry:${registryListenerPort}",
+            "CONNECT_INTERNAL_KEY_CONVERTER" -> "org.apache.kafka.connect.json.JsonConverter",
+            "CONNECT_INTERNAL_VALUE_CONVERTER" -> "org.apache.kafka.connect.json.JsonConverter",
+            "CONNECT_REST_ADVERTISED_HOST_NAME" -> "${attr.unique.hostname}-kafka-connect",
+            "CONNECT_LOG4J_ROOT_LOGLEVEL" -> "INFO",
+            "CONNECT_LOG4J_LOGGERS" -> "org.apache.kafka.connect.runtime.rest=WARN,org.reflections=ERROR",
+            "CONNECT_PLUGIN_PATH" -> "/usr/share/java,/etc/kafka-connect/jars",
+            "KAFKA_REST_PROXY_URL" -> "http://kafka-companion-daemons-kafkaCompanions-kafkaRestProxy.service.consul:8082",
+            "PROXY" -> "true",
+            "CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR" -> "1",
+            "CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR" -> "1",
+            "CONNECT_STATUS_STORAGE_REPLICATION_FACTOR" -> "1",
+          ).some
+        case false =>
+          Map(
+            "CONNECT_BOOTSTRAP_SERVERS" -> "INSIDE://kafka-daemons-kafka-kafka.service.consul:29092",
+            "CONNECT_REST_PORT" -> "8083",
+            "CONNECT_GROUP_ID" -> "kafka-daemons-connect-group",
+            "CONNECT_CONFIG_STORAGE_TOPIC" -> "kafka-connect-daemons-connect-configs",
+            "CONNECT_OFFSET_STORAGE_TOPIC" -> "kafka-connect-daemons-connect-offsets",
+            "CONNECT_STATUS_STORAGE_TOPIC" -> "kafka-connect-daemons-connect-status",
+            "CONNECT_KEY_CONVERTER" -> "io.confluent.connect.avro.AvroConverter",
+            "CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL" -> s"http://kafka-companion-daemons-kafkaCompanions-kafkaSchemaRegistry:${registryListenerPort}",
+            "CONNECT_VALUE_CONVERTER" -> "io.confluent.connect.avro.AvroConverter",
+            "CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL" -> s"http://kafka-companion-daemons-kafkaCompanions-kafkaSchemaRegistry:${registryListenerPort}",
+            "CONNECT_INTERNAL_KEY_CONVERTER" -> "org.apache.kafka.connect.json.JsonConverter",
+            "CONNECT_INTERNAL_VALUE_CONVERTER" -> "org.apache.kafka.connect.json.JsonConverter",
+            "CONNECT_REST_ADVERTISED_HOST_NAME" -> "${attr.unique.hostname}-kafka-connect",
+            "CONNECT_LOG4J_ROOT_LOGLEVEL" -> "INFO",
+            "CONNECT_LOG4J_LOGGERS" -> "org.apache.kafka.connect.runtime.rest=WARN,org.reflections=ERROR",
+            "CONNECT_PLUGIN_PATH" -> "/usr/share/java,/etc/kafka-connect/jars",
+            "KAFKA_REST_PROXY_URL" -> "http://kafka-companion-daemons-kafkaCompanions-kafkaRestProxy.service.consul:8082",
+            "PROXY" -> "true",
+            "CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR" -> "3",
+            "CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR" -> "3",
+            "CONNECT_STATUS_STORAGE_REPLICATION_FACTOR" -> "3",
+          ).some
       }
 
       object config extends Config {
@@ -804,7 +817,10 @@ case class KafkaCompanionDaemons(dev: Boolean, servicePort: Int = 9092, registry
 
   }
 
-  def jobshim(): JobShim = JobShim(name, KafkaCompanionDaemons(dev, servicePort, registryListenerPort).assemble)
+  def jobshim(): JobShim =
+    JobShim(
+      name,
+      KafkaCompanionDaemons(dev, servicePort, registryListenerPort).assemble)
 }
 
 case class Elasticsearch(dev: Boolean, quorumSize: Int) extends Job {
@@ -878,7 +894,7 @@ case class Elasticsearch(dev: Boolean, quorumSize: Int) extends Job {
         override val name = "${NOMAD_GROUP_NAME}".some
         val tags = List("elasticsearch", "rest")
         val port = "rest".some
-        val checks = List(tcpcheck)//, httpcheck)
+        val checks = List(tcpcheck) //, httpcheck)
         object tcpcheck extends Check {
           val `type` = "tcp"
           val port = "rest"
@@ -916,6 +932,292 @@ case class Elasticsearch(dev: Boolean, quorumSize: Int) extends Job {
     }
   }
   def jobshim() = JobShim(name, Elasticsearch(dev, quorumSize).assemble)
+}
+
+case class Retool(dev: Boolean, quorumSize: Int) extends Job {
+  val name = "retool"
+  val datacenters: List[String] = List("dc1")
+
+  object RetoolDaemonUpdate extends Update {
+    val stagger = "10s"
+    val max_parallel = 1
+    val min_healthy_time = "10s"
+  }
+
+  object kernelConstraint extends Constraint {
+    val operator = None
+    val attribute = "${attr.kernel.name}".some
+    val value = "linux"
+  }
+
+  val constraints = List(kernelConstraint).some
+  override val update = RetoolDaemonUpdate.some
+
+  val groups = List(RetoolGroup)
+
+  object RetoolGroup extends Group {
+    val name = "retool"
+    val count = quorumSize
+    val tasks = List(Postgres,
+                     DbConnector,
+                     DbSshConnector,
+                     RetoolJobsRunner,
+                     RetoolMain) //TODO: Add Yugabyte
+
+    object distinctHost extends Constraint {
+      val operator = "distinct_hosts".some
+      val attribute = None
+      val value = "true"
+    }
+
+    val constraints = List(distinctHost).some
+
+    object RetoolMain extends Task {
+      val name = "retool-main"
+      val env = Map(
+        "NODE_ENV" -> "production",
+        "RT_POSTGRES_DB" -> "retool",
+        "RT_POSTGRES_USER" -> "retool_internal_user",
+        "RT_POSTGRES_HOST" -> "retool-retool-postgres.service.consul",
+        "RT_POSTGRES_PORT" -> "5432",
+        "RT_POSTGRES_PASSWORD" -> "retool",
+        "POSTGRES_DB" -> "retool",
+        "POSTGRES_USER" -> "retool_internal_user",
+        "POSTGRES_HOST" -> "retool-retool-postgres.service.consul",
+        "POSTGRES_PORT" -> "5432",
+        "POSTGRES_PASSWORD" -> "retool",
+        "SERVICE_TYPE" -> "MAIN_BACKEND",
+        "DB_CONNECTOR_HOST" -> "http://retool-retool-db-connector.service.consul",
+        "DB_CONNECTOR_PORT" -> "3002",
+        "DB_SSH_CONNECTOR_HOST" -> "http://retool-retool-db-ssh-connector.service.consul",
+        "DB_SSH_CONNECTOR_PORT" -> "3003",
+        "LICENSE_KEY" -> "6b3b3a6b-78a8-4805-bef4-07bedb0cfd08"
+      ).some
+      object config extends Config {
+        val image = "tryretool/backend:latest"
+        val command = "bash".some
+        val port_map = Map("retool" -> 3000)
+        //        override val cap_add = List("IPC_LOCK").some
+        val volumes = List().some
+        val hostname = "retool-${NOMAD_ALLOC_INDEX+1}"
+        val entrypoint = None
+        val args = List(
+          "-c",
+          "./docker_scripts/wait-for-it.sh retool-retool-postgres.service.consul:5432; ./docker_scripts/start_api.sh").some
+      }
+
+      object RetoolService extends Service {
+        val tags = List("retool", "retool-service")
+        val port = "retool".some
+        val checks = List(check)
+        object check extends Check {
+          val `type` = "tcp"
+          val port = "retool"
+        }
+      }
+
+      val services = List(RetoolService)
+      val templates = List().some
+      object resources extends Resources {
+        val cpu = 1000
+        val memory = 3000
+        object network extends Network {
+          val networkPorts = Map("retool" -> 3000.some)
+        }
+      }
+    }
+
+    object RetoolJobsRunner extends Task {
+      val name = "jobs-runner"
+      val env = Map(
+        "NODE_ENV" -> "production",
+        "RT_POSTGRES_DB" -> "retool",
+        "RT_POSTGRES_USER" -> "retool_internal_user",
+        "RT_POSTGRES_HOST" -> "retool-retool-postgres.service.consul",
+        "RT_POSTGRES_PORT" -> "5432",
+        "RT_POSTGRES_PASSWORD" -> "retool",
+        "POSTGRES_DB" -> "retool",
+        "POSTGRES_USER" -> "retool_internal_user",
+        "POSTGRES_HOST" -> "retool-retool-postgres.service.consul",
+        "POSTGRES_PORT" -> "5432",
+        "POSTGRES_PASSWORD" -> "retool",
+        "SERVICE_TYPE" -> "JOBS_RUNNER"
+      ).some
+      object config extends Config {
+        val image = "tryretool/backend:latest"
+        val command = "bash".some
+        //        val port_map = Map("postgresdb" -> 5432) //TODO
+        val port_map = Map()
+        //        override val cap_add = List("IPC_LOCK").some
+        val volumes = List().some
+        val hostname = "jobs-runner-${NOMAD_ALLOC_INDEX+1}"
+        val entrypoint = None
+        val args = List(
+          "-c",
+          "chmod -R +x ./docker_scripts; sync; ./docker_scripts/wait-for-it.sh retool-retool-postgres.service.consul:5432; ./docker_scripts/start_api.sh").some
+      }
+
+//      object JobsRunnerService extends Service {
+//        val tags = List("retool", "jobsrunner")
+//        val port = "postgredb".some
+//        val checks = List(check)
+//        object check extends Check {
+//          val `type` = "tcp"
+//          val port = "postgresdb"
+//        }
+//      }
+
+      val services = List()
+      val templates = List().some
+      object resources extends Resources {
+        val cpu = 250
+        val memory = 1000
+        object network extends Network {
+          val networkPorts = Map()
+        }
+      }
+    }
+
+    object DbConnector extends Task {
+      val name = "db-connector"
+      val env = Map(
+        "NODE_ENV" -> "production",
+        "RT_POSTGRES_DB" -> "retool",
+        "RT_POSTGRES_USER" -> "retool_internal_user",
+        "RT_POSTGRES_HOST" -> "retool-retool-postgres.service.consul",
+        "RT_POSTGRES_PORT" -> "5432",
+        "RT_POSTGRES_PASSWORD" -> "retool",
+        "POSTGRES_DB" -> "retool",
+        "POSTGRES_USER" -> "retool_internal_user",
+        "POSTGRES_HOST" -> "retool-retool-postgres.service.consul",
+        "POSTGRES_PORT" -> "5432",
+        "POSTGRES_PASSWORD" -> "retool",
+        "SERVICE_TYPE" -> "DB_CONNECTOR_SERVICE"
+      ).some
+      object config extends Config {
+        val image = "tryretool/backend:latest"
+        val command = "bash".some
+        val port_map = Map("dbconnector" -> 3002)
+        //        override val cap_add = List("IPC_LOCK").some
+        val volumes = List().some
+        val hostname = "db-connector-${NOMAD_ALLOC_INDEX+1}"
+        val entrypoint = None
+        val args = List("-c", "./retool_backend").some
+      }
+
+      object DBConnectorService extends Service {
+        val tags = List("retool", "dbconnector")
+        val port = "dbconnector".some
+        val checks = List(check)
+        object check extends Check {
+          val `type` = "tcp"
+          val port = "dbconnector"
+        }
+      }
+
+      val services = List(DBConnectorService)
+      val templates = List().some
+      object resources extends Resources {
+        val cpu = 250
+        val memory = 1000
+        object network extends Network {
+          val networkPorts = Map("dbconnector" -> 3002.some) //TODO
+        }
+      }
+    }
+
+    object DbSshConnector extends Task {
+      val name = "db-ssh-connector"
+      val env = Map(
+        "NODE_ENV" -> "production",
+        "RT_POSTGRES_DB" -> "retool",
+        "RT_POSTGRES_USER" -> "retool_internal_user",
+        "RT_POSTGRES_HOST" -> "retool-retool-postgres.service.consul",
+        "RT_POSTGRES_PORT" -> "5432",
+        "RT_POSTGRES_PASSWORD" -> "retool",
+        "POSTGRES_DB" -> "retool",
+        "POSTGRES_USER" -> "retool_internal_user",
+        "POSTGRES_HOST" -> "retool-retool-postgres.service.consul",
+        "POSTGRES_PORT" -> "5432",
+        "POSTGRES_PASSWORD" -> "retool",
+        "SERVICE_TYPE" -> "DB_SSH_CONNECTOR_SERVICE"
+      ).some
+      object config extends Config {
+        val image = "tryretool/backend:latest"
+        val command = "bash".some
+        val port_map = Map("dbsshconnector" -> 3002)
+        //        override val cap_add = List("IPC_LOCK").some
+        val volumes = List("ssh:/retool_backend/autogen_ssh_keys",
+                           "./keys:/retool_backend/keys").some
+        val hostname = "db-ssh-connector-${NOMAD_ALLOC_INDEX+1}"
+        val entrypoint = None
+        val args = List(
+          "-c",
+          "./docker_scripts/generate_key_pair.sh; ./retool_backend").some
+      }
+
+      object DBSSHConnectorService extends Service {
+        val tags = List("retool", "dbsshconnector")
+        val port = "dbsshconnector".some
+        val checks = List(check)
+        object check extends Check {
+          val `type` = "tcp"
+          val port = "dbsshconnector"
+        }
+      }
+
+      val services = List(DBSSHConnectorService)
+      val templates = List().some
+      object resources extends Resources {
+        val cpu = 250
+        val memory = 1000
+        object network extends Network {
+          val networkPorts = Map("dbsshconnector" -> 3003.some) //TODO
+        }
+      }
+    }
+
+    object Postgres extends Task {
+      val name = "postgres"
+      val env = Map("POSTGRES_DB" -> "retool",
+                    "POSTGRES_USER" -> "retool_internal_user",
+                    "POSTGRES_HOST" -> "0.0.0.0",
+                    "POSTGRES_PORT" -> "5432",
+                    "POSTGRES_PASSWORD" -> "retool").some //TODO
+      object config extends Config {
+        val image = "postgres:9.6.5"
+        val command = "postgres".some
+        val port_map = Map("postgresdb" -> 5432)
+        //        override val cap_add = List("IPC_LOCK").some
+        val volumes = List("data:/var/lib/postgresql/data").some
+//        val volumes = List().some
+        val hostname = "postgres-${NOMAD_ALLOC_INDEX+1}"
+        val entrypoint = None
+        val args = List().some
+      }
+
+      object PostgresService extends Service {
+        val tags = List("retool", "postgres")
+        val port = "postgresdb".some
+        val checks = List(check)
+        object check extends Check {
+          val `type` = "tcp"
+          val port = "postgresdb"
+        }
+      }
+
+      val services = List(PostgresService)
+      val templates = List().some
+      object resources extends Resources {
+        val cpu = 250
+        val memory = 1000
+        object network extends Network {
+          val networkPorts = Map("postgresdb" -> 5432.some)
+        }
+      }
+    }
+  }
+  def jobshim(): JobShim = JobShim(name, Retool(dev, quorumSize).assemble)
 }
 
 //object main extends App {

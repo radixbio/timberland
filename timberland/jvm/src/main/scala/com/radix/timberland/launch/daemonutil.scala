@@ -67,6 +67,11 @@ case object ESStarted extends ESState
 case object ESQuorumEstablished extends ESState with DaemonRunning
 case object ESQuorumNotEstablished extends ESState with DaemonNotRunning
 
+sealed trait RetoolState extends DaemonState
+case object RetoolStarted extends RetoolState
+case object RetoolQuorumEstablished extends RetoolState with DaemonRunning
+case object RetoolQuorumNotEstablished extends RetoolState with DaemonNotRunning
+
 case object AllDaemonsStarted extends DaemonState
 
 package object daemonutil {
@@ -111,10 +116,13 @@ package object daemonutil {
       ZookeeperQuorumNotEstablished
   }
 
-  case class Kafka(startInDevMode: Boolean, quorumSize: Int, servicePort: Int = 9092)
+  case class Kafka(startInDevMode: Boolean,
+                   quorumSize: Int,
+                   servicePort: Int = 9092)
       extends Daemon[Kafka.type, KafkaState] {
     val quorumCount: Int = quorumSize
-    val kafkaDaemons = daemons.KafkaDaemons(startInDevMode, quorumSize, servicePort)
+    val kafkaDaemons =
+      daemons.KafkaDaemons(startInDevMode, quorumSize, servicePort)
 //    val daemonName: String = kafkaDaemons.name
 //    kafkaDaemons.kafka.count = quorumSize
 //    if (quorumSize == 1) {
@@ -133,10 +141,15 @@ package object daemonutil {
     val daemonQuorumNotEstablished: KafkaState = KafkaTopicsFailed
   }
 
-  case class KafkaCompanions(startInDevMode: Boolean, servicePort: Int = 9092, registryListenerPort: Int = 8081)
+  case class KafkaCompanions(startInDevMode: Boolean,
+                             servicePort: Int = 9092,
+                             registryListenerPort: Int = 8081)
       extends Daemon[KafkaCompanions.type, KafkaCompanionState] {
     val quorumCount: Int = 1
-    val kafkaCompanionDaemons = daemons.KafkaCompanionDaemons(startInDevMode, servicePort, registryListenerPort)
+    val kafkaCompanionDaemons = daemons.KafkaCompanionDaemons(
+      startInDevMode,
+      servicePort,
+      registryListenerPort)
     val daemonName: String = kafkaCompanionDaemons.name
     val daemonJob: JobShim = kafkaCompanionDaemons.jobshim
     val service = "kafka-companion-daemons-kafkaCompanions-kafkaConnect" //TODO: This domain has many services. DO we check just one or check all of them?
@@ -175,6 +188,20 @@ package object daemonutil {
     val daemonStarted: ESState = ESStarted
     val daemonQuorumEstablished: ESState = ESQuorumEstablished
     val daemonQuorumNotEstablished: ESState = ESQuorumNotEstablished
+  }
+
+  case class Retool(startInDevMode: Boolean, quorumSize: Int)
+      extends Daemon[Retool.type, RetoolState] {
+    val quorumCount: Int = quorumSize
+    val retoolDaemons = daemons.Retool(startInDevMode, quorumSize)
+    val daemonJob: JobShim = retoolDaemons.jobshim
+    val daemonName: String = retoolDaemons.name
+    val service = "retool-retool-retool-main"
+    val tags =
+      Set("retool", "retool-service")
+    val daemonStarted: RetoolState = RetoolStarted
+    val daemonQuorumEstablished: RetoolState = RetoolQuorumEstablished
+    val daemonQuorumNotEstablished: RetoolState = RetoolQuorumNotEstablished
   }
 
   def timeoutTo[A](fa: IO[A], after: FiniteDuration, fallback: IO[A])(
@@ -290,7 +317,10 @@ package object daemonutil {
                     dev: Boolean,
                     core: Boolean,
                     vaultStart: Boolean,
-                    esStart: Boolean, servicePort: Int, registryListenerPort: Int): IO[DaemonState] = {
+                    esStart: Boolean,
+                    retoolStart: Boolean,
+                    servicePort: Int,
+                    registryListenerPort: Int): IO[DaemonState] = {
 
     BlazeClientBuilder[IO](global).resource.use(implicit client => {
       scribe.info("Checking Nomad Quorum...")
@@ -305,17 +335,19 @@ package object daemonutil {
 
       val zk = Zookeeper(startInDevMode, quorumSize)
       val kafka = Kafka(startInDevMode, quorumSize, servicePort)
-      val kafkaCompanions = KafkaCompanions(startInDevMode, servicePort, registryListenerPort)
+      val kafkaCompanions =
+        KafkaCompanions(startInDevMode, servicePort, registryListenerPort)
       val es = Elasticsearch(startInDevMode, quorumSize)
       val vault = Vault(startInDevMode, quorumSize)
+      val retool = Retool(startInDevMode, quorumSize)
 
       val result = for {
+        nomadQuorumStatus <- timeout(Nomad.waitForQuorum(interp, quorumSize),
+                                     new FiniteDuration(2, duration.MINUTES))
         coreStatus <- core match {
           case true => {
             for {
-              nomadQuorumStatus <- timeout(
-                Nomad.waitForQuorum(interp, quorumSize),
-                new FiniteDuration(2, duration.MINUTES))
+
               zkStart <- zk.start
               zkQuorumStatus <- timeout(
                 zk.waitForQuorum,
@@ -343,6 +375,17 @@ package object daemonutil {
           }
           case false => IO.sleep(1.second)
         }
+        retoolQuorumStatus <- retoolStart match {
+          case true => {
+            for {
+              retoolStart <- retool.start
+              retoolQuorumStatus <- timeout(
+                retool.waitForQuorum,
+                new FiniteDuration(360, duration.SECONDS))
+            } yield retoolQuorumStatus
+          }
+          case false => IO.sleep(1.second)
+        }
         esQuorumStatus <- esStart match {
           case true => {
             for {
@@ -358,7 +401,15 @@ package object daemonutil {
       } yield esQuorumStatus
       result.attempt.flatMap {
         case Left(a) =>
-          timeout(waitForQuorum(quorumSize, dev, core, vaultStart, esStart, servicePort, registryListenerPort),
+          a.printStackTrace()
+          timeout(waitForQuorum(quorumSize,
+                                dev,
+                                core,
+                                vaultStart,
+                                esStart,
+                                retoolStart,
+                                servicePort,
+                                registryListenerPort),
                   new FiniteDuration(10, duration.MINUTES))
         case Right(a) =>
           IO.pure(AllDaemonsStarted)
