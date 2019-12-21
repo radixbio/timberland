@@ -293,6 +293,7 @@ object runner {
     val appdatadir    = new File(persistentdir)
     val consul        = new File(persistentdir + "/consul/consul")
     val nomad         = new File(persistentdir + "/nomad/nomad")
+    val timberlandJar = new File(persistentdir + "/timberland.jar")
     nomad.getParentFile.mkdirs()
     consul.getParentFile.mkdirs()
 
@@ -432,17 +433,21 @@ object runner {
                     val dl =
                       Download.downloadConsulAndNomad[IO]("1.6.1", "0.10.0", List(osname, arch), List(osname, arch))
                     val resourceMover = new Installer.MoveFromJVMResources[IO]()
+                    scribe.info("Jar File Location" + this.getClass.getProtectionDomain.getCodeSource.getLocation.toURI.getPath())
+                    val currentJarFile = new File(this.getClass.getProtectionDomain.getCodeSource.getLocation.toURI.getPath())
                     val prog = for {
                       file <- dl
                       _    <- IO(scribe.info("download complete, canonicalizing directories"))
                       _ <- for {
                         _ <- Util.nioCopyFile(file._1._1, consul)
                         _ <- Util.nioCopyFile(file._2._1, nomad)
+                        _ <- Util.nioCopyFile(currentJarFile, timberlandJar)
                         _ <- IO {
                           consul.setExecutable(true)
                           nomad.setExecutable(true)
                         }
                       } yield ()
+
                       _ <- resourceMover.fncopy(Path("/consul/consul.json"), Path(consul.getParentFile.toPath))
                       _ <- resourceMover.fncopy(Path("/nomad/config"), Path(nomad.getParentFile.toPath))
 

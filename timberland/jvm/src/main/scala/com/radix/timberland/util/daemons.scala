@@ -322,7 +322,7 @@ case class ZookeeperDaemons(dev: Boolean, quorumSize: Int) extends Job {
 
       object zookeeperTemplate extends Template {
         override val source =
-          "/mnt/timberland/jvm/src/main/resources/nomad/config/zookeeper/zoo.tpl".some
+          "/opt/radix/timberland/nomad/zookeeper/zoo.tpl".some
         val destination = "local/conf/zoo_servers"
       }
 
@@ -331,19 +331,18 @@ case class ZookeeperDaemons(dev: Boolean, quorumSize: Int) extends Job {
         val hostname = "${attr.unique.hostname}-zookeeper"
         // CMD and ARGS here should invoke timberland
         //TODO grab timberland from artifactory, not volume mount
-        val entrypoint = List(
-          "/timberland/jvm/target/universal/stage/bin/timberland").some
-        val command = "runtime".some
+        val entrypoint = List("java").some
+        val command = "-jar".some
         var args = dev match {
-          case true  => List("launch", "zookeeper", "--dev").some
-          case false => List("launch", "zookeeper").some
+          case true  => List("/timberland/timberland.jar", "runtime", "launch", "zookeeper", "--dev").some
+          case false => List("/timberland/timberland.jar", "runtime", "launch", "zookeeper").some
         }
         val port_map =
           Map("client" -> 2181, "follower" -> 2888, "othersrvs" -> 3888)
         //                dns_servers = ["${attr.unique.network.ip-address}"]
         //TODO swap mount point for artifactory
         val volumes = List(
-          "/mnt/timberland/:/timberland"
+          "/opt/radix/timberland:/timberland"
         ).some
       }
       val templates = List(zookeeperTemplate).some
@@ -453,22 +452,21 @@ case class KafkaDaemons(dev: Boolean, quorumSize: Int, servicePort: Int = 9092)
 
       object kafkaTemplate extends Template {
         override val source =
-          "/mnt/timberland/jvm/src/main/resources/nomad/config/zookeeper/zoo.tpl".some
+          "/opt/radix/timberland/nomad/zookeeper/zoo.tpl".some
         val destination = "local/conf/zoo_servers"
       }
       val templates = List(kafkaTemplate).some
       object config extends Config {
         val image = "confluentinc/cp-kafka:5.3.1"
         val hostname = "${attr.unique.hostname}-kafka"
-        val entrypoint = List(
-          "/timberland/jvm/target/universal/stage/bin/timberland").some
-        val command = "runtime".some
+        val entrypoint = List("java").some
+        val command = "-jar".some
         var args = dev match {
-          case true  => List("launch", "kafka", "--dev").some
-          case false => List("launch", "kafka").some
+          case true  => List("/timberland/timberland.jar", "runtime", "launch", "kafka", "--dev").some
+          case false => List("/timberland/timberland.jar", "runtime", "launch", "kafka").some
         }
         val port_map = Map("kafka" -> servicePort)
-        val volumes = List("/mnt/timberland/:/timberland").some
+        val volumes = List("/opt/radix/timberland:/timberland").some
       }
 
       object resources extends Resources {

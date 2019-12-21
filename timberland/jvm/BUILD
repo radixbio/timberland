@@ -16,7 +16,11 @@ scala_library(
     srcs = glob([
         "src/**/*.scala",
     ]),
-    resources = glob(["src/main/resources/**/*"]),
+    resources = glob([
+        "src/main/resources/consul/**/*",
+        "src/main/resources/nomad/**/*",
+        "src/main/resources/systemd/**/*",
+    ]),
     exports = [
         "//3rdparty/jvm/com/github/xuwei_k:optparse_applicative",
         "//3rdparty/jvm/com/lihaoyi:ammonite_ops",
@@ -39,6 +43,10 @@ scala_binary(
     name = "timberland-bin",
     srcs = ["src/main/scala/com/radix/timberland/runner.scala"],
     main_class = "com.radix.timberland.runner",
-    resources = glob(["src/main/resources/**/*"]),
+    resources = glob([
+        "src/main/resources/consul/**/*",
+        "src/main/resources/nomad/**/*",
+        "src/main/resources/systemd/**/*",
+    ]),
     deps = [":timberland-lib"],
 )

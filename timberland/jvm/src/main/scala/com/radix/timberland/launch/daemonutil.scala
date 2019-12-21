@@ -359,7 +359,7 @@ package object daemonutil {
               kafkaCompanionStart <- kafkaCompanions.start
               kafkaCompanionQuorumStatus <- timeout(
                 kafkaCompanions.waitForQuorum,
-                new FiniteDuration(120, duration.SECONDS))
+                new FiniteDuration(360, duration.SECONDS))
             } yield kafkaCompanionQuorumStatus
           }
           case false => IO.sleep(1.second)
