@@ -131,6 +131,9 @@ dependencies:
     circe-fs2:
       lang: scala
       version: 0.12.0
+    circe-optics:
+      lang: scala
+      version: 0.12.0
   com.outr:
     scribe:
       lang: scala
@@ -195,8 +198,8 @@ dependencies:
   com.dimafeng:
     testcontainers:
       lang: scala
-      modules: [scala]
-      version: 0.33.0
+      modules: [scala, scala-vault]
+      version: 0.34.1
   org.scalacheck:
     scalacheck:
       lang: scala
