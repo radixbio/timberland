@@ -260,6 +260,15 @@ dependencies:
       lang: java
       version: 4.1.1
       modules: ["", ooxml, ooxml-schemas]
+  org.scalameta:
+    scalameta:
+      lang: scala
+      version: 4.1.0
+  me.shadaj:
+    scalapy:
+      lang: scala
+      version: 0.3.0
+      modules: [core, macros]
 #
 #replacements:
 #  org.scala-lang:
