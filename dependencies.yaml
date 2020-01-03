@@ -42,7 +42,7 @@ dependencies:
     http4s:
       lang: scala
       version: 0.21.0-M6
-      modules: [blaze-client, argonaut, blaze-server, dsl, circe]
+      modules: [blaze-client, argonaut, blaze-server, dsl, circe, core]
     parboiled:
       lang: scala
       version: 2.0.1
