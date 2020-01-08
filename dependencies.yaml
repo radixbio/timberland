@@ -260,6 +260,11 @@ dependencies:
       lang: java
       version: 4.1.1
       modules: ["", ooxml, ooxml-schemas]
+  co.fs2:
+    fs2:
+      lang: scala
+      version: 2.0.0
+      modules: [core, io, reactive-streams]
   org.scalameta:
     scalameta:
       lang: scala
