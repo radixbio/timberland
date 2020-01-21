@@ -74,14 +74,29 @@ case object RetoolQuorumNotEstablished extends RetoolState with DaemonNotRunning
 
 case object AllDaemonsStarted extends DaemonState
 
+/** A holder class for combining a task with it's associated tags that need to be all checked for Daemon Availability
+  *
+  * @param name The full extended task name which is "{jobName}-{groupName}-{taskName}" for any given task
+  * @param tagList A list of type Set[String] which are unique combinations of services that should be checked for
+  *                availability
+  */
+case class TaskAndTags(name: String, tagList: List[Set[String]])
+
 package object daemonutil {
   private[this] implicit val timer: Timer[IO] = IO.timer(global)
   private[this] implicit val cs: ContextShift[IO] = IO.contextShift(global)
 
+  /** A Daemon that can start and stop in Nomad
+    *
+    * @tparam A The daemon's type
+    * @tparam T The type of DaemonState used by the daemon
+    */
   trait Daemon[A, T] {
     def quorumCount: Int
 
 //    def daemonName: String
+
+    def assembledDaemon: daemons.Job
 
     def daemonJob: JobShim
 
@@ -95,18 +110,25 @@ package object daemonutil {
     val daemonQuorumNotEstablished: T
   }
 
-  case class Zookeeper(startInDevMode: Boolean, quorumSize: Int)
+  /** The Daemon for Zookeeper
+    *
+    * @param dev Start with --dev (if available) and other items to make a single node cluster work
+    * @param quorumSize Set the expected quorum size
+    */
+  case class Zookeeper(dev: Boolean, quorumSize: Int)
       extends Daemon[Zookeeper.type, ZookeeperState] {
     val quorumCount: Int = quorumSize
-    val zookeeperDaemons = daemons.ZookeeperDaemons(startInDevMode, quorumSize)
+    val assembledDaemon: daemons.Job =
+      daemons.ZookeeperDaemons(dev, quorumSize)
+//    val zookeeperDaemons = daemons.ZookeeperDaemons(dev, quorumSize)
 //    daemons.ZookeeperDaemons.zookeeper.count = quorumSize
 
 //    if (quorumSize == 1) {
 //      daemons.ZookeeperDaemons.zookeeper.zookeeper.config.args =
 //        (daemons.ZookeeperDaemons.zookeeper.zookeeper.config.args.get :+ "--dev").some
 //    }
-    val daemonJob: JobShim = zookeeperDaemons.jobshim
-    val daemonName: String = zookeeperDaemons.name
+    val daemonJob: JobShim = assembledDaemon.jobshim
+    val daemonName: String = assembledDaemon.name
     val service = "zookeeper-daemons-zookeeper-zookeeper"
     val tags =
       Set("zookeeper-quorum", "zookeeper-client")
@@ -116,23 +138,17 @@ package object daemonutil {
       ZookeeperQuorumNotEstablished
   }
 
-  case class Kafka(startInDevMode: Boolean,
-                   quorumSize: Int,
-                   servicePort: Int = 9092)
+  /** The Daemon for Kafka
+    *
+    * @param dev Start with --dev (if available) and other items to make a single node cluster work
+    * @param quorumSize Set the expected quorum size
+    */
+  case class Kafka(dev: Boolean, quorumSize: Int, servicePort: Int = 9092)
       extends Daemon[Kafka.type, KafkaState] {
     val quorumCount: Int = quorumSize
-    val kafkaDaemons =
-      daemons.KafkaDaemons(startInDevMode, quorumSize, servicePort)
-//    val daemonName: String = kafkaDaemons.name
-//    kafkaDaemons.kafka.count = quorumSize
-//    if (quorumSize == 1) {
-//      kafkaDaemons.kafka.kafkaTask.config.args =
-//        (kafkaDaemons.kafka.kafkaTask.config.args.get :+ "--dev").some
-//      kafkaDaemons.kafka.kafkaTask.env =
-//        (kafkaDaemons.kafka.kafkaTask.env.get ++ Map(
-//          "KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR" -> "1")).some
-//    }
-    val daemonJob: JobShim = kafkaDaemons.jobshim
+    val assembledDaemon: daemons.Job =
+      daemons.KafkaDaemons(dev, quorumSize, servicePort)
+    val daemonJob: JobShim = assembledDaemon.jobshim
     val service = "kafka-daemons-kafka-kafka"
     val tags =
       Set("kafka-quorum", "kafka-plaintext")
@@ -141,17 +157,21 @@ package object daemonutil {
     val daemonQuorumNotEstablished: KafkaState = KafkaTopicsFailed
   }
 
-  case class KafkaCompanions(startInDevMode: Boolean,
+  /** The Daemon for Various Kafka Companions
+    *
+    * @param dev Start with --dev (if available) and other items to make a single node cluster work
+    * @param servicePort The port that Kafka should be listening on on the exposed port (default 9092)
+    * @param registryListenerPort The port to set up the Schema Registry to listen on (default: 8081)
+    */
+  case class KafkaCompanions(dev: Boolean,
                              servicePort: Int = 9092,
                              registryListenerPort: Int = 8081)
       extends Daemon[KafkaCompanions.type, KafkaCompanionState] {
     val quorumCount: Int = 1
-    val kafkaCompanionDaemons = daemons.KafkaCompanionDaemons(
-      startInDevMode,
-      servicePort,
-      registryListenerPort)
-    val daemonName: String = kafkaCompanionDaemons.name
-    val daemonJob: JobShim = kafkaCompanionDaemons.jobshim
+    val assembledDaemon: daemons.Job =
+      daemons.KafkaCompanionDaemons(dev, servicePort, registryListenerPort)
+    val daemonName: String = assembledDaemon.name
+    val daemonJob: JobShim = assembledDaemon.jobshim
     val service = "kafka-companion-daemons-kafkaCompanions-kafkaConnect" //TODO: This domain has many services. DO we check just one or check all of them?
     val tags =
       Set("kafka-companion", "kafka-connect")
@@ -162,12 +182,18 @@ package object daemonutil {
       KafkaCompanionsQuorumNotEstablished
   }
 
-  case class Vault(startInDevMode: Boolean, quorumSize: Int)
+  /** The Daemon for Vault
+    *
+    * @param dev Start with --dev (if available) and other items to make a single node cluster work
+    * @param quorumSize Set the expected quorum size
+    */
+  case class Vault(dev: Boolean, quorumSize: Int)
       extends Daemon[Vault.type, VaultState] {
     val quorumCount: Int = quorumSize
-    val vaultDaemons = daemons.VaultDaemon(startInDevMode, quorumSize)
-    val daemonJob: JobShim = vaultDaemons.jobshim
-    val daemonName: String = vaultDaemons.name
+    val assembledDaemon: daemons.Job =
+      daemons.VaultDaemon(dev, quorumSize)
+    val daemonJob: JobShim = assembledDaemon.jobshim
+    val daemonName: String = assembledDaemon.name
     val service = "vault-daemon-vault-vault"
     val tags =
       Set("vault", "vault-listen")
@@ -176,12 +202,18 @@ package object daemonutil {
     val daemonQuorumNotEstablished: VaultState = VaultQuorumNotEstablished
   }
 
-  case class Elasticsearch(startInDevMode: Boolean, quorumSize: Int)
+  /** The Daemon for Elasticsearch
+    *
+    * @param dev Start with --dev (if available) and other items to make a single node cluster work
+    * @param quorumSize Set the expected quorum size
+    */
+  case class Elasticsearch(dev: Boolean, quorumSize: Int)
       extends Daemon[Elasticsearch.type, ESState] {
     val quorumCount: Int = quorumSize
-    val esDaemons = daemons.Elasticsearch(startInDevMode, quorumSize)
-    val daemonJob: JobShim = esDaemons.jobshim
-    val daemonName: String = esDaemons.name
+    val assembledDaemon: daemons.Job =
+      daemons.Elasticsearch(dev, quorumSize)
+    val daemonJob: JobShim = assembledDaemon.jobshim
+    val daemonName: String = assembledDaemon.name
     val service = "elasticsearch-elasticsearch-es-general-node"
     val tags =
       Set("elasticsearch", "rest")
@@ -190,12 +222,18 @@ package object daemonutil {
     val daemonQuorumNotEstablished: ESState = ESQuorumNotEstablished
   }
 
-  case class Retool(startInDevMode: Boolean, quorumSize: Int)
+  /** The Daemon for Retool
+    *
+    * @param dev Start with --dev (if available) and other items to make a single node cluster work
+    * @param quorumSize Set the expected quorum size
+    */
+  case class Retool(dev: Boolean, quorumSize: Int)
       extends Daemon[Retool.type, RetoolState] {
     val quorumCount: Int = quorumSize
-    val retoolDaemons = daemons.Retool(startInDevMode, quorumSize)
-    val daemonJob: JobShim = retoolDaemons.jobshim
-    val daemonName: String = retoolDaemons.name
+    val assembledDaemon: daemons.Job =
+      daemons.Retool(dev, quorumSize)
+    val daemonJob: JobShim = assembledDaemon.jobshim
+    val daemonName: String = assembledDaemon.name
     val service = "retool-retool-retool-main"
     val tags =
       Set("retool", "retool-service")
@@ -204,6 +242,39 @@ package object daemonutil {
     val daemonQuorumNotEstablished: RetoolState = RetoolQuorumNotEstablished
   }
 
+  /** Let a specified function run for a specified period of time before interrupting it and raising an error. This
+    *  function sets up the timeoutTo function.
+    *
+    * Taken from: https://typelevel.org/cats-effect/datatypes/io.html#race-conditions--race--racepair
+    *
+    * @param fa The function to run (This function must return type IO[A])
+    * @param after Timeout after this amount of time
+    * @param timer A default Timer
+    * @param cs A default ContextShift
+    * @tparam A The return type of the function must be IO[A]. A is the type of our result
+    * @return Returns the successful completion of the function or a IO.raiseError
+    */
+  def timeout[A](fa: IO[A], after: FiniteDuration)(
+      implicit timer: Timer[IO],
+      cs: ContextShift[IO]): IO[A] = {
+
+    val error = new TimeoutException(after.toString)
+    timeoutTo(fa, after, IO.raiseError(error))
+  }
+
+  /** Creates a race condition between two functions (fa and timer.sleep()) that will let a program run until the timer
+    *  expires
+    *
+    * Taken from: https://typelevel.org/cats-effect/datatypes/io.html#race-conditions--race--racepair
+    *
+    * @param fa The function to race which must return type IO[A]
+    * @param after The duration to let the function run
+    * @param fallback The function to run if fa fails
+    * @param timer A default timer
+    * @param cs A default ContextShift
+    * @tparam A The type of our result
+    * @return Returns the result of fa if it completes within @after or returns fallback (all IO[A])
+    */
   def timeoutTo[A](fa: IO[A], after: FiniteDuration, fallback: IO[A])(
       implicit timer: Timer[IO],
       cs: ContextShift[IO]): IO[A] = {
@@ -214,18 +285,23 @@ package object daemonutil {
     }
   }
 
-  def timeout[A](fa: IO[A], after: FiniteDuration)(
-      implicit timer: Timer[IO],
-      cs: ContextShift[IO]): IO[A] = {
-
-    val error = new TimeoutException(after.toString)
-    timeoutTo(fa, after, IO.raiseError(error))
-  }
-
+  /** Our implicit class that holds functions we want to incorporate into our Daemons
+    *
+    * @param daemon The daemon being passed to the class and functions
+    * @tparam A The daemon's type
+    * @tparam T The type of DaemonState used by the daemon
+    */
   implicit class DaemonOps[A, T](daemon: Daemon[A, T]) {
+
+    /** Start the daemon. This will check if it is already running and not start if it is. If it isn't, it will go into
+      *  a perpetual loop until the Daemon is started.
+      *
+      * @param interp A Http4sNomadClient to be used for making web requests against Nomad
+      * @return Returns an IO[T] where T is the type of DaemonState used by the daemon
+      */
     def start(implicit interp: Http4sNomadClient[IO]): IO[T] = {
       for {
-        serviceState <- daemon.checkServiceState(fail = true)
+        serviceState <- daemon.checkDaemonState(fail = true)
         _ <- IO.pure(scribe.info(
           s"COMPLETED INITIAL SERVICE CHECK FOR ${daemon.getClass.getSimpleName}"))
         res <- if (serviceState == daemon.daemonQuorumEstablished) {
@@ -242,32 +318,41 @@ package object daemonutil {
             res <- IO.pure(daemon.daemonStarted)
           } yield res
         }
-//        res <- serviceState match {
-//          case _: DaemonNotRunning => IO.pure(daemon.daemonStarted)
-//          case _: DaemonRunning => {
-//            for {
-//              jobResponse <- NomadOp
-//                .nomadCreateJobFromHCL(job = daemon.daemonJob)
-//                .foldMap(interp)
-//              _ <- IO(
-//                scribe.info(s"Started job for ${daemon.getClass.getSimpleName}"))
-//              res <- IO.pure(daemon.daemonStarted)
-//            } yield res
-//          }
-//        }
+        //        res <- serviceState match {
+        //          case _: DaemonNotRunning => IO.pure(daemon.daemonStarted)
+        //          case _: DaemonRunning => {
+        //            for {
+        //              jobResponse <- NomadOp
+        //                .nomadCreateJobFromHCL(job = daemon.daemonJob)
+        //                .foldMap(interp)
+        //              _ <- IO(
+        //                scribe.info(s"Started job for ${daemon.getClass.getSimpleName}"))
+        //              res <- IO.pure(daemon.daemonStarted)
+        //            } yield res
+        //          }
+        //        }
       } yield res
     }
 
-//    def stop(implicit interp: Http4sNomadClient[IO]): IO[T] = {
-//      for {
-//        _ <- NomadOp.nomadStopJob(daemon.daemonName).foldMap(interp)
-//        resp <- IO.pure(daemon.daemonQuorumNotEstablished)
-//      } yield resp
-//    }
+    /** Stop the specified daemon (by default this will purge the daemon as well)
+      *
+      * @param interp A Http4sNomadClient to be used for making web requests against Nomad
+      * @return IO[T] where T is a valid DaemonState for the specified service
+      */
+    def stop(implicit interp: Http4sNomadClient[IO]): IO[T] = {
+      for {
+        _ <- NomadOp.nomadStopJob(daemon.assembledDaemon.name).foldMap(interp)
+        resp <- IO.pure(daemon.daemonQuorumNotEstablished)
+      } yield resp
+    }
 
+    /** Block and wait until all services across all instances of a specified Daemon are started
+      *
+      * @return IO[T] where T is a valid DaemonState for the specified service
+      */
     def waitForQuorum: IO[T] = {
       for {
-        serviceState <- daemon.checkServiceState()
+        serviceState <- daemon.checkDaemonState()
         res <- if (serviceState == daemon.daemonQuorumEstablished) {
           IO.pure(daemon.daemonQuorumEstablished)
         } else {
@@ -276,16 +361,54 @@ package object daemonutil {
       } yield res
     }
 
-    def checkServiceState(fail: Boolean = false): IO[T] = {
+    /** This function compiles the list of task names and associated tags that will need to be checked for daemon
+      *  availability
+      * @return A list of type TaskAndTags (see above definition)
+      */
+    def determineTasksAndTags: List[TaskAndTags] = {
+      val jobName: String = daemon.assembledDaemon.name
+      daemon.assembledDaemon.groups.flatMap(g => {
+        g.tasks.map(t => {
+          TaskAndTags(name = s"${jobName}-${g.name}-${t.name}",
+                      tagList = t.services.map(s => s.tags.toSet))
+        })
+      })
+    }
+
+    /** Check the state of the daemon and its services
+      *
+      * @param fail Whether the associated consulutil check should propogate (i.e. continuously check) or fail after one
+      *             failed check
+      * @return Returns an IO[T] where T is the type of DaemonState used by the daemon
+      */
+    def checkDaemonState(fail: Boolean = false): IO[T] = {
+      val servicesAndTags: List[TaskAndTags] = daemon.determineTasksAndTags
+
       for {
-        tasksRunning <- consulutil.waitForService(daemon.service,
-                                                  daemon.tags,
-                                                  daemon.quorumCount,
-                                                  fail)(1.seconds, timer)
-        res <- if (tasksRunning.size >= daemon.quorumCount) {
-          IO.pure(daemon.daemonQuorumEstablished)
-        } else {
+        serviceStates <- servicesAndTags
+          .flatMap(st => {
+            st.tagList.map(tags => {
+              for {
+                tasksRunning <- consulutil.waitForService(
+                  st.name,
+                  tags,
+                  daemon.quorumCount,
+                  fail)(1.seconds, timer)
+                res <- if (tasksRunning.size >= daemon.quorumCount) {
+                  IO.pure(daemon.daemonQuorumEstablished)
+                } else {
+                  IO.pure(daemon.daemonQuorumNotEstablished)
+                }
+
+              } yield res
+            })
+          })
+          .parSequence
+//        _ <- IO.pure(scribe.debug(s"------${serviceStates.toString}"))
+        res <- if (serviceStates.contains(daemon.daemonQuorumNotEstablished)) {
           IO.pure(daemon.daemonQuorumNotEstablished)
+        } else {
+          IO.pure(daemon.daemonQuorumEstablished)
         }
       } yield res
     }
@@ -313,6 +436,21 @@ package object daemonutil {
     } yield res
   }
 
+  /** Start up the specified daemons (or all or a combination) based upon the passed parameters. Will continue running
+    *  until all specified daemons have successfully started.
+    *
+    * @param quorumSize How many running and valid copies of a Job Group there should be across the specified services
+    * @param dev Whether to run in dev mode. This is used in conjunction with quorumSize to adjust variables sent to
+    *            the daemon to start it in development mode
+    * @param core Whether to start core services (Zookeeper, Kafka, Kafka Companions)
+    * @param vaultStart Whether to start Vault
+    * @param esStart Whether to start Elasticsearch
+    * @param retoolStart Whether to start retool
+    * @param servicePort What port to start Kafka on
+    * @param registryListenerPort What port for the Kafka Schema registry to start on
+    * @return Returns an IO of DaemonState and since the function is blocking/recursive, the only return value is
+    *         AllDaemonsStarted
+    */
   def waitForQuorum(quorumSize: Int,
                     dev: Boolean,
                     core: Boolean,
@@ -328,18 +466,14 @@ package object daemonutil {
       implicit val interp: Http4sNomadClient[IO] =
         new Http4sNomadClient[IO](uri("http://nomad.service.consul:4646"),
                                   client)
-      val startInDevMode: Boolean = quorumSize match {
-        case 1 => true
-        case _ => false
-      }
 
-      val zk = Zookeeper(startInDevMode, quorumSize)
-      val kafka = Kafka(startInDevMode, quorumSize, servicePort)
+      val zk = Zookeeper(dev, quorumSize)
+      val kafka = Kafka(dev, quorumSize, servicePort)
       val kafkaCompanions =
-        KafkaCompanions(startInDevMode, servicePort, registryListenerPort)
-      val es = Elasticsearch(startInDevMode, quorumSize)
-      val vault = Vault(startInDevMode, quorumSize)
-      val retool = Retool(startInDevMode, quorumSize)
+        KafkaCompanions(dev, servicePort, registryListenerPort)
+      val es = Elasticsearch(dev, quorumSize)
+      val vault = Vault(dev, quorumSize)
+      val retool = Retool(dev, quorumSize)
 
       val result = for {
         nomadQuorumStatus <- timeout(Nomad.waitForQuorum(interp, quorumSize),

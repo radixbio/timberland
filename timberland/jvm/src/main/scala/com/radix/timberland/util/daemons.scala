@@ -242,6 +242,9 @@ trait Group {
   }
 }
 
+/** A Nomad job description which can be used to assemble HCL and send it to Nomad
+ * (Not sure how to fully document this since ScalaDocs has no standard for traits)
+ */
 trait Job {
   def name: String
 
@@ -254,6 +257,8 @@ trait Job {
   def groups: List[Group]
 
   def `type`: Option[String] = "service".some
+
+  def jobshim(): JobShim
 
   def assemble: defs.Job = {
     val assembledConstraints: Option[List[defs.Constraint]] =
@@ -334,8 +339,14 @@ case class ZookeeperDaemons(dev: Boolean, quorumSize: Int) extends Job {
         val entrypoint = List("java").some
         val command = "-jar".some
         var args = dev match {
-          case true  => List("/timberland/timberland.jar", "runtime", "launch", "zookeeper", "--dev").some
-          case false => List("/timberland/timberland.jar", "runtime", "launch", "zookeeper").some
+          case true =>
+            List("/timberland/timberland.jar",
+                 "runtime",
+                 "launch",
+                 "zookeeper",
+                 "--dev").some
+          case false =>
+            List("/timberland/timberland.jar", "runtime", "launch", "zookeeper").some
         }
         val port_map =
           Map("client" -> 2181, "follower" -> 2888, "othersrvs" -> 3888)
@@ -442,11 +453,11 @@ case class KafkaDaemons(dev: Boolean, quorumSize: Int, servicePort: Int = 9092)
       var env: Option[Map[String, String]] = dev match {
         case true =>
           Map("KAFKA_BROKER_ID" -> "${NOMAD_ALLOC_INDEX}",
-              "TOPIC_AUTO_CREATE" -> "true").some
+              "TOPIC_AUTO_CREATE" -> "true",
+            "KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR" -> "1").some
         case false =>
           Map("KAFKA_BROKER_ID" -> "${NOMAD_ALLOC_INDEX}",
-              "TOPIC_AUTO_CREATE" -> "true",
-              "KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR" -> "1").some
+              "TOPIC_AUTO_CREATE" -> "true").some
       }
       val services = List(kafkaPlaintext)
 
@@ -462,8 +473,14 @@ case class KafkaDaemons(dev: Boolean, quorumSize: Int, servicePort: Int = 9092)
         val entrypoint = List("java").some
         val command = "-jar".some
         var args = dev match {
-          case true  => List("/timberland/timberland.jar", "runtime", "launch", "kafka", "--dev").some
-          case false => List("/timberland/timberland.jar", "runtime", "launch", "kafka").some
+          case true =>
+            List("/timberland/timberland.jar",
+                 "runtime",
+                 "launch",
+                 "kafka",
+                 "--dev").some
+          case false =>
+            List("/timberland/timberland.jar", "runtime", "launch", "kafka").some
         }
         val port_map = Map("kafka" -> servicePort)
         val volumes = List("/opt/radix/timberland:/timberland").some
@@ -606,8 +623,8 @@ case class KafkaCompanionDaemons(dev: Boolean,
     object schemaRegistry extends Task {
       val name = "schemaRegistry"
       val env = Map(
-//        "SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL" -> "zookeeper-daemons-zookeeper-zookeeper.service.consul:2181",
-        "SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS" -> (s"PLAINTEXT://kafka-daemons-kafka-kafka.service.consul:${servicePort}"),
+        //        "SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL" -> "zookeeper-daemons-zookeeper-zookeeper.service.consul:2181",
+        "SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS" -> s"PLAINTEXT://kafka-daemons-kafka-kafka.service.consul:${servicePort}",
         "SCHEMA_REGISTRY_HOST_NAME" -> "${attr.unique.hostname}-kafka-schema-registry",
         "SCHEMA_REGISTRY_LISTENERS" -> (s"http://0.0.0.0:${registryListenerPort}")
       ).some
