@@ -82,6 +82,10 @@ dependencies:
     shapeless:
       version: 2.3.3
       lang: scala
+  org.slf4j:
+    slf4j-simple:
+      version: 1.7.30
+      lang: java
   com.typesafe.akka:
     akka:
       modules: [actor, testkit, persistence, slf4j, stream, stream-typed, distributed-data, remote, persistence-query, persistence-tck, cluster, cluster-typed, actor-typed]
@@ -199,7 +203,14 @@ dependencies:
     testcontainers:
       lang: scala
       modules: [scala, scala-vault]
-      version: 0.34.1
+      version: 0.34.2
+  org.testcontainers:
+    testcontainers:
+      lang: java
+      version: 1.12.4
+    vault:
+      lang: java
+      version: 1.12.4
   org.scalacheck:
     scalacheck:
       lang: scala

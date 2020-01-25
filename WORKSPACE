@@ -1,4 +1,6 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+load("@bazel_tools//tools/build_defs/repo:jvm.bzl", "jvm_maven_import_external")
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")
 
 # bazel-skylib 0.8.0 released 2019.03.20 (https://github.com/bazelbuild/bazel-skylib/releases/tag/0.8.0)
 skylib_version = "0.8.0"
@@ -537,3 +539,257 @@ _scala_image_repos()
 #    name = "scalajs_tools",
 #    artifact = "org.scala-js:scalajs-tools_2.12:0.6.28",
 #)
+
+scala_maven_import_external(
+    name = "org_scala_graph_graph_core_sjs0_6_2_12",
+    artifact = "org.scala-graph:graph-core_sjs0.6_2.12:1.12.5",
+    licenses = [],
+    server_urls = [
+        "https://repo1.maven.org/maven2/",
+        "https://oss.sonatype.org/content/repositories/releases",
+        "https://oss.sonatype.org/content/repositories/snapshots",
+        "https://packages.confluent.io/maven/",
+        "https://oss.sonatype.org/content/repositories/releases",
+        "https://oss.sonatype.org/content/repositories/snapshots",
+        "https://packages.confluent.io/maven/",
+    ],
+)
+
+bind(
+    name = "jar/org/scala/graph/graph_core_sjs0_6_2_12",
+    actual = "@org_scala_graph_graph_core_sjs0_6_2_12//jar",
+)
+
+scala_maven_import_external(
+    name = "org_scalaz_scalaz_core_sjs0_6_2_12",
+    artifact = "org.scalaz:scalaz-core_sjs0.6_2.12:7.2.15",
+    licenses = [],
+    server_urls = [
+        "https://repo1.maven.org/maven2/",
+        "https://oss.sonatype.org/content/repositories/releases",
+        "https://oss.sonatype.org/content/repositories/snapshots",
+        "https://packages.confluent.io/maven/",
+        "https://oss.sonatype.org/content/repositories/releases",
+        "https://oss.sonatype.org/content/repositories/snapshots",
+        "https://packages.confluent.io/maven/",
+    ],
+)
+
+bind(
+    name = "jar/org/scalaz/scalaz_core_sjs0_6_2_12",
+    actual = "@org_scalaz_scalaz_core_sjs0_6_2_12//jar",
+)
+
+scala_maven_import_external(
+    name = "org_typelevel_cats_core_sjs0_6_2_12",
+    artifact = "org.typelevel:cats-core_sjs0.6_2.12:1.1.0",
+    licenses = [],
+    server_urls = [
+        "https://repo1.maven.org/maven2/",
+        "https://oss.sonatype.org/content/repositories/releases",
+        "https://oss.sonatype.org/content/repositories/snapshots",
+        "https://packages.confluent.io/maven/",
+        "https://oss.sonatype.org/content/repositories/releases",
+        "https://oss.sonatype.org/content/repositories/snapshots",
+        "https://packages.confluent.io/maven/",
+    ],
+)
+
+bind(
+    name = "jar/org/typelevel/cats_core_sjs0_6_2_12",
+    actual = "@org_typelevel_cats_core_sjs0_6_2_12//jar",
+)
+
+scala_maven_import_external(
+    name = "org_typelevel_cats_kernel_sjs0_6_2_12",
+    artifact = "org.typelevel:cats-kernel_sjs0.6_2.12:1.1.0",
+    licenses = [],
+    server_urls = [
+        "https://repo1.maven.org/maven2/",
+        "https://oss.sonatype.org/content/repositories/releases",
+        "https://oss.sonatype.org/content/repositories/snapshots",
+        "https://packages.confluent.io/maven/",
+        "https://oss.sonatype.org/content/repositories/releases",
+        "https://oss.sonatype.org/content/repositories/snapshots",
+        "https://packages.confluent.io/maven/",
+    ],
+)
+
+bind(
+    name = "jar/org/typelevel/cats_kernel_sjs0_6_2_12",
+    actual = "@org_typelevel_cats_kernel_sjs0_6_2_12//jar",
+)
+
+scala_maven_import_external(
+    name = "org_typelevel_cats_macros_sjs0_6_2_12",
+    artifact = "org.typelevel:cats-macros_sjs0.6_2.12:1.1.0",
+    licenses = [],
+    server_urls = [
+        "https://repo1.maven.org/maven2/",
+        "https://oss.sonatype.org/content/repositories/releases",
+        "https://oss.sonatype.org/content/repositories/snapshots",
+        "https://packages.confluent.io/maven/",
+        "https://oss.sonatype.org/content/repositories/releases",
+        "https://oss.sonatype.org/content/repositories/snapshots",
+        "https://packages.confluent.io/maven/",
+    ],
+)
+
+bind(
+    name = "jar/org/typelevel/cats_macros_sjs0_6_2_12",
+    actual = "@org_typelevel_cats_macros_sjs0_6_2_12//jar",
+)
+
+scala_maven_import_external(
+    name = "org_typelevel_machinist_sjs0_6_2_12",
+    artifact = "org.typelevel:machinist_sjs0.6_2.12:0.6.2",
+    licenses = [],
+    server_urls = [
+        "https://repo1.maven.org/maven2/",
+        "https://oss.sonatype.org/content/repositories/releases",
+        "https://oss.sonatype.org/content/repositories/snapshots",
+        "https://packages.confluent.io/maven/",
+        "https://oss.sonatype.org/content/repositories/releases",
+        "https://oss.sonatype.org/content/repositories/snapshots",
+        "https://packages.confluent.io/maven/",
+    ],
+)
+
+bind(
+    name = "jar/org/typelevel/machinist_sjs0_6_2_12",
+    actual = "@org_typelevel_machinist_sjs0_6_2_12//jar",
+)
+
+scala_maven_import_external(
+    name = "org_typelevel_squants_sjs0_6_2_12",
+    artifact = "org.typelevel:squants_sjs0.6_2.12:1.3.0",
+    licenses = [],
+    server_urls = [
+        "https://repo1.maven.org/maven2/",
+        "https://oss.sonatype.org/content/repositories/releases",
+        "https://oss.sonatype.org/content/repositories/snapshots",
+        "https://packages.confluent.io/maven/",
+        "https://oss.sonatype.org/content/repositories/releases",
+        "https://oss.sonatype.org/content/repositories/snapshots",
+        "https://packages.confluent.io/maven/",
+    ],
+)
+
+bind(
+    name = "jar/org/typelevel/squants_sjs0_6_2_12",
+    actual = "@org_typelevel_squants_sjs0_6_2_12//jar",
+)
+
+jvm_maven_import_external(
+    name = "scalajs_ir",
+    artifact = "org.scala-js:scalajs-ir_2.12:0.6.28",
+    server_urls = ["http://central.maven.org/maven2"],
+)
+
+jvm_maven_import_external(
+    name = "scalajs_tools",
+    artifact = "org.scala-js:scalajs-tools_2.12:0.6.28",
+    server_urls = ["http://central.maven.org/maven2"],
+)
+
+new_git_repository(
+    name = "or_tools",
+    build_file_content = """
+genrule(
+    name = "ortools-java-raw",
+    srcs = glob(["**"], ["bazel-out/**", "examples/**", "docs/**", "dependencies/**", "ortools/gen/**", "classes/**", "Makefile.local", "lib/**", "tools/**", "**/BUILD", "**/*.bzl", "ortools/dotnet/**"]),
+    outs = [
+        "com.google.ortools.jar",
+        "protobuf.jar",
+        "libprotobuf.so.3.10.0.0",
+        "libortools.so",
+        "libjniortools.so",
+        "libglog.so.0",
+        "libgflags.so.2.2",
+        "libCbcSolver.so.3",
+        "libCbc.so.3",
+        "libClp.so.1",
+        "libOsiClp.so.1",
+        "libCoinUtils.so.3",
+        "libCgl.so.1",
+        "libOsi.so.1"
+    ],
+    cmd = "make -j12 -C external/or_tools third_party && make -j12 -C external/or_tools java && cp external/or_tools/lib/libjniortools.so $(location libjniortools.so) && cp external/or_tools/lib/com.google.ortools.jar $(location com.google.ortools.jar) && cp external/or_tools/lib/libortools.so $(location libortools.so) && cp external/or_tools/dependencies/install/lib/libprotobuf.so.3.10.0.0 $(location libprotobuf.so.3.10.0.0) && cp external/or_tools/dependencies/install/lib/protobuf.jar $(location protobuf.jar) && cp external/or_tools/dependencies/install/lib/libglog.so.0 $(location libglog.so.0) && cp external/or_tools/dependencies/install/lib/libgflags.so.2.2 $(location libgflags.so.2.2) && cp external/or_tools/dependencies/install/lib/libCbcSolver.so.3 $(location libCbcSolver.so.3) && cp external/or_tools/dependencies/install/lib/libCbc.so.3 $(location libCbc.so.3) && cp external/or_tools/dependencies/install/lib/libClp.so.1 $(location libClp.so.1) && cp external/or_tools/dependencies/install/lib/libOsiClp.so.1 $(location libOsiClp.so.1) && cp external/or_tools/dependencies/install/lib/libCoinUtils.so.3 $(location libCoinUtils.so.3) && cp external/or_tools/dependencies/install/lib/libCgl.so.1 $(location libCgl.so.1) && cp external/or_tools/dependencies/install/lib/libOsi.so.1 $(location libOsi.so.1)",
+    local = True
+)
+
+java_import(
+    name = "ortools-java-jar",
+    jars = [
+        ":com.google.ortools.jar",
+        ":protobuf.jar"
+    ],
+)
+
+java_library(
+    name = "ortools-java",
+    resources = [
+        ":libortools.so",
+        ":libjniortools.so",
+        ":libprotobuf.so.3.10.0.0",
+        ":libglog.so.0",
+        ":libgflags.so.2.2",
+        ":libCbcSolver.so.3",
+        ":libCbc.so.3",
+        ":libClp.so.1",
+        ":libOsiClp.so.1",
+        ":libCoinUtils.so.3",
+        ":libCgl.so.1",
+        ":libOsi.so.1"
+    ],
+    exports = [
+        ":ortools-java-jar"
+    ],
+    runtime_deps = [
+        ":ortools-java-jar"
+    ],
+    visibility = ["//visibility:public"]
+)""",
+    commit = "6755c61315c7bb382a558b27cdff7ea2d5970c9c",
+    shallow_since = "1570800385 +0200",
+    remote = "https://github.com/google/or-tools.git",
+)
+
+new_local_repository(
+    name = "scalaz3",
+    build_file_content = """
+genrule(
+    name = "scalaz3-raw",
+    srcs = glob(["src/**", "project/**", "build.sbt"]),
+    outs = [
+      "libscalaz3.so",
+      "libz3.so",
+      "scalaz3_2.12-3.0.jar",
+    ],
+    cmd = "cd external/scalaz3 && sbt -mem 4096 +package && cd ../.. && cp external/scalaz3/lib-bin/libscalaz3.so $(location libscalaz3.so) && cp external/scalaz3/z3/z3-4.6.0/build/libz3.so $(location libz3.so) && cp external/scalaz3/target/scala-2.12/scalaz3_2.12-3.0.jar $(location scalaz3_2.12-3.0.jar)",
+    local = True
+)
+
+java_import(
+    name = "scalaz3-jar",
+    jars = [
+        ":scalaz3_2.12-3.0.jar",
+    ],
+)
+
+java_library(
+    name = "scalaz3",
+    resources = [
+        ":libscalaz3.so",
+        ":libz3.so",
+    ],
+    exports = [
+        ":scalaz3-jar",
+    ],
+    runtime_deps = [
+        ":scalaz3-jar"
+    ],
+    visibility = ["//visibility:public"]
+)""",
+    path = "third-party/ScalaZ3"
+)

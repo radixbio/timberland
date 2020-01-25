@@ -625,5 +625,4 @@ utils/prism-uservice/journal/*
 
 # Bazel
 .ijwb/
-rules_scala/
 3rdparty/
