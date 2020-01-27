@@ -697,25 +697,24 @@ new_git_repository(
     build_file_content = """
 genrule(
     name = "ortools-java-raw",
-    srcs = glob(["**"], ["bazel-out/**", "examples/**", "docs/**", "dependencies/**", "ortools/gen/**", "classes/**", "Makefile.local", "lib/**", "tools/**", "**/BUILD", "**/*.bzl", "ortools/dotnet/**"]),
+    srcs = glob(["**"], ["bazel-out/**", "examples/**", "docs/**", "dependencies/archives/**", "dependencies/install/**", "ortools/gen/**", "classes/**", "tools/**", "**/BUILD", "**/*.bzl", "ortools/dotnet/**"]),
     outs = [
         "com.google.ortools.jar",
         "protobuf.jar",
-        "libprotobuf.so.3.10.0.0",
+        "libprotobuf.so",
         "libortools.so",
         "libjniortools.so",
-        "libglog.so.0",
-        "libgflags.so.2.2",
-        "libCbcSolver.so.3",
-        "libCbc.so.3",
-        "libClp.so.1",
-        "libOsiClp.so.1",
-        "libCoinUtils.so.3",
-        "libCgl.so.1",
-        "libOsi.so.1"
+        "libglog.so",
+        "libgflags.so",
+        "libCbcSolver.so",
+        "libCbc.so",
+        "libClp.so",
+        "libOsiClp.so",
+        "libCoinUtils.so",
+        "libCgl.so",
+        "libOsi.so"
     ],
-    cmd = "make -j12 -C external/or_tools third_party && make -j12 -C external/or_tools java && cp external/or_tools/lib/libjniortools.so $(location libjniortools.so) && cp external/or_tools/lib/com.google.ortools.jar $(location com.google.ortools.jar) && cp external/or_tools/lib/libortools.so $(location libortools.so) && cp external/or_tools/dependencies/install/lib/libprotobuf.so.3.10.0.0 $(location libprotobuf.so.3.10.0.0) && cp external/or_tools/dependencies/install/lib/protobuf.jar $(location protobuf.jar) && cp external/or_tools/dependencies/install/lib/libglog.so.0 $(location libglog.so.0) && cp external/or_tools/dependencies/install/lib/libgflags.so.2.2 $(location libgflags.so.2.2) && cp external/or_tools/dependencies/install/lib/libCbcSolver.so.3 $(location libCbcSolver.so.3) && cp external/or_tools/dependencies/install/lib/libCbc.so.3 $(location libCbc.so.3) && cp external/or_tools/dependencies/install/lib/libClp.so.1 $(location libClp.so.1) && cp external/or_tools/dependencies/install/lib/libOsiClp.so.1 $(location libOsiClp.so.1) && cp external/or_tools/dependencies/install/lib/libCoinUtils.so.3 $(location libCoinUtils.so.3) && cp external/or_tools/dependencies/install/lib/libCgl.so.1 $(location libCgl.so.1) && cp external/or_tools/dependencies/install/lib/libOsi.so.1 $(location libOsi.so.1)",
-    local = True
+    cmd = "make -j12 -C external/or_tools third_party && make -j12 -C external/or_tools java && cp external/or_tools/lib/libjniortools.so $(location libjniortools.so) && cp external/or_tools/lib/com.google.ortools.jar $(location com.google.ortools.jar) && cp external/or_tools/lib/libortools.so $(location libortools.so) && cp external/or_tools/dependencies/install/lib/libprotobuf.so $(location libprotobuf.so) && cp external/or_tools/dependencies/install/lib/protobuf.jar $(location protobuf.jar) && cp external/or_tools/dependencies/install/lib/libglog.so $(location libglog.so) && cp external/or_tools/dependencies/install/lib/libgflags.so $(location libgflags.so) && cp external/or_tools/dependencies/install/lib/libCbcSolver.so $(location libCbcSolver.so) && cp external/or_tools/dependencies/install/lib/libCbc.so $(location libCbc.so) && cp external/or_tools/dependencies/install/lib/libClp.so $(location libClp.so) && cp external/or_tools/dependencies/install/lib/libOsiClp.so $(location libOsiClp.so) && cp external/or_tools/dependencies/install/lib/libCoinUtils.so $(location libCoinUtils.so) && cp external/or_tools/dependencies/install/lib/libCgl.so $(location libCgl.so) && cp external/or_tools/dependencies/install/lib/libOsi.so $(location libOsi.so)",
 )
 
 java_import(
@@ -731,16 +730,16 @@ java_library(
     resources = [
         ":libortools.so",
         ":libjniortools.so",
-        ":libprotobuf.so.3.10.0.0",
-        ":libglog.so.0",
-        ":libgflags.so.2.2",
-        ":libCbcSolver.so.3",
-        ":libCbc.so.3",
-        ":libClp.so.1",
-        ":libOsiClp.so.1",
-        ":libCoinUtils.so.3",
-        ":libCgl.so.1",
-        ":libOsi.so.1"
+        ":libprotobuf.so",
+        ":libglog.so",
+        ":libgflags.so",
+        ":libCbcSolver.so",
+        ":libCbc.so",
+        ":libClp.so",
+        ":libOsiClp.so",
+        ":libCoinUtils.so",
+        ":libCgl.so",
+        ":libOsi.so"
     ],
     exports = [
         ":ortools-java-jar"
@@ -752,6 +751,7 @@ java_library(
 )""",
     commit = "6755c61315c7bb382a558b27cdff7ea2d5970c9c",
     shallow_since = "1570800385 +0200",
+    patch_cmds = ["find . -name BUILD | xargs rm"],
     remote = "https://github.com/google/or-tools.git",
 )
 
@@ -767,7 +767,7 @@ genrule(
       "scalaz3_2.12-3.0.jar",
     ],
     cmd = "cd external/scalaz3 && sbt -mem 4096 +package && cd ../.. && cp external/scalaz3/lib-bin/libscalaz3.so $(location libscalaz3.so) && cp external/scalaz3/z3/z3-4.6.0/build/libz3.so $(location libz3.so) && cp external/scalaz3/target/scala-2.12/scalaz3_2.12-3.0.jar $(location scalaz3_2.12-3.0.jar)",
-    local = True
+    local = True,
 )
 
 java_import(
