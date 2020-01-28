@@ -533,11 +533,12 @@ object runner {
                     )
                   }
                 }
-//                case Stop => {
-//                  Right(println(daemonutil.stopAllServices.unsafeRunSync))
-//                  scribe.info("All services stopped")
-//                  sys.exit(0)
-//                }
+                case Stop => {
+                  //Right(println(daemonutil.stopAllServices.unsafeRunSync))
+                  //scribe.info("All services stopped")
+                  //sys.exit(0)
+                  scribe.error("Stop command not implemented!")
+                }
                 case StartNomad => Right(Unit)
               }
             case launcher: Launch =>
