@@ -21,6 +21,13 @@ http_archive(
     url = "https://github.com/bazelbuild/rules_scala/archive/%s.zip" % rules_scala_version,
 )
 
+http_archive(
+    name = "rules_pkg",
+    sha256 = "4ba8f4ab0ff85f2484287ab06c0d871dcb31cc54d439457d28fd4ae14b18450a",
+    url = "https://github.com/bazelbuild/rules_pkg/releases/download/0.2.4/rules_pkg-0.2.4.tar.gz",
+)
+
+load("@rules_pkg//:deps.bzl", "rules_pkg_dependencies")
 load(
     "@io_bazel_rules_scala//scala:toolchains.bzl",
     "scala_register_toolchains",
@@ -87,6 +94,8 @@ load(
     "@io_bazel_rules_docker//scala:image.bzl",
     _scala_image_repos = "repositories",
 )
+
+rules_pkg_dependencies()
 
 _scala_image_repos()
 

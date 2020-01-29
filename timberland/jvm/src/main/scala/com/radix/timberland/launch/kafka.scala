@@ -10,12 +10,6 @@ import cats.implicits._
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
-import com.radix.utils.helm
-import com.radix.utils.helm._
-import com.radix.utils.helm.http4s._
-import org.http4s.client.blaze._
-import org.http4s.client._
-import org.http4s.Uri.uri
 
 package object kafka {
   private[this] implicit val timer: Timer[IO]     = IO.timer(global)

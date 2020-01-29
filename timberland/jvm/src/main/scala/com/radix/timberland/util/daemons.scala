@@ -243,8 +243,8 @@ trait Group {
 }
 
 /** A Nomad job description which can be used to assemble HCL and send it to Nomad
- * (Not sure how to fully document this since ScalaDocs has no standard for traits)
- */
+  * (Not sure how to fully document this since ScalaDocs has no standard for traits)
+  */
 trait Job {
   def name: String
 
@@ -320,16 +320,15 @@ case class ZookeeperDaemons(dev: Boolean, quorumSize: Int) extends Job {
 
     object zookeeper extends Task {
       val name = "zookeeper"
-      val template = zookeeperTemplate.some
       val env = None
-      val services =
-        List(zookeeperClient, zookeeperFollower, zookeeperOthersrvs)
 
       object zookeeperTemplate extends Template {
         override val source =
           "/opt/radix/timberland/nomad/zookeeper/zoo.tpl".some
         val destination = "local/conf/zoo_servers"
       }
+
+      val templates = List(zookeeperTemplate).some
 
       object config extends Config {
         val image = "zookeeper:3.4"
@@ -340,13 +339,14 @@ case class ZookeeperDaemons(dev: Boolean, quorumSize: Int) extends Job {
         val command = "-jar".some
         var args = dev match {
           case true =>
-            List("/timberland/timberland.jar",
-                 "runtime",
+            List("/timberland/exec/timberland-launcher_deploy.jar",
                  "launch",
                  "zookeeper",
                  "--dev").some
           case false =>
-            List("/timberland/timberland.jar", "runtime", "launch", "zookeeper").some
+            List("/timberland/exec/timberland-launcher_deploy.jar",
+                 "launch",
+                 "zookeeper").some
         }
         val port_map =
           Map("client" -> 2181, "follower" -> 2888, "othersrvs" -> 3888)
@@ -356,7 +356,6 @@ case class ZookeeperDaemons(dev: Boolean, quorumSize: Int) extends Job {
           "/opt/radix/timberland:/timberland"
         ).some
       }
-      val templates = List(zookeeperTemplate).some
       object resources extends Resources {
         val cpu = 1000
         val memory = 2048
@@ -407,6 +406,9 @@ case class ZookeeperDaemons(dev: Boolean, quorumSize: Int) extends Job {
 
       }
 
+      val services =
+        List(zookeeperClient, zookeeperFollower, zookeeperOthersrvs)
+
     }
 
   }
@@ -454,11 +456,12 @@ case class KafkaDaemons(dev: Boolean, quorumSize: Int, servicePort: Int = 9092)
         case true =>
           Map("KAFKA_BROKER_ID" -> "${NOMAD_ALLOC_INDEX}",
               "TOPIC_AUTO_CREATE" -> "true",
-            "KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR" -> "1").some
+              "KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR" -> "1").some
         case false =>
           Map("KAFKA_BROKER_ID" -> "${NOMAD_ALLOC_INDEX}",
               "TOPIC_AUTO_CREATE" -> "true").some
       }
+
       val services = List(kafkaPlaintext)
 
       object kafkaTemplate extends Template {
@@ -466,7 +469,9 @@ case class KafkaDaemons(dev: Boolean, quorumSize: Int, servicePort: Int = 9092)
           "/opt/radix/timberland/nomad/zookeeper/zoo.tpl".some
         val destination = "local/conf/zoo_servers"
       }
+
       val templates = List(kafkaTemplate).some
+
       object config extends Config {
         val image = "confluentinc/cp-kafka:5.3.1"
         val hostname = "${attr.unique.hostname}-kafka"
@@ -474,13 +479,14 @@ case class KafkaDaemons(dev: Boolean, quorumSize: Int, servicePort: Int = 9092)
         val command = "-jar".some
         var args = dev match {
           case true =>
-            List("/timberland/timberland.jar",
-                 "runtime",
+            List("/timberland/exec/timberland-launcher_deploy.jar",
                  "launch",
                  "kafka",
                  "--dev").some
           case false =>
-            List("/timberland/timberland.jar", "runtime", "launch", "kafka").some
+            List("/timberland/exec/timberland-launcher_deploy.jar",
+                 "launch",
+                 "kafka").some
         }
         val port_map = Map("kafka" -> servicePort)
         val volumes = List("/opt/radix/timberland:/timberland").some
@@ -705,7 +711,6 @@ case class KafkaCompanionDaemons(dev: Boolean,
 
     object kafkaConnect extends Task {
       val name = "kafkaConnect"
-      val template = None
       val templates = None
       val env = dev match {
         case true =>

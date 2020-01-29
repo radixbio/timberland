@@ -56,9 +56,6 @@ import scala.concurrent.ExecutionContext.Implicits.global
   *                |           |             |- opentrons <ip> <node_hostname>
   *                |           |- remove <uuid>
   *                |           |- move <uuid> <offset> [new_parent_uuid]
-  *                |- launch|
-  *                         |- zookeeper <tname...> [dev]
-  *                         |- kafka <tname...> [dev]
   *
   *
   *
@@ -79,24 +76,21 @@ case class InstallDeps(dir: Option[String]) extends Dev
 sealed trait Runtime                 extends RadixCMD
 
 //case class Dry(run: Runtime) extends Runtime
-sealed trait Launch         extends Runtime
-case class LaunchZookeeper(dev: Boolean) extends Launch
-case class LaunchKafka(dev: Boolean)     extends Launch
 sealed trait Local          extends Runtime
 case object Install         extends Local
 case class Start(
-    dummy: Boolean = false,
-    loglevel: scribe.Level = scribe.Level.Debug,
-    bindIP: Option[String] = None,
-    consulSeeds: Option[String] = None,
-    dev: Boolean = false,
-    core: Boolean = false,
-    vault: Boolean = false,
-    es: Boolean = false,
-    retool: Boolean = false,
-    servicePort: Int = 9092,
-    registryListenerPort: Int = 8081
-) extends Local
+                  dummy: Boolean = false,
+                  loglevel: scribe.Level = scribe.Level.Debug,
+                  bindIP: Option[String] = None,
+                  consulSeeds: Option[String] = None,
+                  dev: Boolean = false,
+                  core: Boolean = false,
+                  vault: Boolean = false,
+                  es: Boolean = false,
+                  retool: Boolean = false,
+                  servicePort: Int = 9092,
+                  registryListenerPort: Int = 8081
+                ) extends Local
 case object Stop extends Local
 case object Nuke                                                    extends Local
 case object StartNomad                                              extends Local
@@ -224,14 +218,6 @@ object runner {
           command("nuke", info(pure(Nuke), progDesc("remove radix core services from the node"))),
           command("start_nomad", info(pure(StartNomad), progDesc("start a nomad job"))),
           command(
-            "launch",
-            info(subparser[Launch](
-              command("zookeeper",
-                      info(switch(long("dev"), help("start zookeeper in dev mode")).map ( { dev => LaunchZookeeper(dev)}), progDesc("launch zookeeper at runtime, launched from nomad"))),
-              command("kafka", info(switch(long("dev"), help("start kafka in dev mode")).map ( { dev => LaunchKafka(dev)}), progDesc("launch kafka at runtime, launched from nomad")))
-            ).weaken[Runtime])
-          ),
-          command(
             "dns",
             info(subparser[DNS](
               command("up",
@@ -293,7 +279,7 @@ object runner {
     val appdatadir    = new File(persistentdir)
     val consul        = new File(persistentdir + "/consul/consul")
     val nomad         = new File(persistentdir + "/nomad/nomad")
-    val timberlandJar = new File(persistentdir + "/timberland.jar")
+//    val timberlandJar = new File(persistentdir + "/timberland.jar")
     nomad.getParentFile.mkdirs()
     consul.getParentFile.mkdirs()
 
@@ -434,14 +420,14 @@ object runner {
                       Download.downloadConsulAndNomad[IO]("1.6.1", "0.10.0", List(osname, arch), List(osname, arch))
                     val resourceMover = new Installer.MoveFromJVMResources[IO]()
                     scribe.info("Jar File Location" + this.getClass.getProtectionDomain.getCodeSource.getLocation.toURI.getPath())
-                    val currentJarFile = new File(this.getClass.getProtectionDomain.getCodeSource.getLocation.toURI.getPath())
+//                    val currentJarFile = new File(this.getClass.getProtectionDomain.getCodeSource.getLocation.toURI.getPath()) //TODO: Remove this stuff
                     val prog = for {
                       file <- dl
                       _    <- IO(scribe.info("download complete, canonicalizing directories"))
                       _ <- for {
                         _ <- Util.nioCopyFile(file._1._1, consul)
                         _ <- Util.nioCopyFile(file._2._1, nomad)
-                        _ <- Util.nioCopyFile(currentJarFile, timberlandJar)
+//                        _ <- Util.nioCopyFile(currentJarFile, timberlandJar)
                         _ <- IO {
                           consul.setExecutable(true)
                           nomad.setExecutable(true)
@@ -472,7 +458,12 @@ object runner {
 
 
                       _ <- IO(os.proc("/usr/bin/sudo /bin/systemctl daemon-reload".split(' ')).spawn())
+                      _ <- IO(os.proc("/usr/bin/sudo /bin/systemctl restart systemd-networkd".split(' ')).spawn())
+
+
                       _ <- IO(os.proc("/usr/bin/docker plugin install weaveworks/net-plugin:latest_release".split(' ')).call(cwd = os.root, stdin = "y\n", stdout = os.Inherit, check = false))
+                      _ <- IO(os.proc("/usr/bin/docker plugin set weaveworks/net-plugin:latest_release IPALLOC_RANGE=10.48.0.0/12".split(' ')).call(cwd = os.root, stdin = "y\n", stdout = os.Inherit, check = false))
+                      _ <- IO(os.proc("/usr/bin/docker plugin enable weaveworks/net-plugin:latest_release".split(' ')).call(cwd = os.root, stdin = "y\n", stdout = os.Inherit, check = false))
                     } yield ()
                     prog.unsafeRunSync()
 
@@ -519,6 +510,12 @@ object runner {
                     )
                     System.exit(0)
                   } else {
+                    scribe.info("Creating weave network")
+                    val prog = for {
+                      _ <- IO(os.proc("/usr/bin/docker network create --driver=weaveworks/net-plugin:latest_release --attachable weave".split(' ')).call(cwd = os.root, stdout = os.Inherit, check = false))
+                    } yield ()
+                    prog.unsafeRunSync()
+                    scribe.info("Weave network created")
                     implicit val host = new Run.RuntimeServicesExec[IO]
                     Right(
                       println(Run
@@ -540,55 +537,6 @@ object runner {
                   scribe.error("Stop command not implemented!")
                 }
                 case StartNomad => Right(Unit)
-              }
-            case launcher: Launch =>
-              launcher match {
-                case LaunchZookeeper(dev) => {
-                  var minQuorumSize: Int = 3
-                  if (dev) {
-                    minQuorumSize = 1
-                  }
-                  scribe.Logger.root
-                    .clearHandlers()
-                    .clearModifiers()
-                    .withHandler(minimumLevel = Some(scribe.Level.Trace))
-                    .replace()
-                  scribe.trace("launching zookeeper (to be run inside docker container)")
-                  val copier = new Installer.MoveFromJVMResources[IO]
-
-                  val prog = for {
-                    _ <- IO(scribe.debug("starting file copy..."))
-                    _ <- copier.fncopy(Path("/nomad/config/zookeeper/config"), Path("/conf"))
-                    _ <- IO(scribe.debug("finished file copy"))
-                    _ <- IO(scribe.debug("starting zookeeper..."))
-                    zk <- launch.zookeeper
-                      .startZookeeper(Path("/local/conf/zoo_servers"),
-                                      Path("/conf/zoo.cfg"),
-                                      Path("/conf/zoo_replicated.cfg.dynamic"),
-                        minQuorumSize)
-                      .run(launch.zookeeper.NoMinQuorum)
-                    _ <- IO(scribe.debug("zookeeper started!"))
-                    _ <- IO.never
-                  } yield ()
-                  prog.unsafeRunSync()
-                }
-                case LaunchKafka(dev) => {
-                  implicit var minQuorumSize: Int = 3
-                  if (dev) {
-                    minQuorumSize = 1
-                  }
-                  scribe.Logger.root
-                    .clearHandlers()
-                    .clearModifiers()
-                    .withHandler(minimumLevel = Some(scribe.Level.Trace))
-                    .replace()
-                  val prog = for {
-                    _ <- launch.kafka.startKafka
-                    _ <- IO.never
-                  } yield ()
-                  prog.unsafeRunSync()
-
-                }
               }
             case dns: DNS => {
               scribe.Logger.root
