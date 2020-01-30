@@ -769,14 +769,18 @@ new_local_repository(
     build_file_content = """
 genrule(
     name = "scalaz3-raw",
-    srcs = glob(["src/**", "project/**", "build.sbt"]),
+    srcs = glob(["src/**"]) + [
+      "project/Build.scala",
+      "project/build.properties",
+      "project/build.sbt",
+      "build.sbt"
+    ],
     outs = [
       "libscalaz3.so",
       "libz3.so",
       "scalaz3_2.12-3.0.jar",
     ],
-    cmd = "cd external/scalaz3 && sbt -mem 4096 +package && cd ../.. && cp external/scalaz3/lib-bin/libscalaz3.so $(location libscalaz3.so) && cp external/scalaz3/z3/z3-4.6.0/build/libz3.so $(location libz3.so) && cp external/scalaz3/target/scala-2.12/scalaz3_2.12-3.0.jar $(location scalaz3_2.12-3.0.jar)",
-    local = True,
+    cmd = "cd external/scalaz3 && sbt --sbt-dir ./.sbt --sbt-boot ./.sbt/boot --ivy ./.ivy2 -mem 4096 +package && cd ../.. && cp external/scalaz3/lib-bin/libscalaz3.so $(location libscalaz3.so) && cp external/scalaz3/z3/z3-4.6.0/build/libz3.so $(location libz3.so) && cp external/scalaz3/target/scala-2.12/scalaz3_2.12-3.0.jar $(location scalaz3_2.12-3.0.jar)",
 )
 
 java_import(
