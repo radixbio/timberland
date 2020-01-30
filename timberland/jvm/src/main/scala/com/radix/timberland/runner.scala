@@ -5,8 +5,6 @@ import cats._
 import cats.data._
 import cats.effect.{Clock, ContextShift, Effect, ExitCase, IO, Timer}
 import cats.implicits._
-import ammonite._
-import ammonite.ops._
 import io.circe.{Parser => _, _}
 import io.circe.generic.auto._
 //import io.circe.parser._
@@ -19,7 +17,6 @@ import scala.io.StdIn.{readLine}
 import ammonite.ops._
 import cats.effect.{ContextShift, IO}
 import cats.implicits._
-import com.radix.timberland.dev._
 import com.radix.timberland.launch.daemonutil
 import com.radix.timberland.runtime.{Download, Installer, Mock, Run}
 import com.radix.timberland.util.Util
@@ -70,7 +67,6 @@ case class Test(targer: Option[String], dir: Option[String])      extends CI
 case object Pass extends CI
 object DevList                       extends CI
 
-case class Native(dir: Option[String]) extends Dev
 
 case class InstallDeps(dir: Option[String]) extends Dev
 sealed trait Runtime                 extends RadixCMD
@@ -124,11 +120,9 @@ object runner {
       )
     ))
 
-  val native = (
-    subparser[Dev](command("native", info(optional(strOption(long("dir"))).map(Native(_)), progDesc("build all the native dependencies of radix core")))))
   val bindepinstall = subparser[Dev](command("install", info(optional(strOption(long("dir"))).map(InstallDeps(_)), progDesc("install the native dependencies required to build radix"))))
   val dev = subparser[Dev](
-    command("dev", info(ci.weaken[Dev] <|> native <|> bindepinstall, progDesc("developer tools for radix"))))
+    command("dev", info(ci.weaken[Dev]  <|> bindepinstall, progDesc("developer tools for radix"))))
 
   val runtime = subparser[Runtime](
     command(
@@ -362,21 +356,6 @@ object runner {
                  ???
                 case DevList => Dev.targetOpts.keys.map(scribe.info(_))
               }
-            case Native(dir) => {
-              implicit val cs: ContextShift[IO] = IO.contextShift(global)
-              val NUM_CORES                     = Runtime.getRuntime().availableProcessors()
-
-              val builds = (Build.or_tools(NUM_CORES), Build.Z3).parMapN { (_, _) =>
-                ()
-              }
-              val prog = for {
-                _ <- Build.submodules(NUM_CORES)
-                _ <- builds
-              } yield ()
-
-              prog.unsafeRunSync()
-              sys.exit(0)
-            }
             case InstallDeps(dir) => {
               import sys.process._
               val installDir: String = dir getOrElse (sys.env.get("RADIX_MONOREPO_DIR") getOrElse "pwd".!!.trim)

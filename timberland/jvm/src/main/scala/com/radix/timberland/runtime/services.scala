@@ -5,8 +5,8 @@ import cats.data._
 import cats.data.NonEmptyList.fromList
 import cats.effect.{ContextShift, Effect, IO}
 import cats.implicits._
-import ammonite._
-import ammonite.ops._
+//import ammonite._
+//import ammonite.ops._
 import io.circe._
 import io.circe.generic.auto._
 import io.circe.parser._
@@ -60,7 +60,7 @@ object Mock {
             res
           })) <* IO.shift
     }
-    override def readConfig(wd: Path, fname: String): F[String] = F.delay {
+    override def readConfig(wd: os.Path, fname: String): F[String] = F.delay {
       scribe.debug(s"trying to load $wd/$fname from file...")
 //      Source.fromInputStream(this.getClass.getResourceAsStream(s"$wd/$fname")).getLines.mkString("\n")
       val src = scala.io.Source.fromFile(wd.toIO.toString + "/" + fname)
@@ -69,7 +69,7 @@ object Mock {
       res
     }
 
-    override def mkTempFile(contents: String, fname: String, exn: String = "json"): F[Path] = F.liftIO {
+    override def mkTempFile(contents: String, fname: String, exn: String = "json"): F[os.Path] = F.liftIO {
       import java.io.{BufferedWriter, File, FileWriter}
       IO.shift(bcs) *> IO {
         val f = File.createTempFile(fname, "." + exn)
@@ -83,7 +83,7 @@ object Mock {
         bw.close()
         fw.close()
         scribe.debug(s"wrote tempfile ${f.toPath.toAbsolutePath.toString}")
-        Path(f.toPath)
+        os.Path(f.toPath)
       }.flatMap(res => IO.shift *> IO.pure(res))
     }
 
@@ -140,7 +140,7 @@ object Run {
       IO.shift(bcs) *> addrs.toList.map(F.toIO).parSequence.map(_.flatten).map(NonEmptyList.fromList) <* IO.shift
     }
 
-    override def readConfig(wd: Path = pwd, fname: String): F[String] = F.liftIO {
+    override def readConfig(wd: os.Path = os.pwd, fname: String): F[String] = F.liftIO {
       IO.shift(bcs) *> IO {
         val src = scala.io.Source.fromFile(wd.toIO.toString + "/" + fname)
         val res = src.getLines().mkString("\n")
@@ -149,7 +149,7 @@ object Run {
       } <* IO.shift
     }
 
-    override def mkTempFile(contents: String, fname: String, exn: String = "json"): F[Path] = F.liftIO {
+    override def mkTempFile(contents: String, fname: String, exn: String = "json"): F[os.Path] = F.liftIO {
       IO.shift(bcs) *> IO {
         val f = File.createTempFile(fname, "." + exn)
         val fw = new FileWriter(f)
@@ -159,7 +159,7 @@ object Run {
         fw.flush()
         bw.close()
         fw.close()
-        Path(f.toPath)
+        os.Path(f.toPath)
       } <* IO.shift
     }
 
@@ -191,7 +191,7 @@ object Run {
       }
 
     override def startWeave(hosts: List[String]): F[Unit] = F.delay {
-      os.proc("/usr/bin/docker", "plugin", "disable", "weaveworks/net-plugin:latest_release").call(check = false, cwd = pwd, stdout = os.Inherit, stderr = os.Inherit)
+      os.proc("/usr/bin/docker", "plugin", "disable", "weaveworks/net-plugin:latest_release").call(check = false, cwd = os.pwd, stdout = os.Inherit, stderr = os.Inherit)
       os.proc("/usr/bin/docker", "plugin", "set", "weaveworks/net-plugin:latest_release", "IPALLOC_RANGE=10.48.0.0/12").call(check = false, stdout = os.Inherit, stderr = os.Inherit)
       os.proc("/usr/bin/docker", "plugin", "enable", "weaveworks/net-plugin:latest_release").call(stdout = os.Inherit, stderr = os.Inherit)
       //      os.proc(s"/usr/local/bin/weave", "launch", hosts.mkString(" "), "--ipalloc-range", "10.48.0.0/12")
@@ -220,7 +220,7 @@ object Run {
      * @tparam F the effect type
      * @return a started consul and nomad
      */
-    def initializeRuntimeProg[F[_]](consulwd: Path, nomadwd: Path, bind_addr: Option[String], consulSeedsO: Option[String], bootstrapExpect: Int)(
+    def initializeRuntimeProg[F[_]](consulwd: os.Path, nomadwd: os.Path, bind_addr: Option[String], consulSeedsO: Option[String], bootstrapExpect: Int)(
       implicit H: RuntimeServicesAlg[F],
       F: Effect[F]) = {
 

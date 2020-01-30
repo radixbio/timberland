@@ -3,7 +3,7 @@ package com.radix.timberland
 import io.circe.{Parser => _, _}
 import scala.io.StdIn.{readLine}
 
-import ammonite.ops._
+//import ammonite.ops._
 import cats.effect.{ContextShift, IO}
 import cats.implicits._ //NECESSARY
 import com.radix.timberland.runtime.{Installer}
@@ -123,14 +123,14 @@ object launcher {
 
                   val prog = for {
                     _ <- IO(scribe.debug("starting file copy..."))
-                    _ <- copier.fncopy(Path("/nomad/config/zookeeper/config"),
-                                       Path("/conf"))
+                    _ <- copier.fncopy(os.Path("/nomad/config/zookeeper/config"),
+                                       os.Path("/conf"))
                     _ <- IO(scribe.debug("finished file copy"))
                     _ <- IO(scribe.debug("starting zookeeper..."))
                     zk <- launch.zookeeper
-                      .startZookeeper(Path("/local/conf/zoo_servers"),
-                                      Path("/conf/zoo.cfg"),
-                                      Path("/conf/zoo_replicated.cfg.dynamic"),
+                      .startZookeeper(os.Path("/local/conf/zoo_servers"),
+                                      os.Path("/conf/zoo.cfg"),
+                                      os.Path("/conf/zoo_replicated.cfg.dynamic"),
                                       minQuorumSize)
                       .run(launch.zookeeper.NoMinQuorum)
                     _ <- IO(scribe.debug("zookeeper started!"))

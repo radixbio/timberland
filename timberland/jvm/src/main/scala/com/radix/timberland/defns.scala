@@ -3,8 +3,8 @@ package com.radix.timberland
 import java.io.File
 import java.net.{InetAddress, URL, NetworkInterface}
 
-import ammonite._
-import ammonite.ops._
+//import ammonite._
+//import ammonite.ops._
 import cats._
 import cats.data._
 import cats.effect.{Effect}
@@ -77,9 +77,9 @@ package object radixdefs {
     */
   trait RuntimeServicesAlg[F[_]] extends LocalEthInfoAlg[F] {
     def searchForPort(netinf: List[String], port: Int): F[Option[NonEmptyList[String]]]
-    def readConfig(wd: Path, fname: String): F[String]
+    def readConfig(wd: os.Path, fname: String): F[String]
     def parseJson(json: String): F[Json]
-    def mkTempFile(contents: String, fname: String, exn: String = "json"): F[Path]
+    def mkTempFile(contents: String, fname: String, exn: String = "json"): F[os.Path]
     def startConsul(bind_addr: String, consulSeedsO: Option[String], bootstrapExpect: Int): F[Unit]
     def startNomad(bind_addr: String, bootstrapExpect: Int): F[Unit]
     def startWeave(hosts: List[String]): F[Unit]

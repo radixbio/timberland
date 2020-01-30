@@ -1,7 +1,7 @@
 package com.radix.timberland.runtime
 
-import ammonite._
-import ammonite.ops._
+//import ammonite._
+//import ammonite.ops._
 import cats._
 import cats.effect._
 import cats.implicits._
@@ -23,7 +23,7 @@ object Installer {
    */
   class MoveFromJVMResources[F[_]](implicit F: Effect[F]) extends FunctionalCopy[F] {
     scribe.trace("initializing jvm class mover")
-    private[this] def copyResourceToFolder(resname: String, name: String, to: Path, options: CopyOption*): Unit = {
+    private[this] def copyResourceToFolder(resname: String, name: String, to: os.Path, options: CopyOption*): Unit = {
       val is = Thread.currentThread().getContextClassLoader.getResourceAsStream(resname)
       val f  = new File(to + "/" + name)
       f.getParentFile.mkdirs()
