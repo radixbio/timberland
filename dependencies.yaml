@@ -277,6 +277,10 @@ dependencies:
       lang: java
       version: 4.1.1
       modules: ["", ooxml, ooxml-schemas]
+  org.apache.commons:
+    commons-lang3:
+      lang: java
+      version: 3.8.1
   co.fs2:
     fs2:
       lang: scala
@@ -291,6 +295,11 @@ dependencies:
       lang: scala
       version: 0.3.0
       modules: [core, macros]
+  com.pi4j:
+    pi4j-core:
+      lang: java
+      version: "1.2"
+      modules: [""]
   info.folone:
     poi-scala:
       lang: scala

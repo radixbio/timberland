@@ -116,6 +116,7 @@ pkg_tar(
         ":timberland-bin_deploy.jar",
     ],
     package_dir = "/opt/radix",
+    deps = ["//device_drivers/hw_discovery/jvm:disco-deploy"],
     #        package_dir = "/tmp/test1",
     strip_prefix = "/",
 )
