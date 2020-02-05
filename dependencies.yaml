@@ -144,6 +144,9 @@ dependencies:
     circe-generic-extras:
       lang: scala
       version: 0.12.2
+    circe-optics:
+      lang: scala
+      version: 0.12.0
     circe-fs2:
       lang: scala
       version: 0.12.0
@@ -154,6 +157,10 @@ dependencies:
     scribe:
       lang: scala
       version: 2.7.3
+  com.github.andyglow:
+    websocket-scala-client:
+      lang: scala
+      version: 0.3.0
   com.github.xuwei-k:
     optparse-applicative:
       lang: scala
