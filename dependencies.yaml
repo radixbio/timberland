@@ -30,6 +30,9 @@ dependencies:
       lang: scala
       version: 2.0.0
       modules: [core, effect, free, kernel, macros]
+    cats-mtl-core:
+      lang: scala
+      version: 0.7.0
     kind:
       lang: scala
       modules: [projector]
@@ -233,7 +236,7 @@ dependencies:
     refined:
       lang: scala
       version: 0.9.10
-      modules: [cats, "", scalacheck]
+      modules: [cats, "", scalacheck, shapeless]
   com.pepegar:
     hammock:
       version: 0.10.0
@@ -311,6 +314,13 @@ dependencies:
     ui-automation:
       lang: java
       version: "0.4.3"
+  dev.zio:
+    zio:
+      lang: scala
+      version: "1.0.0-RC17"
+    zio-interop-cats:
+      lang: scala
+      version: "2.0.0.0-RC10"
 #
 #replacements:
 #  org.scala-lang:
