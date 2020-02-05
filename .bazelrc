@@ -1,2 +1,2 @@
-build --strategy=Scalac=worker
-build --worker_sandboxing
+build --remote_cache=https://cache.aws.radix.bio
+test --remote_cache=https://cache.aws.radix.bio

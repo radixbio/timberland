@@ -16,6 +16,7 @@ rules_scala_version = "a676633dc14d8239569affb2acafbef255df3480"  # update this 
 
 http_archive(
     name = "io_bazel_rules_scala",
+    sha256 = "b8b18d0fe3f6c3401b4f83f78f536b24c7fb8b92c593c1dcbcd01cc2b3e85c9a",
     strip_prefix = "rules_scala-%s" % rules_scala_version,
     type = "zip",
     url = "https://github.com/bazelbuild/rules_scala/archive/%s.zip" % rules_scala_version,
@@ -759,12 +760,12 @@ java_library(
     visibility = ["//visibility:public"]
 )""",
     commit = "6755c61315c7bb382a558b27cdff7ea2d5970c9c",
-    shallow_since = "1570800385 +0200",
     patch_cmds = ["find . -name BUILD | xargs rm"],
     remote = "https://github.com/google/or-tools.git",
+    shallow_since = "1570800385 +0200",
 )
 
-new_local_repository(
+new_git_repository(
     name = "scalaz3",
     build_file_content = """
 genrule(
@@ -773,7 +774,7 @@ genrule(
       "project/Build.scala",
       "project/build.properties",
       "project/build.sbt",
-      "build.sbt"
+      "build.sbt",
     ],
     outs = [
       "libscalaz3.so",
@@ -804,5 +805,7 @@ java_library(
     ],
     visibility = ["//visibility:public"]
 )""",
-    path = "third-party/ScalaZ3"
+    commit = "36c44781b8287333feb54924224774ab4c850c9c",
+    remote = "git@gitlab.com:radix-labs/scalaz3.git",
+    shallow_since = "1580864363 -0500",
 )
