@@ -92,6 +92,9 @@ dependencies:
     slf4j-simple:
       version: 1.7.30
       lang: java
+    slf4j-api:
+      version: 1.7.5
+      lang: java
   com.typesafe.akka:
     akka:
       modules: [actor, testkit, persistence, slf4j, stream, stream-typed, distributed-data, remote, persistence-query, persistence-tck, cluster, cluster-typed, actor-typed]
