@@ -96,7 +96,7 @@ dependencies:
       version: 1.7.30
       lang: java
     slf4j-api:
-      version: 1.7.5
+      version: 1.7.30
       lang: java
   com.typesafe.akka:
     akka:
