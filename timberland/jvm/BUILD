@@ -46,6 +46,7 @@ timberland_launcher_srcs = [
     "src/main/scala/com/radix/timberland/launch/kafka.scala",
     "src/main/scala/com/radix/timberland/launch/zookeeper.scala",
     "src/main/scala/com/radix/timberland/launcher.scala",
+    "src/main/scala/com/radix/timberland/launch/yugabyte.scala",
 ]
 
 scala_library(

@@ -452,14 +452,25 @@ case class KafkaDaemons(dev: Boolean, quorumSize: Int, servicePort: Int = 9092)
 
     object kafkaTask extends Task {
       val name = "kafka"
+      val interBrokerPort = 29092
       var env: Option[Map[String, String]] = dev match {
         case true =>
-          Map("KAFKA_BROKER_ID" -> "${NOMAD_ALLOC_INDEX}",
-              "TOPIC_AUTO_CREATE" -> "true",
-              "KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR" -> "1").some
+          Map(
+            "KAFKA_BROKER_ID" -> "${NOMAD_ALLOC_INDEX}",
+            "TOPIC_AUTO_CREATE" -> "true",
+            "KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR" -> "1",
+            "KAFKA_LISTENERS" -> "INSIDE://0.0.0.0:29092,OUTSIDE://0.0.0.0:${NOMAD_PORT_kafka}",
+            "KAFKA_LISTENER_SECURITY_PROTOCOL_MAP" -> "INSIDE:PLAINTEXT,OUTSIDE:PLAINTEXT",
+            "KAFKA_INTER_BROKER_LISTENER_NAME" -> "INSIDE"
+          ).some
         case false =>
-          Map("KAFKA_BROKER_ID" -> "${NOMAD_ALLOC_INDEX}",
-              "TOPIC_AUTO_CREATE" -> "true").some
+          Map(
+            "KAFKA_BROKER_ID" -> "${NOMAD_ALLOC_INDEX}",
+            "TOPIC_AUTO_CREATE" -> "true",
+            "KAFKA_LISTENERS" -> "INSIDE://0.0.0.0:29092,OUTSIDE://0.0.0.0:${NOMAD_PORT_kafka}",
+            "KAFKA_LISTENER_SECURITY_PROTOCOL_MAP" -> "INSIDE:PLAINTEXT,OUTSIDE:PLAINTEXT",
+            "KAFKA_INTER_BROKER_LISTENER_NAME" -> "INSIDE"
+          ).some
       }
 
       val services = List(kafkaPlaintext)
@@ -880,27 +891,25 @@ case class Elasticsearch(dev: Boolean, quorumSize: Int) extends Job {
     object EsGenericNode extends Task {
       val name = "es-generic-node"
       override val user = "elasticsearch".some
+      val nodeList = dev match {
+        case true => "es1"
+        case false => "es1,es2,es3"
+      }
       val env = Map("ES_JAVA_OPTS" -> "-Xms8g -Xmx8g").some
       object config extends Config {
         val image = "elasticsearch:7.3.2"
-        val command = "/local/start.sh".some
+        val command = "bash".some
         val port_map = Map("rest" -> 9200, "transport" -> 9300)
-        //        override val cap_add = List("IPC_LOCK").some
-        val volumes = None
+        val volumes = List(
+          "/opt/radix/timberland:/timberland"
+        ).some
         val hostname = "es${NOMAD_ALLOC_INDEX+1}"
         val entrypoint = None
-        val args = List(
-          "-Ebootstrap.memory_lock=true",
-          "-Ecluster.name=radix-es",
-          "-Ediscovery.seed_providers=file",
-          "-Ecluster.initial_master_nodes=es1,es2,es3",
-          "-Expack.license.self_generated.type=basic"
-        ).some
-        //override val ulimit = Map("nofie" -> "65536", "noproc" -> "8192").some //TODO: Doesnt have memlock
+        val args = List("-c", s"ln -s /local/unicast_hosts.txt /usr/share/elasticsearch/config/unicast_hosts.txt; elasticsearch -Ecluster.name=radix-es -Ediscovery.seed_providers=file -Ecluster.initial_master_nodes=${nodeList}").some
+        override val ulimit = Map("nofile" -> "65536", "nproc" -> "8192", "memlock" -> "-1").some
       }
 
       object ESTransport extends Service {
-        override val name = "${NOMAD_GROUP_NAME}-discovery".some
         val tags = List("elasticsearch", "transport")
         val port = "transport".some
         val checks = List(check)
@@ -911,42 +920,29 @@ case class Elasticsearch(dev: Boolean, quorumSize: Int) extends Job {
       }
 
       object ESRest extends Service {
-        override val name = "${NOMAD_GROUP_NAME}".some
         val tags = List("elasticsearch", "rest")
         val port = "rest".some
-        val checks = List(tcpcheck) //, httpcheck)
+        val checks = List(tcpcheck)
         object tcpcheck extends Check {
           val `type` = "tcp"
           val port = "rest"
         }
-        object httpcheck extends Check {
-          val `type` = "http"
-          val port = "rest"
-        }
-
       }
 
       val services = List(ESTransport, ESRest)
-      object startTemplate extends Template {
-        val destination = "local/start.sh"
-        override val perms = "755"
-        override val data =
-          """<<EOF\nln -s /local/unicast_hosts.txt /usr/share/elasticsearch/config/unicast_hosts.txt\nelasticsearch $@\nEOF""".some
-      }
 
       object unicastTemplate extends Template {
+        override val source =
+          "/opt/radix/timberland/nomad/elasticsearch/unicast_hosts.tpl".some
         val destination = "local/unicast_hosts.txt"
-        override val data =
-          """<<EOF\n{{- range service (printf \"%s-discovery|passing\" (env \"NOMAD_GROUP_NAME\")) }}\n{{ .Address }}:{{ .Port }}{{ end }}\nEOF""".some
       }
 
-      val templates = List(startTemplate, unicastTemplate).some
-
+      val templates = List(unicastTemplate).some
       object resources extends Resources {
         val cpu = 2500
         val memory = 10000
         object network extends Network {
-          val networkPorts = Map("rest" -> None, "transport" -> None)
+          val networkPorts = Map("rest" -> 9200.some, "transport" -> 9300.some)
         }
       }
     }
@@ -979,10 +975,10 @@ case class Retool(dev: Boolean, quorumSize: Int) extends Job {
     val name = "retool"
     val count = quorumSize
     val tasks = List(Postgres,
-                     DbConnector,
-                     DbSshConnector,
-                     RetoolJobsRunner,
-                     RetoolMain) //TODO: Add Yugabyte
+                     //DbConnector,
+                     //DbSshConnector,
+                     //RetoolJobsRunner,
+                     RetoolMain)
 
     object distinctHost extends Constraint {
       val operator = "distinct_hosts".some
@@ -996,6 +992,8 @@ case class Retool(dev: Boolean, quorumSize: Int) extends Job {
       val name = "retool-main"
       val env = Map(
         "NODE_ENV" -> "production",
+//        "STAGE" -> "local",
+        "COOKIE_INSECURE" -> "true",
         "RT_POSTGRES_DB" -> "retool",
         "RT_POSTGRES_USER" -> "retool_internal_user",
         "RT_POSTGRES_HOST" -> "retool-retool-postgres.service.consul",
@@ -1006,12 +1004,14 @@ case class Retool(dev: Boolean, quorumSize: Int) extends Job {
         "POSTGRES_HOST" -> "retool-retool-postgres.service.consul",
         "POSTGRES_PORT" -> "5432",
         "POSTGRES_PASSWORD" -> "retool",
-        "SERVICE_TYPE" -> "MAIN_BACKEND",
-        "DB_CONNECTOR_HOST" -> "http://retool-retool-db-connector.service.consul",
-        "DB_CONNECTOR_PORT" -> "3002",
-        "DB_SSH_CONNECTOR_HOST" -> "http://retool-retool-db-ssh-connector.service.consul",
-        "DB_SSH_CONNECTOR_PORT" -> "3003",
-        "LICENSE_KEY" -> "6b3b3a6b-78a8-4805-bef4-07bedb0cfd08"
+//        "SERVICE_TYPE" -> "MAIN_BACKEND",
+//        "DB_CONNECTOR_HOST" -> "http://retool-retool-db-connector.service.consul",
+//        "DB_CONNECTOR_PORT" -> "3002",
+//        "DB_SSH_CONNECTOR_HOST" -> "http://retool-retool-db-ssh-connector.service.consul",
+//        "DB_SSH_CONNECTOR_PORT" -> "3003",
+        "LICENSE_KEY" -> "6b3b3a6b-78a8-4805-bef4-07bedb0cfd08",
+        "JWT_SECRET" -> ",IkZ`r;ti$z0V8'CRt$%Ur!zq_Cw0}t8",
+        "ENCRYPTION_KEY" -> "0#V9=oZ<q?f*jZFJNmq779u-mCttbLb"
       ).some
       object config extends Config {
         val image = "tryretool/backend:latest"
@@ -1043,156 +1043,6 @@ case class Retool(dev: Boolean, quorumSize: Int) extends Job {
         val memory = 3000
         object network extends Network {
           val networkPorts = Map("retool" -> 3000.some)
-        }
-      }
-    }
-
-    object RetoolJobsRunner extends Task {
-      val name = "jobs-runner"
-      val env = Map(
-        "NODE_ENV" -> "production",
-        "RT_POSTGRES_DB" -> "retool",
-        "RT_POSTGRES_USER" -> "retool_internal_user",
-        "RT_POSTGRES_HOST" -> "retool-retool-postgres.service.consul",
-        "RT_POSTGRES_PORT" -> "5432",
-        "RT_POSTGRES_PASSWORD" -> "retool",
-        "POSTGRES_DB" -> "retool",
-        "POSTGRES_USER" -> "retool_internal_user",
-        "POSTGRES_HOST" -> "retool-retool-postgres.service.consul",
-        "POSTGRES_PORT" -> "5432",
-        "POSTGRES_PASSWORD" -> "retool",
-        "SERVICE_TYPE" -> "JOBS_RUNNER"
-      ).some
-      object config extends Config {
-        val image = "tryretool/backend:latest"
-        val command = "bash".some
-        //        val port_map = Map("postgresdb" -> 5432) //TODO
-        val port_map = Map()
-        //        override val cap_add = List("IPC_LOCK").some
-        val volumes = List().some
-        val hostname = "jobs-runner-${NOMAD_ALLOC_INDEX+1}"
-        val entrypoint = None
-        val args = List(
-          "-c",
-          "chmod -R +x ./docker_scripts; sync; ./docker_scripts/wait-for-it.sh retool-retool-postgres.service.consul:5432; ./docker_scripts/start_api.sh").some
-      }
-
-//      object JobsRunnerService extends Service {
-//        val tags = List("retool", "jobsrunner")
-//        val port = "postgredb".some
-//        val checks = List(check)
-//        object check extends Check {
-//          val `type` = "tcp"
-//          val port = "postgresdb"
-//        }
-//      }
-
-      val services = List()
-      val templates = List().some
-      object resources extends Resources {
-        val cpu = 250
-        val memory = 1000
-        object network extends Network {
-          val networkPorts = Map()
-        }
-      }
-    }
-
-    object DbConnector extends Task {
-      val name = "db-connector"
-      val env = Map(
-        "NODE_ENV" -> "production",
-        "RT_POSTGRES_DB" -> "retool",
-        "RT_POSTGRES_USER" -> "retool_internal_user",
-        "RT_POSTGRES_HOST" -> "retool-retool-postgres.service.consul",
-        "RT_POSTGRES_PORT" -> "5432",
-        "RT_POSTGRES_PASSWORD" -> "retool",
-        "POSTGRES_DB" -> "retool",
-        "POSTGRES_USER" -> "retool_internal_user",
-        "POSTGRES_HOST" -> "retool-retool-postgres.service.consul",
-        "POSTGRES_PORT" -> "5432",
-        "POSTGRES_PASSWORD" -> "retool",
-        "SERVICE_TYPE" -> "DB_CONNECTOR_SERVICE"
-      ).some
-      object config extends Config {
-        val image = "tryretool/backend:latest"
-        val command = "bash".some
-        val port_map = Map("dbconnector" -> 3002)
-        //        override val cap_add = List("IPC_LOCK").some
-        val volumes = List().some
-        val hostname = "db-connector-${NOMAD_ALLOC_INDEX+1}"
-        val entrypoint = None
-        val args = List("-c", "./retool_backend").some
-      }
-
-      object DBConnectorService extends Service {
-        val tags = List("retool", "dbconnector")
-        val port = "dbconnector".some
-        val checks = List(check)
-        object check extends Check {
-          val `type` = "tcp"
-          val port = "dbconnector"
-        }
-      }
-
-      val services = List(DBConnectorService)
-      val templates = List().some
-      object resources extends Resources {
-        val cpu = 250
-        val memory = 1000
-        object network extends Network {
-          val networkPorts = Map("dbconnector" -> 3002.some) //TODO
-        }
-      }
-    }
-
-    object DbSshConnector extends Task {
-      val name = "db-ssh-connector"
-      val env = Map(
-        "NODE_ENV" -> "production",
-        "RT_POSTGRES_DB" -> "retool",
-        "RT_POSTGRES_USER" -> "retool_internal_user",
-        "RT_POSTGRES_HOST" -> "retool-retool-postgres.service.consul",
-        "RT_POSTGRES_PORT" -> "5432",
-        "RT_POSTGRES_PASSWORD" -> "retool",
-        "POSTGRES_DB" -> "retool",
-        "POSTGRES_USER" -> "retool_internal_user",
-        "POSTGRES_HOST" -> "retool-retool-postgres.service.consul",
-        "POSTGRES_PORT" -> "5432",
-        "POSTGRES_PASSWORD" -> "retool",
-        "SERVICE_TYPE" -> "DB_SSH_CONNECTOR_SERVICE"
-      ).some
-      object config extends Config {
-        val image = "tryretool/backend:latest"
-        val command = "bash".some
-        val port_map = Map("dbsshconnector" -> 3002)
-        //        override val cap_add = List("IPC_LOCK").some
-        val volumes = List("ssh:/retool_backend/autogen_ssh_keys",
-                           "./keys:/retool_backend/keys").some
-        val hostname = "db-ssh-connector-${NOMAD_ALLOC_INDEX+1}"
-        val entrypoint = None
-        val args = List(
-          "-c",
-          "./docker_scripts/generate_key_pair.sh; ./retool_backend").some
-      }
-
-      object DBSSHConnectorService extends Service {
-        val tags = List("retool", "dbsshconnector")
-        val port = "dbsshconnector".some
-        val checks = List(check)
-        object check extends Check {
-          val `type` = "tcp"
-          val port = "dbsshconnector"
-        }
-      }
-
-      val services = List(DBSSHConnectorService)
-      val templates = List().some
-      object resources extends Resources {
-        val cpu = 250
-        val memory = 1000
-        object network extends Network {
-          val networkPorts = Map("dbsshconnector" -> 3003.some) //TODO
         }
       }
     }
@@ -1238,6 +1088,202 @@ case class Retool(dev: Boolean, quorumSize: Int) extends Job {
     }
   }
   def jobshim(): JobShim = JobShim(name, Retool(dev, quorumSize).assemble)
+}
+
+case class Yugabyte(dev: Boolean, quorumSize: Int) extends Job {
+  val name = "yugabyte"
+  val datacenters: List[String] = List("dc1")
+
+  object YugabyteDaemonUpdate extends Update {
+    val stagger = "10s"
+    val max_parallel = 1
+    val min_healthy_time = "10s"
+  }
+
+  object kernelConstraint extends Constraint {
+    val operator = None
+    val attribute = "${attr.kernel.name}".some
+    val value = "linux"
+  }
+
+  val constraints = List(kernelConstraint).some
+  override val update = YugabyteDaemonUpdate.some
+
+  val groups = List(YugabyteGroup)
+
+  object YugabyteGroup extends Group {
+    val name = "yugabyte"
+    val count = quorumSize
+    val tasks = List(YBMaster, YBTServer) //TODO, YBTServer
+
+    object distinctHost extends Constraint {
+      val operator = "distinct_hosts".some
+      val attribute = None
+      val value = "true"
+    }
+
+    val constraints = List(distinctHost).some
+
+    object YBMaster extends Task {
+      val name = "ybmaster"
+      val env = None
+      object config extends Config {
+        val image = "yugabytedb/yugabyte:latest"
+//        val command = "/home/yugabyte/bin/yb-master".some
+        val command = "-jar".some
+        val port_map = Map("ybmasteradmin" -> 7000, "ybmaster_rpc" -> 7100)
+//        val volumes = List().some
+        val hostname = "ybmaster-${NOMAD_ALLOC_INDEX+1}"
+        val entrypoint = List("java").some
+        val volumes = List(
+          "/opt/radix/timberland:/timberland"
+        ).some
+        val args = dev match {
+          case true =>
+            List("/timberland/exec/timberland-launcher_deploy.jar",
+              "launch",
+              "yugabyte-master",
+              "--dev").some
+          case false =>
+            List("/timberland/exec/timberland-launcher_deploy.jar",
+              "launch",
+              "yugabyte-master").some
+        }
+      }
+
+      object YBMasterAdminUI extends Service {
+        val tags = List("ybmaster", "admin")
+        val port = "ybmasteradmin".some
+        val checks = List(check)
+        object check extends Check {
+          val `type` = "tcp"
+          val port = "ybmasteradmin"
+        }
+      }
+
+//      object YBMasterRPC extends Service {
+//        val tags = List("ybmaster", "rpc")
+//        val port = "ybmaster_rpc".some
+//        val checks = List(check)
+//        object check extends Check {
+//          val `type` = "tcp"
+//          val port = "ybmaster_rpc"
+//        }
+//      }
+
+      val services = List(YBMasterAdminUI) //NOTE: YBMaster RPC is bound to internal IP address, is not an external service
+      val templates = None
+      object resources extends Resources {
+        val cpu = 250
+        val memory = 1000
+        object network extends Network {
+          val networkPorts =
+            Map("ybmasteradmin" -> 7000.some, "ybmaster_rpc" -> 7100.some)
+        }
+      }
+    }
+
+    object YBTServer extends Task {
+      val name = "ybtserver"
+      val env = None
+      object config extends Config {
+        val image = "yugabytedb/yugabyte:latest"
+//        val command = "/home/yugabyte/bin/yb-tserver".some
+        val command = "-jar".some
+        val port_map = Map("ybtserver" -> 9000,
+                           "ysql" -> 5433,
+                           "ycql" -> 9042,
+                           "yedis" -> 6379,
+                           "ysqladmin" -> 13000) //TODO
+        val volumes = List(
+          "/opt/radix/timberland:/timberland"
+        ).some
+        val hostname = "ybtserver-${NOMAD_ALLOC_INDEX+1}"
+        val entrypoint = List("java").some
+        val args = dev match {
+          case true =>
+            List("/timberland/exec/timberland-launcher_deploy.jar",
+              "launch",
+              "yugabyte-tserver",
+              "--dev").some
+          case false =>
+            List("/timberland/exec/timberland-launcher_deploy.jar",
+              "launch",
+              "yugabyte-tserver").some
+        }
+
+        //val args = List("--flagfile", "/local/yugabyte/tserver.conf").some
+        // The following args work with the correct weave IP and are what is reflected in the template
+        // val args = List("--fs_data_dirs=/mnt/disk0,/mnt/disk1", "--start_pgsql_proxy", s"--tserver_master_addrs=yugabyte-yugabyte-ybmaster.service.consul:7100", "--rpc_bind_addresses=10.0.0.46").some
+      }
+
+      object YBTServer extends Service {
+        val tags = List("ybtserver", "tserver")
+        val port = "ybtserver".some
+        val checks = List(check)
+        object check extends Check {
+          val `type` = "tcp"
+          val port = "ybtserver"
+        }
+      }
+
+      object ysql extends Service {
+        val tags = List("ybtserver", "ysql")
+        val port = "ysql".some
+        val checks = List(check)
+        object check extends Check {
+          val `type` = "tcp"
+          val port = "ysql"
+        }
+      }
+
+      object ysqladmin extends Service {
+        val tags = List("ybtserver", "ysqladmin")
+        val port = "ysqladmin".some
+        val checks = List(check)
+        object check extends Check {
+          val `type` = "tcp"
+          val port = "ysqladmin"
+        }
+      }
+
+      object ycql extends Service {
+        val tags = List("ybtserver", "ycql")
+        val port = "ycql".some
+        val checks = List(check)
+        object check extends Check {
+          val `type` = "tcp"
+          val port = "ycql"
+        }
+      }
+
+      object yedis extends Service {
+        val tags = List("ybtserver", "yedis")
+        val port = "yedis".some
+        val checks = List(check)
+        object check extends Check {
+          val `type` = "tcp"
+          val port = "yedis"
+        }
+      }
+
+      val services = List(YBTServer, ysql, ycql, yedis, ysqladmin)
+
+      val templates = None
+      object resources extends Resources {
+        val cpu = 1000
+        val memory = 5000
+        object network extends Network {
+          val networkPorts = Map("ybtserver" -> 9000.some,
+                                 "ysqladmin" -> 13000.some,
+                                 "ysql" -> 5433.some,
+                                 "ycql" -> 9042.some,
+                                 "yedis" -> 6379.some)
+        }
+      }
+    }
+  }
+  def jobshim(): JobShim = JobShim(name, Yugabyte(dev, quorumSize).assemble)
 }
 
 //object main extends App {

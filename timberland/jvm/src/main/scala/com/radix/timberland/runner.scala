@@ -38,7 +38,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
  * |     |- install <RADIX_MONOREPO_DIR>
   *      |- runtime|
   *                |- install
-  *                |- start [debug] [dry-run] [force-bind-ip] [dev] [vault] [es] [core] [service-port] [registry-listener-port]
+  *                |- start [debug] [dry-run] [force-bind-ip] [dev] [vault] [es] [core] [service-port] [registry-listener-port] [no-restart]
   *                |- stop
   *                |- trace
   *                |- nuke
@@ -75,18 +75,20 @@ sealed trait Runtime                 extends RadixCMD
 sealed trait Local          extends Runtime
 case object Install         extends Local
 case class Start(
-                  dummy: Boolean = false,
-                  loglevel: scribe.Level = scribe.Level.Debug,
-                  bindIP: Option[String] = None,
-                  consulSeeds: Option[String] = None,
-                  dev: Boolean = false,
-                  core: Boolean = false,
-                  vault: Boolean = false,
-                  es: Boolean = false,
-                  retool: Boolean = false,
-                  servicePort: Int = 9092,
-                  registryListenerPort: Int = 8081
-                ) extends Local
+    dummy: Boolean = false,
+    loglevel: scribe.Level = scribe.Level.Debug,
+    bindIP: Option[String] = None,
+    consulSeeds: Option[String] = None,
+    dev: Boolean = false,
+    core: Boolean = false,
+    vault: Boolean = false,
+    es: Boolean = false,
+    yugabyte: Boolean = false,
+    retool: Boolean = false,
+    servicePort: Int = 9092,
+    registryListenerPort: Int = 8081,
+    norestart: Boolean = false
+) extends Local
 case object Stop extends Local
 case object Nuke                                                    extends Local
 case object StartNomad                                              extends Local
@@ -168,9 +170,14 @@ object runner {
                   case bool @ Some(true) => exist.copy(dev = bool.get)
                   case _ => exist
                 }
-              }) <*> optional(switch(long("core"), help("start core services"))).map(dev => { exist: Start =>
-                dev match {
-                  case bool @ Some(true) => exist.copy(dev = bool.get)
+              }) <*> optional(switch(long("no-restart"), help("Don't start/restart nomad and consul"))).map(norestart => { exist: Start =>
+                norestart match {
+                  case bool @ Some(true) => exist.copy(norestart = bool.get)
+                  case _ => exist
+                }
+              })<*> optional(switch(long("core"), help("start core services"))).map(core => { exist: Start =>
+                core match {
+                  case bool @ Some(true) => exist.copy(core = bool.get)
                   case _ => exist
                 }
               }) <*> optional(switch(long("vault"), help("start vault only"))).map(vault => { exist: Start =>
@@ -183,7 +190,12 @@ object runner {
                   case bool @ Some(true) => exist.copy(es = bool.get)
                   case _ => exist
                 }
-              })  <*> optional(switch(long("retool"), help("start retool only"))).map(retool => { exist: Start =>
+              })  <*> optional(switch(long("yugabyte"), help("start yugabyte only"))).map(yugabyte => { exist: Start =>
+                yugabyte match {
+                  case bool @ Some(true) => exist.copy(yugabyte = bool.get)
+                  case _ => exist
+                }
+              })<*> optional(switch(long("retool"), help("start retool only"))).map(retool => { exist: Start =>
                 retool match {
                   case bool @ Some(true) => exist.copy(retool = bool.get)
                   case _ => exist
@@ -455,7 +467,7 @@ object runner {
 
                 }
                 case Nuke => Right(Unit)
-                case cmd @ Start(dummy, loglevel, bindIP, consulSeedsO, dev, core, vault, es, retool, servicePort, registryListenerPort) => {
+                case cmd @ Start(dummy, loglevel, bindIP, consulSeedsO, dev, core, vault, es, yugabyte, retool, servicePort, registryListenerPort, norestart) => {
                     scribe.Logger.root
                     .clearHandlers()
                     .clearModifiers()
@@ -472,12 +484,14 @@ object runner {
                   var startVault = vault
                   var startEs = es
                   var startRetool = retool
+                  var startYugabyte = yugabyte
 
-                  if (!startCore && !startVault && !startEs && !startRetool) {
+                  if (!startCore && !startVault && !startEs && !startRetool && !startYugabyte) {
                     startCore = true
                     startVault = true
                     startEs = true
                     startRetool = true
+                    startYugabyte = true
                   }
 
                   if (dummy) {
@@ -491,21 +505,31 @@ object runner {
                   } else {
                     scribe.info("Creating weave network")
                     val prog = for {
-                      _ <- IO(os.proc("/usr/bin/docker network create --driver=weaveworks/net-plugin:latest_release --attachable weave".split(' ')).call(cwd = os.root, stdout = os.Inherit, check = false))
+                      pluginList <- IO(os.proc("/usr/bin/docker plugin ls".split(' ')).call(cwd = os.root, check = false))
+                      _ <- pluginList.out.string.contains("weaveworks/net-plugin:latest_release") match {
+                        case true => {
+                          IO(os.proc("/usr/bin/docker network create --driver=weaveworks/net-plugin:latest_release --attachable weave".split(' ')).call(cwd = os.root, stdout = os.Inherit, check = false))
+                          IO.pure(scribe.info("Weave network exists or was created"))
+                        }
+                        case false => IO.pure(scribe.info("Weave plugin not installed. Skipping creation of weave network."))
+                      }
+
                     } yield ()
                     prog.unsafeRunSync()
-                    scribe.info("Weave network created")
+
                     implicit val host = new Run.RuntimeServicesExec[IO]
-                    Right(
-                      println(Run
-                        .initializeRuntimeProg[IO](Path(consul.toPath.getParent), Path(nomad.toPath.getParent), bindIP, consulSeedsO, bootstrapExpect)
-                        .unsafeRunSync)
-                    )
+                    if (!norestart) {
+                      Right(
+                        println(Run
+                          .initializeRuntimeProg[IO](Path(consul.toPath.getParent), Path(nomad.toPath.getParent), bindIP, consulSeedsO, bootstrapExpect)
+                          .unsafeRunSync)
+                      )
+                    }
                     scribe.info("Launching daemons")
                     scribe.info(s"***********DAEMON SIZE${bootstrapExpect}***************")
                     Right(
 
-                      println(daemonutil.waitForQuorum(bootstrapExpect, dev, startCore, startVault, startEs, startRetool, servicePort, registryListenerPort).unsafeRunSync)
+                      println(daemonutil.waitForQuorum(bootstrapExpect, dev, startCore, startYugabyte, startVault, startEs, startRetool, servicePort, registryListenerPort).unsafeRunSync)
                     )
                   }
                 }

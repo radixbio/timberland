@@ -72,6 +72,13 @@ case object RetoolStarted extends RetoolState
 case object RetoolQuorumEstablished extends RetoolState with DaemonRunning
 case object RetoolQuorumNotEstablished extends RetoolState with DaemonNotRunning
 
+sealed trait YugabyteState extends DaemonState
+case object YugabyteStarted extends YugabyteState
+case object YugabyteQuorumEstablished extends YugabyteState with DaemonRunning
+case object YugabyteQuorumNotEstablished
+    extends YugabyteState
+    with DaemonNotRunning
+
 case object AllDaemonsStarted extends DaemonState
 
 /** A holder class for combining a task with it's associated tags that need to be all checked for Daemon Availability
@@ -100,9 +107,9 @@ package object daemonutil {
 
     def daemonJob: JobShim
 
-    def service: String
-
-    def tags: Set[String]
+//    def service: String
+//
+//    def tags: Set[String]
 
     def daemonStarted: T
 
@@ -120,18 +127,8 @@ package object daemonutil {
     val quorumCount: Int = quorumSize
     val assembledDaemon: daemons.Job =
       daemons.ZookeeperDaemons(dev, quorumSize)
-//    val zookeeperDaemons = daemons.ZookeeperDaemons(dev, quorumSize)
-//    daemons.ZookeeperDaemons.zookeeper.count = quorumSize
-
-//    if (quorumSize == 1) {
-//      daemons.ZookeeperDaemons.zookeeper.zookeeper.config.args =
-//        (daemons.ZookeeperDaemons.zookeeper.zookeeper.config.args.get :+ "--dev").some
-//    }
     val daemonJob: JobShim = assembledDaemon.jobshim
     val daemonName: String = assembledDaemon.name
-    val service = "zookeeper-daemons-zookeeper-zookeeper"
-    val tags =
-      Set("zookeeper-quorum", "zookeeper-client")
     val daemonStarted: ZookeeperState = ZookeeperStarted
     val daemonQuorumEstablished: ZookeeperState = ZookeeperQuorumEstablished
     val daemonQuorumNotEstablished: ZookeeperState =
@@ -149,9 +146,6 @@ package object daemonutil {
     val assembledDaemon: daemons.Job =
       daemons.KafkaDaemons(dev, quorumSize, servicePort)
     val daemonJob: JobShim = assembledDaemon.jobshim
-    val service = "kafka-daemons-kafka-kafka"
-    val tags =
-      Set("kafka-quorum", "kafka-plaintext")
     val daemonStarted: KafkaState = KafkaTopicCreationStarted
     val daemonQuorumEstablished: KafkaState = KafkaTopicsCreated
     val daemonQuorumNotEstablished: KafkaState = KafkaTopicsFailed
@@ -172,9 +166,6 @@ package object daemonutil {
       daemons.KafkaCompanionDaemons(dev, servicePort, registryListenerPort)
     val daemonName: String = assembledDaemon.name
     val daemonJob: JobShim = assembledDaemon.jobshim
-    val service = "kafka-companion-daemons-kafkaCompanions-kafkaConnect" //TODO: This domain has many services. DO we check just one or check all of them?
-    val tags =
-      Set("kafka-companion", "kafka-connect")
     val daemonStarted: KafkaCompanionState = KafkaCompanionsStarted
     val daemonQuorumEstablished: KafkaCompanionState =
       KafkaCompanionsQuorumEstablished
@@ -194,9 +185,6 @@ package object daemonutil {
       daemons.VaultDaemon(dev, quorumSize)
     val daemonJob: JobShim = assembledDaemon.jobshim
     val daemonName: String = assembledDaemon.name
-    val service = "vault-daemon-vault-vault"
-    val tags =
-      Set("vault", "vault-listen")
     val daemonStarted: VaultState = VaultStarted
     val daemonQuorumEstablished: VaultState = VaultQuorumEstablished
     val daemonQuorumNotEstablished: VaultState = VaultQuorumNotEstablished
@@ -214,9 +202,6 @@ package object daemonutil {
       daemons.Elasticsearch(dev, quorumSize)
     val daemonJob: JobShim = assembledDaemon.jobshim
     val daemonName: String = assembledDaemon.name
-    val service = "elasticsearch-elasticsearch-es-general-node"
-    val tags =
-      Set("elasticsearch", "rest")
     val daemonStarted: ESState = ESStarted
     val daemonQuorumEstablished: ESState = ESQuorumEstablished
     val daemonQuorumNotEstablished: ESState = ESQuorumNotEstablished
@@ -234,12 +219,21 @@ package object daemonutil {
       daemons.Retool(dev, quorumSize)
     val daemonJob: JobShim = assembledDaemon.jobshim
     val daemonName: String = assembledDaemon.name
-    val service = "retool-retool-retool-main"
-    val tags =
-      Set("retool", "retool-service")
     val daemonStarted: RetoolState = RetoolStarted
     val daemonQuorumEstablished: RetoolState = RetoolQuorumEstablished
     val daemonQuorumNotEstablished: RetoolState = RetoolQuorumNotEstablished
+  }
+
+  case class Yugabyte(startInDevMode: Boolean, quorumSize: Int)
+      extends Daemon[Yugabyte.type, YugabyteState] {
+    val quorumCount: Int = quorumSize
+    val assembledDaemon: daemons.Job =
+      daemons.Yugabyte(startInDevMode, quorumSize)
+    val daemonJob: JobShim = assembledDaemon.jobshim
+    val daemonName: String = assembledDaemon.name
+    val daemonStarted: YugabyteState = YugabyteStarted
+    val daemonQuorumEstablished: YugabyteState = YugabyteQuorumEstablished
+    val daemonQuorumNotEstablished: YugabyteState = YugabyteQuorumNotEstablished
   }
 
   /** Let a specified function run for a specified period of time before interrupting it and raising an error. This
@@ -454,6 +448,7 @@ package object daemonutil {
   def waitForQuorum(quorumSize: Int,
                     dev: Boolean,
                     core: Boolean,
+                    yugabyteStart: Boolean,
                     vaultStart: Boolean,
                     esStart: Boolean,
                     retoolStart: Boolean,
@@ -474,7 +469,7 @@ package object daemonutil {
       val es = Elasticsearch(dev, quorumSize)
       val vault = Vault(dev, quorumSize)
       val retool = Retool(dev, quorumSize)
-
+      val yugabyte = Yugabyte(dev, quorumSize)
       val result = for {
         nomadQuorumStatus <- timeout(Nomad.waitForQuorum(interp, quorumSize),
                                      new FiniteDuration(2, duration.MINUTES))
@@ -498,16 +493,16 @@ package object daemonutil {
           }
           case false => IO.sleep(1.second)
         }
-        vaultQuorumStatus <- vaultStart match {
+        yugabyteQuorumStatus <- yugabyteStart match {
           case true => {
             for {
-              vaultStart <- vault.start
-              vaultQuorumStatus <- timeout(
-                vault.waitForQuorum,
-                new FiniteDuration(60, duration.SECONDS))
-            } yield vaultQuorumStatus
+              yugabyteStart <- yugabyte.start
+              yugabyteQuorumStatus <- timeout(
+                yugabyte.waitForQuorum,
+                new FiniteDuration(720, duration.SECONDS))
+            } yield yugabyteQuorumStatus
           }
-          case false => IO.sleep(1.second)
+          case _ => IO.sleep(1.second)
         }
         retoolQuorumStatus <- retoolStart match {
           case true => {
@@ -531,20 +526,33 @@ package object daemonutil {
           }
           case false => IO.sleep(1.second)
         }
-
-      } yield esQuorumStatus
+        vaultQuorumStatus <- vaultStart match {
+          case true => {
+            for {
+              vaultStart <- vault.start
+              vaultQuorumStatus <- timeout(
+                vault.waitForQuorum,
+                new FiniteDuration(60, duration.SECONDS))
+            } yield vaultQuorumStatus
+          }
+          case false => IO.sleep(1.second)
+        }
+      } yield vaultQuorumStatus
       result.attempt.flatMap {
         case Left(a) =>
           a.printStackTrace()
-          timeout(waitForQuorum(quorumSize,
-                                dev,
-                                core,
-                                vaultStart,
-                                esStart,
-                                retoolStart,
-                                servicePort,
-                                registryListenerPort),
-                  new FiniteDuration(10, duration.MINUTES))
+          timeout(
+            waitForQuorum(quorumSize,
+                          dev,
+                          core,
+                          yugabyteStart,
+                          vaultStart,
+                          esStart,
+                          retoolStart,
+                          servicePort,
+                          registryListenerPort),
+            new FiniteDuration(10, duration.MINUTES)
+          )
         case Right(a) =>
           IO.pure(AllDaemonsStarted)
 

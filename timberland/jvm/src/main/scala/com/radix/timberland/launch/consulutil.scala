@@ -17,7 +17,7 @@ object consulutil {
   private[this] implicit val timer: Timer[IO] = IO.timer(global)
   private[this] implicit val cs: ContextShift[IO] = IO.contextShift(global)
 
-  def waitForService(serviceName: String, tags: Set[String], quorum: Int, fail: Boolean = false)(
+  def waitForService(serviceName: String, tags: Set[String], quorum: Int, fail: Boolean = false, statuses: NonEmptyList[HealthStatus] = NonEmptyList.of(HealthStatus.Passing))(
       implicit poll_interval: FiniteDuration = 1.second,
       timer: Timer[IO])
     : IO[List[CatalogListNodesForServiceResponse]] = {
@@ -31,7 +31,7 @@ object consulutil {
           .run(interpreter, ConsulOp.catalogListNodesForService(serviceName))
         services <- IO.pure(NonEmptyList.fromList(servicespossiblyempty))
         _ <- IO(scribe.debug(s"found services $services"))
-        matchedAndHealthyNodes <- {
+        matchedNodes <- {
           val srvs = for {
             existingServices <- OptionT.pure[IO](services)
             serviceswithTags <- OptionT.pure[IO](existingServices
@@ -42,33 +42,36 @@ object consulutil {
               scribe.debug(
                 s"found nodes that matched tags $tags, $serviceswithTags")
             })
-            healthQuery <- OptionT.pure[IO](serviceswithTags.map(_.map(resp => {
-              // Check that all the found ZK's are healthy
-              ConsulOp
-                .healthListChecksForService(resp.serviceName,
-                                            Some(resp.datacenter),
-                                            None,
-                                            None,
-                                            None,
-                                            None)
-            }).sequence))
-            healthy <- OptionT
-              .fromOption[IO](healthQuery.map(helm.run(interpreter, _)))
-              .flatMap(OptionT.liftF(_))
-              .map(
-                x =>
-                  x.toList
-                    .zip(serviceswithTags.map(_.toList))
-                    .filter(_._1.value
-                      .map(_.status == HealthStatus.Passing)
-                      .reduce(_ && _)))
-              .map(_.flatMap(_._2))
-              .map(NonEmptyList.fromList)
-              .flatMap(OptionT.fromOption[IO](_))
-          } yield healthy
+            matched <- for {
+                    healthQuery <- OptionT.pure[IO](serviceswithTags.map(_.map(resp => {
+                      ConsulOp
+                        .healthListChecksForService(resp.serviceName,
+                          Some(resp.datacenter),
+                          None,
+                          None,
+                          None,
+                          None)
+                    }).sequence))
+                    matched <- OptionT
+                      .fromOption[IO](healthQuery.map(helm.run(interpreter, _)))
+                      .flatMap(OptionT.liftF(_))
+                      .map(
+                        x =>
+                          x.toList
+                            .zip(serviceswithTags.map(_.toList))
+                            .filter(_._1.value
+                              .map({ service => statuses.toList.contains(service.status)})
+                              //                            .map(_.status == HealthStatus.Passing)
+                              .reduce(_ && _)))
+                      .map(_.flatMap(_._2))
+                      .map(NonEmptyList.fromList)
+                      .flatMap(OptionT.fromOption[IO](_))
+                  } yield matched
+          } yield matched
           srvs.value
         }
-        quorumDecision <- matchedAndHealthyNodes match {
+        _ <- IO.pure(s"####### Matched Nodes: ${matchedNodes}")
+        quorumDecision <- matchedNodes match {
           case Some(nel) =>
             if (nel.size < quorum) {
               if (fail) {
@@ -79,7 +82,7 @@ object consulutil {
                     s"quorum size of $quorum not found, ${nel.size} out of $quorum so far.")
                 } *> IO.sleep(poll_interval) *> waitForService(serviceName,
                   tags,
-                  quorum)
+                  quorum, fail, statuses)
               }
             } else IO.pure(nel.toList)
           case None =>
@@ -90,7 +93,7 @@ object consulutil {
                 scribe.debug(s"no nodes for $serviceName with tags $tags found")
               } *> IO.sleep(poll_interval) *> waitForService(serviceName,
                 tags,
-                quorum)
+                quorum, fail, statuses)
             }
         }
       } yield quorumDecision

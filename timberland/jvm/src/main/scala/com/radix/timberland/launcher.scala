@@ -32,6 +32,7 @@ sealed trait LaunchMe extends LauncherCMD
 sealed trait Launch extends LaunchMe
 case class LaunchZookeeper(dev: Boolean) extends Launch
 case class LaunchKafka(dev: Boolean) extends Launch
+case class LaunchYugabyte(dev: Boolean, master: Boolean) extends Launch
 
 object launcher {
 
@@ -60,6 +61,20 @@ object launcher {
                 dev =>
                   LaunchKafka(dev)
               }), progDesc("launch kafka at runtime, launched from nomad"))
+            ),
+            command(
+              "yugabyte-master",
+              info(switch(long("dev"), help("start yugabyte master in dev mode")).map({
+                dev =>
+                  LaunchYugabyte(dev, true)
+              }), progDesc("launch yugabyte master at runtime, launched from nomad"))
+            ),
+            command(
+              "yugabyte-tserver",
+              info(switch(long("dev"), help("start yugabyte tserver in dev mode")).map({
+                dev =>
+                  LaunchYugabyte(dev, false)
+              }), progDesc("launch yugabyte tserver at runtime, launched from nomad"))
             )
           ).weaken[LaunchMe], progDesc("radix Launcher component"))
       )
@@ -155,6 +170,23 @@ object launcher {
                   } yield ()
                   prog.unsafeRunSync()
 
+                }
+
+                case LaunchYugabyte(dev, master) => {
+                  implicit var minQuorumSize: Int = 3
+                  if (dev) {
+                    minQuorumSize = 1
+                  }
+                  scribe.Logger.root
+                    .clearHandlers()
+                    .clearModifiers()
+                    .withHandler(minimumLevel = Some(scribe.Level.Trace))
+                    .replace()
+                  val prog = for {
+                    _ <- launch.yugabyte.startYugabyte(minQuorumSize, master)
+                    _ <- IO.never
+                  } yield ()
+                  prog.unsafeRunSync()
                 }
               }
           }

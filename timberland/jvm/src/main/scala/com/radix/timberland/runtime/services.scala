@@ -245,7 +245,6 @@ object Run {
       } yield dummyStatus
 
 
-
       for {
         ifaces <- bind_addr match {
           case Some(bind) => F.pure(List(bind.split('.').dropRight(1).mkString(".") + "."))

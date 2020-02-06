@@ -32,7 +32,10 @@ package object zookeeper {
   private [this] implicit val timer = IO.timer(global)
   sealed trait TemplateOps {
     def getTemplate(path: Path): IO[Set[String]] =
-      IO(os.read(path).split('\n').filter(_.startsWith("server")).toSet)
+      IO(os.read(path).split('\n').filter(_.startsWith("server")).toSet).map(x => {
+              println(s"reading template file ... $x")
+              x
+      })
   }
   case object NoMinQuorum                                                                extends TemplateOps
   case class MinQuorumFound(servers: Set[String])                                        extends TemplateOps
