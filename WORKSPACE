@@ -809,3 +809,13 @@ java_library(
     remote = "git@gitlab.com:radix-labs/scalaz3.git",
     shallow_since = "1580864363 -0500",
 )
+
+load("@io_bazel_rules_docker//container:container.bzl", "container_image", "container_layer", "container_pull", "container_push")
+
+container_pull(
+    name = "vault",
+    digest = "sha256:0d67bf30e7b1df4a74c7a89e5e3e80f6956417c4962bbda0a8e5472d3766b671",
+    registry = "index.docker.io",
+    repository = "vault",
+    tag = "1.3.0",
+)
