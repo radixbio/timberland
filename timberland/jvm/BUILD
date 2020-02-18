@@ -56,6 +56,7 @@ scala_library(
         "src/main/resources/consul/**/*",
         "src/main/resources/nomad/**/*",
         "src/main/resources/systemd/**/*",
+        "src/main/resources/application.conf",
     ]),
     exports = [":timberland-dependencies"],
     deps = [":timberland-dependencies"],
@@ -78,9 +79,11 @@ scala_library(
         "//3rdparty/jvm/org/scala_lang/modules:scala_parser_combinators",
         "//shared/shared/shared/shared:shared-shared",
         "//third-party/helm:helm-jvm",
+        "//utils/sheets/jvm/src/main/scala/com/radix/util/sheets:sheets-interps", #TODO remove this
     ],
     deps = [
         ":timberland-core-lib",
+        "//utils/sheets/jvm/src/main/scala/com/radix/util/sheets:sheets-interps", #TODO remove this
     ],
 )
 
@@ -117,9 +120,9 @@ pkg_tar(
         ":timberland-bin_deploy.jar",
     ],
     package_dir = "/opt/radix",
-    deps = ["//device_drivers/hw_discovery/jvm:disco-deploy"],
     #        package_dir = "/tmp/test1",
     strip_prefix = "/",
+    deps = ["//device_drivers/hw_discovery/jvm:disco-deploy"],
 )
 
 pkg_tar(

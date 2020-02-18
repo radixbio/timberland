@@ -53,8 +53,8 @@ import scala.concurrent.ExecutionContext.Implicits.global
   *                |           |             |- opentrons <ip> <node_hostname>
   *                |           |- remove <uuid>
   *                |           |- move <uuid> <offset> [new_parent_uuid]
-  *
-  *
+  *      |- oauth|
+  *              |- google-sheets
   *
   *
   */
@@ -98,6 +98,8 @@ case class DNSDown(service: Option[String], bindIP: Option[String]) extends DNS
 sealed trait Prism                                                  extends RadixCMD
 case object PList                                                   extends Prism
 case class PPath(path: String)                                      extends Prism
+sealed trait Oauth extends RadixCMD
+case object GoogleSheets extends Oauth
 
 case class ScriptHead(cmd: RadixCMD)
 
@@ -148,8 +150,7 @@ object runner {
                       case Some(flag)    => throw new IllegalArgumentException(s"$flag isn't a valid loglevel")
                       case None          => exist
                     }
-                }) <*> optional(
-                strOption(long("force-bind-ip"),
+                }) <*> optional(strOption(long("force-bind-ip"),
                           help("force services to use the specified subnet and IP (in form \"192.168.1.5\")")))
                 .map(subnet => { exist: Start =>
                   subnet match {
@@ -248,7 +249,13 @@ object runner {
       command("path", info(strArgument(metavar("PATH")).map(PPath),
                            progDesc("idk make a path or s/t")))))))
 
-  val res: Parser[RadixCMD] = dev.weaken[RadixCMD] <|> runtime.weaken[RadixCMD] <|> prism.weaken[RadixCMD]
+  val oauth = subparser[Oauth](
+    command("oauth", info(subparser[Oauth](command("google-sheets", info(pure(GoogleSheets),
+     progDesc("set up a google sheets token")))))
+    ))
+
+  val res: Parser[RadixCMD] = dev.weaken[RadixCMD] <|> runtime.weaken[RadixCMD] <|>
+                              prism.weaken[RadixCMD] <|> oauth.weaken[RadixCMD]
 
   val opts =
     info(res <*> helper,
@@ -585,6 +592,17 @@ object runner {
             }
           }
         }
+
+        case oauth: Oauth =>
+          oauth match {
+            case GoogleSheets => {
+              val credentials = for {
+                creds <- OAuthController.creds
+                _ <- IO(scribe.info("Credentials successfully stored!"))
+              } yield creds
+              credentials.unsafeRunSync()
+            }
+          }
       }
     }
 

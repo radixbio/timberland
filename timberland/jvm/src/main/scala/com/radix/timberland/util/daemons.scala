@@ -572,7 +572,7 @@ case class VaultDaemon(dev: Boolean, quorumSize: Int) extends Job {
       val env = Map("" -> "").some
 //      val env = Map("VAULT_LOCAL_CONFIG" -> "\n                storage \"consul\" {\n                    address = \"127.0.0.1:8500\"\n                    path = \"vault\"\n                }\n                listener \"tcp\" {\n                    address = \"127.0.0.1:8200\"\n                \n                }\n                telemetry {\n                    statsite_address = \"127.0.0.1:8125\"\n                }\n                plugin-directory = \"/opt/plugins/\"\n                ").some
       object config extends Config {
-        val image = "registry.gitlab.com/radix-labs/monorepo/vault"
+        val image = "registry.gitlab.com/radix-labs/monorepo/vault:latest"
         val command = "vault".some
         val port_map = Map("vault_listen" -> 8200, "telemetry" -> 8125)
         override val cap_add = List("IPC_LOCK").some

@@ -11,6 +11,9 @@ import com.radix.utils.helm.{NomadOp, NomadReadRaftConfigurationResponse}
 import org.http4s.Uri.uri
 import org.http4s.client.Client
 import org.http4s.client.blaze.BlazeClientBuilder
+import com.radix.utils.helm.http4s.vault.{Vault => VaultSession}
+import com.radix.utils.helm.vault._
+import io.circe._, io.circe.generic.auto._, io.circe.parser._, io.circe.syntax._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
@@ -80,6 +83,10 @@ case object YugabyteQuorumNotEstablished
     with DaemonNotRunning
 
 case object AllDaemonsStarted extends DaemonState
+
+case class RegisterProvider(provider: String,
+                            client_id: String,
+                            client_secret: String)
 
 /** A holder class for combining a task with it's associated tags that need to be all checked for Daemon Availability
   *
@@ -296,10 +303,10 @@ package object daemonutil {
     def start(implicit interp: Http4sNomadClient[IO]): IO[T] = {
       for {
         serviceState <- daemon.checkDaemonState(fail = true)
-        _ <- IO.pure(scribe.info(
+        _ <- IO(scribe.info(
           s"COMPLETED INITIAL SERVICE CHECK FOR ${daemon.getClass.getSimpleName}"))
         res <- if (serviceState == daemon.daemonQuorumEstablished) {
-          IO.pure(scribe.info(
+          IO(scribe.info(
             s"QUORUM FOUND DURING INITIAL SERVICE CHECK FOR ${daemon.getClass.getSimpleName}"))
           IO.pure(daemon.daemonQuorumEstablished)
         } else {
@@ -455,109 +462,152 @@ package object daemonutil {
                     servicePort: Int,
                     registryListenerPort: Int): IO[DaemonState] = {
 
-    BlazeClientBuilder[IO](global).resource.use(implicit client => {
-      scribe.info("Checking Nomad Quorum...")
+    BlazeClientBuilder[IO](global).resource
+      .use(implicit client => {
+        scribe.info("Checking Nomad Quorum...")
 
-      implicit val interp: Http4sNomadClient[IO] =
-        new Http4sNomadClient[IO](uri("http://nomad.service.consul:4646"),
-                                  client)
+        implicit val interp: Http4sNomadClient[IO] =
+          new Http4sNomadClient[IO](uri("http://nomad.service.consul:4646"),
+                                    client)
 
-      val zk = Zookeeper(dev, quorumSize)
-      val kafka = Kafka(dev, quorumSize, servicePort)
-      val kafkaCompanions =
-        KafkaCompanions(dev, servicePort, registryListenerPort)
-      val es = Elasticsearch(dev, quorumSize)
-      val vault = Vault(dev, quorumSize)
-      val retool = Retool(dev, quorumSize)
-      val yugabyte = Yugabyte(dev, quorumSize)
-      val result = for {
-        nomadQuorumStatus <- timeout(Nomad.waitForQuorum(interp, quorumSize),
-                                     new FiniteDuration(2, duration.MINUTES))
-        coreStatus <- core match {
-          case true => {
-            for {
+        val zk = Zookeeper(dev, quorumSize)
+        val kafka = Kafka(dev, quorumSize, servicePort)
+        val kafkaCompanions =
+          KafkaCompanions(dev, servicePort, registryListenerPort)
+        val es = Elasticsearch(dev, quorumSize)
+        val vault = Vault(dev, quorumSize)
+        val retool = Retool(dev, quorumSize)
+        val yugabyte = Yugabyte(dev, quorumSize)
+        val result =
+          for {
+            nomadQuorumStatus <- timeout(
+              Nomad.waitForQuorum(interp, quorumSize),
+              new FiniteDuration(2, duration.MINUTES))
+            coreStatus <- core match {
+              case true => {
+                for {
 
-              zkStart <- zk.start
-              zkQuorumStatus <- timeout(
-                zk.waitForQuorum,
-                new FiniteDuration(60, duration.SECONDS))
-              kafkaStart <- kafka.start
-              kafkaQuorumStatus <- timeout(
-                kafka.waitForQuorum,
-                new FiniteDuration(60, duration.SECONDS))
-              kafkaCompanionStart <- kafkaCompanions.start
-              kafkaCompanionQuorumStatus <- timeout(
-                kafkaCompanions.waitForQuorum,
-                new FiniteDuration(360, duration.SECONDS))
-            } yield kafkaCompanionQuorumStatus
-          }
-          case false => IO.sleep(1.second)
-        }
-        yugabyteQuorumStatus <- yugabyteStart match {
-          case true => {
-            for {
-              yugabyteStart <- yugabyte.start
-              yugabyteQuorumStatus <- timeout(
-                yugabyte.waitForQuorum,
-                new FiniteDuration(720, duration.SECONDS))
-            } yield yugabyteQuorumStatus
-          }
-          case _ => IO.sleep(1.second)
-        }
-        retoolQuorumStatus <- retoolStart match {
-          case true => {
-            for {
-              retoolStart <- retool.start
-              retoolQuorumStatus <- timeout(
-                retool.waitForQuorum,
-                new FiniteDuration(360, duration.SECONDS))
-            } yield retoolQuorumStatus
-          }
-          case false => IO.sleep(1.second)
-        }
-        esQuorumStatus <- esStart match {
-          case true => {
-            for {
-              esStart <- es.start
-              esQuorumStatus <- timeout(
-                es.waitForQuorum,
-                new FiniteDuration(120, duration.SECONDS))
-            } yield esQuorumStatus
-          }
-          case false => IO.sleep(1.second)
-        }
-        vaultQuorumStatus <- vaultStart match {
-          case true => {
-            for {
-              vaultStart <- vault.start
-              vaultQuorumStatus <- timeout(
-                vault.waitForQuorum,
-                new FiniteDuration(60, duration.SECONDS))
-            } yield vaultQuorumStatus
-          }
-          case false => IO.sleep(1.second)
-        }
-      } yield vaultQuorumStatus
-      result.attempt.flatMap {
-        case Left(a) =>
-          a.printStackTrace()
-          timeout(
-            waitForQuorum(quorumSize,
-                          dev,
-                          core,
-                          yugabyteStart,
-                          vaultStart,
-                          esStart,
-                          retoolStart,
-                          servicePort,
-                          registryListenerPort),
-            new FiniteDuration(10, duration.MINUTES)
-          )
-        case Right(a) =>
-          IO.pure(AllDaemonsStarted)
+                  zkStart <- zk.start
+                  zkQuorumStatus <- timeout(
+                    zk.waitForQuorum,
+                    new FiniteDuration(60, duration.SECONDS))
+                  kafkaStart <- kafka.start
+                  kafkaQuorumStatus <- timeout(
+                    kafka.waitForQuorum,
+                    new FiniteDuration(60, duration.SECONDS))
+                  kafkaCompanionStart <- kafkaCompanions.start
+                  kafkaCompanionQuorumStatus <- timeout(
+                    kafkaCompanions.waitForQuorum,
+                    new FiniteDuration(360, duration.SECONDS))
+                } yield kafkaCompanionQuorumStatus
+              }
+              case false => IO.sleep(1.second)
+            }
+            yugabyteQuorumStatus <- yugabyteStart match {
+              case true => {
+                for {
+                  yugabyteStart <- yugabyte.start
+                  yugabyteQuorumStatus <- timeout(
+                    yugabyte.waitForQuorum,
+                    new FiniteDuration(720, duration.SECONDS))
+                } yield yugabyteQuorumStatus
+              }
+              case _ => IO.sleep(1.second)
+            }
+            retoolQuorumStatus <- retoolStart match {
+              case true => {
+                for {
+                  retoolStart <- retool.start
+                  retoolQuorumStatus <- timeout(
+                    retool.waitForQuorum,
+                    new FiniteDuration(360, duration.SECONDS))
+                } yield retoolQuorumStatus
+              }
+              case false => IO.sleep(1.second)
+            }
+            esQuorumStatus <- esStart match {
+              case true => {
+                for {
+                  esStart <- es.start
+                  esQuorumStatus <- timeout(
+                    es.waitForQuorum,
+                    new FiniteDuration(120, duration.SECONDS))
+                } yield esQuorumStatus
+              }
+              case false => IO.sleep(1.second)
+            }
+            vaultQuorumStatus <- vaultStart match {
+              case true => {
+                val starter = new VaultStarter()
+                for {
+                  vaultStart <- vault.start
+                  vaultStarted <- timeout(
+                    vault.waitForQuorum,
+                    new FiniteDuration(60, duration.SECONDS)
+                  )
+                  vaultUnseal <- starter.unsealVault(dev)
+                  vaultOpen <- consulutil.waitForService("vault",
+                                                         Set("active"),
+                                                         1)(1.seconds, timer)
 
-      }
-    })
+                  oauthId = sys.env.get("GOOGLE_OAUTH_ID")
+                  oauthSecret = sys.env.get("GOOGLE_OAUTH_SECRET")
+                  registerGoogleOAuthPlugin <- (vaultUnseal,
+                                                oauthId,
+                                                oauthSecret) match {
+                    case (VaultUnsealed(key: String, token: String),
+                          Some(a),
+                          Some(b)) =>
+                      starter.initializeGoogleOauthPlugin(token)
+                    case (VaultUnsealed(key, token), _, _) =>
+                      IO(scribe.info(
+                        "GOOGLE_OAUTH_ID and/or GOOGLE_OAUTH_SECRET are not set. The Google oauth plugin will not be initialized.")) *> IO
+                        .pure(VaultOauthPluginNotInstalled)
+                    case (VaultSealed, _, _) =>
+                      IO(scribe.info(
+                        s"Vault remains sealed. Please check your configuration.")) *> IO
+                        .pure(VaultSealed)
+                    case (VaultAlreadyUnsealed, _, _) => {
+                      for {
+                        _ <- IO("Vault already unsealed")
+                        unsealToken = sys.env.get("VAULT_TOKEN")
+                        result <- unsealToken match {
+                          case Some(token) => starter.initializeGoogleOauthPlugin(token)
+                          case _ => IO("Vault is already unsealed and VAULT_TOKEN is not set")
+                        }
+                      } yield result
+                    }
+                  }
+                  _ <- IO(
+                    scribe.info(
+                      s"------Plugin Status: $registerGoogleOAuthPlugin"))
+
+                  _ <- IO(scribe.info(s"------- VAULT STATUS: ${vaultUnseal}"))
+                } yield vaultOpen
+              }
+              case false => IO.sleep(1.second)
+            }
+          } yield vaultQuorumStatus
+        result.attempt.flatMap {
+          case Left(a) =>
+            a.printStackTrace()
+            timeout(
+              waitForQuorum(quorumSize,
+                            dev,
+                            core,
+                            yugabyteStart,
+                            vaultStart,
+                            esStart,
+                            retoolStart,
+                            servicePort,
+                            registryListenerPort),
+              new FiniteDuration(10, duration.MINUTES)
+            )
+          case Right(a) =>
+            IO.pure(AllDaemonsStarted)
+
+        }
+      })
   }
 
 //  def stopAllServices(): IO[DaemonState] = {
