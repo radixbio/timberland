@@ -328,6 +328,10 @@ dependencies:
     zio-interop-cats:
       lang: scala
       version: "2.0.0.0-RC10"
+  net.liftweb:
+    lift-json:
+      lang: scala
+      version: 3.4.1
 #
 #replacements:
 #  org.scala-lang:
