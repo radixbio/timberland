@@ -82,6 +82,11 @@ case object YugabyteQuorumNotEstablished
     extends YugabyteState
     with DaemonNotRunning
 
+sealed trait AppriseState extends DaemonState
+case object AppriseStarted extends AppriseState
+case object AppriseQuorumEstablished extends AppriseState with DaemonRunning
+case object AppriseQuorumNotEstablished extends AppriseState with DaemonNotRunning
+
 case object AllDaemonsStarted extends DaemonState
 
 case class RegisterProvider(provider: String,
@@ -241,6 +246,18 @@ package object daemonutil {
     val daemonStarted: YugabyteState = YugabyteStarted
     val daemonQuorumEstablished: YugabyteState = YugabyteQuorumEstablished
     val daemonQuorumNotEstablished: YugabyteState = YugabyteQuorumNotEstablished
+  }
+
+  case class Apprise(startInDevMode: Boolean, quorumSize: Int)
+    extends Daemon[Apprise.type, AppriseState] {
+    val quorumCount: Int = quorumSize
+    val assembledDaemon: daemons.Job =
+      daemons.Apprise(startInDevMode, quorumSize)
+    val daemonJob: JobShim = assembledDaemon.jobshim
+    val daemonName: String = assembledDaemon.name
+    val daemonStarted: AppriseState = AppriseStarted
+    val daemonQuorumEstablished: AppriseState = AppriseQuorumEstablished
+    val daemonQuorumNotEstablished: AppriseState = AppriseQuorumNotEstablished
   }
 
   /** Let a specified function run for a specified period of time before interrupting it and raising an error. This
@@ -470,6 +487,7 @@ package object daemonutil {
           new Http4sNomadClient[IO](uri("http://nomad.service.consul:4646"),
                                     client)
 
+        val apprise = Apprise(dev, quorumSize)
         val zk = Zookeeper(dev, quorumSize)
         val kafka = Kafka(dev, quorumSize, servicePort)
         val kafkaCompanions =
@@ -486,7 +504,8 @@ package object daemonutil {
             coreStatus <- core match {
               case true => {
                 for {
-
+                  appriseStarted <- apprise.start
+                  appriseQuorumStatus <- timeout(apprise.waitForQuorum, new FiniteDuration(60, duration.SECONDS))
                   zkStart <- zk.start
                   zkQuorumStatus <- timeout(
                     zk.waitForQuorum,

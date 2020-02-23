@@ -84,6 +84,8 @@ trait Config {
 
   def privileged: Option[Boolean] = false.some
 
+  def work_dir: Option[String] = None
+
   def assemble: defs.DockerConfig =
     defs.DockerConfig(
       image = image,
@@ -96,7 +98,8 @@ trait Config {
       volumes = volumes,
       cap_add = cap_add,
       ulimit = ulimit,
-      privileged = privileged
+      privileged = privileged,
+      work_dir = work_dir
     )
 
   def network_mode: String = "weave"
@@ -892,7 +895,7 @@ case class Elasticsearch(dev: Boolean, quorumSize: Int) extends Job {
       val name = "es-generic-node"
       override val user = "elasticsearch".some
       val nodeList = dev match {
-        case true => "es1"
+        case true  => "es1"
         case false => "es1,es2,es3"
       }
       val env = Map("ES_JAVA_OPTS" -> "-Xms8g -Xmx8g").some
@@ -905,8 +908,12 @@ case class Elasticsearch(dev: Boolean, quorumSize: Int) extends Job {
         ).some
         val hostname = "es${NOMAD_ALLOC_INDEX+1}"
         val entrypoint = None
-        val args = List("-c", s"ln -s /local/unicast_hosts.txt /usr/share/elasticsearch/config/unicast_hosts.txt; elasticsearch -Ecluster.name=radix-es -Ediscovery.seed_providers=file -Ecluster.initial_master_nodes=${nodeList}").some
-        override val ulimit = Map("nofile" -> "65536", "nproc" -> "8192", "memlock" -> "-1").some
+        val args = List(
+          "-c",
+          s"ln -s /local/unicast_hosts.txt /usr/share/elasticsearch/config/unicast_hosts.txt; elasticsearch -Ecluster.name=radix-es -Ediscovery.seed_providers=file -Ecluster.initial_master_nodes=${nodeList}"
+        ).some
+        override val ulimit =
+          Map("nofile" -> "65536", "nproc" -> "8192", "memlock" -> "-1").some
       }
 
       object ESTransport extends Service {
@@ -1141,13 +1148,13 @@ case class Yugabyte(dev: Boolean, quorumSize: Int) extends Job {
         val args = dev match {
           case true =>
             List("/timberland/exec/timberland-launcher_deploy.jar",
-              "launch",
-              "yugabyte-master",
-              "--dev").some
+                 "launch",
+                 "yugabyte-master",
+                 "--dev").some
           case false =>
             List("/timberland/exec/timberland-launcher_deploy.jar",
-              "launch",
-              "yugabyte-master").some
+                 "launch",
+                 "yugabyte-master").some
         }
       }
 
@@ -1203,13 +1210,13 @@ case class Yugabyte(dev: Boolean, quorumSize: Int) extends Job {
         val args = dev match {
           case true =>
             List("/timberland/exec/timberland-launcher_deploy.jar",
-              "launch",
-              "yugabyte-tserver",
-              "--dev").some
+                 "launch",
+                 "yugabyte-tserver",
+                 "--dev").some
           case false =>
             List("/timberland/exec/timberland-launcher_deploy.jar",
-              "launch",
-              "yugabyte-tserver").some
+                 "launch",
+                 "yugabyte-tserver").some
         }
 
         //val args = List("--flagfile", "/local/yugabyte/tserver.conf").some
@@ -1284,6 +1291,79 @@ case class Yugabyte(dev: Boolean, quorumSize: Int) extends Job {
     }
   }
   def jobshim(): JobShim = JobShim(name, Yugabyte(dev, quorumSize).assemble)
+}
+
+case class Apprise(dev: Boolean, quorumSize: Int) extends Job {
+  val name = "apprise"
+  val datacenters: List[String] = List("dc1")
+
+  object DaemonUpdate extends Update {
+    val stagger = "10s"
+    val max_parallel = 1
+    val min_healthy_time = "10s"
+  }
+
+  object kernelConstraint extends Constraint {
+    val operator = None
+    val attribute = "${attr.kernel.name}".some
+    val value = "linux"
+  }
+
+  val constraints = List(kernelConstraint).some
+  override val update = DaemonUpdate.some
+
+  val groups = List(AppriseGroup)
+
+  object AppriseGroup extends Group {
+    val name = "apprise"
+    val count = quorumSize
+    val tasks = List(AppriseTask)
+
+    object distinctHost extends Constraint {
+      val operator = "distinct_hosts".some
+      val attribute = None
+      val value = "true"
+    }
+
+    val constraints = List(distinctHost).some
+
+    object AppriseTask extends Task {
+      val name = "apprise"
+      val env = None
+      object config extends Config {
+        val image =
+          "caronc/apprise:latest"
+        val command = None
+        val port_map = Map("apprise" -> 8000)
+        val volumes = None
+        val hostname = "${attr.unique.hostname}-em"
+        val entrypoint = None
+        val args = None
+      }
+      object AppriseService extends Service {
+        val tags = List("apprise", "listen")
+        val port = "apprise".some
+        val checks = List(check)
+        object check extends Check {
+          val `type` = "tcp"
+          val port = "apprise"
+        }
+      }
+
+      val services = List(AppriseService)
+      val templates = None
+
+      object resources extends Resources {
+        val cpu = 1000
+        val memory = 1000
+        object network extends Network {
+          val networkPorts =
+            Map("apprise" -> 10000.some)
+        }
+      }
+    }
+  }
+  def jobshim() = JobShim(name, Apprise(dev, quorumSize).assemble)
 }
 
 //object main extends App {
