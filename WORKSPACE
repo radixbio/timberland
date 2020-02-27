@@ -1,6 +1,6 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@bazel_tools//tools/build_defs/repo:jvm.bzl", "jvm_maven_import_external")
-load("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository", "new_git_repository")
 
 # bazel-skylib 0.8.0 released 2019.03.20 (https://github.com/bazelbuild/bazel-skylib/releases/tag/0.8.0)
 skylib_version = "0.8.0"
@@ -711,20 +711,37 @@ genrule(
     outs = [
         "com.google.ortools.jar",
         "protobuf.jar",
-        "libprotobuf.so",
+        "libprotobuf.so.3.6.1",
         "libortools.so",
         "libjniortools.so",
-        "libglog.so",
-        "libgflags.so",
-        "libCbcSolver.so",
-        "libCbc.so",
-        "libClp.so",
-        "libOsiClp.so",
-        "libCoinUtils.so",
-        "libCgl.so",
-        "libOsi.so"
+        "libglog.so.0.3.5",
+        "libgflags.so.2.2",
+        "libCbcSolver.so.3",
+        "libCbc.so.3",
+        "libClp.so.1",
+        "libOsiClp.so.1",
+        "libCoinUtils.so.3",
+        "libCgl.so.1",
+        "libOsi.so.1"
     ],
-    cmd = "make -j12 -C external/or_tools third_party && make -j12 -C external/or_tools java && cp external/or_tools/lib/libjniortools.so $(location libjniortools.so) && cp external/or_tools/lib/com.google.ortools.jar $(location com.google.ortools.jar) && cp external/or_tools/lib/libortools.so $(location libortools.so) && cp external/or_tools/dependencies/install/lib/libprotobuf.so $(location libprotobuf.so) && cp external/or_tools/dependencies/install/lib/protobuf.jar $(location protobuf.jar) && cp external/or_tools/dependencies/install/lib/libglog.so $(location libglog.so) && cp external/or_tools/dependencies/install/lib/libgflags.so $(location libgflags.so) && cp external/or_tools/dependencies/install/lib/libCbcSolver.so $(location libCbcSolver.so) && cp external/or_tools/dependencies/install/lib/libCbc.so $(location libCbc.so) && cp external/or_tools/dependencies/install/lib/libClp.so $(location libClp.so) && cp external/or_tools/dependencies/install/lib/libOsiClp.so $(location libOsiClp.so) && cp external/or_tools/dependencies/install/lib/libCoinUtils.so $(location libCoinUtils.so) && cp external/or_tools/dependencies/install/lib/libCgl.so $(location libCgl.so) && cp external/or_tools/dependencies/install/lib/libOsi.so $(location libOsi.so)",
+    cmd =  " && ".join([
+      "make -j -C external/or_tools third_party 2>/dev/null 1>/dev/null",
+      "make -j -C external/or_tools java 2>/dev/null 1>/dev/null",
+      "cp external/or_tools/lib/libjniortools.so                     $(location libjniortools.so)",
+      "cp external/or_tools/lib/com.google.ortools.jar               $(location com.google.ortools.jar)",
+      "cp external/or_tools/lib/libortools.so                        $(location libortools.so)",
+      "if [ -f external/or_tools/dependencies/install/lib64/libprotobuf.so.3.6.1 ]; then cp external/or_tools/dependencies/install/lib64/libprotobuf.so.3.6.1 $(location libprotobuf.so.3.6.1); else cp external/or_tools/dependencies/install/lib/libprotobuf.so.3.6.1 $(location libprotobuf.so.3.6.1); fi",
+      "cp external/or_tools/dependencies/install/lib/protobuf.jar    $(location protobuf.jar)",
+      "if [ -f external/or_tools/dependencies/install/lib64/libglog.so.0.3.5 ]; then cp external/or_tools/dependencies/install/lib64/libglog.so.0.3.5 $(location libglog.so.0.3.5); else cp external/or_tools/dependencies/install/lib/libglog.so.0.3.5 $(location libglog.so.0.3.5); fi",
+      "cp external/or_tools/dependencies/install/lib/libgflags.so.2.2    $(location libgflags.so.2.2)",
+      "cp external/or_tools/dependencies/install/lib/libCbcSolver.so.3 $(location libCbcSolver.so.3)",
+      "cp external/or_tools/dependencies/install/lib/libCbc.so.3       $(location libCbc.so.3)",
+      "cp external/or_tools/dependencies/install/lib/libClp.so.1       $(location libClp.so.1)",
+      "cp external/or_tools/dependencies/install/lib/libOsiClp.so.1    $(location libOsiClp.so.1)",
+      "cp external/or_tools/dependencies/install/lib/libCoinUtils.so.3 $(location libCoinUtils.so.3)",
+      "cp external/or_tools/dependencies/install/lib/libCgl.so.1       $(location libCgl.so.1)",
+      "cp external/or_tools/dependencies/install/lib/libOsi.so.1       $(location libOsi.so.1)",
+    ])
 )
 
 java_import(
@@ -740,16 +757,16 @@ java_library(
     resources = [
         ":libortools.so",
         ":libjniortools.so",
-        ":libprotobuf.so",
-        ":libglog.so",
-        ":libgflags.so",
-        ":libCbcSolver.so",
-        ":libCbc.so",
-        ":libClp.so",
-        ":libOsiClp.so",
-        ":libCoinUtils.so",
-        ":libCgl.so",
-        ":libOsi.so"
+        ":libprotobuf.so.3.6.1",
+        ":libglog.so.0.3.5",
+        ":libgflags.so.2.2",
+        ":libCbcSolver.so.3",
+        ":libCbc.so.3",
+        ":libClp.so.1",
+        ":libOsiClp.so.1",
+        ":libCoinUtils.so.3",
+        ":libCgl.so.1",
+        ":libOsi.so.1"
     ],
     exports = [
         ":ortools-java-jar"
@@ -759,55 +776,23 @@ java_library(
     ],
     visibility = ["//visibility:public"]
 )""",
-    commit = "6755c61315c7bb382a558b27cdff7ea2d5970c9c",
+    commit = "07a142892e960093ad277a6b7b95a1ee3b162d48",
     patch_cmds = ["find . -name BUILD | xargs rm"],
     remote = "https://github.com/google/or-tools.git",
-    shallow_since = "1570800385 +0200",
+    shallow_since = "1550848918 +0100",
 )
 
-new_git_repository(
+git_repository(
     name = "scalaz3",
-    build_file_content = """
-genrule(
-    name = "scalaz3-raw",
-    srcs = glob(["src/**"]) + [
-      "project/Build.scala",
-      "project/build.properties",
-      "project/build.sbt",
-      "build.sbt",
-    ],
-    outs = [
-      "libscalaz3.so",
-      "libz3.so",
-      "scalaz3_2.12-3.0.jar",
-    ],
-    cmd = "cd external/scalaz3 && sbt --sbt-dir ./.sbt --sbt-boot ./.sbt/boot --ivy ./.ivy2 -mem 4096 +package && cd ../.. && cp external/scalaz3/lib-bin/libscalaz3.so $(location libscalaz3.so) && cp external/scalaz3/z3/z3-4.6.0/build/libz3.so $(location libz3.so) && cp external/scalaz3/target/scala-2.12/scalaz3_2.12-3.0.jar $(location scalaz3_2.12-3.0.jar)",
-)
-
-java_import(
-    name = "scalaz3-jar",
-    jars = [
-        ":scalaz3_2.12-3.0.jar",
-    ],
-)
-
-java_library(
-    name = "scalaz3",
-    resources = [
-        ":libscalaz3.so",
-        ":libz3.so",
-    ],
-    exports = [
-        ":scalaz3-jar",
-    ],
-    runtime_deps = [
-        ":scalaz3-jar"
-    ],
-    visibility = ["//visibility:public"]
-)""",
-    commit = "36c44781b8287333feb54924224774ab4c850c9c",
+    commit = "8036f365347de877773f82a15f6a857c8db0ddd1",
     remote = "git@gitlab.com:radix-labs/scalaz3.git",
-    shallow_since = "1580864363 -0500",
+    shallow_since = "1582754945 -0500",
+)
+git_repository(
+    name = "z3",
+    commit = "d3c4aef4c4723e9ab7843302519e6919aa73f8e1",
+    remote = "git@gitlab.com:radix-labs/z3.git",
+    shallow_since = "1582754507 -0500",
 )
 
 load("@io_bazel_rules_docker//container:container.bzl", "container_image", "container_layer", "container_pull", "container_push")
