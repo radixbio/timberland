@@ -454,6 +454,9 @@ object runner {
                       _ <- resourceMover.fncopy(Path("/systemd/dummy0.netdev"), Path("/etc/systemd/network"))
                       _ <- resourceMover.fncopy(Path("/systemd/dummy0.network"), Path("/etc/systemd/network"))
 
+                      _ <- IO(os.proc("/usr/bin/sudo /sbin/sysctl -w vm.max_map_count=262144".split(' ')).spawn())
+//                      _ <- IO(os.proc("/usr/bin/sudo echo \"vm.max_map_count=262144\" >> /etc/sysctl.conf".split(' ')).spawn())
+
 
                       _ <- IO(os.proc("/usr/bin/sudo /bin/systemctl daemon-reload".split(' ')).spawn())
                       _ <- IO(os.proc("/usr/bin/sudo /bin/systemctl restart systemd-networkd".split(' ')).spawn())
@@ -512,6 +515,7 @@ object runner {
                   } else {
                     scribe.info("Creating weave network")
                     val prog = for {
+                      _ <- IO(os.proc("/usr/bin/sudo /sbin/sysctl -w vm.max_map_count=262144".split(' ')).spawn())
                       pluginList <- IO(os.proc("/usr/bin/docker plugin ls".split(' ')).call(cwd = os.root, check = false))
                       _ <- pluginList.out.string.contains("weaveworks/net-plugin:latest_release") match {
                         case true => {

@@ -876,7 +876,7 @@ case class Elasticsearch(dev: Boolean, quorumSize: Int) extends Job {
   val constraints = List(kernelConstraint).some
   override val update = ElasticsearchDaemonUpdate.some
 
-  val groups = List(ElasticsearchGroup)
+  val groups = List(ElasticsearchGroup, KibanaGroup)
 
   object ElasticsearchGroup extends Group {
     val name = "elasticsearch"
@@ -954,6 +954,75 @@ case class Elasticsearch(dev: Boolean, quorumSize: Int) extends Job {
       }
     }
   }
+
+  object KibanaGroup extends Group {
+    val name = "kibana"
+    val count = quorumSize
+    val tasks = List(KibanaTask)
+
+    object distinctHost extends Constraint {
+      val operator = "distinct_hosts".some
+      val attribute = None
+      val value = "true"
+    }
+
+    val constraints = List(distinctHost).some
+
+    object KibanaTask extends Task {
+      val name = "kibana"
+      val env = Map("NODE_OPTIONS" -> "--max-old-space-size=1024").some
+
+      object config extends Config {
+        val image =
+          "registry.gitlab.com/radix-labs/kibana-gantt"
+        val command = "kibana".some
+        val port_map = Map("kibana" -> 5601)
+        val volumes = None
+        val hostname = "${attr.unique.hostname}-em"
+        val entrypoint = None
+        val args = List("--elasticsearch.hosts=http://elasticsearch-elasticsearch-es-generic-node.service.consul:9200",
+          "--server.host=0.0.0.0",
+          "--path.data=/alloc/data",
+          "--elasticsearch.preserveHost=false",
+          "--xpack.apm.ui.enabled=false",
+          "--xpack.graph.enabled=false",
+          "--xpack.ml.enabled=false").some
+
+        override val ulimit =
+          Map("nofile" -> "65536", "nproc" -> "8192", "memlock" -> "-1").some
+      }
+
+      object startTemplate extends Template {
+        override val source =
+          "/opt/radix/timberland/nomad/kibana/start.sh".some
+        val destination = "local/start.sh"
+        override val perms = "755"
+      }
+
+      object KibanaService extends Service {
+        val tags = List("kibana", "http")
+        val port = "kibana".some
+        val checks = List(check)
+        object check extends Check {
+          val `type` = "tcp"
+          val port = "kibana"
+        }
+      }
+
+      val services = List(KibanaService)
+      val templates = None
+
+      object resources extends Resources {
+        val cpu = 1024
+        val memory = 2048
+        object network extends Network {
+          val networkPorts =
+            Map("kibana" -> 5601.some)
+        }
+      }
+    }
+  }
+
   def jobshim() = JobShim(name, Elasticsearch(dev, quorumSize).assemble)
 }
 
