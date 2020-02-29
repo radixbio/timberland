@@ -13,12 +13,17 @@ import org.http4s.client.Client
 import org.http4s.client.blaze.BlazeClientBuilder
 import com.radix.utils.helm.http4s.vault.{Vault => VaultSession}
 import com.radix.utils.helm.vault._
-import io.circe._, io.circe.generic.auto._, io.circe.parser._, io.circe.syntax._
+import io.circe._
+import io.circe.generic.auto._
+import io.circe.parser._
+import io.circe.syntax._
 
+import scala.io.StdIn
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.TimeoutException
 import scala.concurrent.duration
+import com.radix.utils.helm.elemental.{ElementalOps, UPNotRetrieved, UPNotSet, UPRetrieved, UPSet}
 
 sealed trait QuorumState
 
@@ -82,10 +87,17 @@ case object YugabyteQuorumNotEstablished
     extends YugabyteState
     with DaemonNotRunning
 
+
 sealed trait AppriseState extends DaemonState
 case object AppriseStarted extends AppriseState
 case object AppriseQuorumEstablished extends AppriseState with DaemonRunning
 case object AppriseQuorumNotEstablished extends AppriseState with DaemonNotRunning
+
+sealed trait ElementalMachinesState extends DaemonState
+case object ElementalMachinesStarted extends ElementalMachinesState
+case object ElementalMachinesQuorumEstablished extends ElementalMachinesState with DaemonRunning
+case object ElementalMachinesQuorumNotEstablished extends ElementalMachinesState with DaemonNotRunning
+
 
 case object AllDaemonsStarted extends DaemonState
 
@@ -104,6 +116,11 @@ case class TaskAndTags(name: String, tagList: List[Set[String]])
 package object daemonutil {
   private[this] implicit val timer: Timer[IO] = IO.timer(global)
   private[this] implicit val cs: ContextShift[IO] = IO.contextShift(global)
+
+  private def askUser(question: String): IO[String] = IO.delay {
+    Console.print(question + " ")
+    StdIn.readLine()
+  }
 
   /** A Daemon that can start and stop in Nomad
     *
@@ -260,6 +277,18 @@ package object daemonutil {
     val daemonQuorumNotEstablished: AppriseState = AppriseQuorumNotEstablished
   }
 
+  case class ElementalMachines(startInDevMode: Boolean, quorumSize: Int, token: String)
+    extends Daemon[ElementalMachines.type, ElementalMachinesState] {
+    val quorumCount: Int = quorumSize
+    val assembledDaemon: daemons.Job =
+      daemons.ElementalMachines(startInDevMode, quorumSize, token)
+    val daemonJob: JobShim = assembledDaemon.jobshim
+    val daemonName: String = assembledDaemon.name
+    val daemonStarted: ElementalMachinesState = ElementalMachinesStarted
+    val daemonQuorumEstablished: ElementalMachinesState = ElementalMachinesQuorumEstablished
+    val daemonQuorumNotEstablished: ElementalMachinesState = ElementalMachinesQuorumNotEstablished
+  }
+
   /** Let a specified function run for a specified period of time before interrupting it and raising an error. This
     *  function sets up the timeoutTo function.
     *
@@ -321,7 +350,7 @@ package object daemonutil {
       for {
         serviceState <- daemon.checkDaemonState(fail = true)
         _ <- IO(scribe.info(
-          s"COMPLETED INITIAL SERVICE CHECK FOR ${daemon.getClass.getSimpleName}"))
+          s"COMPLETED INITIAL SERVICE CHECK FOR ${daemon.getClass.getSimpleName} . Status is $serviceState"))
         res <- if (serviceState == daemon.daemonQuorumEstablished) {
           IO(scribe.info(
             s"QUORUM FOUND DURING INITIAL SERVICE CHECK FOR ${daemon.getClass.getSimpleName}"))
@@ -476,8 +505,11 @@ package object daemonutil {
                     vaultStart: Boolean,
                     esStart: Boolean,
                     retoolStart: Boolean,
+                    elementalStart: Boolean,
                     servicePort: Int,
-                    registryListenerPort: Int): IO[DaemonState] = {
+                    registryListenerPort: Int,
+                    elemental_username: Option[String],
+                    elemental_password: Option[String]): IO[DaemonState] = {
 
     BlazeClientBuilder[IO](global).resource
       .use(implicit client => {
@@ -496,6 +528,7 @@ package object daemonutil {
         val vault = Vault(dev, quorumSize)
         val retool = Retool(dev, quorumSize)
         val yugabyte = Yugabyte(dev, quorumSize)
+
         val result =
           for {
             nomadQuorumStatus <- timeout(
@@ -606,6 +639,45 @@ package object daemonutil {
               }
               case false => IO.sleep(1.second)
             }
+            emStatus <- elementalStart match {
+              case true => {
+                val starter = new VaultStarter()
+                (elemental_username, elemental_password) match {
+                  case (Some(username), Some(password)) => {
+                    for {
+                      vaultUnseal <- starter.unsealVault(dev)
+                      result <- vaultUnseal match {
+                        case a @ (VaultUnsealed(_, _) | VaultAlreadyUnsealed) => {
+                          for {
+                            token <- askUser("Please enter your Vault token: ")
+                            em = ElementalMachines(dev, quorumSize, token)
+                            usernamePasswordSet <- new ElementalOps(token).writeUsernamePassword(username, password)
+                            result <- usernamePasswordSet match {
+                              case UPSet => for {
+                                emStart <- em.start
+                              } yield IO.pure(ElementalMachinesQuorumEstablished)
+                              case _ => IO.pure(ElementalMachinesQuorumNotEstablished)
+                            }
+
+                          } yield result
+
+                        }
+                        case VaultSealed => {
+                          IO(scribe.info("Vault is sealed. Cannot continue."))
+                          IO.pure(ElementalMachinesQuorumNotEstablished)
+                        }
+                      }
+
+                    } yield result
+                  }
+                  case (_,_) => {
+                    IO(scribe.trace("Elemental username or password is not set. Please try again."))
+                    IO.pure(ElementalMachinesQuorumNotEstablished)
+                  }
+                }
+              }
+              case false => IO.sleep(1.second)
+            }
           } yield vaultQuorumStatus
         result.attempt.flatMap {
           case Left(a) =>
@@ -618,8 +690,11 @@ package object daemonutil {
                             vaultStart,
                             esStart,
                             retoolStart,
+                            elementalStart,
                             servicePort,
-                            registryListenerPort),
+                            registryListenerPort,
+                elemental_username,
+                elemental_password),
               new FiniteDuration(10, duration.MINUTES)
             )
           case Right(a) =>

@@ -79,11 +79,13 @@ scala_library(
         "//3rdparty/jvm/org/scala_lang/modules:scala_parser_combinators",
         "//shared/shared/shared/shared:shared-shared",
         "//third-party/helm:helm-jvm",
-        "//utils/sheets/jvm/src/main/scala/com/radix/util/sheets:sheets-interps", #TODO remove this
+        "//third-party/helm/core/shared:helm-elemental",
+        "//utils/sheets/jvm/src/main/scala/com/radix/util/sheets:sheets-interps",  #TODO remove this
     ],
     deps = [
         ":timberland-core-lib",
-        "//utils/sheets/jvm/src/main/scala/com/radix/util/sheets:sheets-interps", #TODO remove this
+        "//third-party/helm/core/shared:helm-elemental",
+        "//utils/sheets/jvm/src/main/scala/com/radix/util/sheets:sheets-interps",  #TODO remove this
     ],
 )
 

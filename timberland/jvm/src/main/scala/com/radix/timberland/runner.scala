@@ -38,7 +38,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
  * |     |- install <RADIX_MONOREPO_DIR>
   *      |- runtime|
   *                |- install
-  *                |- start [debug] [dry-run] [force-bind-ip] [dev] [vault] [es] [core] [service-port] [registry-listener-port] [no-restart]
+  *                |- start [debug] [dry-run] [force-bind-ip] [dev] [vault] [es] [core] [service-port] [registry-listener-port] [no-restart] [username] [password]
   *                |- stop
   *                |- trace
   *                |- nuke
@@ -85,9 +85,12 @@ case class Start(
     es: Boolean = false,
     yugabyte: Boolean = false,
     retool: Boolean = false,
+    elemental: Boolean = false,
     servicePort: Int = 9092,
     registryListenerPort: Int = 8081,
-    norestart: Boolean = false
+    norestart: Boolean = false,
+    username: Option[String] = None,
+    password: Option[String] = None
 ) extends Local
 case object Stop extends Local
 case object Nuke                                                    extends Local
@@ -201,6 +204,11 @@ object runner {
                   case bool @ Some(true) => exist.copy(retool = bool.get)
                   case _ => exist
                 }
+              }) <*> optional(switch(long("elemental"), help("start elemental only"))).map(elemental => { exist: Start =>
+                elemental match {
+                  case bool @ Some(true) => exist.copy(elemental = bool.get)
+                  case _ => exist
+                }
               }) <*> optional(
                 intOption(long("service-port"),
                   help("Kafka service port")))
@@ -215,6 +223,22 @@ object runner {
                 .map(rlp => { exist: Start =>
                   rlp match {
                     case str @ Some(_) => exist.copy(registryListenerPort = rlp.get)
+                    case None          => exist
+                  }
+                }) <*> optional(
+                strOption(long("username"),
+                  help("elemental user name")))
+                .map(username => { exist: Start =>
+                  username match {
+                    case Some(_) => exist.copy(username = username)
+                    case None          => exist
+                  }
+                }) <*> optional(
+                strOption(long("password"),
+                  help("elemental password")))
+                .map(password => { exist: Start =>
+                  password match {
+                    case Some(_) => exist.copy(password = password)
                     case None          => exist
                   }
                 }),
@@ -477,7 +501,7 @@ object runner {
 
                 }
                 case Nuke => Right(Unit)
-                case cmd @ Start(dummy, loglevel, bindIP, consulSeedsO, dev, core, vault, es, yugabyte, retool, servicePort, registryListenerPort, norestart) => {
+                case cmd @ Start(dummy, loglevel, bindIP, consulSeedsO, dev, core, vault, es, yugabyte, retool, elemental, servicePort, registryListenerPort, norestart, username, password) => {
                     scribe.Logger.root
                     .clearHandlers()
                     .clearModifiers()
@@ -495,13 +519,15 @@ object runner {
                   var startEs = es
                   var startRetool = retool
                   var startYugabyte = yugabyte
+                  var startElemental = elemental
 
-                  if (!startCore && !startVault && !startEs && !startRetool && !startYugabyte) {
+                  if (!startCore && !startVault && !startEs && !startRetool && !startYugabyte && !startElemental) {
                     startCore = true
                     startVault = true
                     startEs = true
                     startRetool = true
                     startYugabyte = true
+                    startElemental = false
                   }
 
                   if (dummy) {
@@ -540,7 +566,7 @@ object runner {
                     scribe.info(s"***********DAEMON SIZE${bootstrapExpect}***************")
                     Right(
 
-                      println(daemonutil.waitForQuorum(bootstrapExpect, dev, startCore, startYugabyte, startVault, startEs, startRetool, servicePort, registryListenerPort).unsafeRunSync)
+                      println(daemonutil.waitForQuorum(bootstrapExpect, dev, startCore, startYugabyte, startVault, startEs, startRetool, startElemental, servicePort, registryListenerPort, username, password).unsafeRunSync)
                     )
                   }
                 }

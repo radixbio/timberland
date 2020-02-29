@@ -35,6 +35,8 @@ class VaultStarter {
   private[this] implicit val timer: Timer[IO] = IO.timer(global)
   private[this] implicit val cs: ContextShift[IO] = IO.contextShift(global)
 
+
+
   def checkVaultInitStatus(implicit vaultSession: VaultSession[IO]) = {
     for {
       initStatus <- vaultSession.sysInitStatus
@@ -166,7 +168,7 @@ class VaultStarter {
 
       implicit val vaultSession: VaultSession[IO] =
         new VaultSession[IO](baseUrl =
-          uri("http://vault-daemon.service.consul:8200"),
+          uri("http://vault-daemon-vault-vault.service.consul:8200"),
           blazeClient = client,
           authToken = None)
 
