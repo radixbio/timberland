@@ -5,6 +5,7 @@ import java.nio.channels.UnresolvedAddressException
 import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
 import com.radix.timberland.daemons
+import com.radix.timberland.daemons.ESKafkaConnector
 import com.radix.utils.helm.NomadHCL.syntax.JobShim
 import com.radix.utils.helm.http4s.Http4sNomadClient
 import com.radix.utils.helm.{NomadOp, NomadReadRaftConfigurationResponse}
@@ -23,7 +24,13 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.TimeoutException
 import scala.concurrent.duration
-import com.radix.utils.helm.elemental.{ElementalOps, UPNotRetrieved, UPNotSet, UPRetrieved, UPSet}
+import com.radix.utils.helm.elemental.{
+  ElementalOps,
+  UPNotRetrieved,
+  UPNotSet,
+  UPRetrieved,
+  UPSet
+}
 
 sealed trait QuorumState
 
@@ -34,6 +41,10 @@ case object NomadQuorumEstablished extends QuorumState
 sealed trait DaemonState
 sealed trait DaemonRunning extends DaemonState
 sealed trait DaemonNotRunning extends DaemonState
+
+sealed trait CoreState
+case object CoreRunning extends CoreState with DaemonState
+case object CoreNotRunning extends CoreState with DaemonState
 
 sealed trait ZookeeperState extends DaemonState
 
@@ -87,17 +98,29 @@ case object YugabyteQuorumNotEstablished
     extends YugabyteState
     with DaemonNotRunning
 
-
 sealed trait AppriseState extends DaemonState
 case object AppriseStarted extends AppriseState
 case object AppriseQuorumEstablished extends AppriseState with DaemonRunning
-case object AppriseQuorumNotEstablished extends AppriseState with DaemonNotRunning
+case object AppriseQuorumNotEstablished
+    extends AppriseState
+    with DaemonNotRunning
 
 sealed trait ElementalMachinesState extends DaemonState
 case object ElementalMachinesStarted extends ElementalMachinesState
-case object ElementalMachinesQuorumEstablished extends ElementalMachinesState with DaemonRunning
-case object ElementalMachinesQuorumNotEstablished extends ElementalMachinesState with DaemonNotRunning
+case object ElementalMachinesQuorumEstablished
+    extends ElementalMachinesState
+    with DaemonRunning
+case object ElementalMachinesQuorumNotEstablished
+    extends ElementalMachinesState
+    with DaemonNotRunning
 
+sealed trait ESKafkaState extends DaemonState
+case object ESKafkaStarted extends ESKafkaState
+case object ESKafkaFinished extends ESKafkaState with DaemonRunning
+
+sealed trait JobStatus
+case object JobRunning extends JobStatus
+case object JobFinished extends JobStatus
 
 case object AllDaemonsStarted extends DaemonState
 
@@ -145,6 +168,8 @@ package object daemonutil {
     val daemonQuorumEstablished: T
     val daemonQuorumNotEstablished: T
   }
+
+  trait BatchDaemon[A, T] extends Daemon[A, T]
 
   /** The Daemon for Zookeeper
     *
@@ -266,7 +291,7 @@ package object daemonutil {
   }
 
   case class Apprise(startInDevMode: Boolean, quorumSize: Int)
-    extends Daemon[Apprise.type, AppriseState] {
+      extends Daemon[Apprise.type, AppriseState] {
     val quorumCount: Int = quorumSize
     val assembledDaemon: daemons.Job =
       daemons.Apprise(startInDevMode, quorumSize)
@@ -277,16 +302,54 @@ package object daemonutil {
     val daemonQuorumNotEstablished: AppriseState = AppriseQuorumNotEstablished
   }
 
-  case class ElementalMachines(startInDevMode: Boolean, quorumSize: Int, token: String)
-    extends Daemon[ElementalMachines.type, ElementalMachinesState] {
+  case class ElementalMachines(startInDevMode: Boolean,
+                               quorumSize: Int,
+                               token: String)
+      extends Daemon[ElementalMachines.type, ElementalMachinesState] {
     val quorumCount: Int = quorumSize
     val assembledDaemon: daemons.Job =
       daemons.ElementalMachines(startInDevMode, quorumSize, token)
     val daemonJob: JobShim = assembledDaemon.jobshim
     val daemonName: String = assembledDaemon.name
     val daemonStarted: ElementalMachinesState = ElementalMachinesStarted
-    val daemonQuorumEstablished: ElementalMachinesState = ElementalMachinesQuorumEstablished
-    val daemonQuorumNotEstablished: ElementalMachinesState = ElementalMachinesQuorumNotEstablished
+    val daemonQuorumEstablished: ElementalMachinesState =
+      ElementalMachinesQuorumEstablished
+    val daemonQuorumNotEstablished: ElementalMachinesState =
+      ElementalMachinesQuorumNotEstablished
+  }
+
+  case class ESKafka() extends BatchDaemon[ESKafka.type, ESKafkaState] {
+    val quorumCount: Int = 1
+    val assembledDaemon: daemons.Job =
+      daemons.ESKafkaConnector()
+    val daemonJob: JobShim = assembledDaemon.jobshim
+    val daemonName: String = assembledDaemon.name
+    val daemonStarted: ESKafkaState = ESKafkaStarted
+    val daemonQuorumEstablished: ESKafkaState = ESKafkaFinished
+    val daemonQuorumNotEstablished: ESKafkaState = ESKafkaFinished
+  }
+
+  case class PGKafka() extends BatchDaemon[PGKafka.type, JobStatus] {
+    val quorumCount: Int = 1
+    val assembledDaemon: daemons.Job =
+      daemons.RetoolPGKafkaConnector()
+    val daemonJob: JobShim = assembledDaemon.jobshim
+    val daemonName: String = assembledDaemon.name
+    val daemonStarted = JobRunning
+    val daemonQuorumEstablished = JobFinished
+    val daemonQuorumNotEstablished = JobFinished
+  }
+
+  case class YugabyteKafka()
+      extends BatchDaemon[YugabyteKafka.type, JobStatus] {
+    val quorumCount: Int = 1
+    val assembledDaemon: daemons.Job =
+      daemons.YugabyteKafkaConnector()
+    val daemonJob: JobShim = assembledDaemon.jobshim
+    val daemonName: String = assembledDaemon.name
+    val daemonStarted = JobRunning
+    val daemonQuorumEstablished = JobFinished
+    val daemonQuorumNotEstablished = JobFinished
   }
 
   /** Let a specified function run for a specified period of time before interrupting it and raising an error. This
@@ -365,19 +428,6 @@ package object daemonutil {
             res <- IO.pure(daemon.daemonStarted)
           } yield res
         }
-        //        res <- serviceState match {
-        //          case _: DaemonNotRunning => IO.pure(daemon.daemonStarted)
-        //          case _: DaemonRunning => {
-        //            for {
-        //              jobResponse <- NomadOp
-        //                .nomadCreateJobFromHCL(job = daemon.daemonJob)
-        //                .foldMap(interp)
-        //              _ <- IO(
-        //                scribe.info(s"Started job for ${daemon.getClass.getSimpleName}"))
-        //              res <- IO.pure(daemon.daemonStarted)
-        //            } yield res
-        //          }
-        //        }
       } yield res
     }
 
@@ -461,6 +511,26 @@ package object daemonutil {
     }
   }
 
+  implicit class BatchDaemonOps[A, T](daemon: BatchDaemon[A, T]) {
+
+    /** Start the daemon. This will check if it is already running and not start if it is. If it isn't, it will go into
+      *  a perpetual loop until the Daemon is started.
+      *
+      * @param interp A Http4sNomadClient to be used for making web requests against Nomad
+      * @return Returns an IO[T] where T is the type of DaemonState used by the daemon
+      */
+    def start(implicit interp: Http4sNomadClient[IO]): IO[T] = {
+      for {
+        jobResponse <- NomadOp
+          .nomadCreateJobFromHCL(job = daemon.daemonJob)
+          .foldMap(interp)
+        _ <- IO(
+          scribe.info(s"Started job for ${daemon.getClass.getSimpleName}"))
+        res <- IO.pure(daemon.daemonStarted)
+      } yield res
+    }
+  }
+
   def checkNomadState(implicit interp: Http4sNomadClient[IO])
     : IO[NomadReadRaftConfigurationResponse] = {
     for {
@@ -529,6 +599,10 @@ package object daemonutil {
         val retool = Retool(dev, quorumSize)
         val yugabyte = Yugabyte(dev, quorumSize)
 
+        val esKafka = ESKafka()
+        val pgKafka = PGKafka()
+        val ybKafka = YugabyteKafka()
+
         val result =
           for {
             nomadQuorumStatus <- timeout(
@@ -538,7 +612,9 @@ package object daemonutil {
               case true => {
                 for {
                   appriseStarted <- apprise.start
-                  appriseQuorumStatus <- timeout(apprise.waitForQuorum, new FiniteDuration(60, duration.SECONDS))
+                  appriseQuorumStatus <- timeout(
+                    apprise.waitForQuorum,
+                    new FiniteDuration(60, duration.SECONDS))
                   zkStart <- zk.start
                   zkQuorumStatus <- timeout(
                     zk.waitForQuorum,
@@ -552,8 +628,23 @@ package object daemonutil {
                     kafkaCompanions.waitForQuorum,
                     new FiniteDuration(360, duration.SECONDS))
                 } yield kafkaCompanionQuorumStatus
+                IO.pure(CoreRunning)
               }
-              case false => IO.sleep(1.second)
+              case false => {
+                for {
+                  _ <- IO.sleep(1.second)
+                  zkStatus <- zk.checkDaemonState(true)
+                  kafkaStatus <- kafka.checkDaemonState(true)
+                  kafkaCompanionStatus <- kafkaCompanions.checkDaemonState(true)
+                  result <- (zkStatus, kafkaStatus, kafkaCompanionStatus) match {
+                    case (ZookeeperQuorumEstablished,
+                          KafkaTopicsCreated,
+                          KafkaCompanionsQuorumEstablished) =>
+                      IO.pure(CoreRunning)
+                    case (_, _, _) => IO.pure(CoreNotRunning)
+                  }
+                } yield result
+              }
             }
             yugabyteQuorumStatus <- yugabyteStart match {
               case true => {
@@ -586,7 +677,8 @@ package object daemonutil {
                     new FiniteDuration(120, duration.SECONDS))
                 } yield esQuorumStatus
               }
-              case false => IO.sleep(1.second)
+              case false => es.checkDaemonState(true)
+
             }
             vaultQuorumStatus <- vaultStart match {
               case true => {
@@ -624,8 +716,11 @@ package object daemonutil {
                         _ <- IO("Vault already unsealed")
                         unsealToken = sys.env.get("VAULT_TOKEN")
                         result <- unsealToken match {
-                          case Some(token) => starter.initializeGoogleOauthPlugin(token)
-                          case _ => IO("Vault is already unsealed and VAULT_TOKEN is not set")
+                          case Some(token) =>
+                            starter.initializeGoogleOauthPlugin(token)
+                          case _ =>
+                            IO(
+                              "Vault is already unsealed and VAULT_TOKEN is not set")
                         }
                       } yield result
                     }
@@ -647,16 +742,21 @@ package object daemonutil {
                     for {
                       vaultUnseal <- starter.unsealVault(dev)
                       result <- vaultUnseal match {
-                        case a @ (VaultUnsealed(_, _) | VaultAlreadyUnsealed) => {
+                        case a @ (VaultUnsealed(_, _) |
+                            VaultAlreadyUnsealed) => {
                           for {
                             token <- askUser("Please enter your Vault token: ")
                             em = ElementalMachines(dev, quorumSize, token)
-                            usernamePasswordSet <- new ElementalOps(token).writeUsernamePassword(username, password)
+                            usernamePasswordSet <- new ElementalOps(token)
+                              .writeUsernamePassword(username, password)
                             result <- usernamePasswordSet match {
-                              case UPSet => for {
-                                emStart <- em.start
-                              } yield IO.pure(ElementalMachinesQuorumEstablished)
-                              case _ => IO.pure(ElementalMachinesQuorumNotEstablished)
+                              case UPSet =>
+                                for {
+                                  emStart <- em.start
+                                } yield
+                                  IO.pure(ElementalMachinesQuorumEstablished)
+                              case _ =>
+                                IO.pure(ElementalMachinesQuorumNotEstablished)
                             }
 
                           } yield result
@@ -670,31 +770,50 @@ package object daemonutil {
 
                     } yield result
                   }
-                  case (_,_) => {
-                    IO(scribe.trace("Elemental username or password is not set. Please try again."))
+                  case (_, _) => {
+                    IO(scribe.trace(
+                      "Elemental username or password is not set. Please try again."))
                     IO.pure(ElementalMachinesQuorumNotEstablished)
                   }
                 }
               }
               case false => IO.sleep(1.second)
             }
-          } yield vaultQuorumStatus
+            _ <- IO(
+              scribe.info(s"======== CORE: $coreStatus    ES: $esQuorumStatus"))
+            result <- (coreStatus, esQuorumStatus) match {
+              case (CoreRunning, ESQuorumEstablished) => {
+                for {
+                  _ <- IO(scribe.info("******** HIT **********"))
+                  result <- esKafka.start
+                  result2 <- pgKafka.start
+                  result3 <- ybKafka.start
+                  _ <- IO(scribe.info(s"===== YB KAFKA RESULT: $result3"))
+                } yield result
+              }
+              case (_, _) => IO.sleep(1.second)
+            }
+            _ <- IO(scribe.info(s"RESULT: $result"))
+
+          } yield result
         result.attempt.flatMap {
           case Left(a) =>
             a.printStackTrace()
             timeout(
-              waitForQuorum(quorumSize,
-                            dev,
-                            core,
-                            yugabyteStart,
-                            vaultStart,
-                            esStart,
-                            retoolStart,
-                            elementalStart,
-                            servicePort,
-                            registryListenerPort,
+              waitForQuorum(
+                quorumSize,
+                dev,
+                core,
+                yugabyteStart,
+                vaultStart,
+                esStart,
+                retoolStart,
+                elementalStart,
+                servicePort,
+                registryListenerPort,
                 elemental_username,
-                elemental_password),
+                elemental_password
+              ),
               new FiniteDuration(10, duration.MINUTES)
             )
           case Right(a) =>
