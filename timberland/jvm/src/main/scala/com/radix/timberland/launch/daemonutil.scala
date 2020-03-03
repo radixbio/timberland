@@ -627,8 +627,9 @@ package object daemonutil {
                   kafkaCompanionQuorumStatus <- timeout(
                     kafkaCompanions.waitForQuorum,
                     new FiniteDuration(360, duration.SECONDS))
-                } yield kafkaCompanionQuorumStatus
-                IO.pure(CoreRunning)
+                  result <- IO.pure(CoreRunning)
+                } yield result
+
               }
               case false => {
                 for {

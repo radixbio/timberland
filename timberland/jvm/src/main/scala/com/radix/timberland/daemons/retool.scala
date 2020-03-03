@@ -26,7 +26,7 @@ case class Retool(dev: Boolean, quorumSize: Int) extends Job {
 
   object RetoolGroup extends Group {
     val name = "retool"
-    val count = quorumSize
+    val count = 1
     val tasks = List(Postgres,
       //DbConnector,
       //DbSshConnector,
