@@ -26,7 +26,7 @@ case class VaultDaemon(dev: Boolean, quorumSize: Int) extends Job {
 
   object VaultGroup extends Group {
     val name = "vault"
-    val count = quorumSize
+    val count = 1 //TODO: Make this into a group
     val tasks = List(VaultTask)
 
     object distinctHost extends Constraint {

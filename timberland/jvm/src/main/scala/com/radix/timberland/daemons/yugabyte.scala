@@ -185,7 +185,7 @@ case class Yugabyte(dev: Boolean, quorumSize: Int) extends Job {
       val templates = None
       object resources extends Resources {
         val cpu = 1000
-        val memory = 5000
+        val memory = 1000
         object network extends Network {
           val networkPorts = Map("ybtserver" -> 9000.some,
             "ysqladmin" -> 13000.some,

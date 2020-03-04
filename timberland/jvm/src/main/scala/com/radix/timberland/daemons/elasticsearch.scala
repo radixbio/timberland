@@ -103,7 +103,7 @@ case class Elasticsearch(dev: Boolean, quorumSize: Int) extends Job {
 
   object KibanaGroup extends Group {
     val name = "kibana"
-    val count = quorumSize
+    val count = 1
     val tasks = List(KibanaTask)
 
     object distinctHost extends Constraint {

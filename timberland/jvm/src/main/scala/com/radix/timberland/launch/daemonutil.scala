@@ -134,7 +134,7 @@ case class RegisterProvider(provider: String,
   * @param tagList A list of type Set[String] which are unique combinations of services that should be checked for
   *                availability
   */
-case class TaskAndTags(name: String, tagList: List[Set[String]])
+case class TaskAndTags(name: String, tagList: List[Set[String]], quorumSize: Int = 1)
 
 package object daemonutil {
   private[this] implicit val timer: Timer[IO] = IO.timer(global)
@@ -467,7 +467,7 @@ package object daemonutil {
       daemon.assembledDaemon.groups.flatMap(g => {
         g.tasks.map(t => {
           TaskAndTags(name = s"${jobName}-${g.name}-${t.name}",
-                      tagList = t.services.map(s => s.tags.toSet))
+                      tagList = t.services.map(s => s.tags.toSet), g.count)
         })
       })
     }
@@ -489,9 +489,9 @@ package object daemonutil {
                 tasksRunning <- consulutil.waitForService(
                   st.name,
                   tags,
-                  daemon.quorumCount,
+                  st.quorumSize,
                   fail)(1.seconds, timer)
-                res <- if (tasksRunning.size >= daemon.quorumCount) {
+                res <- if (tasksRunning.size >= st.quorumSize) {
                   IO.pure(daemon.daemonQuorumEstablished)
                 } else {
                   IO.pure(daemon.daemonQuorumNotEstablished)
@@ -589,14 +589,14 @@ package object daemonutil {
           new Http4sNomadClient[IO](uri("http://nomad.service.consul:4646"),
                                     client)
 
-        val apprise = Apprise(dev, quorumSize)
+        val apprise = Apprise(dev, 1)
         val zk = Zookeeper(dev, quorumSize)
         val kafka = Kafka(dev, quorumSize, servicePort)
         val kafkaCompanions =
           KafkaCompanions(dev, servicePort, registryListenerPort)
         val es = Elasticsearch(dev, quorumSize)
         val vault = Vault(dev, quorumSize)
-        val retool = Retool(dev, quorumSize)
+        val retool = Retool(dev, 1)
         val yugabyte = Yugabyte(dev, quorumSize)
 
         val esKafka = ESKafka()
