@@ -26,7 +26,7 @@ case class Apprise(dev: Boolean, quorumSize: Int) extends Job {
 
   object AppriseGroup extends Group {
     val name = "apprise"
-    val count = quorumSize
+    val count = 1
     val tasks = List(AppriseTask)
 
     object distinctHost extends Constraint {
