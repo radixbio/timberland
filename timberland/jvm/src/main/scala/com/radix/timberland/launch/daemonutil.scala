@@ -105,6 +105,13 @@ case object AppriseQuorumNotEstablished
     extends AppriseState
     with DaemonNotRunning
 
+sealed trait MinioState extends DaemonState
+case object MinioStarted extends MinioState
+case object MinioQuorumEstablished extends MinioState with DaemonRunning
+case object MinioQuorumNotEstablished
+  extends MinioState
+    with DaemonNotRunning
+
 sealed trait ElementalMachinesState extends DaemonState
 case object ElementalMachinesStarted extends ElementalMachinesState
 case object ElementalMachinesQuorumEstablished
@@ -300,6 +307,18 @@ package object daemonutil {
     val daemonStarted: AppriseState = AppriseStarted
     val daemonQuorumEstablished: AppriseState = AppriseQuorumEstablished
     val daemonQuorumNotEstablished: AppriseState = AppriseQuorumNotEstablished
+  }
+
+  case class Minio(startInDevMode: Boolean, quorumSize: Int)
+    extends Daemon[Minio.type, MinioState] {
+    val quorumCount: Int = quorumSize
+    val assembledDaemon: daemons.Job =
+      daemons.Minio(startInDevMode, quorumSize)
+    val daemonJob: JobShim = assembledDaemon.jobshim
+    val daemonName: String = assembledDaemon.name
+    val daemonStarted: MinioState = MinioStarted
+    val daemonQuorumEstablished: MinioState = MinioQuorumEstablished
+    val daemonQuorumNotEstablished: MinioState = MinioQuorumNotEstablished
   }
 
   case class ElementalMachines(startInDevMode: Boolean,
@@ -590,6 +609,7 @@ package object daemonutil {
                                     client)
 
         val apprise = Apprise(dev, 1)
+        val minio = Minio(dev, 1)
         val zk = Zookeeper(dev, quorumSize)
         val kafka = Kafka(dev, quorumSize, servicePort)
         val kafkaCompanions =
@@ -611,6 +631,10 @@ package object daemonutil {
             coreStatus <- core match {
               case true => {
                 for {
+                  minioStarted <- minio.start
+                  minioQuorumStatus <- timeout(
+                    minio.waitForQuorum,
+                    new FiniteDuration(60, duration.SECONDS))
                   appriseStarted <- apprise.start
                   appriseQuorumStatus <- timeout(
                     apprise.waitForQuorum,
