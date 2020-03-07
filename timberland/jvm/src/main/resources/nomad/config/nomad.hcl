@@ -27,6 +27,9 @@ plugin "docker" {
     auth {
       config = "/root/.docker/config.json"
     }
+    gc {
+      image = false
+    }
   }
 }
 

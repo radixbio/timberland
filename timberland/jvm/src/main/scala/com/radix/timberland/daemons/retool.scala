@@ -73,6 +73,7 @@ case class Retool(dev: Boolean, quorumSize: Int) extends Job {
         //        override val cap_add = List("IPC_LOCK").some
         val volumes = List().some
         val hostname = "retool-${NOMAD_ALLOC_INDEX+1}"
+        override val dns_servers = Some(List("169.254.1.1", "8.8.8.8"))
         val entrypoint = None
         val args = List(
           "-c",

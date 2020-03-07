@@ -45,7 +45,6 @@ case class KafkaCompanionDaemons(dev: Boolean,
       object config extends Config {
         val image = "confluentinc/cp-schema-registry:5.3.1"
         val hostname = "${attr.unique.hostname}-kafka-schema-registry"
-        val dns_servers = List("169.254.1.1")
         val port_map = Map("registry_listener" -> registryListenerPort)
         val entrypoint = None
         val command = None
@@ -86,7 +85,6 @@ case class KafkaCompanionDaemons(dev: Boolean,
       object config extends Config {
         val image = "confluentinc/cp-kafka-rest:5.3.1"
         val hostname = "${attr.unique.hostname}-kafka-rest-proxy"
-        val dns_servers = List("169.254.1.1")
         val port_map = Map("rest" -> 8082)
         val entrypoint = None
         val command = None

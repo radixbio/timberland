@@ -86,6 +86,8 @@ trait Config {
 
   def work_dir: Option[String] = None
 
+  def dns_servers: Option[List[String]] = Some(List("169.254.1.1"))
+
   def assemble: defs.DockerConfig =
     defs.DockerConfig(
       image = image,
@@ -99,7 +101,8 @@ trait Config {
       cap_add = cap_add,
       ulimit = ulimit,
       privileged = privileged,
-      work_dir = work_dir
+      work_dir = work_dir,
+      dns_servers = dns_servers
     )
 
   def network_mode: String = "weave"
