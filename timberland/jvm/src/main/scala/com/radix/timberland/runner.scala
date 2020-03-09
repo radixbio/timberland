@@ -482,13 +482,15 @@ object runner {
 //                      _ <- IO(os.proc("/usr/bin/sudo echo \"vm.max_map_count=262144\" >> /etc/sysctl.conf".split(' ')).spawn())
 
 
+
+                      _ <- IO(os.proc("/usr/bin/docker plugin install weaveworks/net-plugin:2.6.0".split(' ')).call(cwd = os.root, stdin = "y\n", stdout = os.Inherit, check = false))
+                      _ <- IO(os.proc("/usr/bin/docker plugin disable weaveworks/net-plugin:2.6.0".split(' ')).call(cwd = os.root, stdin = "y\n", stdout = os.Inherit, check = false))
+                      _ <- IO(os.proc("/usr/bin/docker plugin set weaveworks/net-plugin:2.6.0 IPALLOC_RANGE=10.48.0.0/12".split(' ')).call(cwd = os.root, stdin = "y\n", stdout = os.Inherit, check = false))
+                      _ <- IO(os.proc("/usr/bin/docker plugin enable weaveworks/net-plugin:2.6.0".split(' ')).call(cwd = os.root, stdin = "y\n", stdout = os.Inherit, check = false))
+
                       _ <- IO(os.proc("/usr/bin/sudo /bin/systemctl daemon-reload".split(' ')).spawn())
                       _ <- IO(os.proc("/usr/bin/sudo /bin/systemctl restart systemd-networkd".split(' ')).spawn())
 
-
-                      _ <- IO(os.proc("/usr/bin/docker plugin install weaveworks/net-plugin:latest_release".split(' ')).call(cwd = os.root, stdin = "y\n", stdout = os.Inherit, check = false))
-                      _ <- IO(os.proc("/usr/bin/docker plugin set weaveworks/net-plugin:latest_release IPALLOC_RANGE=10.48.0.0/12".split(' ')).call(cwd = os.root, stdin = "y\n", stdout = os.Inherit, check = false))
-                      _ <- IO(os.proc("/usr/bin/docker plugin enable weaveworks/net-plugin:latest_release".split(' ')).call(cwd = os.root, stdin = "y\n", stdout = os.Inherit, check = false))
                     } yield ()
                     prog.unsafeRunSync()
 
