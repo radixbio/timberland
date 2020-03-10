@@ -547,9 +547,9 @@ object runner {
                     val prog = for {
                       _ <- IO(os.proc("/usr/bin/sudo /sbin/sysctl -w vm.max_map_count=262144".split(' ')).spawn())
                       pluginList <- IO(os.proc("/usr/bin/docker plugin ls".split(' ')).call(cwd = os.root, check = false))
-                      _ <- pluginList.out.string.contains("weaveworks/net-plugin:latest_release") match {
+                      _ <- pluginList.out.string.contains("weaveworks/net-plugin:2.6.0") match {
                         case true => {
-                          IO(os.proc("/usr/bin/docker network create --driver=weaveworks/net-plugin:latest_release --attachable weave".split(' ')).call(cwd = os.root, stdout = os.Inherit, check = false))
+                          IO(os.proc("/usr/bin/docker network create --driver=weaveworks/net-plugin:2.6.0 --attachable weave".split(' ')).call(cwd = os.root, stdout = os.Inherit, check = false))
                           IO.pure(scribe.info("Weave network exists or was created"))
                         }
                         case false => IO.pure(scribe.info("Weave plugin not installed. Skipping creation of weave network."))
