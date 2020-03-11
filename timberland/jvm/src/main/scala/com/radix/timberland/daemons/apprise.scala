@@ -68,7 +68,7 @@ case class Apprise(dev: Boolean, quorumSize: Int) extends Job {
         val memory = 1000
         object network extends Network {
           val networkPorts =
-            Map("apprise" -> 10000.some)
+            Map("apprise" -> 10001.some)
         }
       }
     }
