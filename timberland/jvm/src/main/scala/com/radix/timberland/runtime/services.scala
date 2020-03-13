@@ -27,7 +27,9 @@ import java.io.{BufferedWriter, File, FileWriter}
 import scala.io.Source
 
 object Mock {
+
   import Run._
+
   class RuntimeNolaunch[F[_]](implicit F: Effect[F]) extends NetworkInfoExec[F] with RuntimeServicesAlg[F] {
     override def searchForPort(netinf: List[String], port: Int): F[Option[NonEmptyList[String]]] = F.liftIO {
       val addrs = for (last <- 0 to 254; octets <- netinf) yield {
@@ -60,9 +62,10 @@ object Mock {
             res
           })) <* IO.shift
     }
+
     override def readConfig(wd: os.Path, fname: String): F[String] = F.delay {
       scribe.debug(s"trying to load $wd/$fname from file...")
-//      Source.fromInputStream(this.getClass.getResourceAsStream(s"$wd/$fname")).getLines.mkString("\n")
+      //      Source.fromInputStream(this.getClass.getResourceAsStream(s"$wd/$fname")).getLines.mkString("\n")
       val src = scala.io.Source.fromFile(wd.toIO.toString + "/" + fname)
       val res = src.getLines().mkString("\n")
       src.close()
@@ -91,10 +94,12 @@ object Mock {
       F.delay {
         scribe.debug(s"would have started consul with systemd (bind_addr: $bind_addr)")
       }
+
     override def startNomad(bind_addr: String, bootstrapExpect: Int): F[Unit] =
       F.delay {
         scribe.debug(s"would have started nomad with systemd (bind_addr: $bind_addr)")
       }
+
     override def startWeave(hosts: List[String]): F[Unit] =
       F.delay {
         scribe.debug(s"would have launched weave with hosts ${hosts.mkString(" ")}")
@@ -105,6 +110,7 @@ object Mock {
     }
 
   }
+
 }
 
 object Run {
@@ -167,7 +173,10 @@ object Run {
       F.delay {
         scribe.info("spawning consul via systemd")
 
-        val baseArgs = s"-bind=$bind_addr -bootstrap-expect=$bootstrapExpect"
+        val baseArgs = bootstrapExpect match {
+          case 1 => s"-bind=$bind_addr -bootstrap-expect=$bootstrapExpect -dev"
+          case _ => s"-bind=$bind_addr -bootstrap-expect=$bootstrapExpect"
+        }
         val baseArgsWithSeeds = consulSeedsO match {
           case Some(seedString) =>
             seedString
@@ -183,12 +192,17 @@ object Run {
       }
 
 
-    override def startNomad(bind_addr: String, bootstrapExpect: Int): F[Unit] =
+    override def startNomad(bind_addr: String, bootstrapExpect: Int): F[Unit] = {
+      val args: String = bootstrapExpect match {
+        case 1 => s"""NOMAD_CMD_ARGS=-bind=$bind_addr -bootstrap-expect=$bootstrapExpect -dev"""
+        case _ => s"""NOMAD_CMD_ARGS=-bind=$bind_addr -bootstrap-expect=$bootstrapExpect"""
+      }
       F.delay {
         scribe.info("spawning nomad via systemd")
-        os.proc("/usr/bin/sudo", "/bin/systemctl", "set-environment", s"""NOMAD_CMD_ARGS=-bind=$bind_addr -bootstrap-expect=$bootstrapExpect""").spawn()
+        os.proc("/usr/bin/sudo", "/bin/systemctl", "set-environment", args).spawn()
         os.proc("/usr/bin/sudo", "/bin/systemctl", "restart", "nomad").spawn(null, stdout = os.Inherit, stderr = os.Inherit)
       }
+    }
 
     override def startWeave(hosts: List[String]): F[Unit] = F.delay {
       os.proc("/usr/bin/docker", "plugin", "disable", "weaveworks/net-plugin:latest_release").call(check = false, cwd = os.pwd, stdout = os.Inherit, stderr = os.Inherit)
@@ -207,74 +221,74 @@ object Run {
   }
 
 
-    /**
-     * This method actually initializes the runtime given a runtime algebra executor.
-     * It parses and rewrites default nomad and consul configuration, discovers peers, and
-     * actually bootstraps and starts consul and nomad
-     *
-     * @param consulwd  what's the working directory where we can find the consul configuration and executable binary
-     * @param nomadwd   what's the working directory where we can find the nomad configuration and executable binary
-     * @param bind_addr are we binding to a specific host IP?
-     * @param H         the implementation of the RuntimeServicesAlg to actually give us the ability to start consul and nomad
-     * @param F         the effect, F
-     * @tparam F the effect type
-     * @return a started consul and nomad
-     */
-    def initializeRuntimeProg[F[_]](consulwd: os.Path, nomadwd: os.Path, bind_addr: Option[String], consulSeedsO: Option[String], bootstrapExpect: Int)(
-      implicit H: RuntimeServicesAlg[F],
-      F: Effect[F]) = {
+  /**
+   * This method actually initializes the runtime given a runtime algebra executor.
+   * It parses and rewrites default nomad and consul configuration, discovers peers, and
+   * actually bootstraps and starts consul and nomad
+   *
+   * @param consulwd  what's the working directory where we can find the consul configuration and executable binary
+   * @param nomadwd   what's the working directory where we can find the nomad configuration and executable binary
+   * @param bind_addr are we binding to a specific host IP?
+   * @param H         the implementation of the RuntimeServicesAlg to actually give us the ability to start consul and nomad
+   * @param F         the effect, F
+   * @tparam F the effect type
+   * @return a started consul and nomad
+   */
+  def initializeRuntimeProg[F[_]](consulwd: os.Path, nomadwd: os.Path, bind_addr: Option[String], consulSeedsO: Option[String], bootstrapExpect: Int)(
+    implicit H: RuntimeServicesAlg[F],
+    F: Effect[F]) = {
 
-      def socks(ifaces: List[String]): F[(Option[cats.data.NonEmptyList[String]], Option[cats.data.NonEmptyList[String]])] = {
-        F.liftIO((F.toIO(H.searchForPort(ifaces, 8301)), F.toIO(H.searchForPort(ifaces, 6783))).parMapN {
-          case (a, b) => (a, b)
-        })
+    def socks(ifaces: List[String]): F[(Option[cats.data.NonEmptyList[String]], Option[cats.data.NonEmptyList[String]])] = {
+      F.liftIO((F.toIO(H.searchForPort(ifaces, 8301)), F.toIO(H.searchForPort(ifaces, 6783))).parMapN {
+        case (a, b) => (a, b)
+      })
+    }
+
+    //Check for dummy network
+    for {
+      ifaces <- H.getNetworkInterfaces.map(_.filter(x => x.startsWith("169.")))
+      dummyStatus <- F.delay {
+        ifaces.length match {
+          case 0 => {
+            scribe.error("Dummy network not running")
+            sys.exit(1)
+          }
+          case _ => scribe.debug("Dummy network running")
+        }
+      }
+    } yield dummyStatus
+
+
+    for {
+      ifaces <- bind_addr match {
+        case Some(bind) => F.pure(List(bind.split('.').dropRight(1).mkString(".") + "."))
+        case None =>
+          H.getNetworkInterfaces.map(
+            _.filter(x => x.startsWith("192.") || x.startsWith("10."))
+              .map(_.split("\\.").toList.dropRight(1).mkString(".") + "."))
+      }
+      ipaddrswithcoresrvs <- socks(ifaces)
+      weave = ipaddrswithcoresrvs._2
+      consul = ipaddrswithcoresrvs._1
+      _ <- F.liftIO(Run.putStrLn(s"weave peers: $weave"))
+      _ <- F.liftIO(Run.putStrLn(s"consul peers: $consul"))
+
+      final_bind_addr <- F.delay {
+        bind_addr match {
+          case Some(ip) => ip
+          case None => {
+            val sock = new java.net.DatagramSocket()
+            sock.connect(InetAddress.getByName("8.8.8.8"), 10002)
+            sock.getLocalAddress.getHostAddress
+          }
+        }
       }
 
-      //Check for dummy network
-      for {
-        ifaces <- H.getNetworkInterfaces.map(_.filter(x => x.startsWith("169.")))
-        dummyStatus <- F.delay {
-          ifaces.length match {
-            case 0 => {
-              scribe.error("Dummy network not running")
-              sys.exit(1)
-            }
-            case _ => scribe.debug("Dummy network running")
-          }
-        }
-      } yield dummyStatus
-
-
-      for {
-        ifaces <- bind_addr match {
-          case Some(bind) => F.pure(List(bind.split('.').dropRight(1).mkString(".") + "."))
-          case None =>
-            H.getNetworkInterfaces.map(
-              _.filter(x => x.startsWith("192.") || x.startsWith("10."))
-                .map(_.split("\\.").toList.dropRight(1).mkString(".") + "."))
-        }
-        ipaddrswithcoresrvs <- socks(ifaces)
-        weave = ipaddrswithcoresrvs._2
-        consul = ipaddrswithcoresrvs._1
-        _ <- F.liftIO(Run.putStrLn(s"weave peers: $weave"))
-        _ <- F.liftIO(Run.putStrLn(s"consul peers: $consul"))
-
-        final_bind_addr <- F.delay {
-          bind_addr match {
-            case Some(ip) => ip
-            case None => {
-              val sock = new java.net.DatagramSocket()
-              sock.connect(InetAddress.getByName("8.8.8.8"), 10002)
-              sock.getLocalAddress.getHostAddress
-            }
-          }
-        }
-
-        consulRestartProc <- H.startConsul(final_bind_addr, consulSeedsO, bootstrapExpect)
-        nomadRestartProc <- H.startNomad(final_bind_addr, bootstrapExpect)
-        _ <- F.liftIO(Run.putStrLn("started consul and nomad"))
-      } yield (consulRestartProc, nomadRestartProc)
-    }
+      consulRestartProc <- H.startConsul(final_bind_addr, consulSeedsO, bootstrapExpect)
+      nomadRestartProc <- H.startNomad(final_bind_addr, bootstrapExpect)
+      _ <- F.liftIO(Run.putStrLn("started consul and nomad"))
+    } yield (consulRestartProc, nomadRestartProc)
+  }
 
 }
 

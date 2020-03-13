@@ -39,16 +39,18 @@ case class Minio(dev: Boolean, quorumSize: Int) extends Job {
 
     object MinioTask extends Task {
       val name = "minio"
-      val env = None
+      val env = Map("MINIO_ACCESS_KEY" -> "minio-access-key", "MINIO_SECRET_KEY" -> "minio-secret-key").some
+
       object config extends Config {
         val image =
-          "minio/minio:latest"
-        val command = "server".some
+          "bitnami/minio:latest" //Changed to this image since it includes mc client
+        val command = None
         val port_map = Map("minio" -> 9000)
-        val volumes = List("/opt/miniodata:/data").some
+        //val volumes = List("/opt/minio:/data").some //TODO: This causes the container to crash. Not sure why. Will investigate.
+        val volumes = None
         val hostname = "${attr.unique.hostname}-em"
         val entrypoint = None
-        val args = List("/data").some
+        val args = None
       }
       object MinioService extends Service {
         val tags = List("minio", "client")
@@ -68,10 +70,12 @@ case class Minio(dev: Boolean, quorumSize: Int) extends Job {
         val memory = 1000
         object network extends Network {
           val networkPorts =
-            Map("minio" -> 10000.some)
+            Map("minio" -> 9000.some)
         }
       }
     }
+
+
   }
   def jobshim() = JobShim(name, Minio(dev, quorumSize).assemble)
 }
