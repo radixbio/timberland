@@ -174,7 +174,7 @@ object Run {
         scribe.info("spawning consul via systemd")
 
         val baseArgs = bootstrapExpect match {
-          case 1 => s"-bind=$bind_addr -bootstrap-expect=$bootstrapExpect -dev"
+          case 1 => s"-bind=$bind_addr -bootstrap-expect=$bootstrapExpect" //TODO enable dev mode in such a way that it doesn't break schema-registry
           case _ => s"-bind=$bind_addr -bootstrap-expect=$bootstrapExpect"
         }
         val baseArgsWithSeeds = consulSeedsO match {
@@ -194,7 +194,7 @@ object Run {
 
     override def startNomad(bind_addr: String, bootstrapExpect: Int): F[Unit] = {
       val args: String = bootstrapExpect match {
-        case 1 => s"""NOMAD_CMD_ARGS=-bind=$bind_addr -bootstrap-expect=$bootstrapExpect -dev"""
+        case 1 => s"""NOMAD_CMD_ARGS=-bind=$bind_addr -bootstrap-expect=$bootstrapExpect""" //TODO enable dev mode in a way such that it does not break schema registry
         case _ => s"""NOMAD_CMD_ARGS=-bind=$bind_addr -bootstrap-expect=$bootstrapExpect"""
       }
       F.delay {
