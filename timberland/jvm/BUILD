@@ -149,3 +149,16 @@ pkg_deb(
     package = "radix-timberland",
     version = "0.1",
 )
+
+sh_test(
+    name = "timberland-ci",
+    size = "large",
+    local = True,
+    srcs = [
+        "src/test/ci.sh",
+    ],
+    data = [
+        ":radix-timberland_0.1_all.deb",
+        "src/test/service_test.py",
+    ],
+)
