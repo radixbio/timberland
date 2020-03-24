@@ -153,12 +153,13 @@ pkg_deb(
 sh_test(
     name = "timberland-ci",
     size = "large",
-    local = True,
     srcs = [
         "src/test/ci.sh",
     ],
     data = [
-        ":radix-timberland_0.1_all.deb",
         "src/test/service_test.py",
+        ":radix-timberland_0.1_all.deb",
     ],
+    #    local = True,
+    tags = ["no-sandbox"],
 )
