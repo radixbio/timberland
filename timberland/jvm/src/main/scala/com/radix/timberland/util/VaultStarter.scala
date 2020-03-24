@@ -3,12 +3,18 @@ package com.radix.timberland.launch
 import cats.effect.{ContextShift, IO, Timer}
 import com.radix.timberland.launch.daemonutil.timeout
 import com.radix.utils.helm.vault.{CreateSecretRequest, EnableSecretsEngine, InitRequest, RegisterPluginRequest, Secret, UnsealRequest}
-import org.http4s.Uri.uri
+import org.http4s.implicits._
 import org.http4s.client.blaze.BlazeClientBuilder
 import com.radix.utils.helm.http4s.vault.{Vault => VaultSession}
+import com.radix.utils.helm.http4s.Http4sNomadClient
 import com.radix.utils.helm.vault._
 import cats.implicits._
-import io.circe._, io.circe.generic.auto._, io.circe.parser._, io.circe.syntax._
+import io.circe._
+import io.circe.generic.auto._
+import io.circe.parser._
+import io.circe.syntax._
+import org.http4s.Uri
+import org.http4s.Uri.uri
 
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -35,7 +41,29 @@ class VaultStarter {
   private[this] implicit val timer: Timer[IO] = IO.timer(global)
   private[this] implicit val cs: ContextShift[IO] = IO.contextShift(global)
 
-
+  /**
+   * We can not use consul to look up the IP of Vault via DNS because Vault installs a consul service check
+   * which only passes if the Vault is initialized. On first run the Vault is not initialized, therefore the
+   * service check fails, therefore there is no A record returned.
+   *
+   * To solve this, we ask Nomad what the IP address is.
+   */
+  def lookupVaultBaseUrl(): IO[Uri] = {
+    BlazeClientBuilder[IO](global).resource
+      .use(implicit client => {
+        implicit val interp: Http4sNomadClient[IO] =
+          new Http4sNomadClient[IO](uri"http://nomad.service.consul:4646", client)
+        for {
+          listResponse <- interp.nomadListAllocations()
+          allocationMap = listResponse.allocations.map { item => (item.jobId, item.id) }.toMap
+          vaultAllocationId = allocationMap("vault-daemon")
+          vaultAllocation <- interp.nomadDescribeAllocation(vaultAllocationId)
+          vaultNetwork = vaultAllocation.networks(0) // TODO Dangerous
+          vaultIp = vaultNetwork.ip
+          vaultPort = vaultNetwork.reservedPorts.find(_.label == "vault_listen").flatMap { p => Some(p.port) }.getOrElse(8200)
+        } yield Uri.fromString(s"http://$vaultIp:$vaultPort").getOrElse(uri"http://vault-daemon-vault-vault.service.consul:8200")
+      })
+  }
 
   def checkVaultInitStatus(implicit vaultSession: VaultSession[IO]) = {
     for {
@@ -135,7 +163,7 @@ class VaultStarter {
       implicit val vaultSession: VaultSession[IO] =
         new VaultSession[IO](authToken = Some(token),
           baseUrl =
-            uri("http://vault-daemon.service.consul:8200"),
+            uri"http://vault-daemon.service.consul:8200",
           blazeClient = client)
 
       for {
@@ -162,15 +190,14 @@ class VaultStarter {
     })
   }
 
-  def unsealVault(dev: Boolean): IO[VaultSealStatus] = {
+  def unsealVault(dev: Boolean, baseUrl: Uri): IO[VaultSealStatus] = {
     BlazeClientBuilder[IO](global).resource.use(implicit client => {
       scribe.trace("Checking Vault Status...")
 
+      scribe.error(s"VAULT BASE URL: $baseUrl")
+
       implicit val vaultSession: VaultSession[IO] =
-        new VaultSession[IO](baseUrl =
-          uri("http://vault-daemon-vault-vault.service.consul:8200"),
-          blazeClient = client,
-          authToken = None)
+        new VaultSession[IO](baseUrl = baseUrl, blazeClient = client, authToken = None)
 
       val result = for {
         vaultInit <- waitOnVaultInit
@@ -197,7 +224,7 @@ class VaultStarter {
         case Left(a) =>
           a.printStackTrace()
           timeout(
-            unsealVault(dev),
+            unsealVault(dev, baseUrl),
             new FiniteDuration(10, duration.MINUTES)
           )
         case Right(finalState) => IO.pure(finalState)

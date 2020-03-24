@@ -21,7 +21,7 @@ case class RetoolPGKafkaConnector() extends Job {
     val constraints = None
 
     object ConnectorTask extends Task {
-      val name = "connector"
+      val name = "retool-postgres-kafka-connector"
       val env = None
       object config extends Config {
         val image =

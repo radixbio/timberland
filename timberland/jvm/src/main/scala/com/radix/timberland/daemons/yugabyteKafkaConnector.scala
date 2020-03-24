@@ -21,7 +21,7 @@ case class YugabyteKafkaConnector() extends Job {
     val constraints = None
 
     object ConnectorTask extends Task {
-      val name = "connector"
+      val name = "yugabyte-kafka-connector"
       val env = None
       object config extends Config {
         val image =

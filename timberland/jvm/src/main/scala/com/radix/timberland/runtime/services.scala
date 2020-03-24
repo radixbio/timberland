@@ -187,8 +187,9 @@ object Run {
           case None => baseArgs
         }
 
-        os.proc("/usr/bin/sudo", "/bin/systemctl", "set-environment", s"""CONSUL_CMD_ARGS=$baseArgsWithSeeds""").spawn()
-        os.proc("/usr/bin/sudo", "/bin/systemctl", "restart", "consul").spawn(null, stdout = os.Inherit, stderr = os.Inherit)
+        os.proc("/usr/bin/sudo", "/bin/systemctl", "set-environment", s"""CONSUL_CMD_ARGS=$baseArgsWithSeeds""").call(stdout = os.Inherit, stderr = os.Inherit)
+        Thread.sleep(10000)
+        os.proc("/usr/bin/sudo", "/bin/systemctl", "restart", "consul").call(stdout = os.Inherit, stderr = os.Inherit)
       }
 
 
@@ -199,8 +200,8 @@ object Run {
       }
       F.delay {
         scribe.info("spawning nomad via systemd")
-        os.proc("/usr/bin/sudo", "/bin/systemctl", "set-environment", args).spawn()
-        os.proc("/usr/bin/sudo", "/bin/systemctl", "restart", "nomad").spawn(null, stdout = os.Inherit, stderr = os.Inherit)
+        os.proc("/usr/bin/sudo", "/bin/systemctl", "set-environment", args).call(stdout = os.Inherit, stderr = os.Inherit)
+        os.proc("/usr/bin/sudo", "/bin/systemctl", "restart", "nomad").call(stdout = os.Inherit, stderr = os.Inherit)
       }
     }
 

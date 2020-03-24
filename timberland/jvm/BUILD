@@ -141,11 +141,24 @@ pkg_deb(
     name = "timberland-deb",
     data = ":timberland-exec",
     depends = [
-        "docker.io",
+        "docker.io | docker-ce",
         "openjdk-8-jdk",
     ],
     description = "Radix Timberland deploy file",
     maintainer = "George Sibble",
     package = "radix-timberland",
     version = "0.1",
+)
+
+sh_test(
+    name = "timberland-ci",
+    size = "large",
+    local = True,
+    srcs = [
+        "src/test/ci.sh",
+    ],
+    data = [
+        ":radix-timberland_0.1_all.deb",
+        "src/test/service_test.py",
+    ],
 )

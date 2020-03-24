@@ -714,7 +714,8 @@ package object daemonutil {
                     vault.waitForQuorum,
                     new FiniteDuration(60, duration.SECONDS)
                   )
-                  vaultUnseal <- starter.unsealVault(dev)
+                  vaultBaseUrl <- starter.lookupVaultBaseUrl()
+                  vaultUnseal <- starter.unsealVault(dev, vaultBaseUrl)
                   vaultOpen <- consulutil.waitForService("vault",
                                                          Set("active"),
                                                          1)(1.seconds, timer)
@@ -765,7 +766,8 @@ package object daemonutil {
                 (elemental_username, elemental_password) match {
                   case (Some(username), Some(password)) => {
                     for {
-                      vaultUnseal <- starter.unsealVault(dev)
+                      vaultBaseUrl <- starter.lookupVaultBaseUrl()
+                      vaultUnseal <- starter.unsealVault(dev, vaultBaseUrl)
                       result <- vaultUnseal match {
                         case a @ (VaultUnsealed(_, _) |
                             VaultAlreadyUnsealed) => {

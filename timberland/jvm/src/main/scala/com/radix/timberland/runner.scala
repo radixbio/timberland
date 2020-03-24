@@ -572,6 +572,7 @@ object runner {
 
                       println(daemonutil.waitForQuorum(bootstrapExpect, dev, startCore, startYugabyte, startVault, startEs, startRetool, startElemental, servicePort, registryListenerPort, username, password).unsafeRunSync)
                     )
+                    sys.exit(0)
                   }
                 }
                 case Stop => {
