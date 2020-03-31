@@ -15,7 +15,7 @@ services_to_test = set([
   "kafka-companion-daemons-kafkaCompanions-kafkaRestProxy",
   "kafka-companion-daemons-kafkaCompanions-schemaRegistry",
   "kafka-daemons-kafka-kafka",
-  "minio-minio-minio",
+  "minio-job-minio-group-nginx-minio",
   "nomad",
   "nomad-client",
   "retool-retool-postgres",

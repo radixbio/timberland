@@ -57,6 +57,8 @@ scala_library(
         "src/main/resources/nomad/**/*",
         "src/main/resources/systemd/**/*",
         "src/main/resources/application.conf",
+        "src/main/resources/nginx/nginx-minios.conf",
+        "src/main/resources/nginx/nginx-noupstream.conf",
     ]),
     exports = [":timberland-dependencies"],
     deps = [":timberland-dependencies"],

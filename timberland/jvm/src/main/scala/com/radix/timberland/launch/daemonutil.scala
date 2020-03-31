@@ -276,10 +276,10 @@ package object daemonutil {
     val daemonQuorumNotEstablished: AppriseState = AppriseQuorumNotEstablished
   }
 
-  case class Minio(startInDevMode: Boolean, quorumSize: Int) extends Daemon[Minio.type, MinioState] {
+  case class Minio(startInDevMode: Boolean, quorumSize: Int, upstreamAccessKey: Option[String], upstreamSecretKey: Option[String]) extends Daemon[Minio.type, MinioState] {
     val quorumCount: Int = quorumSize
     val assembledDaemon: daemons.Job =
-      daemons.Minio(startInDevMode, quorumSize)
+      daemons.Minio(startInDevMode, quorumSize, upstreamAccessKey, upstreamSecretKey)
     val daemonJob: JobShim = assembledDaemon.jobshim
     val daemonName: String = assembledDaemon.name
     val daemonStarted: MinioState = MinioStarted
@@ -546,7 +546,9 @@ package object daemonutil {
                     servicePort: Int,
                     registryListenerPort: Int,
                     elemental_username: Option[String],
-                    elemental_password: Option[String]): IO[DaemonState] = {
+                    elemental_password: Option[String],
+                    upstreamAccessKey: Option[String],
+                    upstreamSecretKey: Option[String]): IO[DaemonState] = {
 
     BlazeClientBuilder[IO](global).resource
       .use(implicit client => {
@@ -556,7 +558,7 @@ package object daemonutil {
           new Http4sNomadClient[IO](uri("http://nomad.service.consul:4646"), client)
 
         val apprise = Apprise(dev, 1)
-        val minio = Minio(dev, 1)
+        val minio = Minio(dev, 1, upstreamAccessKey, upstreamSecretKey)
         val zk = Zookeeper(dev, quorumSize)
         val kafka = Kafka(dev, quorumSize, servicePort)
         val kafkaCompanions =
@@ -760,7 +762,7 @@ package object daemonutil {
                 servicePort,
                 registryListenerPort,
                 elemental_username,
-                elemental_password
+                elemental_password, upstreamAccessKey, upstreamSecretKey
               ),
               new FiniteDuration(10, duration.MINUTES)
             )
