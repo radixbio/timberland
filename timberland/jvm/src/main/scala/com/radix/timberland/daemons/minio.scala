@@ -64,7 +64,7 @@ case class Minio(dev: Boolean, quorumSize: Int, upstreamAccessKey: Option[String
         val tags = List("minio", "client")
         val port = "nginx".some
         val checks = List(check)
-        val address_mode = "host"
+        override val address_mode = "host"
         object check extends Check {
           val `type` = "tcp"
           val port = "nginx"
@@ -109,7 +109,7 @@ case class Minio(dev: Boolean, quorumSize: Int, upstreamAccessKey: Option[String
         val tags = List("minio", "client")
         val port = "minio".some
         val checks = List(check)
-        val address_mode = "host"
+        override val address_mode = "host"
         object check extends Check {
           val `type` = "tcp"
           val port = "minio"
@@ -149,7 +149,7 @@ case class Minio(dev: Boolean, quorumSize: Int, upstreamAccessKey: Option[String
         val tags = List("minio", "client")
         val port = "minio_remote".some
         val checks = List(check)
-        val address_mode = "host"
+        override val address_mode = "host"
         object check extends Check {
           val `type` = "tcp"
           val port = "minio_remote"

@@ -159,13 +159,16 @@ trait Service {
 
   def name: Option[String] = None
 
+  def address_mode: String = "auto"
+
   def assemble: ServiceShim = {
     val assembledChecks: Option[List[defs.Check]] = checks.map(_.assemble).some
     ServiceShim(
       defs.Service(tags = tags.some,
                    port = port,
                    name = name,
-                   check = assembledChecks))
+                   check = assembledChecks,
+                   address_mode = address_mode))
   }
 }
 
