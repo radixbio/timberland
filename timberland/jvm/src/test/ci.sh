@@ -40,14 +40,14 @@ done
 
 echo "Transferring deb to instance ($AWS_INSTANCE_IP)..."
 
-scp -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" ./timberland/jvm/radix-timberland_0.1_all.deb $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP:~
+scp -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" ./timberland/jvm/radix-timberland_0.1_amd64.deb $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP:~
 
 scp -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" ./timberland/jvm/src/test/service_test.py $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP:~
 
 ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP 'sudo su && bash -s' <<ENDSSH
 docker swarm init
 
-until dpkg -i radix-timberland_0.1_all.deb
+until dpkg -i radix-timberland_0.1_amd64.deb
 do
   echo "waiting for dpkg..."
   sleep 2

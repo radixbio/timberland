@@ -151,6 +151,7 @@ pkg_tar(
 pkg_deb(
     name = "timberland-deb",
     data = ":timberland-exec",
+    architecture = "amd64",
     depends = [
         "docker.io | docker-ce",
         "openjdk-8-jdk",
@@ -169,7 +170,7 @@ sh_test(
     ],
     data = [
         "src/test/service_test.py",
-        ":radix-timberland_0.1_all.deb",
+        ":radix-timberland_0.1_amd64.deb",
     ],
     #    local = True,
     tags = ["no-sandbox"],
