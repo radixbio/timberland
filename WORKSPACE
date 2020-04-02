@@ -91,6 +91,23 @@ load(
 
 container_repositories()
 
+load("@io_bazel_rules_docker//container:container.bzl", "container_image", "container_pull")
+
+container_pull(
+    name = "custom_java_base",
+    digest =
+        "sha256:c94feda039172152495b5cd60a350a03162fce4f8986b560ea555de4d276ce19",
+    registry = "gcr.io",
+    repository = "distroless/java",
+)
+
+container_pull(
+    name = "alpine_linux_amd64",
+    registry = "index.docker.io",
+    repository = "library/alpine",
+    tag = "3.8",
+)
+
 load(
     "@io_bazel_rules_docker//scala:image.bzl",
     _scala_image_repos = "repositories",
@@ -788,6 +805,7 @@ git_repository(
     remote = "git@gitlab.com:radix-labs/scalaz3.git",
     shallow_since = "1582754945 -0500",
 )
+
 git_repository(
     name = "z3",
     commit = "d3c4aef4c4723e9ab7843302519e6919aa73f8e1",

@@ -35,8 +35,11 @@ case class KafkaCompanionDaemons(dev: Boolean,
     object schemaRegistry extends Task {
       val name = "schemaRegistry"
       val env = Map(
-        //        "SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL" -> "zookeeper-daemons-zookeeper-zookeeper.service.consul:2181",
-        "SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS" -> s"PLAINTEXT://kafka-daemons-kafka-kafka.service.consul:${servicePort}",
+//                "SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL" -> "zookeeper-daemons-zookeeper-zookeeper.service.consul:2181",
+        //This is a hack, note the 2
+        //https://github.com/confluentinc/schema-registry/issues/648
+        "SCHEMA_REGISTRY_KAFKASTORE_TOPIC_REPLICATION_FACTOR" -> {if (dev) "1" else "3"},
+        "SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS" -> s"PLAINTEXT://kafka-daemons-kafka-kafka.service.consul:2${servicePort}",
         "SCHEMA_REGISTRY_HOST_NAME" -> "${attr.unique.hostname}-kafka-schema-registry",
         "SCHEMA_REGISTRY_LISTENERS" -> (s"http://0.0.0.0:${registryListenerPort}")
       ).some
@@ -76,7 +79,7 @@ case class KafkaCompanionDaemons(dev: Boolean,
       val name = "kafkaRestProxy"
       val templates = None
       val env = Map(
-        //        "KAFKA_REST_ZOOKEEPER_CONNECT" -> "zookeeper-daemons-zookeeper-zookeeper.service.consul:2181",
+//        "KAFKA_REST_ZOOKEEPER_CONNECT" -> "zookeeper-daemons-zookeeper-zookeeper.service.consul:2181",
         "KAFKA_REST_BOOTSTRAP_SERVERS" -> "INSIDE://kafka-daemons-kafka-kafka.service.consul:29092",
         "KAFKA_REST_SCHEMA_REGISTRY_URL" -> s"http://kafka-companion-daemons-kafkaCompanions-schemaRegistry.service.consul:${registryListenerPort}",
         "KAFKA_REST_HOST_NAME" -> "${attr.unique.hostname}-kafka-rest-proxy",

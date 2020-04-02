@@ -616,21 +616,18 @@ object runner {
                       }
 
                     } yield ()
-                    prog.unsafeRunSync()
 
                     implicit val host = new Run.RuntimeServicesExec[IO]
-                    if (!norestart) {
-                      Right(
-                        println(Run
+                    val res = if (!norestart) {
+
+                        prog *> Run
                           .initializeRuntimeProg[IO](Path(consul.toPath.getParent), Path(nomad.toPath.getParent), bindIP, consulSeedsO, bootstrapExpect)
-                          .unsafeRunSync)
-                      )
-                    }
+                    } else prog
                     scribe.info("Launching daemons")
                     scribe.info(s"***********DAEMON SIZE${bootstrapExpect}***************")
                     Right(
 
-                      println(daemonutil.waitForQuorum(bootstrapExpect, dev, startCore, startYugabyte, startVault, startEs, startRetool, startElemental, servicePort, registryListenerPort, username, password, upstreamAccessKey, upstreamSecretKey).unsafeRunSync)
+                      println((res *> daemonutil.waitForQuorum(bootstrapExpect, dev, startCore, startYugabyte, startVault, startEs, startRetool, startElemental, servicePort, registryListenerPort, username, password, upstreamAccessKey, upstreamSecretKey)).unsafeRunSync)
                     )
                     sys.exit(0)
                   }

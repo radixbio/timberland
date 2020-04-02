@@ -7,6 +7,8 @@ load(
     "scala_test",
 )
 load("@rules_pkg//:pkg.bzl", "pkg_deb", "pkg_tar")
+load("@io_bazel_rules_docker//docker/util:run.bzl", "container_run_and_commit", "container_run_and_extract")
+load("@io_bazel_rules_docker//container:container.bzl", "container_image", "container_layer", "container_load", "container_push")
 
 package(
     default_visibility = ["//timberland:__subpackages__"],
@@ -69,10 +71,13 @@ scala_library(
     # Exclude the kafka and zookeeper sources
     srcs = glob(
         [
-            "src/**/*.scala",
+            "src/main/scala/**/*.scala",
         ],
         exclude = timberland_launcher_srcs + timberland_core_srcs,
     ),
+    visibility = [
+        "//timberland:__subpackages__",
+    ],
     exports = [
         ":timberland-core-lib",
         "//3rdparty/jvm/com/github/xuwei_k:optparse_applicative",
@@ -109,6 +114,11 @@ scala_binary(
     deps = [":timberland-lib"],
 )
 
+filegroup(
+    name = "timberland-filegroup",
+    srcs = [":timberland-bin_deploy.jar"],
+)
+
 scala_binary(
     name = "timberland-launcher",
     main_class = "com.radix.timberland.launcher",
@@ -124,7 +134,6 @@ pkg_tar(
         ":timberland-bin_deploy.jar",
     ],
     package_dir = "/opt/radix",
-    #        package_dir = "/tmp/test1",
     strip_prefix = "/",
     deps = ["//device_drivers/hw_discovery/jvm:disco-deploy"],
 )
@@ -164,4 +173,100 @@ sh_test(
     ],
     #    local = True,
     tags = ["no-sandbox"],
+)
+
+container_layer(
+    name = "nomad-start-sh-tar-layer",
+    directory = "/usr/local/bin",
+    files = ["src/test/integration/resources/start.sh"],
+)
+
+container_image(
+    name = "nomad-start-sh-entrypoint-image",
+    base = "@alpine_linux_amd64//image",
+    layers = [":nomad-start-sh-tar-layer"],
+)
+
+container_run_and_commit(
+    name = "nomad-install",
+    commands = [
+        "addgroup nomad",
+        "adduser -S -G nomad nomad",
+        "apk --update add --no-cache --virtual .gosu-deps dpkg curl gnupg",
+        "apk add --no-cache ca-certificates openssl",
+        "update-ca-certificates",
+        "curl -L -o /tmp/glibc-2.31-r0.apk https://github.com/andyshinn/alpine-pkg-glibc/releases/download/2.31-r0/glibc-2.31-r0.apk",
+        "apk add --allow-untrusted /tmp/glibc-2.31-r0.apk",
+        "rm -rf /tmp/glibc-2.31-r0.apk /var/cache/apk/*",
+        "curl -L -o /usr/local/bin/dumb-init https://github.com/Yelp/dumb-init/releases/download/v1.2.2/dumb-init_1.2.2_amd64",
+        "chmod +x /usr/local/bin/dumb-init",
+        "curl -L -o /usr/local/bin/gosu \"https://github.com/tianon/gosu/releases/download/1.11/gosu-amd64\"",
+        "chmod +x /usr/local/bin/gosu",
+        "gosu nobody true",
+        "apk del .gosu-deps",
+        "apk --update add --no-cache --virtual .nomad-deps gnupg curl",
+        "cd /tmp",
+        "curl -L -o nomad_0.10.4_linux_amd64.zip https://releases.hashicorp.com/nomad/0.10.4/nomad_0.10.4_linux_amd64.zip",
+        "unzip -d /bin nomad_0.10.4_linux_amd64.zip",
+        "chmod +x /bin/nomad",
+        "apk del .nomad-deps",
+        "mkdir -p /nomad/data",
+        "mkdir -p /etc/nomad",
+        "chown -R nomad:nomad /nomad",
+    ],
+    image = ":nomad-start-sh-entrypoint-image.tar",
+)
+
+container_image(
+    name = "nomad",
+    base = ":nomad-install",
+    cmd = ["/usr/local/bin/start.sh"],
+    entrypoint = ["/usr/local/bin/start.sh"],
+    ports = [
+        "4646",
+        "4647",
+        "4648",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+container_push(
+    name = "nomad-docker-push-local-dev",
+    format = "Docker",
+    image = ":nomad.tar",
+    registry = "localhost:5000",
+    repository = "radix/test/nomad",
+    tag = "dev",
+)
+
+scala_library(
+    name = "synthetic-integration-lib",
+    srcs = ["src/test/integration/src/integration.scala"],
+    data = [
+        "src/test/integration/resources/docker-compose.yml",
+        "src/test/integration/resources/nomad.hcl",
+    ],
+    visibility = ["//visibility:public"],
+    exports = [
+        "//3rdparty/jvm/com/dimafeng:testcontainers_scala",
+        "//3rdparty/jvm/io/7mind/izumi:logstage_core",
+        "//3rdparty/jvm/org/scalatest",
+        "//timberland/jvm:timberland-lib",
+    ],
+    deps = [
+        "//3rdparty/jvm/com/dimafeng:testcontainers_scala",
+        "//3rdparty/jvm/io/7mind/izumi:logstage_core",
+        "//3rdparty/jvm/org/scalatest",
+        "//timberland/jvm:timberland-lib",
+    ],
+)
+
+scala_test(
+    name = "synthetic-integration",
+    srcs = ["src/test/integration/src/startup.scala"],
+    tags = ["v1integration"],
+    #NOTE: use this tag for all the integration tests so that it can be run with --jobs=1,
+    #giving both caching and exclusivity
+    #this tag should also be added for the normal bazel test to ignore
+    deps = [":synthetic-integration-lib"],
 )

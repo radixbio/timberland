@@ -44,7 +44,7 @@ dependencies:
   org.http4s:
     http4s:
       lang: scala
-      version: 0.21.0-M6
+      version: 0.21.2
       modules: [blaze-client, argonaut, blaze-server, dsl, circe, core]
     parboiled:
       lang: scala
@@ -136,23 +136,11 @@ dependencies:
   io.circe:
     circe:
       lang: scala
-      version: 0.12.3
-      modules: [parser, core, generic, literal]
+      version: 0.13.0
+      modules: [parser, core, generic, literal, generic-extras, optics, fs2]
     circe-derivation:
       lang: scala
-      version: 0.12.0-M7
-    circe-generic-extras:
-      lang: scala
-      version: 0.12.2
-    circe-optics:
-      lang: scala
-      version: 0.12.0
-    circe-fs2:
-      lang: scala
-      version: 0.12.0
-    circe-optics:
-      lang: scala
-      version: 0.12.0
+      version: 0.13.0-M4
   com.outr:
     scribe:
       lang: scala
@@ -203,7 +191,11 @@ dependencies:
       modules: [avro-serializer]
   org.scalactic:
     scalactic:
-      version: "3.0.8"
+      version: 3.0.8
+      lang: scala
+  org.scalatest:
+    scalatest:
+      version: 3.0.8
       lang: scala
   io.7mind.izumi:
     logstage:
@@ -305,7 +297,7 @@ dependencies:
   co.fs2:
     fs2:
       lang: scala
-      version: 2.0.0
+      version: 2.2.2
       modules: [core, io, reactive-streams]
   org.scalameta:
     scalameta:
