@@ -235,9 +235,12 @@ container_push(
     name = "nomad-docker-push-local-dev",
     format = "Docker",
     image = ":nomad.tar",
-    registry = "localhost:5000",
-    repository = "radix/test/nomad",
-    tag = "dev",
+    registry = "docker.aws.radix.bio",
+    repository = "test/timberland-nomad",
+    tag = "{STABLE_GIT_BRANCH}",
+    tags = [
+        "auto-push-docker-image"
+    ],
 )
 
 scala_library(

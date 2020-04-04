@@ -1,2 +1,3 @@
 build --remote_cache=https://cache.aws.radix.bio
 test --remote_cache=https://cache.aws.radix.bio
+run --workspace_status_command=./tools/workspace-status.sh

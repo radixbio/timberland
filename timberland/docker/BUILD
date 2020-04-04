@@ -74,7 +74,10 @@ container_push(
     name = "radix-vault-push-gitlab",
     format = "Docker",
     image = ":radix-vault_commit.tar",
-    registry = "registry.gitlab.com",
-    repository = "radix-labs/monorepo/vault",
-    tag = "latest",
+    registry = "docker.aws.radix.bio",
+    repository = "timberland/vault",
+    tag = "{STABLE_GIT_BRANCH}",
+    tags = [
+        "auto-push-docker-image"
+    ],
 )
