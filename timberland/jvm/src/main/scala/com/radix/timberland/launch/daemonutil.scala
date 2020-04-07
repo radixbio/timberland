@@ -640,6 +640,8 @@ package object daemonutil {
           for {
             nomadQuorumStatus <- timeout(Nomad.waitForQuorum(interp, quorumSize),
                                          new FiniteDuration(2, duration.MINUTES))
+            tup <- (coreStart, ybStart, _retoolStart, _esStart).parMapN((core, _, _, es) =>(core, es))
+            (coreStatus, esQuorumStatus) = tup
             vaultQuorumStatus <- vaultStart match {
               case true => {
                 val starter = new VaultStarter()
@@ -728,8 +730,6 @@ package object daemonutil {
               }
               case false => IO.sleep(1.second)
             }
-            tup <- (coreStart, ybStart, _retoolStart, _esStart).parMapN((core, _, _, es) =>(core, es))
-            (coreStatus, esQuorumStatus) = tup
             _ <- IO(scribe.info(s"======== CORE: $coreStatus    ES: $esQuorumStatus"))
             result <- (coreStatus, esQuorumStatus) match {
               case (CoreRunning, ESQuorumEstablished) => {
