@@ -498,7 +498,7 @@ object runner {
                   //TODO swap out with nicer install detection, possibly via the shavtable stuff
                   if (!consul.exists() && !nomad.exists()) {
                     val dl =
-                      Download.downloadConsulAndNomad[IO]("1.7.1", "0.10.4", List(osname, arch), List(osname, arch))
+                      Download.downloadConsulAndNomad[IO]("1.7.1", "0.11.0", List(osname, arch), List(osname, arch))
                     val resourceMover = new Installer.MoveFromJVMResources[IO]()
                     scribe.info("Jar File Location" + this.getClass.getProtectionDomain.getCodeSource.getLocation.toURI.getPath())
                     //                    val currentJarFile = new File(this.getClass.getProtectionDomain.getCodeSource.getLocation.toURI.getPath()) //TODO: Remove this stuff
