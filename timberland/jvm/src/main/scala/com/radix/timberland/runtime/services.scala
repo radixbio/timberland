@@ -15,7 +15,7 @@ import scala.concurrent.{Await, Future}
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext
 import java.util.concurrent.Executors
-
+import java.nio.file.Paths
 import java.net.{InetAddress, InetSocketAddress, NetworkInterface, Socket}
 
 import scala.util.{Failure, Success, Try}
@@ -187,7 +187,12 @@ object Run {
           case None => baseArgs
         }
 
-        os.proc("/usr/bin/sudo", "/bin/systemctl", "set-environment", s"""CONSUL_CMD_ARGS=$baseArgsWithSeeds""").call(stdout = os.Inherit, stderr = os.Inherit)
+        val envFilePath = Paths.get("/opt/radix/systemd/consul.env.conf") // TODO make configurable
+        val envFileHandle = envFilePath.toFile
+        val writer = new FileWriter(envFileHandle)
+        writer.write(s"CONSUL_CMD_ARGS=$baseArgsWithSeeds")
+        writer.close()
+
         Thread.sleep(10000)
         os.proc("/usr/bin/sudo", "/bin/systemctl", "restart", "consul").call(stdout = os.Inherit, stderr = os.Inherit)
       }
@@ -200,7 +205,13 @@ object Run {
       }
       F.delay {
         scribe.info("spawning nomad via systemd")
-        os.proc("/usr/bin/sudo", "/bin/systemctl", "set-environment", args).call(stdout = os.Inherit, stderr = os.Inherit)
+
+        val envFilePath = Paths.get("/opt/radix/systemd/nomad.env.conf") // TODO make configurable
+        val envFileHandle = envFilePath.toFile
+        val writer = new FileWriter(envFileHandle)
+        writer.write(args)
+        writer.close()
+
         os.proc("/usr/bin/sudo", "/bin/systemctl", "restart", "nomad").call(stdout = os.Inherit, stderr = os.Inherit)
       }
     }
@@ -292,4 +303,3 @@ object Run {
   }
 
 }
-

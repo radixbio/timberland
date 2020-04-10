@@ -355,6 +355,7 @@ object runner {
     }
 
     val persistentdir = "/opt/radix/timberland/" // TODO make configurable
+    val systemdDir = "/opt/radix/systemd/"
     val appdatadir = new File(persistentdir)
     val consul = new File(persistentdir + "/consul/consul")
     val nomad = new File(persistentdir + "/nomad/nomad")
@@ -522,6 +523,9 @@ object runner {
 
                       _ <- resourceMover.fncopy(Path("/systemd/consul.service"), Path("/etc/systemd/system"))
                       _ <- resourceMover.fncopy(Path("/systemd/nomad.service"), Path("/etc/systemd/system"))
+
+                      _ <- resourceMover.fncopy(Path("/systemd/consul.env.conf"), Path(systemdDir))
+                      _ <- resourceMover.fncopy(Path("/systemd/nomad.env.conf"), Path(systemdDir))
 
                       hookDestinationDir = "/etc/networkd-dispatcher/routable.d/"
 
