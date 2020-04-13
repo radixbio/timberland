@@ -2,6 +2,14 @@
 
 set -ex
 
+# Is there a more concise way to represent this?
+if [ "$1" == "persist" ];
+then
+  PERSIST=true
+else
+  PERSIST=false
+fi
+
 if ! [ -x "$(command -v aws)" ]; then
   echo "Please install aws-cli: https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-welcome.html"
   exit 1
@@ -84,5 +92,12 @@ scp -r -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INST
 
 echo "@@@@@@@@ Got nomad logs"
 
-# This should terminate the instance due to "--instance-initiated-shutdown-behavior terminate"
-ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP 'sudo poweroff' || exit 0
+if [ "$PERSIST" != "true" ];
+then
+  # This should terminate the instance due to "--instance-initiated-shutdown-behavior terminate"
+  ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP 'sudo poweroff' || exit 0
+else
+  # Remove the crontab entry for the sudomatic power-off script
+  ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP 'crontab -r' || exit 0
+  echo "CONNECTION INFO: ssh $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP"
+fi

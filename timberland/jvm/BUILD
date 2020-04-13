@@ -162,6 +162,21 @@ pkg_deb(
     version = "0.1",
 )
 
+sh_binary(
+    name = "timberland-ec2-dev",
+    srcs = [
+        "src/test/ci.sh",
+    ],
+    args = [
+        "persist"
+    ],
+    data = [
+        "src/test/service_test.py",
+        ":radix-timberland_0.1_amd64.deb",
+    ],
+    tags = ["no-sandbox"],
+)
+
 sh_test(
     name = "timberland-ci",
     size = "large",
@@ -172,7 +187,6 @@ sh_test(
         "src/test/service_test.py",
         ":radix-timberland_0.1_amd64.deb",
     ],
-    #    local = True,
     tags = ["no-sandbox"],
 )
 
