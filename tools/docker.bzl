@@ -10,11 +10,14 @@ def dockerize_scala(
     resources = [],
     repository = None,
     **kwargs):
-  """Creates three rules: scala_image, container_push, and a genrule for importing the docker image
-  in to the developer's local store. Targets are named as follows:
+  """Creates two rules: scala_image and container_push. Targets are named as follows:
     * scala_image: name + "-docker"
     * container_push: name + "-docker-push"
-    * genrule: name + "-docker-import"
+
+  When developing locally, the docker image can be imported thusly:
+  `bazel run //algs/dbpmjss-uservice/jvm:dbpmjss-uservice-docker -- --norun`
+
+  To actually run the code contained within the image, elide the `--norun` argument.
 
   When pushing to a remote registry, the docker image will be tagged with the current branch.
 
@@ -48,14 +51,5 @@ def dockerize_scala(
     repository = repository,
     tag = "{STABLE_GIT_BRANCH}",
     tags = [ "auto-push-docker-image" ],
-    **kwargs
-  )
-
-  native.genrule(
-    name = image_name + "-import",
-    srcs = [ ":" + image_name ],
-    outs = [ "load.sh" ],
-    cmd_bash = "echo \"docker import $(SRCS)\" " + repository + ":dev > $(OUTS)",
-    executable = True,
     **kwargs
   )

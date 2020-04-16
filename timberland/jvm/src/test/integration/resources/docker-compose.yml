@@ -16,7 +16,7 @@ services:
     networks:
       - weave
   nomad:
-    image: "localhost:5000/radix/test/nomad:dev"
+    image: "bazel/timberland/jvm:nomad-install"
     hostname: "nomad"
     command: "agent -config=/opt/nomad.hcl"
     privileged: true
