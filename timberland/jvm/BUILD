@@ -154,7 +154,7 @@ pkg_deb(
     architecture = "amd64",
     depends = [
         "docker.io | docker-ce",
-        "openjdk-8-jdk",
+        "openjdk-11-jdk",
     ],
     description = "Radix Timberland deploy file",
     maintainer = "George Sibble",

@@ -25,7 +25,7 @@ if ! [ -x "$(command -v ssh)" ]; then
   exit 1
 fi
 
-AWS_RESULT=$(aws ec2 run-instances --image-id ami-0e3c7f49054cd74af --instance-type t3.2xlarge --security-group-ids sg-0c06080d080b5876f --associate-public-ip-address --key-name radix-ci --instance-initiated-shutdown-behavior terminate)
+AWS_RESULT=$(aws ec2 run-instances --image-id ami-066e03f91f32d7a03 --instance-type t3.2xlarge --security-group-ids sg-0c06080d080b5876f --associate-public-ip-address --key-name radix-ci --instance-initiated-shutdown-behavior terminate)
 AWS_INSTANCE_ID=$(echo $AWS_RESULT | jq -r .Instances[0].InstanceId)
 
 echo "Waiting for EC2 instance to become ready..."
