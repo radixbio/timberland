@@ -22,7 +22,7 @@ scala_library(
         "//3rdparty/jvm/com/outr:scribe",
         "//3rdparty/jvm/org/scala_lang/modules:scala_parser_combinators",
         "//shared/shared/shared/shared:shared-shared",
-        "//third-party/helm:helm-jvm",
+        "//utils/helm:helm-jvm",
     ],
     deps = [
         "//3rdparty/jvm/com/github/xuwei_k:optparse_applicative",
@@ -30,7 +30,7 @@ scala_library(
         "//3rdparty/jvm/com/outr:scribe",
         "//3rdparty/jvm/org/scala_lang/modules:scala_parser_combinators",
         "//shared/shared/shared/shared:shared-shared",
-        "//third-party/helm:helm-jvm",
+        "//utils/helm:helm-jvm",
     ],
 )
 
@@ -85,13 +85,13 @@ scala_library(
         "//3rdparty/jvm/com/outr:scribe",
         "//3rdparty/jvm/org/scala_lang/modules:scala_parser_combinators",
         "//shared/shared/shared/shared:shared-shared",
-        "//third-party/helm:helm-jvm",
-        "//third-party/helm/core/shared:helm-elemental",
+        "//utils/helm:helm-jvm",
+        "//utils/helm/core/shared:helm-elemental",
         "//utils/sheets/jvm/src/main/scala/com/radix/util/sheets:sheets-interps",  #TODO remove this
     ],
     deps = [
         ":timberland-core-lib",
-        "//third-party/helm/core/shared:helm-elemental",
+        "//utils/helm/core/shared:helm-elemental",
         "//utils/sheets/jvm/src/main/scala/com/radix/util/sheets:sheets-interps",  #TODO remove this
     ],
 )
@@ -150,8 +150,8 @@ pkg_tar(
 
 pkg_deb(
     name = "timberland-deb",
-    data = ":timberland-exec",
     architecture = "amd64",
+    data = ":timberland-exec",
     depends = [
         "docker.io | docker-ce",
         "openjdk-11-jdk",
@@ -168,7 +168,7 @@ sh_binary(
         "src/test/ci.sh",
     ],
     args = [
-        "persist"
+        "persist",
     ],
     data = [
         "src/test/service_test.py",
@@ -253,7 +253,7 @@ container_push(
     repository = "test/timberland-nomad",
     tag = "{STABLE_GIT_BRANCH}",
     tags = [
-        "auto-push-docker-image"
+        "auto-push-docker-image",
     ],
 )
 
