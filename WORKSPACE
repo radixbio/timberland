@@ -822,3 +822,24 @@ container_pull(
     repository = "vault",
     tag = "1.3.0",
 )
+
+http_archive(
+    name = "consul",
+    url = "https://releases.hashicorp.com/consul/1.7.2/consul_1.7.2_linux_amd64.zip",
+    sha256 = "5ab689cad175c08a226a5c41d16392bc7dd30ceaaf90788411542a756773e698",
+    build_file_content = "exports_files([\"consul\"])"
+)
+
+http_archive(
+    name = "nomad",
+    url = "https://releases.hashicorp.com/nomad/0.11.0/nomad_0.11.0_linux_amd64.zip",
+    sha256 = "cd76c59af28757ee916811baf92c2ea8daa9125052f76ebb21daf5e10ef2db21",
+    build_file_content = "exports_files([\"nomad\"])"
+)
+
+http_archive(
+    name = "terraform",
+    url = "https://releases.hashicorp.com/terraform/0.12.24/terraform_0.12.24_linux_amd64.zip",
+    sha256 = "602d2529aafdaa0f605c06adb7c72cfb585d8aa19b3f4d8d189b42589e27bf11",
+    build_file_content = "exports_files([\"terraform\"])"
+)

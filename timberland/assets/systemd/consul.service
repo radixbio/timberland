@@ -13,7 +13,7 @@ ExecReload=/opt/radix/timberland/consul/consul reload
 KillMode=process
 Restart=on-failure
 LimitNOFILE=65536
-EnvironmentFile=/opt/radix/systemd/consul.env.conf
+EnvironmentFile=/opt/radix/timberland/consul/consul.env.conf
 
 [Install]
 WantedBy=multi-user.target

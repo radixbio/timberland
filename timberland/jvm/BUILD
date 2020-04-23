@@ -148,17 +148,133 @@ pkg_tar(
     package_dir = "/opt/radix/timberland/exec",
 )
 
+pkg_tar(
+    name = "timberland-consul",
+    srcs = [
+        "//timberland/assets:consul/consul.json",
+        "//timberland/assets:systemd/consul.env.conf",
+        "@consul",
+    ],
+    package_dir = "/opt/radix/timberland/consul",
+)
+
+pkg_tar(
+    name = "timberland-nomad",
+    srcs = [
+        "//timberland/assets:systemd/nomad.env.conf",
+        "@nomad",
+    ],
+    package_dir = "/opt/radix/timberland/nomad",
+)
+
+pkg_tar(
+    name = "timberland-terraform",
+    srcs = [
+        "@terraform",
+    ],
+    package_dir = "/opt/radix/timberland/terraform",
+)
+
+pkg_tar(
+    name = "timberland-nomad-config",
+    srcs = [
+        "//timberland/assets:nomad/config/nomad.hcl",
+    ],
+    package_dir = "/opt/radix/timberland/nomad/config",
+)
+
+pkg_tar(
+    name = "timberland-nomad-connect",
+    srcs = [
+        "//timberland/assets:nomad/connect/postgres_source.sh",
+        "//timberland/assets:nomad/connect/start.sh",
+        "//timberland/assets:nomad/connect/yugabyte_sink.sh",
+    ],
+    package_dir = "/opt/radix/timberland/nomad/connect",
+)
+
+pkg_tar(
+    name = "timberland-nomad-config-elasticsearch",
+    srcs = [
+        "//timberland/assets:nomad/config/elasticsearch/unicast_hosts.tpl",
+    ],
+    package_dir = "/opt/radix/timberland/nomad/elasticsearch",
+)
+
+pkg_tar(
+    name = "timberland-nomad-config-zookeeper",
+    srcs = [
+        "//timberland/assets:nomad/config/zookeeper/zoo.tpl",
+    ],
+    package_dir = "/opt/radix/timberland/nomad/zookeeper",
+)
+
+pkg_tar(
+    name = "timberland-systemd-services",
+    srcs = [
+        "//timberland/assets:systemd/consul.service",
+        "//timberland/assets:systemd/nomad.service",
+    ],
+    package_dir = "/etc/systemd/system",
+)
+
+pkg_tar(
+    name = "timberland-systemd-networks",
+    srcs = [
+        "//timberland/assets:systemd/dummy0.netdev",
+        "//timberland/assets:systemd/dummy0.network",
+    ],
+    package_dir = "/etc/systemd/network",
+)
+
+pkg_tar(
+    name = "timberland-networkd",
+    srcs = [
+        "//timberland/assets:networkd/10-radix-consul",
+        "//timberland/assets:networkd/10-radix-nomad",
+    ],
+    package_dir = "/etc/networkd-dispatcher/routable.d",
+)
+
+pkg_tar(
+    name = "timberland-nginx",
+    srcs = [
+        "//timberland/assets:nginx/nginx-minios.conf",
+        "//timberland/assets:nginx/nginx-noupstream.conf",
+    ],
+    package_dir = "/opt/radix/timberland/nginx",
+)
+
+pkg_tar(
+    name = "timberland-full-tar",
+    deps = [
+        ":timberland-consul",
+        ":timberland-exec",
+        ":timberland-networkd",
+        ":timberland-nginx",
+        ":timberland-nomad",
+        ":timberland-nomad-config",
+        ":timberland-nomad-config-elasticsearch",
+        ":timberland-nomad-config-zookeeper",
+        ":timberland-nomad-connect",
+        ":timberland-systemd-networks",
+        ":timberland-systemd-services",
+        ":timberland-terraform",
+    ],
+)
+
 pkg_deb(
     name = "timberland-deb",
     architecture = "amd64",
-    data = ":timberland-exec",
+    data = ":timberland-full-tar",
     depends = [
         "docker.io | docker-ce",
         "openjdk-11-jdk",
     ],
     description = "Radix Timberland deploy file",
-    maintainer = "George Sibble",
+    maintainer = "Alex Wied",
     package = "radix-timberland",
+    postinst = "//timberland/assets:debian/postinst.sh",
     version = "0.1",
 )
 

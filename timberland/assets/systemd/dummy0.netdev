@@ -1,0 +1,4 @@
+[NetDev]
+Description=Interface for exposing Consul DNS
+Name=dummy0
+Kind=dummy

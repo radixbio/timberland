@@ -18,7 +18,7 @@ import ammonite.ops._
 import cats.effect.{ContextShift, IO}
 import cats.implicits._
 import com.radix.timberland.launch.daemonutil
-import com.radix.timberland.runtime.{Download, Installer, Mock, Run}
+import com.radix.timberland.runtime.{Installer, Mock, Run}
 import com.radix.timberland.util.Util
 import io.circe.{Parser => _}
 import optparse_applicative._
@@ -37,7 +37,6 @@ import scala.concurrent.ExecutionContext.Implicits.global
  * |     |- native <RADIX_MONOREPO_DIR>
  * |     |- install <RADIX_MONOREPO_DIR>
  * |- runtime|
- * |- install
  * |- start [debug] [dry-run] [force-bind-ip] [dev] [vault] [es] [core] [service-port] [registry-listener-port] [no-restart] [username] [password]
  * |- stop
  * |- trace
@@ -80,8 +79,6 @@ sealed trait Runtime extends RadixCMD
 
 //case class Dry(run: Runtime) extends Runtime
 sealed trait Local extends Runtime
-
-case object Install extends Local
 
 case class Start(
                   dummy: Boolean = false,
@@ -159,7 +156,6 @@ object runner {
       "runtime",
       info(
         subparser[Runtime](
-          command("install", info(pure(Install), progDesc("install radix core services on your system"))),
           command(
             "start",
             info(
@@ -490,82 +486,6 @@ object runner {
           run match {
             case local: Local =>
               local match {
-                case Install => {
-                  scribe.Logger.root
-                    .clearHandlers()
-                    .clearModifiers()
-                    .withHandler(minimumLevel = Some(scribe.Level.Trace))
-                    .replace()
-                  //TODO swap out with nicer install detection, possibly via the shavtable stuff
-                  if (!consul.exists() && !nomad.exists()) {
-                    val dl =
-                      Download.downloadConsulAndNomad[IO]("1.7.1", "0.11.0", List(osname, arch), List(osname, arch))
-                    val resourceMover = new Installer.MoveFromJVMResources[IO]()
-                    scribe.info("Jar File Location" + this.getClass.getProtectionDomain.getCodeSource.getLocation.toURI.getPath())
-                    //                    val currentJarFile = new File(this.getClass.getProtectionDomain.getCodeSource.getLocation.toURI.getPath()) //TODO: Remove this stuff
-                    val prog = for {
-                      file <- dl
-                      _ <- IO(scribe.info("download complete, canonicalizing directories"))
-                      _ <- for {
-                        _ <- Util.nioCopyFile(file._1._1, consul)
-                        _ <- Util.nioCopyFile(file._2._1, nomad)
-                        //                        _ <- Util.nioCopyFile(currentJarFile, timberlandJar)
-                        _ <- IO {
-                          consul.setExecutable(true)
-                          nomad.setExecutable(true)
-                        }
-                      } yield ()
-
-                      _ <- resourceMover.fncopy(Path("/consul/consul.json"), Path(consul.getParentFile.toPath))
-                      _ <- resourceMover.fncopy(Path("/nomad/config"), Path(nomad.getParentFile.toPath))
-                      _ <- resourceMover.fncopy(Path("/nginx/nginx-minios.conf"), Path(nginx.toPath))
-                      _ <- resourceMover.fncopy(Path("/nginx/nginx-noupstream.conf"), Path(nginx.toPath))
-
-                      _ <- resourceMover.fncopy(Path("/systemd/consul.service"), Path("/etc/systemd/system"))
-                      _ <- resourceMover.fncopy(Path("/systemd/nomad.service"), Path("/etc/systemd/system"))
-
-                      _ <- resourceMover.fncopy(Path("/systemd/consul.env.conf"), Path(systemdDir))
-                      _ <- resourceMover.fncopy(Path("/systemd/nomad.env.conf"), Path(systemdDir))
-
-                      hookDestinationDir = "/etc/networkd-dispatcher/routable.d/"
-
-                      _ <- resourceMover.fncopy(Path("/systemd/10-radix-consul"), Path(hookDestinationDir))
-                      _ <- resourceMover.fncopy(Path("/systemd/10-radix-nomad"), Path(hookDestinationDir))
-
-                      consulHookFile = new File(hookDestinationDir + "10-radix-consul")
-                      nomadHookFile = new File(hookDestinationDir + "10-radix-nomad")
-
-                      _ <- IO {
-                        consulHookFile.setExecutable(true)
-                        nomadHookFile.setExecutable(true)
-                      }
-
-                      _ <- resourceMover.fncopy(Path("/systemd/dummy0.netdev"), Path("/etc/systemd/network"))
-                      _ <- resourceMover.fncopy(Path("/systemd/dummy0.network"), Path("/etc/systemd/network"))
-
-                      _ <- IO(os.proc("/usr/bin/sudo /sbin/sysctl -w vm.max_map_count=262144".split(' ')).spawn())
-                      //                      _ <- IO(os.proc("/usr/bin/sudo echo \"vm.max_map_count=262144\" >> /etc/sysctl.conf".split(' ')).spawn())
-
-
-                      _ <- IO(os.proc("/usr/bin/docker plugin install weaveworks/net-plugin:2.6.0".split(' ')).call(cwd = os.root, stdin = "y\n", stdout = os.Inherit, check = false))
-                      _ <- IO(os.proc("/usr/bin/docker plugin disable weaveworks/net-plugin:2.6.0".split(' ')).call(cwd = os.root, stdin = "y\n", stdout = os.Inherit, check = false))
-                      _ <- IO(os.proc("/usr/bin/docker plugin set weaveworks/net-plugin:2.6.0 IPALLOC_RANGE=10.48.0.0/12".split(' ')).call(cwd = os.root, stdin = "y\n", stdout = os.Inherit, check = false))
-                      _ <- IO(os.proc("/usr/bin/docker plugin enable weaveworks/net-plugin:2.6.0".split(' ')).call(cwd = os.root, stdin = "y\n", stdout = os.Inherit, check = false))
-
-                      _ <- IO(os.proc("/usr/bin/sudo /bin/systemctl daemon-reload".split(' ')).spawn())
-                      _ <- IO(os.proc("/usr/bin/sudo /bin/systemctl restart systemd-networkd".split(' ')).spawn())
-
-                    } yield ()
-                    prog.unsafeRunSync()
-
-                    scribe.info("install complete!")
-                    sys.exit(0)
-                  } else {
-                    scribe.warn(s"files in $persistentdir already exists, not installing!")
-                    sys.exit(1)
-                  }
-
-                }
                 case Nuke => Right(Unit)
                 case cmd@Start(dummy, loglevel, bindIP, consulSeedsO, dev, core, vault, es, yugabyte, retool, elemental, servicePort, registryListenerPort, norestart, username, password, upstreamAccessKey, upstreamSecretKey) => {
                   scribe.Logger.root

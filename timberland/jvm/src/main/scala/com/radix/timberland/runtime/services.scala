@@ -187,7 +187,7 @@ object Run {
           case None => baseArgs
         }
 
-        val envFilePath = Paths.get("/opt/radix/systemd/consul.env.conf") // TODO make configurable
+        val envFilePath = Paths.get("/opt/radix/timberland/consul/consul.env.conf") // TODO make configurable
         val envFileHandle = envFilePath.toFile
         val writer = new FileWriter(envFileHandle)
         writer.write(s"CONSUL_CMD_ARGS=$baseArgsWithSeeds")
@@ -206,7 +206,7 @@ object Run {
       F.delay {
         scribe.info("spawning nomad via systemd")
 
-        val envFilePath = Paths.get("/opt/radix/systemd/nomad.env.conf") // TODO make configurable
+        val envFilePath = Paths.get("/opt/radix/timberland/nomad/nomad.env.conf") // TODO make configurable
         val envFileHandle = envFilePath.toFile
         val writer = new FileWriter(envFileHandle)
         writer.write(args)
