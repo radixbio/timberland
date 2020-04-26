@@ -16,7 +16,7 @@ services:
     networks:
       - weave
   nomad:
-    image: "bazel/timberland/jvm:nomad-install"
+    image: "bazel/timberland/jvm:nomad"
     hostname: "nomad"
     command: "agent -config=/opt/nomad.hcl"
     privileged: true
