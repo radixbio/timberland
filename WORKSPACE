@@ -41,15 +41,42 @@ load(
     "scala_repositories",
 )
 
-scala_repositories((
-    "2.12.8",
-    {
-        "scala_compiler": "f34e9119f45abd41e85b9e121ba19dd9288b3b4af7f7047e86dc70236708d170",
-        "scala_library": "321fb55685635c931eba4bc0d7668349da3f2c09aee2de93a70566066ff25c28",
-        "scala_reflect": "4d6405395c4599ce04cea08ba082339e3e42135de9aae2923c9f5367e957315a",
-        "scalajs_compiler": "fc54c1a5f08598c3aef8b4dd13cf482323b56cb416547da9944655d7c53eae32",
+#bind(
+#    name = "io_bazel_rules_scala_dependency_scalatest_scalatest",
+#    actual = "//3rdparty/jvm/org/scalatest:scalatest",
+#)
+
+scala_repositories(
+    scala_extra_jars = {
+        "2.12": {
+            "scalatest": {
+                "version": "3.1.1",
+                "sha256": "6412fde52c48ad1c97ff7e8f5b5f4f91b774158d82a80ed8250d2570cee0f83b",
+            },
+            "scalactic": {
+                "version": "3.1.1",
+                "sha256": "4fbdce1a3c06823bdb81408c57c85f2fe696a5e5af3bc828022016155c0c5bc4",
+            },
+            "scala_xml": {
+                "version": "1.0.5",
+                "sha256": "035015366f54f403d076d95f4529ce9eeaf544064dbc17c2d10e4f5908ef4256",
+            },
+            "scala_parser_combinators": {
+                "version": "1.0.4",
+                "sha256": "282c78d064d3e8f09b3663190d9494b85e0bb7d96b0da05994fe994384d96111",
+            },
+        },
     },
-))
+    scala_version_shas = (
+        "2.12.8",
+        {
+            "scala_compiler": "f34e9119f45abd41e85b9e121ba19dd9288b3b4af7f7047e86dc70236708d170",
+            "scala_library": "321fb55685635c931eba4bc0d7668349da3f2c09aee2de93a70566066ff25c28",
+            "scala_reflect": "4d6405395c4599ce04cea08ba082339e3e42135de9aae2923c9f5367e957315a",
+            "scalajs_compiler": "fc54c1a5f08598c3aef8b4dd13cf482323b56cb416547da9944655d7c53eae32",
+        },
+    ),
+)
 
 #register_toolchains("//:scala_toolchain")
 
@@ -825,21 +852,21 @@ container_pull(
 
 http_archive(
     name = "consul",
-    url = "https://releases.hashicorp.com/consul/1.7.2/consul_1.7.2_linux_amd64.zip",
+    build_file_content = "exports_files([\"consul\"])",
     sha256 = "5ab689cad175c08a226a5c41d16392bc7dd30ceaaf90788411542a756773e698",
-    build_file_content = "exports_files([\"consul\"])"
+    url = "https://releases.hashicorp.com/consul/1.7.2/consul_1.7.2_linux_amd64.zip",
 )
 
 http_archive(
     name = "nomad",
-    url = "https://releases.hashicorp.com/nomad/0.11.0/nomad_0.11.0_linux_amd64.zip",
+    build_file_content = "exports_files([\"nomad\"])",
     sha256 = "cd76c59af28757ee916811baf92c2ea8daa9125052f76ebb21daf5e10ef2db21",
-    build_file_content = "exports_files([\"nomad\"])"
+    url = "https://releases.hashicorp.com/nomad/0.11.0/nomad_0.11.0_linux_amd64.zip",
 )
 
 http_archive(
     name = "terraform",
-    url = "https://releases.hashicorp.com/terraform/0.12.24/terraform_0.12.24_linux_amd64.zip",
+    build_file_content = "exports_files([\"terraform\"])",
     sha256 = "602d2529aafdaa0f605c06adb7c72cfb585d8aa19b3f4d8d189b42589e27bf11",
-    build_file_content = "exports_files([\"terraform\"])"
+    url = "https://releases.hashicorp.com/terraform/0.12.24/terraform_0.12.24_linux_amd64.zip",
 )

@@ -83,7 +83,7 @@ scala_library(
         "//3rdparty/jvm/com/github/xuwei_k:optparse_applicative",
         "//3rdparty/jvm/com/lihaoyi:ammonite_ops",
         "//3rdparty/jvm/com/outr:scribe",
-        "//3rdparty/jvm/org/scala_lang/modules:scala_parser_combinators",
+        #        "//3rdparty/jvm/org/scala_lang/modules:scala_parser_combinators",
         "//shared/shared/shared/shared:shared-shared",
         "//utils/helm:helm-jvm",
         "//utils/helm/core/shared:helm-elemental",

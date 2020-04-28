@@ -61,6 +61,7 @@ scala_test(
         ":helm-http4s",
         "//3rdparty/jvm/com/dimafeng:testcontainers_scala",
         "//3rdparty/jvm/org/scalacheck",
+        "//3rdparty/jvm/org/scalatestplus:scalatestplus_scalacheck",
         "//3rdparty/jvm/org/slf4j:slf4j_simple",
     ],
 )

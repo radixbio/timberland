@@ -2,6 +2,7 @@ options:
   languages: ["scala:2.12.8", "java"]
   buildHeader:
     - load("@io_bazel_rules_scala//scala:scala_import.bzl", "scala_import")
+    - load("@io_bazel_rules_scala//scala:scala.bzl", "scala_library")
   strictVisibility: true
 #  transitivity: "runtime_deps"
   resolvers:
@@ -191,12 +192,16 @@ dependencies:
       modules: [avro-serializer]
   org.scalactic:
     scalactic:
-      version: 3.0.8
+      version: 3.1.1
       lang: scala
   org.scalatest:
     scalatest:
-      version: 3.0.8
+      version: 3.1.1
       lang: scala
+  org.scalatestplus:
+    scalatestplus-scalacheck:
+      lang: scala
+      version: "3.1.0.0-RC2"
   io.7mind.izumi:
     logstage:
       lang: scala
@@ -332,27 +337,27 @@ dependencies:
     lift-json:
       lang: scala
       version: 3.4.1
-#
-#replacements:
-#  org.scala-lang:
-#    scala-library:
-#      lang: scala/unmangled
-#      target: "@io_bazel_rules_scala_scala_library//:io_bazel_rules_scala_scala_library"
-#    scala-reflect:
-#      lang: scala/unmangled
-#      target: "@io_bazel_rules_scala_scala_reflect//:io_bazel_rules_scala_scala_reflect"
-#    scala-compiler:
-#      lang: scala/unmangled
-#      target: "@io_bazel_rules_scala_scala_compiler//:io_bazel_rules_scala_scala_compiler"
-#
-#  org.scala-lang.modules:
-#    scala-parser-combinators:
-#      lang: scala
-#      target:
-#        "@io_bazel_rules_scala_scala_parser_combinators//:io_bazel_rules_scala_scala_parser_combinators"
-#    scala-xml:
-#      lang: scala
-#      target:
-#        "@io_bazel_rules_scala_scala_xml//:io_bazel_rules_scala_scala_xml"
-#
-#
+
+replacements:
+  org.scala-lang:
+    scala-library:
+      lang: scala/unmangled
+      target: "@io_bazel_rules_scala_scala_library//:io_bazel_rules_scala_scala_library"
+    scala-reflect:
+      lang: scala/unmangled
+      target: "@io_bazel_rules_scala_scala_reflect//:io_bazel_rules_scala_scala_reflect"
+    scala-compiler:
+      lang: scala/unmangled
+      target: "@io_bazel_rules_scala_scala_compiler//:io_bazel_rules_scala_scala_compiler"
+
+  org.scala-lang.modules:
+    scala-parser-combinators:
+      lang: scala
+      target:
+        "@io_bazel_rules_scala_scala_parser_combinators//:io_bazel_rules_scala_scala_parser_combinators"
+    scala-xml:
+      lang: scala
+      target:
+        "@io_bazel_rules_scala_scala_xml//:io_bazel_rules_scala_scala_xml"
+
+
