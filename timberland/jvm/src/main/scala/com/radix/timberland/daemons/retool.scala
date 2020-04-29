@@ -84,6 +84,7 @@ case class Retool(dev: Boolean, quorumSize: Int) extends Job {
         val tags = List("retool", "retool-service")
         val port = "retool".some
         val checks = List(check)
+        override val address_mode = "host"
         object check extends Check {
           val `type` = "tcp"
           val port = "retool"
