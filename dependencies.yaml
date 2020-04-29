@@ -13,6 +13,14 @@ options:
       type: "default"
       url: https://packages.confluent.io/maven/
 dependencies:
+  io.minio:
+   minio:
+     version: 7.0.2
+     lang: java
+  software.amazon.awssdk:
+    auth:
+      version: 2.11.9
+      lang: java
   org.scala-graph:
     graph-core_2.12:
       version: 1.12.5
@@ -101,19 +109,22 @@ dependencies:
       lang: java
   com.typesafe.akka:
     akka:
-      modules: [actor, testkit, persistence, protobuf, slf4j, stream, stream-typed, distributed-data, remote, persistence-query, persistence-tck, cluster, cluster-typed, actor-typed, actor-testkit-typed]
+      modules: [actor, testkit, persistence, protobuf, slf4j, stream, stream-typed, distributed-data, remote, persistence-query, persistence-tck, cluster, cluster-typed, actor-typed, actor-testkit-typed, persistence-typed]
       lang: scala
-      version: 2.5.23
+      version: 2.5.26
     akka-stream-kafka:
       lang: scala
       version: 1.1.0
     akka-http:
       lang: scala
-      version: 10.1.10
+      version: 10.1.11
   com.lightbend.akka:
     akka-stream-alpakka-file:
       lang: scala
       version: 1.1.1
+    akka-stream-alpakka-s3:
+      lang: scala
+      version: "2.0.0-RC2"
   com.sksamuel.avro4s:
     avro4s:
       version: 3.0.4

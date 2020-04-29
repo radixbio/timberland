@@ -614,7 +614,7 @@ package object daemonutil {
 
         val coreStart = core match {
           case true => {
-            (minioStart, appriseStart, zkStart *> kafkaStart *> kcStart).parMapN((_, _, _) => CoreRunning)
+            (appriseStart, zkStart *> kafkaStart *> kcStart *> minioStart).parMapN((_, _) => CoreRunning)
           }
           case false => {
             (zk.checkDaemonState(true), kafka.checkDaemonState(true), kafkaCompanions.checkDaemonState(true))

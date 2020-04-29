@@ -93,7 +93,7 @@ case class Minio(dev: Boolean, quorumSize: Int, upstreamAccessKey: Option[String
       val env = Map("MINIO_ACCESS_KEY" -> access_key,
         "MINIO_SECRET_KEY" -> secret_key,
         "MINIO_NOTIFY_KAFKA_ENABLE" -> "true",
-        "MINIO_NOTIFY_KAFKA_BROKERS" -> "kafka-daemons-kafka-kafka.service.consul:9092",
+        "MINIO_NOTIFY_KAFKA_BROKERS" -> "kafka-daemons-kafka-kafka.service.consul:29092",
         "MINIO_NOTIFY_KAFKA_TOPIC" -> "bucketevents").some
 
       object config extends Config {
@@ -102,14 +102,14 @@ case class Minio(dev: Boolean, quorumSize: Int, upstreamAccessKey: Option[String
         val port_map = Map("minio" -> 9000)
         val volumes = List("/opt/radix/minio_data:/data").some
         val hostname = "${attr.unique.hostname}-em"
-        val entrypoint = List("minio").some
+        val entrypoint = List("minio", "--compat").some
         val args = List("server", "/data").some
       }
       object MinioLocalService extends Service {
         val tags = List("minio", "client")
         val port = "minio".some
         val checks = List(check)
-        override val address_mode = "host"
+//        override val address_mode = "host"
         object check extends Check {
           val `type` = "tcp"
           val port = "minio"
@@ -144,12 +144,13 @@ case class Minio(dev: Boolean, quorumSize: Int, upstreamAccessKey: Option[String
         val hostname = "${attr.unique.hostname}-em"
         val entrypoint = List("minio").some
         val args = List("gateway", "s3").some
+        override val dns_servers = Some(List("169.254.1.1", "8.8.8.8", "1.1.1.1"))
       }
       object MinioRemoteService extends Service {
         val tags = List("minio", "client")
         val port = "minio_remote".some
         val checks = List(check)
-        override val address_mode = "host"
+//        override val address_mode = "host"
         object check extends Check {
           val `type` = "tcp"
           val port = "minio_remote"
@@ -175,5 +176,5 @@ case class Minio(dev: Boolean, quorumSize: Int, upstreamAccessKey: Option[String
 
   }
 
-  def jobshim() = JobShim(name, Minio(dev, quorumSize, upstreamSecretKey, upstreamAccessKey).assemble)
+  def jobshim() = JobShim(name, Minio(dev, quorumSize, upstreamAccessKey, upstreamSecretKey).assemble)
 }
