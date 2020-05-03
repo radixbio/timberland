@@ -7,6 +7,8 @@ case class Apprise(dev: Boolean, quorumSize: Int) extends Job {
   val name = "apprise"
   val datacenters: List[String] = List("dc1")
 
+  //override val dns_servers: Option[List[String]] = Some(List("169.254.1.1"))
+
   object DaemonUpdate extends Update {
     val stagger = "10s"
     val max_parallel = 1
@@ -49,6 +51,7 @@ case class Apprise(dev: Boolean, quorumSize: Int) extends Job {
         val hostname = "${attr.unique.hostname}-em"
         val entrypoint = None
         val args = None
+        override def dns_servers: Option[List[String]] = Some(List("169.254.1.1", "1.1.1.1"))
       }
       object AppriseService extends Service {
         val tags = List("apprise", "listen")
