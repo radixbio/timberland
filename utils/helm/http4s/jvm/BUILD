@@ -24,7 +24,7 @@ scala_library(
         "//3rdparty/jvm/io/circe:circe_core",
         "//3rdparty/jvm/io/circe:circe_fs2",
         "//3rdparty/jvm/io/circe:circe_generic",
-        "//3rdparty/jvm/org/http4s:http4s_argonaut",
+        "//3rdparty/jvm/io/circe:circe_parser",
         "//3rdparty/jvm/org/http4s:http4s_blaze_client",
         "//3rdparty/jvm/org/http4s:http4s_circe",
         "//3rdparty/jvm/org/http4s:http4s_core",
@@ -41,7 +41,7 @@ scala_library(
         "//3rdparty/jvm/io/circe:circe_core",
         "//3rdparty/jvm/io/circe:circe_fs2",
         "//3rdparty/jvm/io/circe:circe_generic",
-        "//3rdparty/jvm/org/http4s:http4s_argonaut",
+        "//3rdparty/jvm/io/circe:circe_parser",
         "//3rdparty/jvm/org/http4s:http4s_blaze_client",
         "//3rdparty/jvm/org/http4s:http4s_circe",
         "//3rdparty/jvm/org/http4s:http4s_core",
@@ -50,6 +50,13 @@ scala_library(
         "//utils/helm/http4s/shared:helm-interfaces",
     ],
 )
+
+#scala_binary(
+#    name = "temp-test",
+#    srcs = "src/main/scala/com/radix/utils/helm/http4s/TempTests.scala",
+#    main_class = "com.radix.utils.helm.http4s.TempTests",
+#    deps = [":helm-http4s"],
+#)
 
 scala_test(
     name = "helm-test",

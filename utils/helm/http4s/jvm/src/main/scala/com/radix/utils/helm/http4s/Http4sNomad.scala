@@ -1,21 +1,30 @@
 package com.radix.utils.helm.http4s
 
-import argonaut._
-import Argonaut._
 import cats.effect.Effect
 import cats.implicits._
 import com.radix.utils.helm._
+import org.http4s.Method.POST
 //import journal.Logger
 import logstage._
-import org.http4s.Method.POST
 import org.http4s._
-import org.http4s.argonaut._
 import org.http4s.client._
 import org.http4s.client.dsl.Http4sClientDsl
 import org.http4s.headers._
+import org.http4s.circe._
 import com.radix.utils.helm.NomadHCL._
 import com.radix.utils.helm.NomadHCL.defs._
 import com.radix.utils.helm.NomadHCL.syntax._
+
+import scala.collection.Map
+import cats.effect.Sync
+import io.circe._
+import io.circe.syntax._
+import org.http4s.Method.POST
+import org.http4s.circe._
+import org.http4s.client.Client
+
+
+
 
 final class Http4sNomadClient[F[_]](
     val baseUri: Uri,
@@ -103,8 +112,8 @@ final class Http4sNomadClient[F[_]](
       _ <- F.delay(log.debug(s"parsing nomad HCL create job command ${job.name}"))
       // Convert the JobShim object to a string.
       hcl = implicitly[HCLAble[JobShim]].show(job)
-      body = Json("JobHCL" -> jString(hcl),
-        "Canonicalize" -> jBool(canonicalize))
+      body = Json.obj("JobHCL" -> hcl.asJson,
+        "Canonicalize" -> canonicalize.asJson)
       parseUri = baseUri / "v1" / "jobs" / "parse"
 
       req = POST(body, parseUri)

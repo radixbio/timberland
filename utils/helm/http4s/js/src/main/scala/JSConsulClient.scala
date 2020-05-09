@@ -3,7 +3,6 @@ package com.radix.utils.helm.js
 import java.nio.ByteBuffer
 import java.util.{Base64, UUID}
 
-//import org.scalajs.dom
 import cats.effect._
 import cats.Monad
 import cats.implicits._
@@ -17,9 +16,6 @@ import cats.data.NonEmptyList
 import monix.execution.Scheduler.Implicits.global
 
 import fr.hmil.roshttp.response.SimpleHttpResponse
-import argonaut._
-import Argonaut._
-//import std.tuple._
 
 import com.radix.utils.helm._
 

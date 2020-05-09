@@ -54,7 +54,7 @@ dependencies:
     http4s:
       lang: scala
       version: 0.21.2
-      modules: [blaze-client, argonaut, blaze-server, dsl, circe, core]
+      modules: [blaze-client, blaze-server, dsl, circe, core]
     parboiled:
       lang: scala
       version: 2.0.1
@@ -222,10 +222,6 @@ dependencies:
       lang: scala
       modules: [platform]
       version: 0.9.16
-  io.argonaut:
-    argonaut:
-      lang: scala
-      version: 6.2.2
   com.dimafeng:
     testcontainers:
       lang: scala

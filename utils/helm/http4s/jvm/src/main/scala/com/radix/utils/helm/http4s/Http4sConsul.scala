@@ -1,10 +1,6 @@
 package com.radix.utils.helm.http4s
 
 import java.util.UUID
-
-import argonaut.{EncodeJson, Json}
-import argonaut.Json.jEmptyObject
-import argonaut.StringWrap.StringToStringWrap
 import cats.data.NonEmptyList
 import cats.effect.Effect
 import cats.implicits._
@@ -14,11 +10,14 @@ import logstage._
 import org.http4s.Method.PUT
 import org.http4s.Status.Successful
 import org.http4s._
-import org.http4s.argonaut._
 import org.http4s.client._
 import org.http4s.client.dsl.Http4sClientDsl
 import org.http4s.headers._
 import org.http4s.syntax.string.http4sStringSyntax
+import io.circe._
+import io.circe.syntax._
+//import org.http4s.circe.CirceEntityDecoder._
+import org.http4s.circe._
 
 final class Http4sConsulClient[F[_]](val baseUri: Uri,
                                      val client: Client[F],
@@ -414,17 +413,25 @@ final class Http4sConsulClient[F[_]](val baseUri: Uri,
       check: Option[HealthCheckParameter],
       checks: Option[NonEmptyList[HealthCheckParameter]]
   ): F[Unit] = {
-    val json: Json =
-      ("Name" := service) ->:
-        ("ID" :=? id) ->?:
-        ("Tags" :=? tags.map(_.toList)) ->?:
-        ("Address" :=? address) ->?:
-        ("Port" :=? port) ->?:
-        ("EnableTagOverride" :=? enableTagOverride) ->?:
-        ("Check" :=? check) ->?:
-        ("Checks" :=? checks.map(_.toList)) ->?:
-        jEmptyObject
-
+//    val json: Json =
+//      ("Name" := service) ->:
+//        ("ID" :=? id) ->?:
+//        ("Tags" :=? tags.map(_.toList)) ->?:
+//        ("Address" :=? address) ->?:
+//        ("Port" :=? port) ->?:
+//        ("EnableTagOverride" :=? enableTagOverride) ->?:
+//        ("Check" :=? check) ->?:
+//        ("Checks" :=? checks.map(_.toList)) ->?:
+//        jEmptyObject
+      val json: Json = Json.obj(("Name", service.asJson),
+                                ("ID", id.asJson),
+                                ("Tags", tags.map(_.toList).asJson),
+                                ("Address", address.asJson),
+                                ("Port", port.asJson),
+                                ("EnableTagOverride", enableTagOverride.asJson),
+                                ("Check", check.asJson),
+                                ("Checks", checks.map(_.toList).asJson)
+                              ).dropNullValues
     for {
       _ <- F.delay(log.debug(s"registering $service with json: ${json.toString}"))
       req <- PUT(json.toString, baseUri / "v1" / "agent" / "service" / "register")
@@ -470,8 +477,11 @@ final class Http4sConsulClient[F[_]](val baseUri: Uri,
   import java.util.UUID
 
   import scala.concurrent.duration._
-  implicit val finiteDurationEncoder: EncodeJson[Duration] = EncodeJson(
-    duration => Json.jString(duration.toSeconds.toString + "s"))
+//  implicit val finiteDurationEncoder: EncodeJson[Duration] = EncodeJson(
+//    duration => Json.jString(duration.toSeconds.toString + "s"))
+  implicit val finiteDurationEncoder: Encoder[Duration] = new Encoder[Duration] {
+  final def apply(duration: Duration): Json = {(duration.toSeconds.toString + "s").asJson}
+}
   def sessionCreate(name: String,
                     dc: Option[String],
                     lockdelay: Option[Duration],
@@ -482,15 +492,21 @@ final class Http4sConsulClient[F[_]](val baseUri: Uri,
       _ <- F.delay(log.debug(s"PUTting $name in /session/create"))
       req <- PUT(
         {
-          val json: Json =
-            ("Name" := name) ->:
-              ("dc" :=? dc) ->?:
-              ("LockDelay" :=? lockdelay) ->?:
-              ("Node" :=? node) ->?:
-              ("Behavior" :=? behavior) ->?:
-              ("Checks" :=? checks.map(_.toList)) ->?:
-              jEmptyObject
-          json.toString
+//          val json: Json =
+//            ("Name" := name) ->:
+//              ("dc" :=? dc) ->?:
+//              ("LockDelay" :=? lockdelay) ->?:
+//              ("Node" :=? node) ->?:
+//              ("Behavior" :=? behavior) ->?:
+//              ("Checks" :=? checks.map(_.toList)) ->?:
+//              jEmptyObject
+          val json = Json.obj(("Name", name.asJson),
+                              ("dc", dc.asJson),
+                              ("LockDelay", lockdelay.asJson),
+                              ("Node", node.asJson),
+                              ("Behavior", behavior.asJson),
+                              ("Checks", checks.map(_.toList).asJson))
+          json.dropNullValues.toString
         },
         uri = baseUri / "v1" / "session" / "create"
       ).map(addConsulToken _).map(addCreds _)
@@ -508,19 +524,15 @@ final class Http4sConsulClient[F[_]](val baseUri: Uri,
     for {
       _ <- F.delay(log.debug(s"PUTting $name in /session/create"))
       req <- PUT(
-        {
-          val json: Json =
-            ("Name" := name) ->:
-              ("dc" :=? dc) ->?:
-              ("LockDelay" :=? lockdelay) ->?:
-              ("Node" :=? node) ->?:
-              ("Behavior" :=? behavior) ->?:
-              ("Checks" :=? checks.map(_.toList)) ->?:
-              jEmptyObject
-          json.toString
-        },
-        uri = baseUri / "v1" / "session" / "create"
-      ).map(addConsulToken).map(addCreds)
+        Json.obj(("Name", name.asJson),
+                              ("dc", dc.asJson),
+                              ("LockDelay", lockdelay.asJson),
+                              ("Node", node.asJson),
+                              ("Behavior", behavior.asJson),
+                              ("Checks", checks.map(_.toList).asJson)
+                      ).dropNullValues.toString,
+        baseUri / "v1" / "session" / "create"
+      ).map(addConsulToken _).map(addCreds _)
       resp <- client.expectOr[SessionRegisterResult](req)(handleConsulErrorResponse)
     } yield {
       log.debug(s"setting consul service $name results in $resp")
