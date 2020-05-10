@@ -246,11 +246,6 @@ dependencies:
       lang: scala
       version: 0.9.10
       modules: [cats, "", scalacheck, shapeless]
-  com.pepegar:
-    hammock:
-      version: 0.10.0
-      lang: scala
-      modules: [core, akka-http, circe, apache-http]
   io.getquill:
     quill:
       lang: scala
