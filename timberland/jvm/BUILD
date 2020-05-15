@@ -7,6 +7,7 @@ load(
     "scala_test",
 )
 load("@rules_pkg//:pkg.bzl", "pkg_deb", "pkg_tar")
+load("@rules_pkg//:rpm.bzl", "pkg_rpm")
 load("@io_bazel_rules_docker//docker/util:run.bzl", "container_run_and_commit", "container_run_and_extract")
 load("@io_bazel_rules_docker//container:container.bzl", "container_image", "container_layer", "container_load", "container_push")
 
@@ -276,6 +277,16 @@ pkg_deb(
     package = "radix-timberland",
     postinst = "//timberland/assets:debian/postinst.sh",
     version = "0.1",
+)
+
+
+pkg_rpm(
+   name = "timberland-rpm",
+   data = [":timberland-full-tar"],
+   architecture = "amd64",
+   spec_file = "//timberland/assets:redhat/rpm.spec",
+   version = "0.1",
+   release = "1",
 )
 
 sh_binary(

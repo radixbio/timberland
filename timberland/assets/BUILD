@@ -11,6 +11,7 @@ exports_files([
     "networkd/10-radix-nomad",
     "nginx/nginx-minios.conf",
     "nginx/nginx-noupstream.conf",
+    "redhat/rpm.spec",
     "systemd/consul.env.conf",
     "systemd/consul.service",
     "systemd/dummy0.network",
