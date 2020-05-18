@@ -7,9 +7,10 @@ load(
     "scala_test",
 )
 load("@rules_pkg//:pkg.bzl", "pkg_deb", "pkg_tar")
-load("@rules_pkg//:rpm.bzl", "pkg_rpm")
 load("@io_bazel_rules_docker//docker/util:run.bzl", "container_run_and_commit", "container_run_and_extract")
 load("@io_bazel_rules_docker//container:container.bzl", "container_image", "container_layer", "container_load", "container_push")
+
+load("//:tools/pkg_rpm_with_branch.bzl", "pkg_rpm_with_branch")
 
 package(
     default_visibility = ["//timberland:__subpackages__"],
@@ -280,12 +281,11 @@ pkg_deb(
 )
 
 
-pkg_rpm(
+pkg_rpm_with_branch(
    name = "timberland-rpm",
    data = [":timberland-full-tar"],
    architecture = "amd64",
    spec_file = "//timberland/assets:redhat/rpm.spec",
-   version = "0.1",
    release = "1",
 )
 
