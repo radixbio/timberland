@@ -9,7 +9,6 @@ load(
 load("@rules_pkg//:pkg.bzl", "pkg_deb", "pkg_tar")
 load("@io_bazel_rules_docker//docker/util:run.bzl", "container_run_and_commit", "container_run_and_extract")
 load("@io_bazel_rules_docker//container:container.bzl", "container_image", "container_layer", "container_load", "container_push")
-
 load("//:tools/pkg_rpm_with_branch.bzl", "pkg_rpm_with_branch")
 
 package(
@@ -248,9 +247,22 @@ pkg_tar(
 )
 
 pkg_tar(
+    name = "timberland-devdrivers",
+    srcs = [
+        "//device_drivers/hw_discovery/jvm:hw-discovery-bin_deploy.jar",
+        "//device_drivers/ln2/jvm:ln2-bin_deploy.jar",
+        "//device_drivers/opentrons/jvm:opentrons-bin_deploy.jar",
+        "//device_drivers/tf-exactive/jvm:tfexactive-bin",
+        "//device_drivers/tf-exactive/jvm:tfexactive-bin.jar",
+    ],
+    package_dir = "/opt/radix/device_drivers/",
+)
+
+pkg_tar(
     name = "timberland-full-tar",
     deps = [
         ":timberland-consul",
+        ":timberland-devdrivers",
         ":timberland-exec",
         ":timberland-networkd",
         ":timberland-nginx",
@@ -280,13 +292,12 @@ pkg_deb(
     version = "0.1",
 )
 
-
 pkg_rpm_with_branch(
-   name = "timberland-rpm",
-   data = [":timberland-full-tar"],
-   architecture = "amd64",
-   spec_file = "//timberland/assets:redhat/rpm.spec",
-   release = "1",
+    name = "timberland-rpm",
+    architecture = "amd64",
+    data = [":timberland-full-tar"],
+    release = "1",
+    spec_file = "//timberland/assets:redhat/rpm.spec",
 )
 
 sh_binary(
