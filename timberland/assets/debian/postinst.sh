@@ -7,7 +7,7 @@ sysctl -w vm.max_map_count=262144
 
 yes | docker plugin install weaveworks/net-plugin:2.6.0
 docker plugin disable weaveworks/net-plugin:2.6.0
-docker plugin set weaveworks/net-plugin:2.6.0 IPALLOC_RANGE=10.48.0.0/12
+docker plugin set weaveworks/net-plugin:2.6.0 IPALLOC_RANGE=10.32.0.0/12
 docker plugin enable weaveworks/net-plugin:2.6.0
 
 # WARNING: This following actions are not idempotent!

@@ -218,7 +218,7 @@ object Run {
 
     override def startWeave(hosts: List[String]): F[Unit] = F.delay {
       os.proc("/usr/bin/docker", "plugin", "disable", "weaveworks/net-plugin:latest_release").call(check = false, cwd = os.pwd, stdout = os.Inherit, stderr = os.Inherit)
-      os.proc("/usr/bin/docker", "plugin", "set", "weaveworks/net-plugin:latest_release", "IPALLOC_RANGE=10.48.0.0/12").call(check = false, stdout = os.Inherit, stderr = os.Inherit)
+      os.proc("/usr/bin/docker", "plugin", "set", "weaveworks/net-plugin:latest_release", "IPALLOC_RANGE=10.32.0.0/12").call(check = false, stdout = os.Inherit, stderr = os.Inherit)
       os.proc("/usr/bin/docker", "plugin", "enable", "weaveworks/net-plugin:latest_release").call(stdout = os.Inherit, stderr = os.Inherit)
       //      os.proc(s"/usr/local/bin/weave", "launch", hosts.mkString(" "), "--ipalloc-range", "10.48.0.0/12")
       //        .call(cwd = pwd, check = false, stdout = os.Inherit, stderr = os.Inherit)
