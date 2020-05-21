@@ -1,0 +1,103 @@
+job "kafka-daemons" {
+  all_at_once = false
+
+  constraint {
+    attribute = "$${attr.kernel.name}"
+    operator = "="
+    value = "linux"
+  }
+
+  datacenters = ["dc1"]
+
+  group "kafka" {
+
+    constraint {
+      operator = "distinct_hosts"
+      value = "true"
+    }
+
+    count = ${ quorum_size }
+
+    task "kafka" {
+
+      config {
+        image = "confluentinc/cp-kafka:5.3.1"
+        args = ["/timberland/exec/timberland-launcher_deploy.jar","launch","kafka" ${dev ? ", \"--dev\"" : ""}]
+        auth_soft_fail = false
+        command = "-jar"
+        dns_servers = ["169.254.1.1"]
+        entrypoint = ["java"]
+        hostname = "$${attr.unique.hostname}-kafka"
+        privileged = false
+        network_mode = "weave"
+        port_map = {"kafka" = 9092}
+        volumes = ["/opt/radix/timberland:/timberland"]
+        cap_add = []
+      }
+
+      driver = "docker"
+      env = {
+        "KAFKA_LISTENERS" = "INSIDE://0.0.0.0:29092,OUTSIDE://0.0.0.0:$${NOMAD_PORT_kafka}",
+        "KAFKA_LISTENER_SECURITY_PROTOCOL_MAP" = "INSIDE:PLAINTEXT,OUTSIDE:PLAINTEXT",
+        "KAFKA_BROKER_ID" = "$${NOMAD_ALLOC_INDEX}",
+        "TOPIC_AUTO_CREATE" = "true",
+        "KAFKA_INTER_BROKER_LISTENER_NAME" = "INSIDE",
+        ${ dev ? "\"KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR\" = \"1\"" : "" }
+      }
+      kill_timeout = "5s"
+      kill_signal = "SIGINT"
+      leader = false
+
+      resources {
+        cpu = 1000
+        memory = 2048
+
+        network {
+          mbits = 10
+
+          port "kafka" {
+            static = 9092
+          }
+        }
+      }
+
+      service {
+        port = "kafka"
+        tags = ["kafka-quorum","kafka-plaintext"]
+        address_mode = "auto"
+
+        check {
+          address_mode = "${ test ? "driver" : "host" }"
+          grpc_use_tls = true
+          initial_status = "critical"
+          interval = "10s"
+          method = "GET"
+          port = "kafka"
+          protocol = "http"
+          timeout = "2s"
+          type = "tcp"
+          tls_skip_verify = false
+        }
+      }
+
+      shutdown_delay = "0s"
+    }
+  }
+
+  namespace = "default"
+  priority = 50
+  region = "global"
+  type = "service"
+
+  update {
+    max_parallel = 1
+    health_check = "checks"
+    min_healthy_time = "10s"
+    healthy_deadline = "5m"
+    progress_deadline = "10m"
+    auto_revert = false
+    canary = 0
+    stagger = "10s"
+  }
+
+}

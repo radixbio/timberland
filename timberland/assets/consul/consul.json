@@ -9,10 +9,15 @@
   "bootstrap_expect": 3,
   "addresses": {
     "http": "0.0.0.0",
-    "dns": "169.254.1.1"
+    "dns": "169.254.1.1",
+    "grpc": "0.0.0.0"
+  },
+  "connect": {
+    "enabled": true
   },
   "ports": {
-    "dns": 53
+    "dns": 53,
+    "grpc": 8502
   },
   "recursors": ["127.0.0.53"]
 }

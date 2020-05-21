@@ -194,7 +194,7 @@ class VaultStarter {
     BlazeClientBuilder[IO](global).resource.use(implicit client => {
       scribe.trace("Checking Vault Status...")
 
-      scribe.error(s"VAULT BASE URL: $baseUrl")
+      scribe.info(s"VAULT BASE URL: $baseUrl")
 
       implicit val vaultSession: VaultSession[IO] =
         new VaultSession[IO](baseUrl = baseUrl, blazeClient = client, authToken = None)

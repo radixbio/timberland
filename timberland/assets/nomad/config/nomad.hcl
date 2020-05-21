@@ -6,11 +6,11 @@ server {
 }
 
 client {
-  enabled       = true
-  network_speed = 1000
+  enabled         = true
+  network_speed   = 1000
   options {
-      docker.privileged.enabled = "true"
-    }
+    docker.privileged.enabled = "true"
+  }
 }
 
 plugin "raw_exec" {
@@ -20,7 +20,6 @@ plugin "raw_exec" {
 }
 
 plugin "docker" {
-
   config {
     allow_privileged = true
     allow_caps = ["ALL"]

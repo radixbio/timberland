@@ -1,0 +1,97 @@
+job "elemental-machines" {
+  all_at_once = false
+
+  constraint {
+    attribute = "$${attr.kernel.name}"
+    operator = "="
+    value = "linux"
+  }
+
+  datacenters = ["dc1"]
+
+  group "em" {
+
+    constraint {
+      operator = "distinct_hosts"
+      value = "true"
+    }
+
+    count = ${ quorum_size }
+
+    task "em" {
+
+      config {
+        image = "registry.gitlab.com/radix-labs/monorepo/elemental-machines-sensors:latest"
+        auth_soft_fail = false
+        dns_servers = ["169.254.1.1"]
+        hostname = "$${attr.unique.hostname}-em"
+        privileged = false
+        network_mode = "weave"
+        port_map = {"akka_port" = 64501}
+        volumes = ["/opt/radix/timberland/nomad/elemental:/opt/conf"]
+        cap_add = []
+      }
+
+      driver = "docker"
+      env = {
+        "VAULT_TOKEN" = "${token}",
+        "TCP_AKKA_PORT" = "64501",
+        "KAFKA_BOOTSTRAP_SERVERS" = "OUTSIDE://kafka-daemons-kafka-kafka.service.consul:9092",
+        "AVRO_SCHEMA_REGISTRY_URL" = "http://kafka-companion-daemons-kafkacompanions-schemaregistry.service.consul:8081"
+      }
+      kill_timeout = "5s"
+      kill_signal = "SIGINT"
+      leader = false
+
+      resources {
+        cpu = 1000
+        memory = 1000
+
+        network {
+          mbits = 10
+
+          port "akka_port" {
+            static = 64501
+          }
+        }
+      }
+
+      service {
+        port = "akka_port"
+        tags = ["em","akka-port"]
+        address_mode = "auto"
+
+        check {
+          address_mode = "${ test ? "driver" : "host" }"
+          grpc_use_tls = true
+          initial_status = "critical"
+          interval = "10s"
+          method = "GET"
+          port = "akka_port"
+          protocol = "http"
+          timeout = "2s"
+          type = "tcp"
+          tls_skip_verify = false
+        }
+      }
+
+      shutdown_delay = "0s"
+    }
+  }
+
+  namespace = "default"
+  priority = 50
+  region = "global"
+  type = "service"
+
+  update {
+    max_parallel = 1
+    health_check = "checks"
+    min_healthy_time = "10s"
+    healthy_deadline = "5m"
+    progress_deadline = "10m"
+    auto_revert = false
+    canary = 0
+    stagger = "10s"
+  }
+}

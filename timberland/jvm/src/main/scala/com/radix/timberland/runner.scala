@@ -1,34 +1,22 @@
 package com.radix.timberland
 
-
-import cats._
-import cats.data._
-import cats.effect.{Clock, ContextShift, Effect, ExitCase, IO, Timer}
-import cats.implicits._
 import io.circe.{Parser => _, _}
-import io.circe.generic.auto._
-//import io.circe.parser._
 import matryoshka.data.Fix
 
 import java.io.File
-import scala.io.StdIn.{readLine}
+import scala.io.StdIn.readLine
 
-
+import scala.concurrent.duration._
 import ammonite.ops._
-import cats.effect.{ContextShift, IO}
+import cats.effect.IO
 import cats.implicits._
 import com.radix.timberland.launch.daemonutil
-import com.radix.timberland.runtime.{Installer, Mock, Run}
-import com.radix.timberland.util.Util
+import com.radix.timberland.runtime.{Mock, Run}
 import io.circe.{Parser => _}
 import optparse_applicative._
 import optparse_applicative.types.Parser
 import scalaz.syntax.apply._
 import util.Util
-
-import sun.misc.{Signal, SignalHandler}
-
-import scala.concurrent.ExecutionContext.Implicits.global
 
 /**
  * radix|- dev|- ci|
@@ -549,10 +537,15 @@ object runner {
                     } else prog
                     scribe.info("Launching daemons")
                     scribe.info(s"***********DAEMON SIZE${bootstrapExpect}***************")
-                    Right(
 
-                      println((res *> daemonutil.waitForQuorum(bootstrapExpect, dev, startCore, startYugabyte, startVault, startEs, startRetool, startElemental, servicePort, registryListenerPort, username, password, upstreamAccessKey, upstreamSecretKey)).unsafeRunSync)
-                    )
+                    val waitForNomadAndApplyTerraformAndUnsealVault =
+                      res *>
+                        daemonutil.waitForDNS("nomad.service.consul", 2.minutes) *>
+                        daemonutil.runTerraform(integrationTest = false, dev = dev, core = startCore, yugabyteStart = startYugabyte, vaultStart = startVault, esStart = startEs, retoolStart = startRetool, elementalStart = startElemental, upstreamAccessKey, upstreamSecretKey) *>
+                        daemonutil.waitForQuorum(core = startCore, yugabyteStart = startYugabyte, vaultStart = startVault, esStart = startEs, retoolStart = startRetool, elementalStart = startElemental) *>
+                        daemonutil.unsealVault(dev = dev)
+
+                    waitForNomadAndApplyTerraformAndUnsealVault.unsafeRunSync
                     sys.exit(0)
                   }
                 }

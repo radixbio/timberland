@@ -46,15 +46,35 @@ abstract class TimberlandIntegration
     .map(new Http4sNomadClient[IO](baseUri = Uri.unsafeFromString("http://nomad.service.consul:4646"), _))
   override val container = new DockerComposeContainer(
     new File("timberland/jvm/src/test/integration/resources/docker-compose.yml"))
+
+
+  override def beforeAll(): Unit = {
+    super.beforeAll()
+    //NOTE: change this None to Some(scribe.LogLevel.Debug) if you want more info as to why your test is failing
+    scribe.Logger.root.clearHandlers().clearModifiers().withHandler(minimumLevel = None).replace()
+    // Make sure Consul and Nomad are up
+    val res = daemonutil.waitForDNS("consul.service.consul", 1.minutes) *>
+      daemonutil.waitForDNS("_nomad._http.service.consul", 1.minutes) *>
+      daemonutil.runTerraform(integrationTest = true, dev = dev, core = core, yugabyteStart = yugabyte, vaultStart = vault, esStart = elk, retoolStart = retool, elementalStart = elemental, None, None) *>
+      daemonutil.waitForQuorum(core, yugabyte, vault, elk, retool, elemental)
+    res.unsafeRunSync()
+  }
+
   override def afterAll(): Unit = {
-    try { super.afterAll() } catch { case ex: ConcurrentModificationException => () } finally {
+    try {
+      super.afterAll()
+    } catch {
+      case ex: ConcurrentModificationException => ()
+    } finally {
       val prog = NomadOp.nomadListJobs().map(_.map(_.name).map(NomadOp.nomadStopJob(_, true)))
 
-      def recur(f: NomadOp ~> IO): IO[Unit] =
+      def recur(f: NomadOp ~> IO): IO[Unit] = {
         for {
           left <- prog.foldMap(f).map(_.map(_.foldMap(f)).parSequence).flatten.map(_.toSet)
+          _ = println(left)
           res <- if (left.isEmpty) IO.unit else IO.sleep(1.second) *> recur(f)
         } yield res
+      }
 
       nomadR.use(recur).unsafeRunSync()
     }
@@ -64,8 +84,10 @@ abstract class TimberlandIntegration
     .map(new Http4sConsulClient[IO](baseUri = Uri.unsafeFromString("http://consul.service.consul:8500"), _))
 
   /**
-    * Checks if the service is regitered in consul, so that we can use its DNS resolution to find the service.
-**/
+   * Checks if the service is registered in consul, so that we can use its DNS resolution to find the service.
+   * @param svcname The name of the service
+   * @return Whether the service exists and has passing health checks
+   */
   def check(svcname: String): Boolean = {
     consulR
       .use(
@@ -75,22 +97,12 @@ abstract class TimberlandIntegration
             .foldMap(f)
             .map(_.value.map(_.status match {
               case HealthStatus.Passing => true
-              case _                    => false
+              case x                    => {println("status is " + x); false}
             }) match {
               case Nil         => false
               case head :: Nil => head
               case head :: tl  => head && tl.reduce(_ && _)
             }))
-      .unsafeRunSync()
-  }
-
-  override def beforeAll(): Unit = {
-    super.beforeAll()
-    //NOTE: change this None to Some(scribe.LogLevel.Debug) if you want more info as to why your test is failing
-    scribe.Logger.root.clearHandlers().clearModifiers().withHandler(minimumLevel = None).replace()
-    System.setProperty("test", "true")
-    daemonutil
-      .waitForQuorum(quorumsize, dev, core, yugabyte, vault, elk, retool, elemental, 9092, 8001, None, None, None, None)
       .unsafeRunSync()
   }
 

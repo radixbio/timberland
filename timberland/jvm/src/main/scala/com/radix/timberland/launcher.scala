@@ -17,15 +17,15 @@ import sun.misc.{Signal, SignalHandler}
 import scala.concurrent.ExecutionContext.Implicits.global
 
 /**
-  * radix|- runtime|
-  *                |- launch|
-  *                         |- zookeeper <tname...> [dev]
-  *                         |- kafka <tname...> [dev]
-  *
-  *
-  *
-  *
-  */
+ * radix|- runtime|
+ *                |- launch|
+ *                         |- zookeeper <tname...> [dev]
+ *                         |- kafka <tname...> [dev]
+ *
+ *
+ *
+ *
+ */
 sealed trait LauncherCMD
 sealed trait LaunchMe extends LauncherCMD
 
@@ -84,8 +84,8 @@ object launcher {
 
   val opts =
     info(res <*> helper,
-         progDesc("Print a greeting for TARGET"),
-         header("hello - a test for scala-optparse-applicative"))
+      progDesc("Print a greeting for TARGET"),
+      header("hello - a test for scala-optparse-applicative"))
 
   var sudopw: Option[String] = None
   def checkSudo: Option[String] = {
@@ -110,8 +110,8 @@ object launcher {
     }
     val arch = System.getProperty("os.arch") match {
       case x86
-          if x86.toLowerCase.contains("amd64") || x86.toLowerCase.contains(
-            "x86") =>
+        if x86.toLowerCase.contains("amd64") || x86.toLowerCase.contains(
+          "x86") =>
         "amd64"
       case _ => "arm"
     }
@@ -137,16 +137,12 @@ object launcher {
                   val copier = new Installer.MoveFromJVMResources[IO]
 
                   val prog = for {
-                    _ <- IO(scribe.debug("starting file copy..."))
-                    _ <- copier.fncopy(os.Path("/nomad/config/zookeeper/config"),
-                                       os.Path("/conf"))
-                    _ <- IO(scribe.debug("finished file copy"))
                     _ <- IO(scribe.debug("starting zookeeper..."))
                     zk <- launch.zookeeper
                       .startZookeeper(os.Path("/local/conf/zoo_servers"),
-                                      os.Path("/conf/zoo.cfg"),
-                                      os.Path("/conf/zoo_replicated.cfg.dynamic"),
-                                      minQuorumSize)
+                        os.Path("/conf/zoo.cfg"),
+                        os.Path("/conf/zoo_replicated.cfg.dynamic"),
+                        minQuorumSize)
                       .run(launch.zookeeper.NoMinQuorum)
                     _ <- IO(scribe.debug("zookeeper started!"))
                     _ <- IO.never

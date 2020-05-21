@@ -626,3 +626,36 @@ utils/prism-uservice/journal/*
 # Bazel
 .ijwb/
 3rdparty/
+
+# Helm
+release-notes
+logs
+*.db
+project/project
+project/target
+target
+lib_managed
+src_managed
+project/boot
+tmp
+dist
+.DS_Store
+.settings
+.classpath
+.class
+.project
+.ivy2
+.lib
+.idea
+*.swp
+sbt
+*~
+tags
+_site
+*.local.yml
+Gemfile.lock
+deploy_rsa
+deploy_rsa.pub
+
+# Terraform
+**/.terraform/*

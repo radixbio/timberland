@@ -1,0 +1,226 @@
+job "retool" {
+  all_at_once = false
+
+  constraint {
+    attribute = "$${attr.kernel.name}"
+    operator = "="
+    value = "linux"
+  }
+
+  datacenters = ["dc1"]
+
+  group "retool" {
+
+    constraint {
+      operator = "distinct_hosts"
+      value = "true"
+    }
+
+    count = 1
+
+    task "postgres" {
+
+      config {
+        image = "postgres:9.6.5"
+        args = []
+        auth_soft_fail = false
+        command = "postgres"
+        dns_servers = ["169.254.1.1"]
+        hostname = "postgres-$${NOMAD_ALLOC_INDEX+1}"
+        privileged = false
+        network_mode = "weave"
+        port_map = {"postgresdb" = 5432}
+        volumes = ["data:/var/lib/postgresql/data"]
+        cap_add = []
+      }
+
+      driver = "docker"
+      env = {
+        "POSTGRES_USER" = "retool_internal_user",
+        "POSTGRES_DB" = "retool",
+        "POSTGRES_PASSWORD" = "retool",
+        "POSTGRES_HOST" = "0.0.0.0",
+        "POSTGRES_PORT" = "5432"
+      }
+      kill_timeout = "5s"
+      kill_signal = "SIGINT"
+      leader = false
+
+      resources {
+        cpu = 250
+        memory = 1000
+
+        network {
+          mbits = 10
+
+          port "postgresdb" {
+            static = 5432
+          }
+        }
+      }
+
+      service {
+        port = "postgresdb"
+        tags = ["retool","postgres"]
+        address_mode = "auto"
+
+        check {
+          address_mode = "${ test ? "driver" : "host" }"
+          grpc_use_tls = true
+          initial_status = "critical"
+          interval = "10s"
+          method = "GET"
+          port = "postgresdb"
+          protocol = "http"
+          timeout = "2s"
+          type = "tcp"
+          tls_skip_verify = false
+        }
+      }
+
+      shutdown_delay = "0s"
+    }
+
+
+    task "retool-main" {
+
+      config {
+        image = "tryretool/backend:latest"
+        args = ["-c","./docker_scripts/wait-for-it.sh retool-retool-postgres.service.consul:5432; ./docker_scripts/start_api.sh"]
+        auth_soft_fail = false
+        command = "bash"
+        dns_servers = ["169.254.1.1","8.8.8.8"]
+        hostname = "retool-$${NOMAD_ALLOC_INDEX+1}"
+        privileged = false
+        network_mode = "weave"
+        port_map = {"retool" = 3000}
+        volumes = []
+        cap_add = []
+      }
+
+      driver = "docker"
+      env = {
+        "POSTGRES_USER" = "retool_internal_user",
+        "POSTGRES_DB" = "retool",
+        "POSTGRES_PASSWORD" = "retool",
+        "NODE_ENV" = "production",
+        "COOKIE_INSECURE" = "true",
+        "ENCRYPTION_KEY" = "0#V9=oZ<q?f*jZFJNmq779u-mCttbLb",
+        "RT_POSTGRES_PORT" = "5432",
+        "RT_POSTGRES_PASSWORD" = "retool",
+        "RT_POSTGRES_USER" = "retool_internal_user",
+        "LICENSE_KEY" = "6b3b3a6b-78a8-4805-bef4-07bedb0cfd08",
+        "POSTGRES_HOST" = "retool-retool-postgres.service.consul",
+        "RT_POSTGRES_HOST" = "retool-retool-postgres.service.consul",
+        "JWT_SECRET" = ",IkZ`r;ti$z0V8'CRt$%Ur!zq_Cw0}t8",
+        "POSTGRES_PORT" = "5432",
+        "RT_POSTGRES_DB" = "retool"
+      }
+      kill_timeout = "5s"
+      kill_signal = "SIGINT"
+      leader = false
+
+      resources {
+        cpu = 1000
+        memory = 3000
+
+        network {
+          mbits = 10
+
+          port "retool" {
+            static = 3000
+          }
+        }
+      }
+
+      service {
+        port = "retool"
+        tags = ["retool","retool-service"]
+        address_mode = "auto"
+
+        check {
+          address_mode = "${ test ? "driver" : "host" }"
+          grpc_use_tls = true
+          initial_status = "critical"
+          interval = "10s"
+          method = "GET"
+          port = "retool"
+          protocol = "http"
+          timeout = "2s"
+          type = "tcp"
+          tls_skip_verify = false
+        }
+      }
+
+      shutdown_delay = "0s"
+    }
+
+    task "retool-nginx" {
+
+      config {
+        image = "nginx:latest"
+        auth_soft_fail = false
+        dns_servers = ["169.254.1.1"]
+        hostname = "retool-$${NOMAD_ALLOC_INDEX+1}"
+        privileged = false
+        network_mode = "weave"
+        port_map = {"nginx" = 3000}
+        volumes = ["/opt/radix/timberland/nginx/nginx-retool.conf:/etc/nginx/nginx.conf"]
+        cap_add = []
+      }
+
+      driver = "docker"
+      kill_timeout = "5s"
+      kill_signal = "SIGINT"
+      leader = false
+
+      resources {
+        cpu = 1000
+        memory = 300
+        network {
+          mbits = 10
+          port "nginx" {
+            static = 1329
+          }
+        }
+      }
+
+      service {
+        port = "nginx"
+        tags = ["retool-nginx"]
+        address_mode = "host"
+
+        check {
+          address_mode = "${ test ? "driver" : "host" }"
+          grpc_use_tls = true
+          initial_status = "critical"
+          interval = "10s"
+          method = "GET"
+          port = "nginx"
+          protocol = "http"
+          timeout = "2s"
+          type = "tcp"
+          tls_skip_verify = false
+        }
+      }
+
+      shutdown_delay = "0s"
+    }
+  }
+
+  namespace = "default"
+  priority = 50
+  region = "global"
+  type = "service"
+
+  update {
+    max_parallel = 1
+    health_check = "checks"
+    min_healthy_time = "10s"
+    healthy_deadline = "5m"
+    progress_deadline = "10m"
+    auto_revert = false
+    canary = 0
+    stagger = "10s"
+  }
+}

@@ -1,0 +1,171 @@
+job "zookeeper-daemons" {
+  all_at_once = false
+
+  constraint {
+    attribute = "$${attr.kernel.name}"
+    operator = "="
+    value = "linux"
+  }
+
+  datacenters = ["dc1"]
+
+  group "zookeeper" {
+
+    constraint {
+      operator = "distinct_hosts"
+      value = "true"
+    }
+
+    count = ${ quorum_size }
+
+    task "zookeeper" {
+
+      config {
+        image = "zookeeper:3.4"
+        auth_soft_fail = false
+        dns_servers = ["169.254.1.1"]
+        hostname = "$${attr.unique.hostname}-zookeeper"
+        privileged = false
+        network_mode = "weave"
+        port_map = {
+          "client" = 2181,
+          "follower" = 2888,
+          "othersrvs" = 3888
+        }
+        volumes = ["/opt/radix/timberland:/timberland"]
+        cap_add = []
+      }
+
+      template {
+        change_mode = "noop"
+        destination = "data/myid"
+        env = false
+        left_delimiter = "{{"
+        perms = "644"
+        right_delimiter = "}}"
+        data = "$${NOMAD_ALLOC_ID}"
+        splay = "5s"
+        vault_grace = "15s"
+      }
+
+      template {
+        change_mode = "noop"
+        destination = "conf/zoo.cfg"
+        source = "/opt/radix/timberland/nomad/zookeeper/zoo.cfg"
+      }
+
+      template {
+        change_mode = "noop"
+        destination = "local/conf/zoo_servers"
+        source = "/opt/radix/timberland/nomad/zookeeper/zoo.tpl"
+      }
+
+      template {
+        change_mode = "noop"
+        destination = "conf/zoo_replicated.cfg.dynamic"
+        source = "/opt/radix/timberland/nomad/zookeeper/zoo_replicated.cfg.dynamic"
+      }
+
+      driver = "docker"
+      kill_timeout = "5s"
+      kill_signal = "SIGINT"
+      leader = false
+
+      resources {
+        cpu = 1000
+        memory = 2048
+
+        network {
+          mbits = 10
+
+          port "client" {
+            static = 2181
+          }
+
+          port "follower" {
+            static = 2888
+          }
+
+          port "othersrvs" {
+            static = 3888
+          }
+        }
+      }
+
+      service {
+        port = "client"
+        tags = ["zookeeper-quorum","zookeeper-client"]
+        address_mode = "auto"
+
+        check {
+          address_mode = "${ test ? "driver" : "host" }"
+          grpc_use_tls = true
+          initial_status = "critical"
+          interval = "10s"
+          method = "GET"
+          port = "client"
+          protocol = "http"
+          timeout = "2s"
+          type = "tcp"
+          tls_skip_verify = false
+        }
+      }
+
+      service {
+        port = "follower"
+        tags = ["zookeeper-quorum","zookeeper-follower"]
+        address_mode = "auto"
+
+        check {
+          address_mode = "${ test ? "driver" : "host" }"
+          grpc_use_tls = true
+          initial_status = "critical"
+          interval = "10s"
+          method = "GET"
+          port = "client"
+          protocol = "http"
+          timeout = "2s"
+          type = "tcp"
+          tls_skip_verify = false
+        }
+      }
+
+      service {
+        port = "othersrvs"
+        tags = ["zookeeper-quorum","zookeeper-othersrvs"]
+        address_mode = "auto"
+
+        check {
+          address_mode = "${ test ? "driver" : "host" }"
+          grpc_use_tls = true
+          initial_status = "critical"
+          interval = "10s"
+          method = "GET"
+          port = "client"
+          protocol = "http"
+          timeout = "2s"
+          type = "tcp"
+          tls_skip_verify = false
+        }
+      }
+
+      shutdown_delay = "0s"
+    }
+  }
+
+  namespace = "default"
+  priority = 50
+  region = "global"
+  type = "service"
+
+  update {
+    max_parallel = 1
+    health_check = "checks"
+    min_healthy_time = "10s"
+    healthy_deadline = "5m"
+    progress_deadline = "10m"
+    auto_revert = false
+    canary = 0
+    stagger = "10s"
+  }
+}

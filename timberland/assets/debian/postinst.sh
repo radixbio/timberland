@@ -10,6 +10,8 @@ docker plugin disable weaveworks/net-plugin:2.6.0
 docker plugin set weaveworks/net-plugin:2.6.0 IPALLOC_RANGE=10.32.0.0/12
 docker plugin enable weaveworks/net-plugin:2.6.0
 
+mkdir -p /var/lib/radix/terraform
+
 # WARNING: This following actions are not idempotent!
 # See: https://www.debian.org/doc/debian-policy/ch-maintainerscripts.html
 

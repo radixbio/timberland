@@ -21,6 +21,7 @@ scala_library(
         "//3rdparty/jvm/com/github/xuwei_k:optparse_applicative",
         "//3rdparty/jvm/com/lihaoyi:ammonite_ops",
         "//3rdparty/jvm/com/outr:scribe",
+        "//3rdparty/jvm/dnsjava",
         "//3rdparty/jvm/org/scala_lang/modules:scala_parser_combinators",
         "//shared/shared/shared/shared:shared-shared",
         "//utils/helm:helm-jvm",
@@ -56,12 +57,7 @@ scala_library(
     name = "timberland-core-lib",
     srcs = timberland_core_srcs,
     resources = glob([
-        "src/main/resources/consul/**/*",
-        "src/main/resources/nomad/**/*",
-        "src/main/resources/systemd/**/*",
         "src/main/resources/application.conf",
-        "src/main/resources/nginx/nginx-minios.conf",
-        "src/main/resources/nginx/nginx-noupstream.conf",
     ]),
     exports = [":timberland-dependencies"],
     deps = [":timberland-dependencies"],
@@ -177,6 +173,45 @@ pkg_tar(
 )
 
 pkg_tar(
+    name = "timberland-terraform-plugins",
+    srcs = [
+        "@terraform-provider-consul//:terraform-provider-consul_v2.7.0_x4",
+        "@terraform-provider-nomad//:terraform-provider-nomad_v1.4.5_x4",
+        "@terraform-provider-null//:terraform-provider-null_v2.1.2_x4",
+    ],
+    package_dir = "/opt/radix/timberland/terraform/plugins",
+)
+
+pkg_tar(
+    name = "timberland-terraform-module",
+    srcs = [
+        "//timberland/assets:terraform/main/main.tf",
+        "//timberland/assets:terraform/main/variables.tf",
+    ],
+    package_dir = "/opt/radix/timberland/terraform/main",
+)
+
+pkg_tar(
+    name = "timberland-terraform-module-templates",
+    srcs = [
+        "//timberland/assets:terraform/main/templates/apprise.tmpl",
+        "//timberland/assets:terraform/main/templates/elastic_search.tmpl",
+        "//timberland/assets:terraform/main/templates/elemental.tmpl",
+        "//timberland/assets:terraform/main/templates/es_kafka_connector.tmpl",
+        "//timberland/assets:terraform/main/templates/kafka.tmpl",
+        "//timberland/assets:terraform/main/templates/kafka_companions.tmpl",
+        "//timberland/assets:terraform/main/templates/minio.tmpl",
+        "//timberland/assets:terraform/main/templates/retool.tmpl",
+        "//timberland/assets:terraform/main/templates/retool_pg_kafka_connector.tmpl",
+        "//timberland/assets:terraform/main/templates/vault.tmpl",
+        "//timberland/assets:terraform/main/templates/yugabyte.tmpl",
+        "//timberland/assets:terraform/main/templates/yugabyte_kafka_connector.tmpl",
+        "//timberland/assets:terraform/main/templates/zookeeper.tmpl",
+    ],
+    package_dir = "/opt/radix/timberland/terraform/main/templates",
+)
+
+pkg_tar(
     name = "timberland-nomad-config",
     srcs = [
         "//timberland/assets:nomad/config/nomad.hcl",
@@ -199,13 +234,15 @@ pkg_tar(
     srcs = [
         "//timberland/assets:nomad/config/elasticsearch/unicast_hosts.tpl",
     ],
-    package_dir = "/opt/radix/timberland/nomad/elasticsearch",
+    package_dir = "/opt/radix/timberland/nomad/config/elasticsearch",
 )
 
 pkg_tar(
     name = "timberland-nomad-config-zookeeper",
     srcs = [
-        "//timberland/assets:nomad/config/zookeeper/zoo.tpl",
+        "//timberland/assets:nomad/config/zookeeper/config/zoo.cfg",
+        "//timberland/assets:nomad/config/zookeeper/config/zoo.tpl",
+        "//timberland/assets:nomad/config/zookeeper/config/zoo_replicated.cfg.dynamic",
     ],
     package_dir = "/opt/radix/timberland/nomad/zookeeper",
 )
@@ -240,8 +277,9 @@ pkg_tar(
 pkg_tar(
     name = "timberland-nginx",
     srcs = [
+        "//timberland/assets:nginx/nginx-minio-noupstream.conf",
         "//timberland/assets:nginx/nginx-minios.conf",
-        "//timberland/assets:nginx/nginx-noupstream.conf",
+        "//timberland/assets:nginx/nginx-retool.conf",
     ],
     package_dir = "/opt/radix/timberland/nginx",
 )
@@ -274,6 +312,9 @@ pkg_tar(
         ":timberland-systemd-networks",
         ":timberland-systemd-services",
         ":timberland-terraform",
+        ":timberland-terraform-module",
+        ":timberland-terraform-module-templates",
+        ":timberland-terraform-plugins",
     ],
 )
 
@@ -284,6 +325,7 @@ pkg_deb(
     depends = [
         "docker.io | docker-ce",
         "openjdk-11-jdk",
+        "net-tools",
     ],
     description = "Radix Timberland deploy file",
     maintainer = "Alex Wied",
@@ -359,8 +401,8 @@ container_run_and_commit(
         "apk del .gosu-deps",
         "apk --update add --no-cache --virtual .nomad-deps gnupg curl",
         "cd /tmp",
-        "curl -L -o nomad_0.10.4_linux_amd64.zip https://releases.hashicorp.com/nomad/0.10.4/nomad_0.10.4_linux_amd64.zip",
-        "unzip -d /bin nomad_0.10.4_linux_amd64.zip",
+        "curl -L -o nomad_0.11.1_linux_amd64.zip https://releases.hashicorp.com/nomad/0.11.1/nomad_0.11.1_linux_amd64.zip",
+        "unzip -d /bin nomad_0.11.1_linux_amd64.zip",
         "chmod +x /bin/nomad",
         "apk del .nomad-deps",
         "mkdir -p /nomad/data",

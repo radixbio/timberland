@@ -52,6 +52,12 @@ do
   sleep 2
 done
 
+if [ "$1" == "persist" ];
+then
+  # Remove the crontab entry for the automatic power-off script
+  ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP 'crontab -r' || exit 0
+fi
+
 echo "Transferring deb to instance ($AWS_INSTANCE_IP)..."
 
 scp -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" ./timberland/jvm/radix-timberland_0.1_amd64.deb $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP:~
@@ -68,7 +74,6 @@ do
 done
 
 cd /opt/radix/timberland/exec
-./timberland runtime install
 docker network create --attachable -d weaveworks/net-plugin:2.6.0 weave
 echo -n "Vu6nzjx8T_sy14pxrepu" | docker login registry.gitlab.com -u radix-timberland-ci --password-stdin
 ./timberland runtime start --dev
@@ -103,7 +108,5 @@ then
   # This should terminate the instance due to "--instance-initiated-shutdown-behavior terminate"
   ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP 'sudo poweroff' || exit 0
 else
-  # Remove the crontab entry for the sudomatic power-off script
-  ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP 'crontab -r' || exit 0
   echo "CONNECTION INFO: ssh $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP"
 fi

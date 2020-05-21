@@ -860,8 +860,8 @@ http_archive(
 http_archive(
     name = "nomad",
     build_file_content = "exports_files([\"nomad\"])",
-    sha256 = "cd76c59af28757ee916811baf92c2ea8daa9125052f76ebb21daf5e10ef2db21",
-    url = "https://releases.hashicorp.com/nomad/0.11.0/nomad_0.11.0_linux_amd64.zip",
+    sha256 = "711e98b89ac4f5540bf3d6273379999f6c4141529531c262222e63ce491f5176",
+    url = "https://releases.hashicorp.com/nomad/0.11.1/nomad_0.11.1_linux_amd64.zip",
 )
 
 http_archive(
@@ -869,4 +869,82 @@ http_archive(
     build_file_content = "exports_files([\"terraform\"])",
     sha256 = "602d2529aafdaa0f605c06adb7c72cfb585d8aa19b3f4d8d189b42589e27bf11",
     url = "https://releases.hashicorp.com/terraform/0.12.24/terraform_0.12.24_linux_amd64.zip",
+)
+
+http_archive(
+    name = "terraform-provider-consul",
+    build_file_content = "exports_files([\"terraform-provider-consul_v2.7.0_x4\"])",
+    sha256 = "6cc007f02065258d2e7e9d04d196aa7c16731f11f5923e06d78488e14be2c8a5",
+    url = "https://releases.hashicorp.com/terraform-provider-consul/2.7.0/terraform-provider-consul_2.7.0_linux_amd64.zip",
+)
+
+http_archive(
+    name = "terraform-provider-null",
+    build_file_content = "exports_files([\"terraform-provider-null_v2.1.2_x4\"])",
+    sha256 = "16fc2d9b10cf9e5123bf956e7032c338cc93a03be1ca2e9f3d3b7014c0e866c7",
+    url = "https://releases.hashicorp.com/terraform-provider-null/2.1.2/terraform-provider-null_2.1.2_linux_amd64.zip",
+)
+
+http_archive(
+    name = "terraform-provider-nomad",
+    build_file_content = "exports_files([\"terraform-provider-nomad_v1.4.5_x4\"])",
+    sha256 = "c41fc0142eea43a90c8b9ab03fa0ca56918655d507cd42a53893cf9ce9dec286",
+    url = "https://releases.hashicorp.com/terraform-provider-nomad/1.4.5/terraform-provider-nomad_1.4.5_linux_amd64.zip",
+)
+
+http_archive(
+    name = "containernetworking-cni-plugin",
+    build_file_content = """
+exports_files([
+  "bandwidth",
+  "firewall",
+  "host-device",
+  "ipvlan",
+  "macvlan",
+  "ptp",
+  "static",
+  "vlan",
+  "bridge",
+  "dhcp",
+  "flannel",
+  "host-local",
+  "loopback",
+  "portmap",
+  "sbr",
+  "tuning",
+])""",
+    sha256 = "bd682ffcf701e8f83283cdff7281aad0c83b02a56084d6e601216210732833f9",
+    url = "https://github.com/containernetworking/plugins/releases/download/v0.8.5/cni-plugins-linux-amd64-v0.8.5.tgz",
+)
+
+http_archive(
+    name = "terraform-provider-nomad",
+    build_file_content = "exports_files([\"terraform-provider-nomad_v1.4.5_x4\"])",
+    sha256 = "c41fc0142eea43a90c8b9ab03fa0ca56918655d507cd42a53893cf9ce9dec286",
+    url = "https://releases.hashicorp.com/terraform-provider-nomad/1.4.5/terraform-provider-nomad_1.4.5_linux_amd64.zip",
+)
+
+http_archive(
+    name = "containernetworking-cni-plugin",
+    build_file_content = """
+exports_files([
+  "bandwidth",
+  "firewall",
+  "host-device",
+  "ipvlan",
+  "macvlan",
+  "ptp",
+  "static",
+  "vlan",
+  "bridge",
+  "dhcp",
+  "flannel",
+  "host-local",
+  "loopback",
+  "portmap",
+  "sbr",
+  "tuning",
+])""",
+    sha256 = "bd682ffcf701e8f83283cdff7281aad0c83b02a56084d6e601216210732833f9",
+    url = "https://github.com/containernetworking/plugins/releases/download/v0.8.5/cni-plugins-linux-amd64-v0.8.5.tgz",
 )

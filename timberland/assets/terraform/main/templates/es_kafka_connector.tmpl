@@ -1,0 +1,55 @@
+job "es-kafka-connector" {
+  all_at_once = false
+  datacenters = ["dc1"]
+
+  group "connector" {
+    count = 1
+
+    task "elasticsearch-kafka-connector" {
+
+      config {
+        image = "appropriate/curl"
+        auth_soft_fail = false
+        command = "/local/start.sh"
+        dns_servers = ["169.254.1.1"]
+        hostname = "$${attr.unique.hostname}-em"
+        privileged = false
+        network_mode = "weave"
+        cap_add = []
+      }
+
+      driver = "docker"
+      kill_timeout = "5s"
+      kill_signal = "SIGINT"
+      leader = false
+
+      resources {
+        cpu = 1000
+        memory = 100
+
+        network {
+          mbits = 10
+        }
+      }
+
+      shutdown_delay = "0s"
+
+      template {
+        change_mode = "noop"
+        destination = "local/start.sh"
+        env = false
+        left_delimiter = "{{"
+        perms = "755"
+        right_delimiter = "}}"
+        source = "/opt/radix/timberland/nomad/connect/start.sh"
+        splay = "5s"
+        vault_grace = "15s"
+      }
+    }
+  }
+
+  namespace = "default"
+  priority = 50
+  region = "global"
+  type = "batch"
+}

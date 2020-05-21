@@ -33,8 +33,8 @@ package object zookeeper {
   sealed trait TemplateOps {
     def getTemplate(path: Path): IO[Set[String]] =
       IO(os.read(path).split('\n').filter(_.startsWith("server")).toSet).map(x => {
-              println(s"reading template file ... $x")
-              x
+        println(s"reading template file ... $x")
+        x
       })
   }
   case object NoMinQuorum                                                                extends TemplateOps
@@ -43,13 +43,13 @@ package object zookeeper {
   case class ZKUpdated(existing: Set[String], toAdd: Set[String], toRemove: Set[String]) extends TemplateOps
 
   /**
-    * This method reads the consul template file to determine if a suitable number of zookeeper servers are present to
-    * initiate cluster bootstrap. If it is, it'll return the indication to boot the quorum
-    * @param templatePath path to the consul template
-    * @return Either a failure to get the servers together to form a quorum, or a list of servers to create ZK with
-    */
+   * This method reads the consul template file to determine if a suitable number of zookeeper servers are present to
+   * initiate cluster bootstrap. If it is, it'll return the indication to boot the quorum
+   * @param templatePath path to the consul template
+   * @return Either a failure to get the servers together to form a quorum, or a list of servers to create ZK with
+   */
   private[this] def reconfigDynFile(
-      templatePath: Path, minQuorumSize: Int): IndexedStateT[IO, NoMinQuorum.type, Either[NoMinQuorum.type, MinQuorumFound], Unit] = {
+                                     templatePath: Path, minQuorumSize: Int): IndexedStateT[IO, NoMinQuorum.type, Either[NoMinQuorum.type, MinQuorumFound], Unit] = {
     // TODO does querying consul directly work?
     // I couldn't get this to work when I was debugging something, turns out it was something lower in the stack
     // So this may still be viable
@@ -67,35 +67,35 @@ package object zookeeper {
     //    } yield res
 
 
-        for {
-          state                <- IndexedStateT.get[IO, NoMinQuorum.type]
-          templatefilecontents <- IndexedStateT.liftF(state.getTemplate(templatePath))
-          _ <- templatefilecontents match {
-            case quorum if quorum.size >= minQuorumSize && !quorum.map(_.contains("nil")).reduce(_ || _) =>
-              for {
-                _ <- IndexedStateT.liftF(IO(scribe.debug(s"found zookeeper quorum, $quorum")))
-                _ <- IndexedStateT.set[IO, NoMinQuorum.type, Either[NoMinQuorum.type, MinQuorumFound]](
-                  Right(MinQuorumFound(quorum)))
-              } yield ()
-            case _ =>
-              for {
-              _ <- IndexedStateT.liftF(IO(scribe.warn(s"template file not in consistent state! $templatefilecontents")))
-              res <- IndexedStateT.set[IO, NoMinQuorum.type, Either[NoMinQuorum.type, MinQuorumFound]](Left(NoMinQuorum))
-              } yield res
-          }
+    for {
+      state                <- IndexedStateT.get[IO, NoMinQuorum.type]
+      templatefilecontents <- IndexedStateT.liftF(state.getTemplate(templatePath))
+      _ <- templatefilecontents match {
+        case quorum if quorum.size >= minQuorumSize && !quorum.map(_.contains("nil")).reduce(_ || _) =>
+          for {
+            _ <- IndexedStateT.liftF(IO(scribe.debug(s"found zookeeper quorum, $quorum")))
+            _ <- IndexedStateT.set[IO, NoMinQuorum.type, Either[NoMinQuorum.type, MinQuorumFound]](
+              Right(MinQuorumFound(quorum)))
+          } yield ()
+        case _ =>
+          for {
+            _ <- IndexedStateT.liftF(IO(scribe.warn(s"template file not in consistent state! $templatefilecontents")))
+            res <- IndexedStateT.set[IO, NoMinQuorum.type, Either[NoMinQuorum.type, MinQuorumFound]](Left(NoMinQuorum))
+          } yield res
+      }
 
-        } yield ()
+    } yield ()
   }
 
   /**
-    * This method gets the current zookeeper configuration as well as what's rendered by the template to
-    * give the information necessary reconfigure zookeeper in a dynamic environment.
-    * This only makes sense in ZK 3.5+
-    * @param templatePath the path to the consul template file that's being rerendered
-    * @return a case class describing how to reconfigure zookeeper's servers
-    */
+   * This method gets the current zookeeper configuration as well as what's rendered by the template to
+   * give the information necessary reconfigure zookeeper in a dynamic environment.
+   * This only makes sense in ZK 3.5+
+   * @param templatePath the path to the consul template file that's being rerendered
+   * @return a case class describing how to reconfigure zookeeper's servers
+   */
   private[this] def zkreconfigDynFile(templatePath: Path): IndexedStateT[IO, ZKStarted, ZKUpdated, Unit] =
-    //TODO: Actually move to zookeeper 3.5+ to make this work.
+  //TODO: Actually move to zookeeper 3.5+ to make this work.
     for {
       state    <- IndexedStateT.get[IO, ZKStarted]
       template <- IndexedStateT.liftF(state.getTemplate(templatePath))
@@ -112,11 +112,11 @@ package object zookeeper {
     } yield ()
 
   /**
-    * This method only makes sense in ZK 3.5+ with dynamic reconfiguration
-    * @return a reconfigured zookeeper with the additional nodes added and removed
-    */
+   * This method only makes sense in ZK 3.5+ with dynamic reconfiguration
+   * @return a reconfigured zookeeper with the additional nodes added and removed
+   */
   private[this] def applyZKStateUpdate: IndexedStateT[IO, ZKUpdated, ZKStarted, Unit] =
-    //TODO: Actually move to zookeeper 3.5+ to make this work.
+  //TODO: Actually move to zookeeper 3.5+ to make this work.
     for {
       state <- IndexedStateT.get[IO, ZKUpdated]
       res <- IndexedStateT.liftF(for {
@@ -137,11 +137,11 @@ package object zookeeper {
     } yield ()
 
   /**
-    * This method actually starts zookeeper once the minimum number of servers is in the quorum
-    * @param zoocfg the path to the zookeeper configuration file
-    * @param zoodyncfg the path to the zookeeper dynamic configuration file
-    * @return The state is now with zookeeper started
-    */
+   * This method actually starts zookeeper once the minimum number of servers is in the quorum
+   * @param zoocfg the path to the zookeeper configuration file
+   * @param zoodyncfg the path to the zookeeper dynamic configuration file
+   * @return The state is now with zookeeper started
+   */
   private[this] def zookeeperQuorumStart(zoocfg: Path,
                                          zoodyncfg: Path)(implicit N: LocalEthInfoAlg[IO]): IndexedStateT[IO, MinQuorumFound, ZKStarted, Unit] = {
     for {
@@ -157,7 +157,7 @@ package object zookeeper {
         //This is dependent on a consul-template being exactly as it is :(
 
         val iface = N.getNetworkInterfaces.unsafeRunSync().toSet
-        //network interfaces that are also listed as ZK servers allow us to infer our iteration order and recover an ID
+          //network interfaces that are also listed as ZK servers allow us to infer our iteration order and recover an ID
           .intersect(quorum.servers.map(_.split('=')).map(_.flatMap(_.split(':'))).map(_(1)))
           .head
 
@@ -184,12 +184,12 @@ package object zookeeper {
   }
 
   /**
-    * This method is the main runner for starting zookeeper. It recurses until a quorum is determined, then boots zookeeper
-    * @param templatePath the path to the rerendered consul template
-    * @param zooconf the path to the zookeeper static configuration file
-    * @param zoodynconf the path to the zookeeper dynamic configuration file
-    * @return a started zookeeper
-    */
+   * This method is the main runner for starting zookeeper. It recurses until a quorum is determined, then boots zookeeper
+   * @param templatePath the path to the rerendered consul template
+   * @param zooconf the path to the zookeeper static configuration file
+   * @param zoodynconf the path to the zookeeper dynamic configuration file
+   * @return a started zookeeper
+   */
   def startZookeeper(templatePath: Path,
                      zooconf: Path,
                      zoodynconf: Path,

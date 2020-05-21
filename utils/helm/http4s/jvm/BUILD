@@ -51,13 +51,6 @@ scala_library(
     ],
 )
 
-#scala_binary(
-#    name = "temp-test",
-#    srcs = "src/main/scala/com/radix/utils/helm/http4s/TempTests.scala",
-#    main_class = "com.radix.utils.helm.http4s.TempTests",
-#    deps = [":helm-http4s"],
-#)
-
 scala_test(
     name = "helm-test",
     srcs = glob(
