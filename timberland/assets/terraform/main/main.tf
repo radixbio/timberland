@@ -16,10 +16,6 @@ provider "nomad" {
   version = "~> 1.4"
 }
 
-provider "null" {
-  version = "~> 2.1"
-}
-
 resource "nomad_job" "apprise" {
   count = var.launch_apprise ? 1 : 0
   depends_on = [nomad_job.vault]
@@ -47,28 +43,21 @@ data "consul_service_health" "kibana_health" {
   wait_for = "300s"
 }
 
-resource "null_resource" "es_health_data" {
-  count = var.launch_es ? 1 : 0
-  triggers = {
-    upstream = length(data.consul_service_health.es_health[count.index].results) > 0 && length(data.consul_service_health.kibana_health[count.index].results) > 0 ? 1 : 0
-  }
-}
-
 resource "nomad_job" "elemental" {
   count = var.launch_elemental ? 1 : 0
-  depends_on = [null_resource.kafka_health_data]
+  depends_on = [data.consul_service_health.kafka_health, data.consul_service_health.schema_registry_health]
   jobspec = templatefile("./templates/elemental.tmpl", {prefix = var.prefix, test = var.test, quorum_size = var.elemental_quorum_size, token = var.elemental_vault_token})
 }
 
 resource "nomad_job" "es_kafka_connector" {
   count = var.launch_es && var.launch_kafka ? 1 : 0
-  depends_on = [null_resource.kafka_health_data, null_resource.es_health_data]
+  depends_on = [data.consul_service_health.kafka_health, data.consul_service_health.es_health, data.consul_service_health.kibana_health]
   jobspec = templatefile("./templates/es_kafka_connector.tmpl", {prefix = var.prefix, test = var.test})
 }
 
 resource "nomad_job" "kafka" {
   count = var.launch_kafka ? 1 : 0
-  depends_on = [null_resource.zookeeper_health_data]
+  depends_on = [data.consul_service_health.zookeeper_health]
   jobspec = templatefile("./templates/kafka.tmpl", {prefix = var.prefix, test = var.test, dev = var.dev, quorum_size = var.kafka_quorum_size, interbroker_port = var.kafka_interbroker_port})
 }
 
@@ -80,22 +69,23 @@ data "consul_service_health" "kafka_health" {
   wait_for = "300s"
 }
 
-resource "null_resource" "kafka_health_data" {
-  count = var.launch_kafka ? 1 : 0
-  triggers = {
-    upstream = length(data.consul_service_health.kafka_health[count.index].results) > 1 ? 1 : 0
-  }
-}
-
 resource "nomad_job" "kafka_companions" {
   count = var.launch_kafka_companions ? 1 : 0
-  depends_on = [null_resource.kafka_health_data]
+  depends_on = [data.consul_service_health.kafka_health]
   jobspec = templatefile("./templates/kafka_companions.tmpl", {prefix = var.prefix, test = var.test, dev = var.dev, quorum_size = var.kafka_companions_quorum_size, interbroker_port = var.kafka_interbroker_port})
+}
+
+data "consul_service_health" "schema_registry_health" {
+  count = var.launch_kafka_companions ? 1 : 0
+  name = "kafka-companion-daemons-kafkaCompanions-schemaRegistry"
+  passing = true
+  depends_on = [nomad_job.kafka_companions]
+  wait_for = "300s"
 }
 
 resource "nomad_job" "minio" {
   count = var.launch_minio ? 1 : 0
-  depends_on = [null_resource.kafka_health_data]
+  depends_on = [data.consul_service_health.kafka_health]
   jobspec = templatefile("./templates/minio.tmpl", {prefix = var.prefix, test = var.test, upstream_access_key = var.minio_upstream_access_key, upstream_secret_key = var.minio_upstream_secret_key})
 }
 
@@ -121,16 +111,9 @@ data "consul_service_health" "postgres_health" {
   wait_for = "300s"
 }
 
-resource "null_resource" "retool_health_data" {
-  count = var.launch_retool ? 1 : 0
-  triggers = {
-    upstream = length(data.consul_service_health.retool_health) > 0 && length(data.consul_service_health.postgres_health) > 0 ? 1 : 0
-  }
-}
-
 resource "nomad_job" "pg_kafka_connector" {
   count = var.launch_retool && var.launch_kafka ? 1 : 0
-  depends_on = [null_resource.kafka_health_data, null_resource.retool_health_data]
+  depends_on = [data.consul_service_health.kafka_health, data.consul_service_health.postgres_health]
   jobspec = templatefile("./templates/retool_pg_kafka_connector.tmpl", {prefix = var.prefix, test = var.test})
 }
 
@@ -161,16 +144,9 @@ data "consul_service_health" "yb_tserver_health" {
   wait_for = "300s"
 }
 
-resource "null_resource" "yb_health_data" {
-  count = var.launch_yugabyte ? 1 : 0
-  triggers = {
-    upstream = length(data.consul_service_health.yb_master_health[count.index].results) > 0 && length(data.consul_service_health.yb_tserver_health[count.index].results) > 0 ? 1 : 0
-  }
-}
-
 resource "nomad_job" "yb_kafka_connector" {
   count = var.launch_yugabyte && var.launch_kafka ? 1 : 0
-  depends_on = [null_resource.yb_health_data, null_resource.kafka_health_data]
+  depends_on = [data.consul_service_health.kafka_health, data.consul_service_health.yb_master_health, data.consul_service_health.yb_tserver_health]
   jobspec = templatefile("./templates/yugabyte_kafka_connector.tmpl", {prefix = var.prefix, test = var.test, })
 }
 
@@ -188,9 +164,3 @@ data "consul_service_health" "zookeeper_health" {
   wait_for = "300s"
 }
 
-resource "null_resource" "zookeeper_health_data" {
-  count = var.launch_zookeeper ? 1 : 0
-  triggers = {
-    upstream = length(data.consul_service_health.zookeeper_health[count.index].results) > 0 ? 1 : 0
-  }
-}

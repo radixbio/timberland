@@ -879,13 +879,6 @@ http_archive(
 )
 
 http_archive(
-    name = "terraform-provider-null",
-    build_file_content = "exports_files([\"terraform-provider-null_v2.1.2_x4\"])",
-    sha256 = "16fc2d9b10cf9e5123bf956e7032c338cc93a03be1ca2e9f3d3b7014c0e866c7",
-    url = "https://releases.hashicorp.com/terraform-provider-null/2.1.2/terraform-provider-null_2.1.2_linux_amd64.zip",
-)
-
-http_archive(
     name = "terraform-provider-nomad",
     build_file_content = "exports_files([\"terraform-provider-nomad_v1.4.5_x4\"])",
     sha256 = "c41fc0142eea43a90c8b9ab03fa0ca56918655d507cd42a53893cf9ce9dec286",

@@ -538,14 +538,20 @@ object runner {
                     scribe.info("Launching daemons")
                     scribe.info(s"***********DAEMON SIZE${bootstrapExpect}***************")
 
-                    val waitForNomadAndApplyTerraformAndUnsealVault =
+                    val waitForNomadAndApplyTerraformAndMaybeUnsealVault = if(startVault) {
                       res *>
                         daemonutil.waitForDNS("nomad.service.consul", 2.minutes) *>
                         daemonutil.runTerraform(integrationTest = false, dev = dev, core = startCore, yugabyteStart = startYugabyte, vaultStart = startVault, esStart = startEs, retoolStart = startRetool, elementalStart = startElemental, upstreamAccessKey, upstreamSecretKey) *>
                         daemonutil.waitForQuorum(core = startCore, yugabyteStart = startYugabyte, vaultStart = startVault, esStart = startEs, retoolStart = startRetool, elementalStart = startElemental) *>
                         daemonutil.unsealVault(dev = dev)
+                    } else {
+                      res *>
+                        daemonutil.waitForDNS("nomad.service.consul", 2.minutes) *>
+                        daemonutil.runTerraform(integrationTest = false, dev = dev, core = startCore, yugabyteStart = startYugabyte, vaultStart = startVault, esStart = startEs, retoolStart = startRetool, elementalStart = startElemental, upstreamAccessKey, upstreamSecretKey) *>
+                        daemonutil.waitForQuorum(core = startCore, yugabyteStart = startYugabyte, vaultStart = startVault, esStart = startEs, retoolStart = startRetool, elementalStart = startElemental)
+                    }
 
-                    waitForNomadAndApplyTerraformAndUnsealVault.unsafeRunSync
+                    waitForNomadAndApplyTerraformAndMaybeUnsealVault.unsafeRunSync
                     sys.exit(0)
                   }
                 }
