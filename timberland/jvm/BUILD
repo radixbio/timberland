@@ -351,7 +351,10 @@ sh_binary(
     ],
     data = [
         "src/test/service_test.py",
+        "src/test/install-deb.sh",
+        "src/test/install-rpm.sh",
         ":radix-timberland_0.1_amd64.deb",
+        ":timberland-rpm-amd64.rpm",
     ],
     tags = ["no-sandbox"],
 )
@@ -364,7 +367,10 @@ sh_test(
     ],
     data = [
         "src/test/service_test.py",
+        "src/test/install-deb.sh",
+        "src/test/install-rpm.sh",
         ":radix-timberland_0.1_amd64.deb",
+        ":timberland-rpm-amd64.rpm",
     ],
     tags = ["no-sandbox"],
 )

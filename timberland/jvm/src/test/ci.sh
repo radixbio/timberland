@@ -5,6 +5,7 @@
 # * CI_EC2_AMI
 # * CI_EC2_INSTANCE_SIZE
 # * CI_EC2_SECURITY_GROUP
+# * CI_EC2_OS_FLAVOR (must be: {centos, ubuntu})
 
 set -ex
 
@@ -14,6 +15,17 @@ then
   PERSIST=true
 else
   PERSIST=false
+fi
+
+if [ "$CI_EC2_OS_FLAVOR" == "centos" ];
+then
+  PACKAGE_LOCATION="./timberland/jvm/timberland-rpm-amd64.rpm"
+  INSTALLATION_SCRIPT="./timberland/jvm/src/test/install-rpm.sh"
+  AWS_INSTANCE_SSH_USER=centos
+else
+  PACKAGE_LOCATION="./timberland/jvm/radix-timberland_0.1_amd64.deb"
+  INSTALLATION_SCRIPT="./timberland/jvm/src/test/install-deb.sh"
+  AWS_INSTANCE_SSH_USER=ubuntu
 fi
 
 if ! [ -x "$(command -v aws)" ]; then
@@ -39,7 +51,6 @@ echo "Waiting for EC2 instance to become ready..."
 aws ec2 wait instance-running --instance-ids $AWS_INSTANCE_ID
 
 AWS_INSTANCE_IP=$(aws ec2 describe-instances --instance-ids $AWS_INSTANCE_ID | jq -r .Reservations[0].Instances[0].PublicIpAddress)
-AWS_INSTANCE_SSH_USER=ubuntu
 
 function test_ssh {
   nc -w 2 -z $AWS_INSTANCE_IP 22
@@ -58,40 +69,13 @@ then
   ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP 'crontab -r' || exit 0
 fi
 
-echo "Transferring deb to instance ($AWS_INSTANCE_IP)..."
+echo "Transferring package to instance ($AWS_INSTANCE_IP)..."
 
-scp -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" ./timberland/jvm/radix-timberland_0.1_amd64.deb $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP:~
+scp -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $PACKAGE_LOCATION $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP:~
 
 scp -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" ./timberland/jvm/src/test/service_test.py $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP:~
 
-ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP 'sudo su && bash -s' <<ENDSSH
-docker swarm init
-
-until dpkg -i radix-timberland_0.1_amd64.deb
-do
-  echo "waiting for dpkg..."
-  sleep 2
-done
-
-cd /opt/radix/timberland/exec
-docker network create --attachable -d weaveworks/net-plugin:2.6.0 weave
-echo -n "Vu6nzjx8T_sy14pxrepu" | docker login registry.gitlab.com -u radix-timberland-ci --password-stdin
-./timberland runtime start --dev
-
-sleep 3
-
-/home/ubuntu/service_test.py > /home/ubuntu/service_test.log
-
-EXIT_CODE=$?
-
-echo "Service test exit code: $EXIT_CODE"
-
-mkdir /home/ubuntu/nomad-logs
-cp /opt/radix/nomad/alloc/*/alloc/logs/*.0 /home/ubuntu/nomad-logs/
-
-exit $EXIT_CODE
-
-ENDSSH
+ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP 'sudo su && bash -s' < $INSTALLATION_SCRIPT
 
 echo "@@@@@@@@ SSH ended"
 
