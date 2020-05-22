@@ -122,8 +122,7 @@ load("@io_bazel_rules_docker//container:container.bzl", "container_image", "cont
 
 container_pull(
     name = "custom_java_base",
-    digest =
-        "sha256:c94feda039172152495b5cd60a350a03162fce4f8986b560ea555de4d276ce19",
+    digest = "sha256:5075c6b378eaa9fdb9f74c7a33e51c95b0346e78e1469092e0bb29c8a81cbf2e",
     registry = "gcr.io",
     repository = "distroless/java",
 )
