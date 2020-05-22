@@ -18,6 +18,7 @@ package(
 scala_library(
     name = "timberland-dependencies",
     exports = [
+        "//3rdparty/jvm/com/github/oshi:oshi_core",
         "//3rdparty/jvm/com/github/xuwei_k:optparse_applicative",
         "//3rdparty/jvm/com/lihaoyi:ammonite_ops",
         "//3rdparty/jvm/com/outr:scribe",
@@ -27,6 +28,7 @@ scala_library(
         "//utils/helm:helm-jvm",
     ],
     deps = [
+        "//3rdparty/jvm/com/github/oshi:oshi_core",
         "//3rdparty/jvm/com/github/xuwei_k:optparse_applicative",
         "//3rdparty/jvm/com/lihaoyi:ammonite_ops",
         "//3rdparty/jvm/com/outr:scribe",
@@ -88,6 +90,7 @@ scala_library(
     ],
     deps = [
         ":timberland-core-lib",
+        "//utils/helm:helm-jvm",
         "//utils/helm/core/shared:helm-elemental",
         "//utils/sheets/jvm/src/main/scala/com/radix/util/sheets:sheets-interps",  #TODO remove this
     ],
@@ -256,15 +259,6 @@ pkg_tar(
 )
 
 pkg_tar(
-    name = "timberland-systemd-networks",
-    srcs = [
-        "//timberland/assets:systemd/dummy0.netdev",
-        "//timberland/assets:systemd/dummy0.network",
-    ],
-    package_dir = "/etc/systemd/network",
-)
-
-pkg_tar(
     name = "timberland-networkd",
     srcs = [
         "//timberland/assets:networkd/10-radix-consul",
@@ -308,7 +302,6 @@ pkg_tar(
         ":timberland-nomad-config-elasticsearch",
         ":timberland-nomad-config-zookeeper",
         ":timberland-nomad-connect",
-        ":timberland-systemd-networks",
         ":timberland-systemd-services",
         ":timberland-terraform",
         ":timberland-terraform-module",
@@ -330,6 +323,7 @@ pkg_deb(
     maintainer = "Alex Wied",
     package = "radix-timberland",
     postinst = "//timberland/assets:debian/postinst.sh",
+    prerm = "//timberland/assets:debian/prerm.sh",
     version = "0.1",
 )
 

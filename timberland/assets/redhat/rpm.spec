@@ -43,8 +43,18 @@ rm {timberland-full-tar.tar}
 /opt/radix/timberland/nomad/connect/postgres_source.sh
 /opt/radix/timberland/nomad/connect/start.sh
 /opt/radix/timberland/nomad/connect/yugabyte_sink.sh
-/etc/systemd/network/dummy0.netdev
-/etc/systemd/network/dummy0.network
 /etc/systemd/system/consul.service
 /etc/systemd/system/nomad.service
 /opt/radix/timberland/terraform/terraform
+
+%post
+if [ -f /opt/radix/timberland/exec/timberland ]; then
+    cd /opt/radix/timberland/exec/
+    ./timberland runtime dns up
+fi
+
+%preun
+if [ -f /opt/radix/timberland/exec/timberland ]; then
+    cd /opt/radix/timberland/exec/
+    ./timberland runtime dns down
+fi

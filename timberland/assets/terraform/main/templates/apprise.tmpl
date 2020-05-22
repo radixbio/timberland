@@ -23,7 +23,6 @@ job "apprise" {
       config {
         image = "caronc/apprise:latest"
         auth_soft_fail = false
-        dns_servers = ["169.254.1.1","1.1.1.1"]
         hostname = "$${attr.unique.hostname}-em"
         privileged = false
         network_mode = "weave"

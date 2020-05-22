@@ -25,7 +25,6 @@ job "retool" {
         args = []
         auth_soft_fail = false
         command = "postgres"
-        dns_servers = ["169.254.1.1"]
         hostname = "postgres-$${NOMAD_ALLOC_INDEX+1}"
         privileged = false
         network_mode = "weave"
@@ -89,7 +88,6 @@ job "retool" {
         args = ["-c","./docker_scripts/wait-for-it.sh retool-retool-postgres.service.consul:5432; ./docker_scripts/start_api.sh"]
         auth_soft_fail = false
         command = "bash"
-        dns_servers = ["169.254.1.1","8.8.8.8"]
         hostname = "retool-$${NOMAD_ALLOC_INDEX+1}"
         privileged = false
         network_mode = "weave"
@@ -160,7 +158,6 @@ job "retool" {
       config {
         image = "nginx:latest"
         auth_soft_fail = false
-        dns_servers = ["169.254.1.1"]
         hostname = "retool-$${NOMAD_ALLOC_INDEX+1}"
         privileged = false
         network_mode = "weave"

@@ -482,6 +482,9 @@ object runner {
                     .withHandler(minimumLevel = Some(loglevel))
                     .replace()
                   scribe.info(s"starting runtime with $cmd")
+
+                  launch.dns.up()
+
                   import ammonite.ops._
                   var bootstrapExpect: Int = 3
                   if (dev) {
@@ -569,26 +572,11 @@ object runner {
                 .clearModifiers()
                 .withHandler(minimumLevel = Some(scribe.Level.Debug))
                 .replace()
-              dns match {
-                case DNSUp(service, bindIP) =>
-                  val ip = bindIP.getOrElse(Util.getDefaultGateway)
-                  service.getOrElse(launch.dns.identifyDNS) match {
-                    case "dnsmasq" => launch.dns.upDnsmasq(ip, Util.getIfFromIP(ip)).unsafeRunSync()
-                    case "systemd" => launch.dns.upSystemd(ip).unsafeRunSync()
-                    case "iptables" => launch.dns.upIptables(ip).unsafeRunSync()
-                    case unrecognized =>
-                      scribe.info("unrecognized dns service: " + unrecognized)
-                  }
-                case DNSDown(service, bindIP) =>
-                  val ip = bindIP.getOrElse(Util.getDefaultGateway)
-                  service.getOrElse(launch.dns.identifyDNS) match {
-                    case "dnsmasq" => launch.dns.downDnsmasq(ip).unsafeRunSync()
-                    case "systemd" => launch.dns.downSystemd(ip).unsafeRunSync()
-                    case "iptables" => launch.dns.downIptables(ip).unsafeRunSync()
-                    case unrecognized =>
-                      scribe.info("unrecognized dns service: " + unrecognized)
-                  }
+              val dns_set = dns match {
+                case DNSUp(service, bindIP) => launch.dns.up()
+                case DNSDown(service, bindIP) => launch.dns.down()
               }
+              dns_set.unsafeRunSync()
             }
           }
 

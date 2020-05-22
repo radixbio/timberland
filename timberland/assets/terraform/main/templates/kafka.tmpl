@@ -25,7 +25,6 @@ job "kafka-daemons" {
         args = ["/timberland/exec/timberland-launcher_deploy.jar","launch","kafka" ${dev ? ", \"--dev\"" : ""}]
         auth_soft_fail = false
         command = "-jar"
-        dns_servers = ["169.254.1.1"]
         entrypoint = ["java"]
         hostname = "$${attr.unique.hostname}-kafka"
         privileged = false

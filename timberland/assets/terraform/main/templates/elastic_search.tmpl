@@ -25,7 +25,6 @@ job "elasticsearch" {
         args = ["-c","ln -s /local/unicast_hosts.txt /usr/share/elasticsearch/config/unicast_hosts.txt; elasticsearch -Ecluster.name=radix-es -Ediscovery.seed_providers=file -Ecluster.initial_master_nodes=${ dev ? "es1,es2,es3" : "es1"}"]
         auth_soft_fail = false
         command = "bash"
-        dns_servers = ["169.254.1.1"]
         hostname = "es$${NOMAD_ALLOC_INDEX+1}"
         ulimit = {
           "nofile" = "65536",
@@ -136,7 +135,6 @@ job "elasticsearch" {
         args = ["--elasticsearch.hosts=http://elasticsearch-elasticsearch-es-generic-node.service.consul:9200","--server.host=0.0.0.0","--path.data=/alloc/data","--elasticsearch.preserveHost=false","--xpack.apm.ui.enabled=false","--xpack.graph.enabled=false","--xpack.ml.enabled=false"]
         auth_soft_fail = false
         command = "kibana"
-        dns_servers = ["169.254.1.1"]
         hostname = "$${attr.unique.hostname}-em"
         ulimit = {
           "nofile" = "65536",

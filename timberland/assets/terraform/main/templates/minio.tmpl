@@ -17,7 +17,6 @@ job "minio-job" {
       config {
         image = "minio/minio:latest"
         auth_soft_fail = false
-        dns_servers = ["169.254.1.1"]
         hostname = "$${attr.unique.hostname}-em"
         privileged = false
         network_mode = "weave"
@@ -82,7 +81,6 @@ ${ upstream_access_key == "minio-access-key" ? "" : <<-EOH
         image = "minio/minio:latest"
         args = ["gateway","s3"]
         auth_soft_fail = false
-        dns_servers = ["169.254.1.1","8.8.8.8","1.1.1.1"]
         entrypoint = ["minio"]
         hostname = "$${attr.unique.hostname}-em"
         privileged = false
@@ -143,7 +141,6 @@ ${ upstream_access_key == "minio-access-key" ? "" : <<-EOH
       config {
         image = "nginx:latest"
         auth_soft_fail = false
-        dns_servers = ["169.254.1.1"]
         hostname = "$${attr.unique.hostname}-em"
         privileged = false
         network_mode = "weave"

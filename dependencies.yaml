@@ -334,15 +334,18 @@ dependencies:
     lift-json:
       lang: scala
       version: 3.4.1
+
   dnsjava:
     dnsjava:
       lang: java
       version: 3.0.2
+
   com.github.oshi:
     oshi:
       lang: java
       version: 5.0.1
       modules: ["core"]
+
 
 replacements:
   org.scala-lang:

@@ -25,7 +25,6 @@ job "yugabyte" {
         args = ["/timberland/exec/timberland-launcher_deploy.jar","launch","yugabyte-master"${ dev ? ",\"--dev\"" : ""}]
         auth_soft_fail = false
         command = "-jar"
-        dns_servers = ["169.254.1.1"]
         entrypoint = ["java"]
         hostname = "ybmaster-$${NOMAD_ALLOC_INDEX+1}"
         privileged = false
@@ -89,7 +88,6 @@ job "yugabyte" {
         args = ["/timberland/exec/timberland-launcher_deploy.jar","launch","yugabyte-tserver"${dev ? ",\"--dev\"" : ""}]
         auth_soft_fail = false
         command = "-jar"
-        dns_servers = ["169.254.1.1"]
         entrypoint = ["java"]
         hostname = "ybtserver-$${NOMAD_ALLOC_INDEX+1}"
         privileged = false

@@ -23,7 +23,6 @@ job "zookeeper-daemons" {
       config {
         image = "zookeeper:3.4"
         auth_soft_fail = false
-        dns_servers = ["169.254.1.1"]
         hostname = "$${attr.unique.hostname}-zookeeper"
         privileged = false
         network_mode = "weave"

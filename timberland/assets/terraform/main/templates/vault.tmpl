@@ -25,7 +25,6 @@ job "vault-daemon" {
         args = ["server","-config","/opt/vault_config.conf"]
         auth_soft_fail = false
         command = "vault"
-        dns_servers = ["169.254.1.1"]
         hostname = "$${attr.unique.hostname}-vault"
         privileged = true
         network_mode = "weave"

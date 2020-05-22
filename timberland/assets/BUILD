@@ -1,6 +1,7 @@
 exports_files([
     "consul/consul.json",
     "debian/postinst.sh",
+    "debian/prerm.sh",
     "nomad/connect/postgres_source.sh",
     "nomad/connect/start.sh",
     "nomad/connect/yugabyte_sink.sh",
@@ -18,8 +19,6 @@ exports_files([
     "nginx/nginx-retool.conf",
     "systemd/consul.env.conf",
     "systemd/consul.service",
-    "systemd/dummy0.network",
-    "systemd/dummy0.netdev",
     "systemd/nomad.env.conf",
     "systemd/nomad.service",
     "terraform/main/main.tf",

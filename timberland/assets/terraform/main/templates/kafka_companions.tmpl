@@ -17,7 +17,6 @@ job "kafka-companion-daemons" {
       config {
         image = "confluentinc/cp-schema-registry:5.3.1"
         auth_soft_fail = false
-        dns_servers = ["169.254.1.1"]
         hostname = "$${attr.unique.hostname}-kafka-schema-registry"
         privileged = false
         network_mode = "weave"
@@ -75,7 +74,6 @@ job "kafka-companion-daemons" {
       config {
         image = "confluentinc/cp-kafka-rest:5.3.1"
         auth_soft_fail = false
-        dns_servers = ["169.254.1.1"]
         hostname = "$${attr.unique.hostname}-kafka-rest-proxy"
         privileged = false
         network_mode = "weave"
@@ -133,7 +131,6 @@ job "kafka-companion-daemons" {
       config {
         image = "confluentinc/cp-kafka-connect:5.3.1"
         auth_soft_fail = false
-        dns_servers = ["169.254.1.1"]
         hostname = "$${attr.unique.hostname}-kafka-connect"
         privileged = false
         network_mode = "weave"
@@ -209,7 +206,6 @@ job "kafka-companion-daemons" {
       config {
         image = "confluentinc/cp-ksql-server:5.3.1"
         auth_soft_fail = false
-        dns_servers = ["169.254.1.1"]
         hostname = "$${attr.unique.hostname}-kafka-ksql-server"
         privileged = false
         network_mode = "weave"
