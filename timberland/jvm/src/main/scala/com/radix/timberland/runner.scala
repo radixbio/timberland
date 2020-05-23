@@ -524,7 +524,7 @@ object runner {
                       pluginList <- IO(os.proc("/usr/bin/docker plugin ls".split(' ')).call(cwd = os.root, check = false))
                       _ <- pluginList.out.string.contains("weaveworks/net-plugin:2.6.0") match {
                         case true => {
-                          IO(os.proc("/usr/bin/docker network create --driver=weaveworks/net-plugin:2.6.0 --attachable weave".split(' ')).call(cwd = os.root, stdout = os.Inherit, check = false))
+                          IO(os.proc("/usr/bin/docker network create --driver=weaveworks/net-plugin:2.6.0 --attachable weave  --ip-range 10.32.0.0/12 --subnet 10.32.0.0/12".split(' ')).call(cwd = os.root, stdout = os.Inherit, check = false))
                           IO.pure(scribe.info("Weave network exists or was created"))
                         }
                         case false => IO.pure(scribe.info("Weave plugin not installed. Skipping creation of weave network."))
