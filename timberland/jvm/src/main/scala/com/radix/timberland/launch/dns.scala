@@ -110,7 +110,7 @@ object dns {
 
     private def add_key(k: String, v: String)(lines: List[String]): List[String] = {
       def _add(line: String): String = {
-        if (line.startsWith(k) & (!line.contains(v))) {
+        if (line.startsWith(k + "=") & (!line.contains(v))) {
           if (line.endsWith("=")) {
             line + v
           } else {
@@ -130,7 +130,7 @@ object dns {
 
     private def rem_key(k: String, v: String)(lines: List[String]): List[String] = {
       def _rem(line: String): String = {
-        if (line.startsWith(k) & line.contains(v)) {
+        if (line.startsWith(k + "=") & line.contains(v)) {
           line.replaceAll(v, "")
         } else {
           line
