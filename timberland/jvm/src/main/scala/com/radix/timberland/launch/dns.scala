@@ -84,7 +84,7 @@ object dns {
       }
       val result = os.proc(Seq("/usr/bin/sudo", "systemctl", "restart", "network")).call()
       if (result.exitCode != 0) {
-        throw new RuntimeException(s"'sudo systemctl resetart network' returned error code $result.exitCode")
+        throw new RuntimeException(s"'sudo systemctl restart network' returned error code $result.exitCode")
       }
       IO.unit
     }
@@ -93,7 +93,7 @@ object dns {
       os.write.over(dhclient_file, config_text.replaceAll(dhclient_line, ""))
       val result = os.proc(Seq("/usr/bin/sudo", "systemctl", "restart", "network")).call()
       if (result.exitCode != 0) {
-        throw new RuntimeException(s"'sudo systemctl resetart network' returned error code $result.exitCode")
+        throw new RuntimeException(s"'sudo systemctl restart network' returned error code $result.exitCode")
       }
       IO.unit
     }
@@ -103,29 +103,68 @@ object dns {
     private val resolved_file = os.root / "etc" / "systemd" / "resolved.conf"  // Different from /etc/resolv.conf !!
     private val resolved_line = "DNS=127.0.0.1" // Also requires "[Resolve]" to establish the config section
 
-    def up(): IO[Unit] = {
-      val config_text : String = os.exists(resolved_file) match {
-        case true => os.read(resolved_file)
-        case false => ""
+    private val dns_key = "DNS"
+    private val dns_val = "127.0.0.1"
+    private val dom_key = "Domains"
+    private val dom_val = "~consul"
+
+    private def add_key(k: String, v: String)(lines: List[String]): List[String] = {
+      def _add(line: String): String = {
+        if (line.startsWith(k) & (!line.contains(v))) {
+          if (line.endsWith("=")) {
+            line + v
+          } else {
+            line + " " + v
+          }
+        } else {
+          line
+        }
       }
+
+      if (lines.exists(l => l.startsWith(k))) {
+        lines.map(_add)
+      } else {
+        lines :+ s"$k=$v"
+      }
+    }
+
+    private def rem_key(k: String, v: String)(lines: List[String]): List[String] = {
+      def _rem(line: String): String = {
+        if (line.startsWith(k) & line.contains(v)) {
+          line.replaceAll(v, "")
+        } else {
+          line
+        }
+      }
+
+      if (lines.exists(l => l.startsWith(k))) {
+        lines.map(_rem)
+      } else {
+        lines
+      }
+    }
+
+    def up(): IO[Unit] = {
+      val config_lines = os.read(resolved_file).split("\n").toList
+      val add_keys = (add_key(dns_key, dns_val) _) compose (add_key(dom_key, dom_val) _)
+
       // TODO check for "[Resolved]" and add if missing.
-      os.write.over(resolved_file, config_text + "\n" + resolved_line + "\n")
+      os.write.over(resolved_file, add_keys(config_lines).mkString("\n") + "\n")
       val result = os.proc(Seq("/usr/bin/sudo", "systemctl", "restart", "systemd-resolved")).call()
       if (result.exitCode != 0) {
-        throw new RuntimeException(s"'sudo systemctl resetart systemd-resolved' returned error code $result.exitCode")
+        throw new RuntimeException(s"'sudo systemctl restart systemd-resolved' returned error code $result.exitCode")
       }
       IO.unit
     }
 
     def down(): IO[Unit] = {
-      val config_text : String = os.exists(resolved_file) match {
-        case true => os.read(resolved_file)
-        case false => ""
-      }
-      os.write.over(resolved_file, config_text.replaceAll(resolved_line, ""))
+      val config_text = os.read(resolved_file).split("\n").toList
+      val rm_keys = (rem_key(dns_key, dns_val) _) compose (rem_key(dom_key, dom_val) _)
+
+      os.write.over(resolved_file, rm_keys(config_text).mkString("\n") + "\n")
       val result = os.proc(Seq("/usr/bin/sudo", "systemctl", "restart", "systemd-resolved")).call()
       if (result.exitCode != 0) {
-        throw new RuntimeException(s"'sudo systemctl resetart systemd-resolved' returned error code $result.exitCode")
+        throw new RuntimeException(s"'sudo systemctl restart systemd-resolved' returned error code $result.exitCode")
       }
       IO.unit
     }
@@ -175,35 +214,20 @@ object dns {
 
 
   case class NetworkManager() extends DNS_method {
-    val nm_file = os.root / "etc" / "NetworkManager" / "conf.d" / "radix-dns-servers.conf"
-    val nm_config = """[global-dns-domain-consul]
-                      |servers=127.0.0.1
-                      |""".stripMargin
-
-    private val resolved_file = os.root / "etc" / "systemd" / "resolved.conf"  // Different from /etc/resolv.conf !!
-    private val resolved_lines = "DNS=127.0.0.1\nDomains=~." // Also requires "[Resolve]" to establish the config section
-
-    // TODO test to see if "Domains=~." is unnecessary for NM or acceptable for systemd-resolved,
-    // in which case this could just call Resolved.up() and Resolved.down() to twiddle /etc/systemd/resolved.conf
     def up(): IO[Unit] = {
-      //os.write.over(nm_file, nm_config)
-      os.write.append(resolved_file, "\n" + resolved_lines + "\n")
-      val r1 = os.proc(Seq("/usr/bin/sudo", "systemctl", "restart", "systemd-resolved")).call()
-      val r2 = os.proc(Seq("/usr/bin/sudo", "systemctl", "restart", "NetworkManager")).call()
-      if (!(r1.exitCode == 0 & r2.exitCode == 0)) {
-        println(s"NetworkManager config error codes: ${r1.exitCode} ${r2.exitCode}")
+      dns.Resolved().up()
+      val ret = os.proc(Seq("/usr/bin/sudo", "systemctl", "restart", "NetworkManager")).call()
+      if (!(ret.exitCode == 0)) {
+        println(s"NetworkManager config error codes: ${ret.exitCode}")
       }
       Thread.sleep(1000) // DNS will still fail for a second as NM comes back up
       IO.unit
     }
     def down(): IO[Unit] = {
-      //os.remove(nm_file)
-      val res_config = os.read(resolved_file)
-      os.write.over(resolved_file, res_config.replaceAll(resolved_lines, ""))
-      val r1 = os.proc(Seq("/usr/bin/sudo", "systemctl", "restart", "systemd-resolved")).call()
-      val r2 = os.proc(Seq("/usr/bin/sudo", "systemctl", "restart", "NetworkManager")).call()
-      if (!(r1.exitCode == 0 & r2.exitCode == 0)) {
-        println(s"NetworkManager config error codes: ${r1.exitCode} ${r2.exitCode}")
+      dns.Resolved().down()
+      val ret = os.proc(Seq("/usr/bin/sudo", "systemctl", "restart", "NetworkManager")).call()
+      if (!(ret.exitCode == 0)) {
+        println(s"NetworkManager config error codes: ${ret.exitCode}")
       }
       IO.unit
     }
