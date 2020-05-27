@@ -353,45 +353,6 @@ object runner {
     nomad.getParentFile.mkdirs()
     consul.getParentFile.mkdirs()
 
-    object Dev {
-
-      case class Opt(dir: os.RelPath, flags: Seq[os.Shellable] = Seq())
-
-      // list of possible targets for `dev compile` and `dev test`
-      val targetOpts = Map("compiler" -> Opt("compiler"),
-        "runtime" -> Opt("runtime"),
-        "pipettelinearizer" -> Opt("algs" / "pipette-linearizer"),
-        "frontend" -> Opt("interface", flags = Seq("-J-Xmx4G", "-J-Xss64m", "-J-XX:MaxMetaspaceSize=1G")))
-
-      sealed trait Action
-
-      case object Compile extends Action
-
-      case object Test extends Action
-
-      def callSbt(action: Action, target: String, dir: Option[String]) = {
-        println(dir)
-        val invocation: Seq[os.Shellable] = Seq("sbt", action match {
-          case Compile => "compile"
-          case Test => "test"
-        })
-        //        val dir: String = optionalDir getOrElse (sys.env.get("RADIX_MONOREPO_DIR") getOrElse "pwd".!!.trim)
-
-        os.proc(invocation ++ targetOpts(target).flags: _*)
-          .call(cwd = (dir map { dir: String => os.Path(dir) } getOrElse os.pwd) / targetOpts(target).dir,
-            stdout = os.Inherit, stderr = os.Inherit)
-      }
-
-      def compile(target: String, dir: Option[String]) = {
-        scribe.info(s"building $target")
-        callSbt(Compile, target, dir)
-      }
-
-      def test(target: String, dir: Option[String]) = {
-        scribe.info(s"testing $target")
-        callSbt(Test, target, dir)
-      }
-    }
 
     // helper object containing parsers for command-line representation of prism containers and paths
     object PrismParse {
@@ -427,49 +388,6 @@ object runner {
 
     def cmdEval(cmd: RadixCMD): Unit = {
       cmd match {
-        case dev: Dev =>
-          dev match {
-            case ci: CI =>
-              ci match {
-                case Compile(target, dir) => target match {
-                  case None | Some("all") => Dev.targetOpts.keys.map(Dev.compile(_, dir))
-                  case Some(target) => Dev.compile(target, dir)
-                }
-                case Test(target, dir) => target match {
-                  case None | Some("all") => Dev.targetOpts.keys.map(Dev.test(_, dir))
-                  case Some(target) => Dev.test(target, dir)
-                }
-                case Pass =>
-                  ???
-                case DevList => Dev.targetOpts.keys.map(scribe.info(_))
-              }
-            case InstallDeps(dir) => {
-              import sys.process._
-              val installDir: String = dir getOrElse (sys.env.get("RADIX_MONOREPO_DIR") getOrElse "pwd".!!.trim)
-              scribe.info("installing dependencies")
-              val invokeSoftwareProperties =
-                Seq("sudo", "apt", "install", "software-properties-common", "-y")
-              val addAnsiblePPA =
-                Seq("sudo", "apt-add-repository", "ppa:ansible/ansible", "-y")
-              val updateAPT =
-                Seq("sudo", "apt", "update", "-y")
-              val installAnsible =
-                Seq("sudo", "apt", "install", "ansible", "-y")
-              val invocation =
-                Seq("sudo", "ansible-playbook", installDir + "/getdeps.yml", "--extra-vars", "monorepo-dir=" + installDir)
-              //scribe.info(s"building compiler with: $invocation")
-              os.proc(invokeSoftwareProperties).call()
-              os.proc(addAnsiblePPA).call()
-              os.proc(updateAPT).call()
-              os.proc(installAnsible).call()
-              os.proc(invocation).call()
-              //invokeSoftwareProperties !
-              //addAnsiblePPA !
-              //updateAPT !
-              //installAnsible !
-              //invocation !
-            }
-          }
         case run: Runtime =>
           run match {
             case local: Local =>
