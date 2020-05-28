@@ -11,7 +11,7 @@ Requires: docker-ce
 %define __spec_install_pre %{nil}
 %define __spec_install_post %{nil}
 
-# Do not die becuse we give it more input files than are in the files section.
+# Do not die because we give it more input files than are in the files section.
 # This is needed because of where the pkg_rpm Bazel rule places the data files.
 %define _unpackaged_files_terminate_build 0
 
@@ -52,9 +52,11 @@ if [ -f /opt/radix/timberland/exec/timberland ]; then
     cd /opt/radix/timberland/exec/
     ./timberland runtime dns up
 fi
+mkdir -p /opt/radix/terraform
 
 %preun
 if [ -f /opt/radix/timberland/exec/timberland ]; then
     cd /opt/radix/timberland/exec/
     ./timberland runtime dns down
 fi
+rm -rf /opt/radix/terraform

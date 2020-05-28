@@ -140,7 +140,7 @@ package object daemonutil {
                    upstreamAccessKey: Option[String],
                    upstreamSecretKey: Option[String]): IO[Int] = {
     val execDir = "/opt/radix/timberland/terraform"
-    val workingDir = if(integrationTest) new File("/tmp/radix/terraform") else new File("/var/lib/radix/terraform")
+    val workingDir = if(integrationTest) new File("/tmp/radix/terraform") else new File("/opt/radix/terraform")
     val mkTmpDirCommand = Seq("bash", "-c", "rm -rf /tmp/radix && mkdir -p /tmp/radix/terraform")
     val initCommand = Seq(s"$execDir/terraform", "init", "-plugin-dir", s"$execDir/plugins", "-from-module", s"$execDir/main")
 

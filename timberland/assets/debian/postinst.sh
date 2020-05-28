@@ -9,7 +9,7 @@ docker plugin disable weaveworks/net-plugin:2.6.0
 docker plugin set weaveworks/net-plugin:2.6.0 IPALLOC_RANGE=10.32.0.0/12
 docker plugin enable weaveworks/net-plugin:2.6.0
 
-mkdir -p /var/lib/radix/terraform
+mkdir -p /opt/radix/terraform
 
 if [ -f /opt/radix/timberland/exec/timberland ]; then
     cd /opt/radix/timberland/exec/
