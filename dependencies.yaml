@@ -335,11 +335,6 @@ dependencies:
       lang: scala
       version: 3.4.1
 
-  dnsjava:
-    dnsjava:
-      lang: java
-      version: 3.0.2
-
   com.github.oshi:
     oshi:
       lang: java

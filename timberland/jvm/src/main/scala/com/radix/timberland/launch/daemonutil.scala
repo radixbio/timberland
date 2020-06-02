@@ -25,7 +25,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, TimeoutException, duration}
 import com.radix.utils.helm.elemental.{ElementalOps, UPNotRetrieved, UPNotSet, UPRetrieved, UPSet}
-import org.xbill.DNS
+import java.net.{InetAddress, UnknownHostException}
 
 sealed trait DaemonState
 case object AllDaemonsStarted extends DaemonState
@@ -102,18 +102,19 @@ package object daemonutil {
    * @param timeoutDuration How long to wait before throwing an exception
    */
   def waitForDNS(dnsName: String, timeoutDuration: FiniteDuration): IO[Unit] = {
-    val dnsQuery = new DNS.Lookup(dnsName, DNS.Type.SRV, DNS.DClass.IN)
-
-    def queryProg(): IO[Unit] = for {
-      _ <- IO(Console.println(s"Waiting for DNS: $dnsName"))
-      dnsAnswers <- IO(Option(dnsQuery.run.toSeq).getOrElse(Seq.empty))
-      _ <- if(dnsQuery.getResult != DNS.Lookup.SUCCESSFUL || dnsAnswers.isEmpty)
-        IO.sleep(1.seconds) *> queryProg
-      else
-        IO(Console.println(s"Found DNS record: $dnsName"))
+    def queryLoop(): IO[Unit] = for {
+      lookupResult <- IO(InetAddress.getAllByName(dnsName)).attempt
+      _ <- lookupResult match {
+        case Left(_: UnknownHostException) => IO(Console.println(s"[$dnsName] Host not found (yet)")) *> IO.sleep(2.seconds) *> queryLoop
+        case Left(err: Throwable) => IO(Console.println(s"[$dnsName] Unexpected result")) *> IO.raiseError(err)
+        case Right(addresses: Array[InetAddress]) => addresses match {
+          case Array() => IO(Console.println(s"[$dnsName] Successful yet empty DNS response")) *> IO.sleep(2.seconds) *> queryLoop
+          case _ => IO(Console.println(s"[$dnsName] Found DNS record(s): ${addresses.map(_.getHostAddress).mkString(", ")}"))
+        }
+      }
     } yield ()
 
-    timeout(queryProg, timeoutDuration) *> IO.unit
+    timeout(queryLoop, timeoutDuration) *> IO.unit
   }
 
   /** Start up the specified daemons (or all or a combination) based upon the passed parameters. Will immediately exit
