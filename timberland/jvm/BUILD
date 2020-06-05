@@ -349,7 +349,7 @@ sh_binary(
         ":radix-timberland_0.1_amd64.deb",
         ":timberland-rpm-amd64.rpm",
     ],
-    tags = ["no-sandbox"],
+    #tags = ["no-sandbox"],
 )
 
 sh_test(

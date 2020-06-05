@@ -40,12 +40,33 @@ rm {timberland-full-tar.tar}
 /opt/radix/timberland/nomad/config/nomad.hcl
 /opt/radix/timberland/nomad/config/elasticsearch/unicast_hosts.tpl
 /opt/radix/timberland/nomad/zookeeper/zoo.tpl
+/opt/radix/timberland/nomad/zookeeper/zoo.cfg
+/opt/radix/timberland/nomad/zookeeper/zoo_replicated.cfg.dynamic
 /opt/radix/timberland/nomad/connect/postgres_source.sh
 /opt/radix/timberland/nomad/connect/start.sh
 /opt/radix/timberland/nomad/connect/yugabyte_sink.sh
 /etc/systemd/system/consul.service
 /etc/systemd/system/nomad.service
 /opt/radix/timberland/terraform/terraform
+/opt/radix/timberland/terraform/main
+/opt/radix/timberland/terraform/main/templates
+/opt/radix/timberland/terraform/main/templates/retool_pg_kafka_connector.tmpl
+/opt/radix/timberland/terraform/main/templates/elastic_search.tmpl
+/opt/radix/timberland/terraform/main/templates/apprise.tmpl
+/opt/radix/timberland/terraform/main/templates/retool.tmpl
+/opt/radix/timberland/terraform/main/templates/yugabyte_kafka_connector.tmpl
+/opt/radix/timberland/terraform/main/templates/kafka_companions.tmpl
+/opt/radix/timberland/terraform/main/templates/kafka.tmpl
+/opt/radix/timberland/terraform/main/templates/yugabyte.tmpl
+/opt/radix/timberland/terraform/main/templates/elemental.tmpl
+/opt/radix/timberland/terraform/main/templates/vault.tmpl
+/opt/radix/timberland/terraform/main/templates/zookeeper.tmpl
+/opt/radix/timberland/terraform/main/templates/minio.tmpl
+/opt/radix/timberland/terraform/main/templates/es_kafka_connector.tmpl
+/opt/radix/timberland/terraform/main/main.tf
+/opt/radix/timberland/terraform/main/variables.tf
+/opt/radix/timberland/terraform/plugins/terraform-provider-nomad_v1.4.5_x4
+/opt/radix/timberland/terraform/plugins/terraform-provider-consul_v2.7.0_x4
 
 %post
 if [ -f /opt/radix/timberland/exec/timberland ]; then
@@ -53,6 +74,11 @@ if [ -f /opt/radix/timberland/exec/timberland ]; then
     ./timberland runtime dns up
 fi
 mkdir -p /opt/radix/terraform
+
+# The following seems to be needed to allow Docker containers to access the Internet.
+# Note: This is not automatically removed from /etc/sysctl.conf upon package removal.
+echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
+sysctl sysctl net.ipv4.ip_forward=1
 
 %preun
 if [ -f /opt/radix/timberland/exec/timberland ]; then
