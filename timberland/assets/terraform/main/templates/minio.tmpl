@@ -148,13 +148,7 @@ ${ upstream_access_key == "minio-access-key" ? "" : <<-EOH
         port_map = {"nginx" = 9000}
         cap_add = []
       }
-
-      restart {
-        attempts = 10
-        delay = "20s"
-        mode = "fail"
-      }
-
+      
       driver = "docker"
       kill_timeout = "5s"
       kill_signal = "SIGINT"

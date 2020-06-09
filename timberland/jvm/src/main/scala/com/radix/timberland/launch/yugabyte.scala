@@ -52,13 +52,13 @@ package object yugabyte {
 
         val callMethod = master match {
           case true => Seq("/home/yugabyte/bin/yb-master",
-            "--fs_data_dirs=/mnt/disk0",
+            "--fs_data_dirs=/ybmaster_data",
             s"--replication_factor=$minQuorumSize",
             "--enable_ysql=true",
             masterAddressesCmdLine,
             s"--rpc_bind_addresses=$weave")
           case false => Seq("/home/yugabyte/bin/yb-tserver",
-            "--fs_data_dirs=/mnt/disk0",
+            "--fs_data_dirs=/ybtserver_data",
             "--start_pgsql_proxy",
             "--ysql_enable_auth=true",
             "--cql_proxy_bind_address=0.0.0.0:9042",

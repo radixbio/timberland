@@ -11,6 +11,12 @@ job "kafka-daemons" {
 
   group "kafka" {
 
+    volume "kafka_data" {
+      type = "host"
+      source = "kafka_data"
+      read_only = false
+    }
+
     constraint {
       operator = "distinct_hosts"
       value = "true"
@@ -19,6 +25,12 @@ job "kafka-daemons" {
     count = ${ quorum_size }
 
     task "kafka" {
+
+      volume_mount {
+        volume = "kafka_data"
+        destination = "/var/lib/kafka/data"
+        read_only = false
+      }
 
       config {
         image = "confluentinc/cp-kafka:5.3.1"

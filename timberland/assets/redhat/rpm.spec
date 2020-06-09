@@ -74,6 +74,10 @@ if [ -f /opt/radix/timberland/exec/timberland ]; then
     ./timberland runtime dns up
 fi
 mkdir -p /opt/radix/terraform
+mkdir -p /opt/radix/zookeeper_data
+mkdir -p /opt/radix/kafka_data
+mkdir -p /opt/radix/ybmaster_data
+mkdir -p /opt/radix/ybtserver_data
 
 # The following seems to be needed to allow Docker containers to access the Internet.
 # Note: This is not automatically removed from /etc/sysctl.conf upon package removal.

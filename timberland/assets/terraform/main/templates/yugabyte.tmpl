@@ -11,6 +11,18 @@ job "yugabyte" {
 
   group "yugabyte" {
 
+    volume "ybmaster_data" {
+      type = "host"
+      read_only = false
+      source = "ybmaster_data"
+    }
+
+    volume "ybtserver_data" {
+      type = "host"
+      read_only = false
+      source = "ybtserver_data"
+    }
+
     constraint {
       operator = "distinct_hosts"
       value = "true"
@@ -19,6 +31,12 @@ job "yugabyte" {
     count = ${ quorum_size }
 
     task "ybmaster" {
+
+      volume_mount {
+        volume = "ybmaster_data"
+        destination = "/ybmaster_data"
+        read_only = false
+      }
 
       config {
         image = "yugabytedb/yugabyte:latest"
@@ -82,6 +100,12 @@ job "yugabyte" {
 
 
     task "ybtserver" {
+
+      volume_mount {
+        volume = "ybtserver_data"
+        destination = "/ybtserver_data"
+        read_only = false
+      }
 
       config {
         image = "yugabytedb/yugabyte:latest"

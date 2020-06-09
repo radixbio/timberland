@@ -11,6 +11,26 @@ client {
   options {
     docker.privileged.enabled = "true"
   }
+
+  host_volume "zookeeper_data" {
+    path = "/opt/radix/zookeeper_data"
+    read_only = false
+  }
+
+  host_volume "kafka_data" {
+    path = "/opt/radix/kafka_data"
+    read_only = false
+  }
+
+  host_volume "ybmaster_data" {
+    path = "/opt/radix/ybmaster_data"
+    read_only = false
+  }
+
+  host_volume "ybtserver_data" {
+    path = "/opt/radix/ybtserver_data"
+    read_only = false
+  }
 }
 
 plugin "raw_exec" {

@@ -16,9 +16,21 @@ job "zookeeper-daemons" {
       value = "true"
     }
 
+    volume "zookeeper_data" {
+      type = "host"
+      read_only = false
+      source = "zookeeper_data"
+    }
+
     count = ${ quorum_size }
 
     task "zookeeper" {
+
+      volume_mount {
+        volume = "zookeeper_data"
+        destination = "/data"
+        read_only = false
+      }
 
       config {
         image = "zookeeper:3.4"
