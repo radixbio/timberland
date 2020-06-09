@@ -1,4 +1,4 @@
-job "kafka-daemons" {
+job "${prefix}kafka-daemons" {
   all_at_once = false
 
   constraint {
@@ -22,7 +22,7 @@ job "kafka-daemons" {
 
       config {
         image = "confluentinc/cp-kafka:5.3.1"
-        args = ["/timberland/exec/timberland-launcher_deploy.jar","launch","kafka" ${dev ? ", \"--dev\"" : ""}]
+        args = ["/timberland/exec/timberland-launcher_deploy.jar","launch","kafka" ${dev ? ", \"--dev\"" : ""}, "--prefix", "${prefix}"]
         auth_soft_fail = false
         command = "-jar"
         entrypoint = ["java"]

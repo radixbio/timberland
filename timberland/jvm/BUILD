@@ -221,16 +221,6 @@ pkg_tar(
 )
 
 pkg_tar(
-    name = "timberland-nomad-connect",
-    srcs = [
-        "//timberland/assets:nomad/connect/postgres_source.sh",
-        "//timberland/assets:nomad/connect/start.sh",
-        "//timberland/assets:nomad/connect/yugabyte_sink.sh",
-    ],
-    package_dir = "/opt/radix/timberland/nomad/connect",
-)
-
-pkg_tar(
     name = "timberland-nomad-config-elasticsearch",
     srcs = [
         "//timberland/assets:nomad/config/elasticsearch/unicast_hosts.tpl",
@@ -267,16 +257,6 @@ pkg_tar(
 )
 
 pkg_tar(
-    name = "timberland-nginx",
-    srcs = [
-        "//timberland/assets:nginx/nginx-minio-noupstream.conf",
-        "//timberland/assets:nginx/nginx-minios.conf",
-        "//timberland/assets:nginx/nginx-retool.conf",
-    ],
-    package_dir = "/opt/radix/timberland/nginx",
-)
-
-pkg_tar(
     name = "timberland-devdrivers",
     srcs = [
         "//device_drivers/hw_discovery/jvm:hw-discovery-bin_deploy.jar",
@@ -295,12 +275,10 @@ pkg_tar(
         ":timberland-devdrivers",
         ":timberland-exec",
         ":timberland-networkd",
-        ":timberland-nginx",
         ":timberland-nomad",
         ":timberland-nomad-config",
         ":timberland-nomad-config-elasticsearch",
         ":timberland-nomad-config-zookeeper",
-        ":timberland-nomad-connect",
         ":timberland-systemd-services",
         ":timberland-terraform",
         ":timberland-terraform-module",

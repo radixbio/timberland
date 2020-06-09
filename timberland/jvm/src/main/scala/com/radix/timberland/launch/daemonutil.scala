@@ -117,18 +117,21 @@ package object daemonutil {
     timeout(queryLoop, timeoutDuration) *> IO.unit
   }
 
-  /** Start up the specified daemons (or all or a combination) based upon the passed parameters. Will immediately exit
+  /**
+   * Start up the specified daemons (or all or a combination) based upon the passed parameters. Will immediately exit
    * after submitting the job to Nomad via Terraform.
    *
-   * @param quorumSize           How many running and valid copies of a Job Group there should be across the specified services
-   * @param dev                  Whether to run in dev mode. This is used in conjunction with quorumSize to adjust variables sent to
-   *                             the daemon to start it in development mode
-   * @param core                 Whether to start core services (Zookeeper, Kafka, Kafka Companions)
-   * @param vaultStart           Whether to start Vault
-   * @param esStart              Whether to start Elasticsearch
-   * @param retoolStart          Whether to start retool
-   * @return Returns an IO of DaemonState and since the function is blocking/recursive, the only return value is
-   *         AllDaemonsStarted
+   * @param integrationTest    Whether the nomad jobs are being run inside an integration test
+   * @param dev                Whether to run in dev mode. This is used to adjust variables sent to the daemon to start it in development mode
+   * @param core               Whether to start core services (Zookeeper, Kafka, Kafka Companions, Minio, Apprise)
+   * @param yugabyteStart      Whether to start Yugabyte
+   * @param vaultStart         Whether to start Vault
+   * @param esStart            Whether to start Elasticsearch
+   * @param retoolStart        Whether to start Retool
+   * @param elementalStart     Whether to start Elemental
+   * @param upstreamAccessKey  The upstream access key for MinIO
+   * @param upstreamSecretKey  The upstream secret key for MinIO
+   * @return An IO of an Int representing the exit code of the terraform apply command
    */
   def runTerraform(integrationTest: Boolean,
                    dev: Boolean,
@@ -139,20 +142,27 @@ package object daemonutil {
                    retoolStart: Boolean,
                    elementalStart: Boolean,
                    upstreamAccessKey: Option[String],
-                   upstreamSecretKey: Option[String]): IO[Int] = {
+                   upstreamSecretKey: Option[String],
+                   prefix: Option[String]): IO[Int] = {
     val execDir = "/opt/radix/timberland/terraform"
     val workingDir = if(integrationTest) new File("/tmp/radix/terraform") else new File("/opt/radix/terraform")
     val mkTmpDirCommand = Seq("bash", "-c", "rm -rf /tmp/radix && mkdir -p /tmp/radix/terraform")
     val initCommand = Seq(s"$execDir/terraform", "init", "-plugin-dir", s"$execDir/plugins", "-from-module", s"$execDir/main")
 
-    val prefix = if(integrationTest) "integration-" else {
-      val home = sys.env.getOrElse("HOME", "")
-      val file = new File(s"$home/monorepo")
-      if(file.exists) Process(Seq("git", "rev-parse", "--abbrev-ref", "HEAD"), Some(new File(s"$home/monorepo"))).!!.trim.toLowerCase.replaceAll("/", "-") + "-" else ""
-    }
+    // nomad job length can be 64 characters max, and the longest job-group-task name is 37 characters
+    // dns lookup name can be 63 characters max
+    val pre = prefix.getOrElse({
+        if (integrationTest) "integration-" else {
+          sys.env.getOrElse("NOMAD_PREFIX", {
+            val home = sys.env.getOrElse("HOME", "")
+            val file = new File(s"$home/monorepo")
+            if (file.exists) Process(Seq("git", "rev-parse", "--abbrev-ref", "HEAD"), Some(new File(s"$home/monorepo"))).!!.trim.toLowerCase.replaceAll("/", "-") + "-" else ""
+          })
+        }
+      })
 
     val variables: String =
-      s"-var='prefix=$prefix' " +
+      s"-var='prefix=${truncate(pre)}' " +
       s"-var='test=$integrationTest' " +
       s"-var='dev=$dev' " +
       s"-var='launch_minio=$core' " +
@@ -193,19 +203,25 @@ package object daemonutil {
       apply
   }
 
+  private def truncate(str: String, length: Int = 26): String = {
+    str.substring(0, Math.min(str.length, length))
+  }
 
   def waitForQuorum(core: Boolean,
                     yugabyteStart: Boolean,
                     vaultStart: Boolean,
                     esStart: Boolean,
                     retoolStart: Boolean,
-                    elementalStart: Boolean): IO[DaemonState] = {
+                    elementalStart: Boolean,
+                    prefix: Option[String]): IO[DaemonState] = {
+    val pre = prefix.getOrElse("")
+
     val coreServices = Vector(
       "zookeeper-daemons-zookeeper-zookeeper",
-      "kafka-companion-daemons-kafkaCompanions-kSQL",
-      "kafka-companion-daemons-kafkaCompanions-kafkaConnect",
-      "kafka-companion-daemons-kafkaCompanions-kafkaRestProxy",
-      "kafka-companion-daemons-kafkaCompanions-schemaRegistry",
+      "kc-daemons-companions-kSQL",
+      "kc-daemons-companions-connect",
+      "kc-daemons-companions-rest-proxy",
+      "kc-daemons-companions-schema-registry",
       "kafka-daemons-kafka-kafka",
       "minio-job-minio-group-nginx-minio",
       "apprise-apprise-apprise",
@@ -222,7 +238,7 @@ package object daemonutil {
     )
 
     val elasticSearchServices = Vector(
-      "elasticsearch-elasticsearch-es-generic-node",
+      "elasticsearch-es-es-generic-node",
       "elasticsearch-kibana-kibana",
     )
 
@@ -247,7 +263,7 @@ package object daemonutil {
     implicit val cs: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
     implicit val timer: Timer[IO] = IO.timer(ExecutionContext.global)
 
-    val waitForAllServices = allEnabledServices.parTraverse { service => waitForDNS(s"$service.service.consul", 5.minutes) }
+    val waitForAllServices = allEnabledServices.parTraverse { service => waitForDNS(s"${truncate(pre)}$service.service.consul", 5.minutes) }
 
     waitForAllServices *> IO(AllDaemonsStarted)
   }
@@ -257,7 +273,6 @@ package object daemonutil {
     val unseal = for {
       vaultBaseUrl <- starter.lookupVaultBaseUrl()
       vaultUnseal <- starter.unsealVault(dev, vaultBaseUrl)
-//      vaultOpen <- consulutil.waitForService("vault", Set("active"), 1)(5.seconds, timer)
       vaultOpen <- waitForDNS("vault.service.consul", 15.seconds)
 
       oauthId = sys.env.get("GOOGLE_OAUTH_ID")

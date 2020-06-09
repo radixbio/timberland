@@ -29,7 +29,7 @@ resource "nomad_job" "elasticsearch" {
 
 data "consul_service_health" "es_health" {
   count = var.launch_es ? 1 : 0
-  name = "elasticsearch-elasticsearch-es-generic-node"
+  name = "${var.prefix}elasticsearch-es-es-generic-node"
   passing = true
   depends_on = [nomad_job.elasticsearch]
   wait_for = "300s"
@@ -37,7 +37,7 @@ data "consul_service_health" "es_health" {
 
 data "consul_service_health" "kibana_health" {
   count = var.launch_es ? 1 : 0
-  name = "elasticsearch-kibana-kibana"
+  name = "${var.prefix}elasticsearch-kibana-kibana"
   passing = true
   depends_on = [nomad_job.kafka]
   wait_for = "300s"
@@ -51,7 +51,7 @@ resource "nomad_job" "elemental" {
 
 resource "nomad_job" "es_kafka_connector" {
   count = var.launch_es && var.launch_kafka ? 1 : 0
-  depends_on = [data.consul_service_health.kafka_health, data.consul_service_health.es_health, data.consul_service_health.kibana_health]
+  depends_on = [data.consul_service_health.connect_health, data.consul_service_health.schema_registry_health, data.consul_service_health.es_health, data.consul_service_health.kibana_health]
   jobspec = templatefile("./templates/es_kafka_connector.tmpl", {prefix = var.prefix, test = var.test})
 }
 
@@ -63,7 +63,7 @@ resource "nomad_job" "kafka" {
 
 data "consul_service_health" "kafka_health" {
   count = var.launch_kafka ? 1 : 0
-  name = "kafka-daemons-kafka-kafka"
+  name = "${var.prefix}kafka-daemons-kafka-kafka"
   passing = true
   depends_on = [nomad_job.kafka]
   wait_for = "300s"
@@ -77,7 +77,15 @@ resource "nomad_job" "kafka_companions" {
 
 data "consul_service_health" "schema_registry_health" {
   count = var.launch_kafka_companions ? 1 : 0
-  name = "kafka-companion-daemons-kafkaCompanions-schemaRegistry"
+  name = "${var.prefix}kc-daemons-companions-schema-registry"
+  passing = true
+  depends_on = [nomad_job.kafka_companions]
+  wait_for = "300s"
+}
+
+data "consul_service_health" "connect_health" {
+  count = var.launch_kafka_companions ? 1 : 0
+  name = "${var.prefix}kc-daemons-companions-connect"
   passing = true
   depends_on = [nomad_job.kafka_companions]
   wait_for = "300s"
@@ -97,7 +105,7 @@ resource "nomad_job" "retool" {
 
 data "consul_service_health" "retool_health" {
   count = var.launch_retool ? 1 : 0
-  name = "retool-retool-retool-main"
+  name = "${var.prefix}retool-retool-retool-main"
   passing = true
   depends_on = [nomad_job.retool]
   wait_for = "300s"
@@ -105,7 +113,7 @@ data "consul_service_health" "retool_health" {
 
 data "consul_service_health" "postgres_health" {
   count = var.launch_retool ? 1 : 0
-  name = "retool-retool-postgres"
+  name = "${var.prefix}retool-retool-postgres"
   passing = true
   depends_on = [nomad_job.retool]
   wait_for = "300s"
@@ -113,7 +121,7 @@ data "consul_service_health" "postgres_health" {
 
 resource "nomad_job" "pg_kafka_connector" {
   count = var.launch_retool && var.launch_kafka ? 1 : 0
-  depends_on = [data.consul_service_health.kafka_health, data.consul_service_health.postgres_health]
+  depends_on = [data.consul_service_health.connect_health, data.consul_service_health.schema_registry_health, data.consul_service_health.postgres_health]
   jobspec = templatefile("./templates/retool_pg_kafka_connector.tmpl", {prefix = var.prefix, test = var.test})
 }
 
@@ -130,7 +138,7 @@ resource "nomad_job" "yugabyte" {
 
 data "consul_service_health" "yb_master_health" {
   count = var.launch_yugabyte ? 1 : 0
-  name = "yugabyte-yugabyte-ybmaster"
+  name = "${var.prefix}yugabyte-yugabyte-ybmaster"
   passing = true
   depends_on = [nomad_job.yugabyte]
   wait_for = "300s"
@@ -138,7 +146,7 @@ data "consul_service_health" "yb_master_health" {
 
 data "consul_service_health" "yb_tserver_health" {
   count = var.launch_yugabyte ? 1 : 0
-  name = "yugabyte-yugabyte-ybtserver"
+  name = "${var.prefix}yugabyte-yugabyte-ybtserver"
   passing = true
   depends_on = [nomad_job.yugabyte]
   wait_for = "300s"
@@ -146,7 +154,7 @@ data "consul_service_health" "yb_tserver_health" {
 
 resource "nomad_job" "yb_kafka_connector" {
   count = var.launch_yugabyte && var.launch_kafka ? 1 : 0
-  depends_on = [data.consul_service_health.kafka_health, data.consul_service_health.yb_master_health, data.consul_service_health.yb_tserver_health]
+  depends_on = [data.consul_service_health.connect_health, data.consul_service_health.schema_registry_health, data.consul_service_health.yb_master_health, data.consul_service_health.yb_tserver_health]
   jobspec = templatefile("./templates/yugabyte_kafka_connector.tmpl", {prefix = var.prefix, test = var.test, })
 }
 
@@ -158,7 +166,7 @@ resource "nomad_job" "zookeeper" {
 
 data "consul_service_health" "zookeeper_health" {
   count = var.launch_zookeeper ? 1 : 0
-  name = "zookeeper-daemons-zookeeper-zookeeper"
+  name = "${var.prefix}zookeeper-daemons-zookeeper-zookeeper"
   passing = true
   depends_on = [nomad_job.zookeeper]
   wait_for = "300s"

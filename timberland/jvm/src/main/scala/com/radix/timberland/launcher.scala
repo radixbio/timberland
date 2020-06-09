@@ -18,21 +18,31 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 /**
  * radix|- runtime|
- *                |- launch|
- *                         |- zookeeper <tname...> [dev]
- *                         |- kafka <tname...> [dev]
+ * |- launch|
+ * |- zookeeper <tname...> [dev]
+ * |- kafka <tname...> [dev]
  *
  *
  *
  *
  */
 sealed trait LauncherCMD
+
 sealed trait LaunchMe extends LauncherCMD
 
 sealed trait Launch extends LaunchMe
+
 case class LaunchZookeeper(dev: Boolean) extends Launch
-case class LaunchKafka(dev: Boolean) extends Launch
-case class LaunchYugabyte(dev: Boolean, master: Boolean) extends Launch
+
+case class LaunchKafka(dev: Boolean, prefix: String) extends Launch
+
+case class LaunchYugabyte(dev: Boolean, master: Boolean, prefix: String) extends Launch
+
+case class Random() {
+  def apply(dev: Boolean, str: String) = {
+    println("yep")
+  }
+}
 
 object launcher {
 
@@ -57,24 +67,27 @@ object launcher {
             ),
             command(
               "kafka",
-              info(switch(long("dev"), help("start kafka in dev mode")).map({
-                dev =>
-                  LaunchKafka(dev)
-              }), progDesc("launch kafka at runtime, launched from nomad"))
+              info(^(
+                switch(long("dev"), help("start kafka in dev mode")),
+                strOption(long("prefix"), help("zookeeper's job prefix"), metavar("<PREFIX>")))
+              ((dev, prefix) => LaunchKafka(dev, prefix)),
+                progDesc("launch kafka at runtime, launched from nomad"))
             ),
             command(
               "yugabyte-master",
-              info(switch(long("dev"), help("start yugabyte master in dev mode")).map({
-                dev =>
-                  LaunchYugabyte(dev, true)
-              }), progDesc("launch yugabyte master at runtime, launched from nomad"))
+              info(^(
+                switch(long("dev"), help("start yugabyte master in dev mode")),
+                strOption(long("prefix"), help("the prefix of the nomad jobs"), metavar(">PREFIX")))
+              ((dev, prefix) => LaunchYugabyte(dev, true, prefix)),
+                progDesc("launch yugabyte master at runtime, launched from nomad"))
             ),
             command(
               "yugabyte-tserver",
-              info(switch(long("dev"), help("start yugabyte tserver in dev mode")).map({
-                dev =>
-                  LaunchYugabyte(dev, false)
-              }), progDesc("launch yugabyte tserver at runtime, launched from nomad"))
+              info(^(
+                switch(long("dev"), help("start yugabyte tserver in dev mode")),
+                strOption(long("prefix"), help("the prefix of the nomad jobs"), metavar("<PREFIX>")))
+              ((dev, prefix) => LaunchYugabyte(dev, false, prefix)),
+              progDesc("launch yugabyte tserver at runtime, launched from nomad"))
             )
           ).weaken[LaunchMe], progDesc("radix Launcher component"))
       )
@@ -88,6 +101,7 @@ object launcher {
       header("hello - a test for scala-optparse-applicative"))
 
   var sudopw: Option[String] = None
+
   def checkSudo: Option[String] = {
     if (sudopw.isEmpty) {
       import sys.process._
@@ -105,7 +119,7 @@ object launcher {
   def main(args: Array[String]): Unit = {
     println(s"args: ${args.toList}")
     val osname = System.getProperty("os.name") match {
-      case mac if mac.toLowerCase.contains("mac")       => "darwin"
+      case mac if mac.toLowerCase.contains("mac") => "darwin"
       case linux if linux.toLowerCase.contains("linux") => "linux"
     }
     val arch = System.getProperty("os.arch") match {
@@ -150,7 +164,7 @@ object launcher {
                   prog.unsafeRunSync()
                 }
 
-                case LaunchKafka(dev) => {
+                case LaunchKafka(dev, prefix) => {
                   implicit var minQuorumSize: Int = 3
                   if (dev) {
                     minQuorumSize = 1
@@ -161,14 +175,14 @@ object launcher {
                     .withHandler(minimumLevel = Some(scribe.Level.Trace))
                     .replace()
                   val prog = for {
-                    _ <- launch.kafka.startKafka
+                    _ <- launch.kafka.startKafka(prefix)
                     _ <- IO.never
                   } yield ()
                   prog.unsafeRunSync()
 
                 }
 
-                case LaunchYugabyte(dev, master) => {
+                case LaunchYugabyte(dev, master, prefix) => {
                   implicit var minQuorumSize: Int = 3
                   if (dev) {
                     minQuorumSize = 1
@@ -179,7 +193,7 @@ object launcher {
                     .withHandler(minimumLevel = Some(scribe.Level.Trace))
                     .replace()
                   val prog = for {
-                    _ <- launch.yugabyte.startYugabyte(minQuorumSize, master)
+                    _ <- launch.yugabyte.startYugabyte(master, prefix)
                     _ <- IO.never
                   } yield ()
                   prog.unsafeRunSync()

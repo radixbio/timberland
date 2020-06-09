@@ -1,4 +1,4 @@
-job "kafka-companion-daemons" {
+job "${prefix}kc-daemons" {
   all_at_once = false
 
   constraint {
@@ -9,10 +9,10 @@ job "kafka-companion-daemons" {
 
   datacenters = ["dc1"]
 
-  group "kafkaCompanions" {
+  group "companions" {
     count = 1
 
-    task "schemaRegistry" {
+    task "schema-registry" {
 
       config {
         image = "confluentinc/cp-schema-registry:5.3.1"
@@ -27,7 +27,7 @@ job "kafka-companion-daemons" {
       driver = "docker"
       env = {
         "SCHEMA_REGISTRY_KAFKASTORE_TOPIC_REPLICATION_FACTOR" = ${ dev ? "\"1\"" : "\"3\"" },
-        "SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS" = "PLAINTEXT://kafka-daemons-kafka-kafka.service.consul:29092",
+        "SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS" = "PLAINTEXT://${prefix}kafka-daemons-kafka-kafka.service.consul:29092",
         "SCHEMA_REGISTRY_HOST_NAME" = "$${attr.unique.hostname}-kafka-schema-registry",
         "SCHEMA_REGISTRY_LISTENERS" = "http://0.0.0.0:8081"
       }
@@ -69,7 +69,7 @@ job "kafka-companion-daemons" {
       shutdown_delay = "0s"
     }
 
-    task "kafkaRestProxy" {
+    task "rest-proxy" {
 
       config {
         image = "confluentinc/cp-kafka-rest:5.3.1"
@@ -83,8 +83,8 @@ job "kafka-companion-daemons" {
 
       driver = "docker"
       env = {
-        "KAFKA_REST_BOOTSTRAP_SERVERS" = "INSIDE://kafka-daemons-kafka-kafka.service.consul:29092",
-        "KAFKA_REST_SCHEMA_REGISTRY_URL" = "http://kafka-companion-daemons-kafkaCompanions-schemaRegistry.service.consul:8081",
+        "KAFKA_REST_BOOTSTRAP_SERVERS" = "INSIDE://${prefix}kafka-daemons-kafka-kafka.service.consul:29092",
+        "KAFKA_REST_SCHEMA_REGISTRY_URL" = "http://${prefix}kc-daemons-companions-schema-registry.service.consul:8081",
         "KAFKA_REST_HOST_NAME" = "$${attr.unique.hostname}-kafka-rest-proxy",
         "KAFKA_REST_LISTENERS" = "http://0.0.0.0:8082"
       }
@@ -126,7 +126,7 @@ job "kafka-companion-daemons" {
       shutdown_delay = "0s"
     }
 
-    task "kafkaConnect" {
+    task "connect" {
 
       config {
         image = "confluentinc/cp-kafka-connect:5.3.1"
@@ -142,15 +142,15 @@ job "kafka-companion-daemons" {
       env = {
         "CONNECT_REST_ADVERTISED_HOST_NAME" = "$${attr.unique.hostname}-kafka-connect",
         "PROXY" = "true",
-        "CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL" = "http://kafka-companion-daemons-kafkaCompanions-kafkaSchemaRegistry:8081",
+        "CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL" = "http://${prefix}kc-daemons-companions-schema-registry.service.consul:8081",
         "CONNECT_KEY_CONVERTER" = "io.confluent.connect.avro.AvroConverter",
-        "CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL" = "http://kafka-companion-daemons-kafkaCompanions-kafkaSchemaRegistry:8081",
+        "CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL" = "http://${prefix}kc-daemons-companions-schema-registry.service.consul:8081",
         "CONNECT_PLUGIN_PATH" = "/usr/share/java,/etc/kafka-connect/jars",
         "CONNECT_REST_PORT" = "8083",
         "CONNECT_LOG4J_LOGGERS" = "org.apache.kafka.connect.runtime.rest=WARN,org.reflections=ERROR",
         "CONNECT_LOG4J_ROOT_LOGLEVEL" = "INFO",
-        "CONNECT_BOOTSTRAP_SERVERS" = "INSIDE://kafka-daemons-kafka-kafka.service.consul:29092",
-        "KAFKA_REST_PROXY_URL" = "http://kafka-companion-daemons-kafkaCompanions-kafkaRestProxy.service.consul:8082",
+        "CONNECT_BOOTSTRAP_SERVERS" = "INSIDE://${prefix}kafka-daemons-kafka-kafka.service.consul:29092",
+        "KAFKA_REST_PROXY_URL" = "http://kc-daemons-companions-rest-proxy.service.consul:8082",
         "CONNECT_GROUP_ID" = "kafka-daemons-connect-group",
         "CONNECT_INTERNAL_KEY_CONVERTER" = "org.apache.kafka.connect.json.JsonConverter",
         "CONNECT_STATUS_STORAGE_TOPIC" = "kafka-connect-daemons-connect-status",
@@ -217,9 +217,9 @@ job "kafka-companion-daemons" {
       env = {
         "PROXY" = "true",
         "KSQL_KQSL_SERVICE_ID" = "ksql-server",
-        "KAFKA_REST_PROXY_URL" = "http://kafka-companion-daemons-kafkaCompanions-kafkaRestProxy.service.consul:8082",
+        "KAFKA_REST_PROXY_URL" = "http://${prefix}kc-daemons-companions-rest-proxy.service.consul:8082",
         "KSQL_LISTENERS" = "http://0.0.0.0:8000",
-        "KSQL_BOOTSTRAP_SERVERS" = "INSIDE://kafka-daemons-kafka-kafka.service.consul:29092"
+        "KSQL_BOOTSTRAP_SERVERS" = "INSIDE://${prefix}kafka-daemons-kafka-kafka.service.consul:29092"
       }
       kill_timeout = "5s"
       kill_signal = "SIGINT"

@@ -1,4 +1,4 @@
-job "retool" {
+job "${prefix}retool" {
   all_at_once = false
 
   constraint {
@@ -85,7 +85,7 @@ job "retool" {
 
       config {
         image = "tryretool/backend:latest"
-        args = ["-c","./docker_scripts/wait-for-it.sh retool-retool-postgres.service.consul:5432; ./docker_scripts/start_api.sh"]
+        args = ["-c","./docker_scripts/wait-for-it.sh ${prefix}retool-retool-postgres.service.consul:5432; ./docker_scripts/start_api.sh"]
         auth_soft_fail = false
         command = "bash"
         hostname = "retool-$${NOMAD_ALLOC_INDEX+1}"
@@ -108,8 +108,8 @@ job "retool" {
         "RT_POSTGRES_PASSWORD" = "retool",
         "RT_POSTGRES_USER" = "retool_internal_user",
         "LICENSE_KEY" = "6b3b3a6b-78a8-4805-bef4-07bedb0cfd08",
-        "POSTGRES_HOST" = "retool-retool-postgres.service.consul",
-        "RT_POSTGRES_HOST" = "retool-retool-postgres.service.consul",
+        "POSTGRES_HOST" = "${prefix}retool-retool-postgres.service.consul",
+        "RT_POSTGRES_HOST" = "${prefix}retool-retool-postgres.service.consul",
         "JWT_SECRET" = ",IkZ`r;ti$z0V8'CRt$%Ur!zq_Cw0}t8",
         "POSTGRES_PORT" = "5432",
         "RT_POSTGRES_DB" = "retool"
@@ -162,8 +162,57 @@ job "retool" {
         privileged = false
         network_mode = "weave"
         port_map = {"nginx" = 3000}
-        volumes = ["/opt/radix/timberland/nginx/nginx-retool.conf:/etc/nginx/nginx.conf"]
+        volumes = ["local/nginx.conf:/etc/nginx/nginx.conf"]
         cap_add = []
+      }
+
+      template {
+        change_mode = "noop"
+        destination = "local/nginx.conf"
+
+        data = <<-EOH
+          worker_processes 1;
+
+          events {
+            worker_connections 1024;
+          }
+
+          http {
+            default_type text/html;
+            access_log /dev/stdout;
+            sendfile on;
+            keepalive_timeout 65;
+
+            upstream retool {
+              {{ range service "${prefix}retool-retool-retool-main" }}
+                server {{ .Address }}:{{ .Port }};
+              {{ end }}
+            }
+
+            server {
+              listen 3000;
+              server_name ${prefix}retool-retool-retool-nginx.service.consul;
+
+              ignore_invalid_headers off;
+              client_max_body_size 10000m;
+              proxy_buffering off;
+
+              location / {
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+                proxy_set_header Host $http_host;
+
+                proxy_connect_timeout 300;
+                proxy_http_version 1.1;
+                proxy_set_header Connection "";
+                chunked_transfer_encoding off;
+
+                proxy_pass http://retool;
+              }
+            }
+          }
+        EOH
       }
 
       driver = "docker"
