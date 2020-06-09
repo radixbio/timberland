@@ -87,7 +87,6 @@ case class Start(
                   password: Option[String] = None,
                   upstreamAccessKey: Option[String] = None,
                   upstreamSecretKey: Option[String] = None,
-                  prefix: Option[String] = None,
                 ) extends Local
 
 case object Stop extends Local
@@ -148,7 +147,7 @@ object runner {
           command(
             "start",
             info(
-              switch(long("dry-run"), help("whether to run the mock interpreter")).map({ flag =>
+              switch(long("dry-run"), help("whether to run the mock intepreter")).map({ flag =>
                 Start(flag)
               }) <*>
                 optional(strOption(long("debug"), help("what debug level the service should run at"))).map(debug => {
@@ -267,15 +266,6 @@ object runner {
                     case Some(_) => exist.copy(upstreamSecretKey = upstreamSecretKey)
                     case None => exist
                   }
-                })
-                <*> optional(
-                strOption(long("prefix"),
-                  help("Nomad job prefix")))
-                .map(prefix => { exist: Start =>
-                  prefix match {
-                    case Some(_) => exist.copy(prefix = prefix)
-                    case None => exist
-                  }
                 }),
               progDesc("start the radix core services on the current system")
             )
@@ -363,6 +353,7 @@ object runner {
     nomad.getParentFile.mkdirs()
     consul.getParentFile.mkdirs()
 
+
     // helper object containing parsers for command-line representation of prism containers and paths
     object PrismParse {
 
@@ -402,7 +393,7 @@ object runner {
             case local: Local =>
               local match {
                 case Nuke => Right(Unit)
-                case cmd@Start(dummy, loglevel, bindIP, consulSeedsO, dev, core, vault, es, yugabyte, retool, elemental, servicePort, registryListenerPort, norestart, username, password, upstreamAccessKey, upstreamSecretKey, prefix) => {
+                case cmd@Start(dummy, loglevel, bindIP, consulSeedsO, dev, core, vault, es, yugabyte, retool, elemental, servicePort, registryListenerPort, norestart, username, password, upstreamAccessKey, upstreamSecretKey) => {
                   scribe.Logger.root
                     .clearHandlers()
                     .clearModifiers()
@@ -471,14 +462,14 @@ object runner {
                     val waitForNomadAndApplyTerraformAndMaybeUnsealVault = if(startVault) {
                       res *>
                         daemonutil.waitForDNS("nomad.service.consul", 2.minutes) *>
-                        daemonutil.runTerraform(integrationTest = false, dev = dev, core = startCore, yugabyteStart = startYugabyte, vaultStart = startVault, esStart = startEs, retoolStart = startRetool, elementalStart = startElemental, upstreamAccessKey, upstreamSecretKey, prefix) *>
-                        daemonutil.waitForQuorum(core = startCore, yugabyteStart = startYugabyte, vaultStart = startVault, esStart = startEs, retoolStart = startRetool, elementalStart = startElemental, prefix) *>
+                        daemonutil.runTerraform(integrationTest = false, dev = dev, core = startCore, yugabyteStart = startYugabyte, vaultStart = startVault, esStart = startEs, retoolStart = startRetool, elementalStart = startElemental, upstreamAccessKey, upstreamSecretKey) *>
+                        daemonutil.waitForQuorum(core = startCore, yugabyteStart = startYugabyte, vaultStart = startVault, esStart = startEs, retoolStart = startRetool, elementalStart = startElemental) *>
                         daemonutil.unsealVault(dev = dev)
                     } else {
                       res *>
                         daemonutil.waitForDNS("nomad.service.consul", 2.minutes) *>
-                        daemonutil.runTerraform(integrationTest = false, dev = dev, core = startCore, yugabyteStart = startYugabyte, vaultStart = startVault, esStart = startEs, retoolStart = startRetool, elementalStart = startElemental, upstreamAccessKey, upstreamSecretKey, prefix) *>
-                        daemonutil.waitForQuorum(core = startCore, yugabyteStart = startYugabyte, vaultStart = startVault, esStart = startEs, retoolStart = startRetool, elementalStart = startElemental, prefix)
+                        daemonutil.runTerraform(integrationTest = false, dev = dev, core = startCore, yugabyteStart = startYugabyte, vaultStart = startVault, esStart = startEs, retoolStart = startRetool, elementalStart = startElemental, upstreamAccessKey, upstreamSecretKey) *>
+                        daemonutil.waitForQuorum(core = startCore, yugabyteStart = startYugabyte, vaultStart = startVault, esStart = startEs, retoolStart = startRetool, elementalStart = startElemental)
                     }
 
                     waitForNomadAndApplyTerraformAndMaybeUnsealVault.unsafeRunSync

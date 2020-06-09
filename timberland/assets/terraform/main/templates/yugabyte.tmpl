@@ -1,4 +1,4 @@
-job "${prefix}yugabyte" {
+job "yugabyte" {
   all_at_once = false
 
   constraint {
@@ -22,7 +22,7 @@ job "${prefix}yugabyte" {
 
       config {
         image = "yugabytedb/yugabyte:latest"
-        args = ["/timberland/exec/timberland-launcher_deploy.jar","launch","yugabyte-master" ${ dev ? ",\"--dev\"" : ""}, "--prefix", "${prefix}"]
+        args = ["/timberland/exec/timberland-launcher_deploy.jar","launch","yugabyte-master"${ dev ? ",\"--dev\"" : ""}]
         auth_soft_fail = false
         command = "-jar"
         entrypoint = ["java"]
@@ -85,7 +85,7 @@ job "${prefix}yugabyte" {
 
       config {
         image = "yugabytedb/yugabyte:latest"
-        args = ["/timberland/exec/timberland-launcher_deploy.jar","launch","yugabyte-tserver" ${dev ? ",\"--dev\"" : ""}, "--prefix", "${prefix}"]
+        args = ["/timberland/exec/timberland-launcher_deploy.jar","launch","yugabyte-tserver"${dev ? ",\"--dev\"" : ""}]
         auth_soft_fail = false
         command = "-jar"
         entrypoint = ["java"]

@@ -15,11 +15,11 @@ package object yugabyte {
   private[this] implicit val timer: Timer[IO] = IO.timer(global)
   //  private[this] implicit val cs: ContextShift[IO] = IO.contextShift(global)
 
-  def startYugabyte(master: Boolean, prefix: String)(implicit minQuorumSize: Int): IO[Unit] = {
+  def startYugabyte(implicit minQuorumSize: Int, master: Boolean): IO[Unit] = {
     for {
       //    _ <- IO.sleep(400.seconds)
       yugabyte_masters <- consulutil
-        .waitForService(s"${prefix}yugabyte-yugabyte-ybmaster",
+        .waitForService("yugabyte-yugabyte-ybmaster",
           Set("ybmaster", "admin"),
           minQuorumSize,
           fail = false,

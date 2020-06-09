@@ -32,6 +32,9 @@ rm {timberland-full-tar.tar}
 /opt/radix/timberland/exec/timberland-launcher_deploy.jar
 /etc/networkd-dispatcher/routable.d/10-radix-consul
 /etc/networkd-dispatcher/routable.d/10-radix-nomad
+/opt/radix/timberland/nginx/nginx-minios.conf
+/opt/radix/timberland/nginx/nginx-minio-noupstream.conf
+/opt/radix/timberland/nginx/nginx-retool.conf
 /opt/radix/timberland/nomad/nomad.env.conf
 /opt/radix/timberland/nomad/nomad
 /opt/radix/timberland/nomad/config/nomad.hcl
@@ -39,6 +42,9 @@ rm {timberland-full-tar.tar}
 /opt/radix/timberland/nomad/zookeeper/zoo.tpl
 /opt/radix/timberland/nomad/zookeeper/zoo.cfg
 /opt/radix/timberland/nomad/zookeeper/zoo_replicated.cfg.dynamic
+/opt/radix/timberland/nomad/connect/postgres_source.sh
+/opt/radix/timberland/nomad/connect/start.sh
+/opt/radix/timberland/nomad/connect/yugabyte_sink.sh
 /etc/systemd/system/consul.service
 /etc/systemd/system/nomad.service
 /opt/radix/timberland/terraform/terraform
