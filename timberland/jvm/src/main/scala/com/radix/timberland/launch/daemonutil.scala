@@ -27,6 +27,8 @@ import scala.concurrent.{ExecutionContext, TimeoutException, duration}
 import com.radix.utils.helm.elemental.{ElementalOps, UPNotRetrieved, UPNotSet, UPRetrieved, UPSet}
 import java.net.{InetAddress, UnknownHostException}
 
+import os.Path
+
 sealed trait DaemonState
 case object AllDaemonsStarted extends DaemonState
 
@@ -117,6 +119,11 @@ package object daemonutil {
     timeout(queryLoop, timeoutDuration) *> IO.unit
   }
 
+
+  def getTerraformWorkDir(is_integration: Boolean): File = {
+    if(is_integration) new File("/tmp/radix/terraform") else new File("/opt/radix/terraform")
+  }
+  val execDir = "/opt/radix/timberland/terraform"
   /** Start up the specified daemons (or all or a combination) based upon the passed parameters. Will immediately exit
    * after submitting the job to Nomad via Terraform.
    *
@@ -140,8 +147,7 @@ package object daemonutil {
                    elementalStart: Boolean,
                    upstreamAccessKey: Option[String],
                    upstreamSecretKey: Option[String]): IO[Int] = {
-    val execDir = "/opt/radix/timberland/terraform"
-    val workingDir = if(integrationTest) new File("/tmp/radix/terraform") else new File("/opt/radix/terraform")
+    val workingDir = getTerraformWorkDir(integrationTest)
     val mkTmpDirCommand = Seq("bash", "-c", "rm -rf /tmp/radix && mkdir -p /tmp/radix/terraform")
     val initCommand = Seq(s"$execDir/terraform", "init", "-plugin-dir", s"$execDir/plugins", "-from-module", s"$execDir/main")
 
@@ -193,6 +199,13 @@ package object daemonutil {
       apply
   }
 
+  def stopTerraform(integrationTest: Boolean): IO[Int] = {
+    val workingDir = getTerraformWorkDir(integrationTest)
+    val cmd = Seq("bash", "-c", s"$execDir/terraform destroy -auto-approve")
+    println(s"Destroy command ${cmd.mkString(" ")}")
+    val ret = os.proc(cmd).call(stdout = os.Inherit, stderr = os.Inherit, cwd = os.Path(workingDir))
+    IO(ret.exitCode)
+  }
 
   def waitForQuorum(core: Boolean,
                     yugabyteStart: Boolean,

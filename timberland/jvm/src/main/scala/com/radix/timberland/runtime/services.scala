@@ -100,6 +100,14 @@ object Mock {
         scribe.debug(s"would have started nomad with systemd (bind_addr: $bind_addr)")
       }
 
+    override def stopConsul(): F[Unit] = F.delay {
+      scribe.debug(s"would have stopped consul with systemd")
+    }
+
+    override def stopNomad(): F[Unit] = F.delay {
+      scribe.debug(s"would have stopped nomad with systemd")
+    }
+
     override def startWeave(hosts: List[String]): F[Unit] =
       F.delay {
         scribe.debug(s"would have launched weave with hosts ${hosts.mkString(" ")}")
@@ -216,6 +224,20 @@ object Run {
       }
     }
 
+    override def stopConsul(): F[Unit] = {
+      F.delay{
+        scribe.info("Stopping consul via systemd")
+        os.proc("/usr/bin/sudo", "/bin/systemctl", "stop", "consul").call(stdout = os.Inherit, stderr = os.Inherit)
+      }
+    }
+
+    override def stopNomad(): F[Unit] = {
+      F.delay{
+        scribe.info("Stopping nomad via systemd")
+        os.proc("/usr/bin/sudo", "/bin/systemctl", "stop", "nomad").call(stdout = os.Inherit, stderr = os.Inherit)
+      }
+    }
+
     override def startWeave(hosts: List[String]): F[Unit] = F.delay {
       os.proc("/usr/bin/docker", "plugin", "disable", "weaveworks/net-plugin:latest_release").call(check = false, cwd = os.pwd, stdout = os.Inherit, stderr = os.Inherit)
       os.proc("/usr/bin/docker", "plugin", "set", "weaveworks/net-plugin:latest_release", "IPALLOC_RANGE=10.32.0.0/12").call(check = false, stdout = os.Inherit, stderr = os.Inherit)
@@ -300,6 +322,14 @@ object Run {
       nomadRestartProc <- H.startNomad(final_bind_addr, bootstrapExpect)
       _ <- F.liftIO(Run.putStrLn("started consul and nomad"))
     } yield (consulRestartProc, nomadRestartProc)
+  }
+
+  def stopRuntimeProg[F[_]]()(implicit H: RuntimeServicesAlg[F], F: Effect[F]) = {
+    for {
+      stopConsulProc <- H.stopConsul()
+      stopNomadProc <- H.stopNomad()
+      _ <- F.liftIO(Run.putStrLn("stopped consul and nomad"))
+    } yield (stopConsulProc, stopNomadProc)
   }
 
 }

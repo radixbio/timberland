@@ -72,7 +72,7 @@ package object radixdefs {
   }
 
   /**
-    * This trait serves as an interface to bring up the core services
+    * This trait serves as an interface to bring up and/or bring down the core services
     * @tparam F
     */
   trait RuntimeServicesAlg[F[_]] extends LocalEthInfoAlg[F] {
@@ -82,6 +82,8 @@ package object radixdefs {
     def mkTempFile(contents: String, fname: String, exn: String = "json"): F[os.Path]
     def startConsul(bind_addr: String, consulSeedsO: Option[String], bootstrapExpect: Int): F[Unit]
     def startNomad(bind_addr: String, bootstrapExpect: Int): F[Unit]
+    def stopConsul(): F[Unit]
+    def stopNomad(): F[Unit]
     def startWeave(hosts: List[String]): F[Unit]
   }
 }

@@ -480,7 +480,12 @@ object runner {
                   //Right(println(daemonutil.stopAllServices.unsafeRunSync))
                   //scribe.info("All services stopped")
                   //sys.exit(0)
-                  scribe.error("Stop command not implemented!")
+//                  scribe.error("Stop command not implemented!")
+                  implicit val host = new Run.RuntimeServicesExec[IO]
+                  (daemonutil.stopTerraform(integrationTest = false) *>
+                    Run.stopRuntimeProg[IO]() *>
+                    IO(scribe.info("Stopped."))).unsafeRunSync
+                  sys.exit(0)
                 }
                 case StartNomad => Right(Unit)
               }
