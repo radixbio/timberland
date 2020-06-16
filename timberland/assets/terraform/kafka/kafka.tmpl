@@ -53,7 +53,8 @@ job "kafka-daemons" {
         "KAFKA_BROKER_ID" = "$${NOMAD_ALLOC_INDEX}",
         "TOPIC_AUTO_CREATE" = "true",
         "KAFKA_INTER_BROKER_LISTENER_NAME" = "INSIDE",
-        ${ dev ? "\"KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR\" = \"1\"" : "" }
+        ${ dev ? "\"KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR\" = \"1\"," : "" }
+        "KAFKA_ZOOKEEPER_CONNECT" = "${ zk_addr }",
       }
       kill_timeout = "5s"
       kill_signal = "SIGINT"

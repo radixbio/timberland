@@ -184,7 +184,7 @@ pkg_tar(
 )
 
 pkg_tar(
-    name = "timberland-terraform-module",
+    name = "timberland-terraform-main-module",
     srcs = [
         "//timberland/assets:terraform/main/main.tf",
         "//timberland/assets:terraform/main/variables.tf",
@@ -193,23 +193,146 @@ pkg_tar(
 )
 
 pkg_tar(
-    name = "timberland-terraform-module-templates",
+    name = "timberland-terraform-apprise-module",
     srcs = [
-        "//timberland/assets:terraform/main/templates/apprise.tmpl",
-        "//timberland/assets:terraform/main/templates/elastic_search.tmpl",
-        "//timberland/assets:terraform/main/templates/elemental.tmpl",
-        "//timberland/assets:terraform/main/templates/es_kafka_connector.tmpl",
-        "//timberland/assets:terraform/main/templates/kafka.tmpl",
-        "//timberland/assets:terraform/main/templates/kafka_companions.tmpl",
-        "//timberland/assets:terraform/main/templates/minio.tmpl",
-        "//timberland/assets:terraform/main/templates/retool.tmpl",
-        "//timberland/assets:terraform/main/templates/retool_pg_kafka_connector.tmpl",
-        "//timberland/assets:terraform/main/templates/vault.tmpl",
-        "//timberland/assets:terraform/main/templates/yugabyte.tmpl",
-        "//timberland/assets:terraform/main/templates/yugabyte_kafka_connector.tmpl",
-        "//timberland/assets:terraform/main/templates/zookeeper.tmpl",
+        "//timberland/assets:terraform/apprise/apprise.tmpl",
+        "//timberland/assets:terraform/apprise/main.tf",
+        "//timberland/assets:terraform/apprise/outputs.tf",
+        "//timberland/assets:terraform/apprise/variables.tf",
     ],
-    package_dir = "/opt/radix/timberland/terraform/main/templates",
+    package_dir = "/opt/radix/timberland/terraform/apprise",
+)
+
+pkg_tar(
+    name = "timberland-terraform-zookeeper-module",
+    srcs = [
+        "//timberland/assets:terraform/zookeeper/main.tf",
+        "//timberland/assets:terraform/zookeeper/outputs.tf",
+        "//timberland/assets:terraform/zookeeper/variables.tf",
+        "//timberland/assets:terraform/zookeeper/zookeeper.tmpl",
+    ],
+    package_dir = "/opt/radix/timberland/terraform/zookeeper",
+)
+
+pkg_tar(
+    name = "timberland-terraform-kafka-module",
+    srcs = [
+        "//timberland/assets:terraform/kafka/kafka.tmpl",
+        "//timberland/assets:terraform/kafka/main.tf",
+        "//timberland/assets:terraform/kafka/outputs.tf",
+        "//timberland/assets:terraform/kafka/variables.tf",
+    ],
+    package_dir = "/opt/radix/timberland/terraform/kafka",
+)
+
+pkg_tar(
+    name = "timberland-terraform-kafka-companions-module",
+    srcs = [
+        "//timberland/assets:terraform/kafka_companions/kafka_companions.tmpl",
+        "//timberland/assets:terraform/kafka_companions/main.tf",
+        "//timberland/assets:terraform/kafka_companions/outputs.tf",
+        "//timberland/assets:terraform/kafka_companions/variables.tf",
+    ],
+    package_dir = "/opt/radix/timberland/terraform/kafka_companions",
+)
+
+pkg_tar(
+    name = "timberland-terraform-retool-module",
+    srcs = [
+        "//timberland/assets:terraform/retool/main.tf",
+        "//timberland/assets:terraform/retool/outputs.tf",
+        "//timberland/assets:terraform/retool/retool.tmpl",
+        "//timberland/assets:terraform/retool/variables.tf",
+    ],
+    package_dir = "/opt/radix/timberland/terraform/retool",
+)
+
+pkg_tar(
+    name = "timberland-terraform-elemental-module",
+    srcs = [
+        "//timberland/assets:terraform/elemental/elemental.tmpl",
+        "//timberland/assets:terraform/elemental/main.tf",
+        "//timberland/assets:terraform/elemental/outputs.tf",
+        "//timberland/assets:terraform/elemental/variables.tf",
+    ],
+    package_dir = "/opt/radix/timberland/terraform/elemental",
+)
+
+pkg_tar(
+    name = "timberland-terraform-elasticsearch-module",
+    srcs = [
+        "//timberland/assets:terraform/elasticsearch/elastic_search.tmpl",
+        "//timberland/assets:terraform/elasticsearch/main.tf",
+        "//timberland/assets:terraform/elasticsearch/outputs.tf",
+        "//timberland/assets:terraform/elasticsearch/variables.tf",
+    ],
+    package_dir = "/opt/radix/timberland/terraform/elasticsearch",
+)
+
+pkg_tar(
+    name = "timberland-terraform-vault-module",
+    srcs = [
+        "//timberland/assets:terraform/vault/main.tf",
+        "//timberland/assets:terraform/vault/outputs.tf",
+        "//timberland/assets:terraform/vault/variables.tf",
+        "//timberland/assets:terraform/vault/vault.tmpl",
+    ],
+    package_dir = "/opt/radix/timberland/terraform/vault",
+)
+
+pkg_tar(
+    name = "timberland-terraform-minio-module",
+    srcs = [
+        "//timberland/assets:terraform/minio/main.tf",
+        "//timberland/assets:terraform/minio/minio.tmpl",
+        "//timberland/assets:terraform/minio/outputs.tf",
+        "//timberland/assets:terraform/minio/variables.tf",
+    ],
+    package_dir = "/opt/radix/timberland/terraform/minio",
+)
+
+pkg_tar(
+    name = "timberland-terraform-yugabyte-module",
+    srcs = [
+        "//timberland/assets:terraform/yugabyte/main.tf",
+        "//timberland/assets:terraform/yugabyte/outputs.tf",
+        "//timberland/assets:terraform/yugabyte/variables.tf",
+        "//timberland/assets:terraform/yugabyte/yugabyte.tmpl",
+    ],
+    package_dir = "/opt/radix/timberland/terraform/yugabyte",
+)
+
+pkg_tar(
+    name = "timberland-terraform-es-kafka-connector-module",
+    srcs = [
+        "//timberland/assets:terraform/es_kafka_connector/es_kafka_connector.tmpl",
+        "//timberland/assets:terraform/es_kafka_connector/main.tf",
+        "//timberland/assets:terraform/es_kafka_connector/outputs.tf",
+        "//timberland/assets:terraform/es_kafka_connector/variables.tf",
+    ],
+    package_dir = "/opt/radix/timberland/terraform/es_kafka_connector",
+)
+
+pkg_tar(
+    name = "timberland-terraform-retool-pg-kafka-connector-module",
+    srcs = [
+        "//timberland/assets:terraform/retool_pg_kafka_connector/main.tf",
+        "//timberland/assets:terraform/retool_pg_kafka_connector/outputs.tf",
+        "//timberland/assets:terraform/retool_pg_kafka_connector/retool_pg_kafka_connector.tmpl",
+        "//timberland/assets:terraform/retool_pg_kafka_connector/variables.tf",
+    ],
+    package_dir = "/opt/radix/timberland/terraform/retool_pg_kafka_connector",
+)
+
+pkg_tar(
+    name = "timberland-terraform-yugabyte-kafka-connector-module",
+    srcs = [
+        "//timberland/assets:terraform/yugabyte_kafka_connector/main.tf",
+        "//timberland/assets:terraform/yugabyte_kafka_connector/outputs.tf",
+        "//timberland/assets:terraform/yugabyte_kafka_connector/variables.tf",
+        "//timberland/assets:terraform/yugabyte_kafka_connector/yugabyte_kafka_connector.tmpl",
+    ],
+    package_dir = "/opt/radix/timberland/terraform/yugabyte_kafka_connector",
 )
 
 pkg_tar(
@@ -303,9 +426,21 @@ pkg_tar(
         ":timberland-nomad-connect",
         ":timberland-systemd-services",
         ":timberland-terraform",
-        ":timberland-terraform-module",
-        ":timberland-terraform-module-templates",
+        ":timberland-terraform-apprise-module",
+        ":timberland-terraform-elasticsearch-module",
+        ":timberland-terraform-elemental-module",
+        ":timberland-terraform-es-kafka-connector-module",
+        ":timberland-terraform-kafka-companions-module",
+        ":timberland-terraform-kafka-module",
+        ":timberland-terraform-main-module",
+        ":timberland-terraform-minio-module",
         ":timberland-terraform-plugins",
+        ":timberland-terraform-retool-module",
+        ":timberland-terraform-retool-pg-kafka-connector-module",
+        ":timberland-terraform-vault-module",
+        ":timberland-terraform-yugabyte-kafka-connector-module",
+        ":timberland-terraform-yugabyte-module",
+        ":timberland-terraform-zookeeper-module",
     ],
 )
 

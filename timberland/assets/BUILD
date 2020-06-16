@@ -23,17 +23,82 @@ exports_files([
     "systemd/nomad.service",
     "terraform/main/main.tf",
     "terraform/main/variables.tf",
-    "terraform/main/templates/apprise.tmpl",
-    "terraform/main/templates/elastic_search.tmpl",
-    "terraform/main/templates/elemental.tmpl",
-    "terraform/main/templates/es_kafka_connector.tmpl",
-    "terraform/main/templates/kafka.tmpl",
-    "terraform/main/templates/kafka_companions.tmpl",
-    "terraform/main/templates/minio.tmpl",
-    "terraform/main/templates/retool.tmpl",
-    "terraform/main/templates/retool_pg_kafka_connector.tmpl",
-    "terraform/main/templates/vault.tmpl",
-    "terraform/main/templates/yugabyte_kafka_connector.tmpl",
-    "terraform/main/templates/yugabyte.tmpl",
-    "terraform/main/templates/zookeeper.tmpl",
+
+    # APPRISE MODULE
+    "terraform/apprise/apprise.tmpl",
+    "terraform/apprise/main.tf",
+    "terraform/apprise/outputs.tf",
+    "terraform/apprise/variables.tf",
+
+    # ZOOKEEPER MODULE
+    "terraform/zookeeper/zookeeper.tmpl",
+    "terraform/zookeeper/main.tf",
+    "terraform/zookeeper/outputs.tf",
+    "terraform/zookeeper/variables.tf",
+
+    # KAFKA MODULE
+    "terraform/kafka/kafka.tmpl",
+    "terraform/kafka/main.tf",
+    "terraform/kafka/outputs.tf",
+    "terraform/kafka/variables.tf",
+
+    # KAFKA COMPANIONS MODULE
+    "terraform/kafka_companions/kafka_companions.tmpl",
+    "terraform/kafka_companions/main.tf",
+    "terraform/kafka_companions/outputs.tf",
+    "terraform/kafka_companions/variables.tf",
+
+    # RETOOL/POSTGRES MODULE
+    "terraform/retool/retool.tmpl",
+    "terraform/retool/main.tf",
+    "terraform/retool/outputs.tf",
+    "terraform/retool/variables.tf",
+
+    # ELEMENTAL MODULE
+    "terraform/elemental/elemental.tmpl",
+    "terraform/elemental/main.tf",
+    "terraform/elemental/outputs.tf",
+    "terraform/elemental/variables.tf",
+
+    # ELASTICSEARCH MODULE
+    "terraform/elasticsearch/elastic_search.tmpl",
+    "terraform/elasticsearch/main.tf",
+    "terraform/elasticsearch/outputs.tf",
+    "terraform/elasticsearch/variables.tf",
+
+    # VAULT MODULE
+    "terraform/vault/vault.tmpl",
+    "terraform/vault/main.tf",
+    "terraform/vault/outputs.tf",
+    "terraform/vault/variables.tf",
+
+    # MINIO MODULE
+    "terraform/minio/minio.tmpl",
+    "terraform/minio/main.tf",
+    "terraform/minio/outputs.tf",
+    "terraform/minio/variables.tf",
+
+    # YUGABYTE MODULE
+    "terraform/yugabyte/yugabyte.tmpl",
+    "terraform/yugabyte/main.tf",
+    "terraform/yugabyte/outputs.tf",
+    "terraform/yugabyte/variables.tf",
+
+    # ES KAFKA CONNECTOR MODULE
+    "terraform/es_kafka_connector/es_kafka_connector.tmpl",
+    "terraform/es_kafka_connector/main.tf",
+    "terraform/es_kafka_connector/outputs.tf",
+    "terraform/es_kafka_connector/variables.tf",
+
+    # RETOOL PG KAFKA CONNECTOR MODULE
+    "terraform/retool_pg_kafka_connector/retool_pg_kafka_connector.tmpl",
+    "terraform/retool_pg_kafka_connector/main.tf",
+    "terraform/retool_pg_kafka_connector/outputs.tf",
+    "terraform/retool_pg_kafka_connector/variables.tf",
+
+    # YUGABYTE KAFKA CONNECTOR MODULE
+    "terraform/yugabyte_kafka_connector/yugabyte_kafka_connector.tmpl",
+    "terraform/yugabyte_kafka_connector/main.tf",
+    "terraform/yugabyte_kafka_connector/outputs.tf",
+    "terraform/yugabyte_kafka_connector/variables.tf",
 ])
