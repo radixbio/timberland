@@ -745,6 +745,30 @@ jvm_maven_import_external(
     server_urls = ["http://central.maven.org/maven2"],
 )
 
+# Group the sources of the library so that CMake rule have access to it
+_all_content = """filegroup(name = "all", srcs = glob(["**"]), visibility = ["//visibility:public"])"""
+
+# Rule repository
+http_archive(
+    name = "rules_foreign_cc",
+    strip_prefix = "rules_foreign_cc-master",
+    url = "https://github.com/bazelbuild/rules_foreign_cc/archive/master.zip",
+)
+
+http_archive(
+    name = "cmake",
+    build_file_content = _all_content,
+    sha256 = "fc77324c4f820a09052a7785549b8035ff8d3461ded5bbd80d252ae7d1cd3aa5",
+    strip_prefix = "cmake-3.17.2",
+    urls = [
+        "https://github.com/Kitware/CMake/releases/download/v3.17.2/cmake-3.17.2.tar.gz",
+    ],
+)
+
+load("@rules_foreign_cc//:workspace_definitions.bzl", "rules_foreign_cc_dependencies")
+
+rules_foreign_cc_dependencies(register_default_tools = False)
+
 new_git_repository(
     name = "or_tools",
     build_file_content = """
@@ -827,16 +851,155 @@ java_library(
 
 git_repository(
     name = "scalaz3",
-    commit = "8036f365347de877773f82a15f6a857c8db0ddd1",
+    commit = "173f23079e899b496fbd91ac93b9861551adb113",
     remote = "git@gitlab.com:radix-labs/scalaz3.git",
     shallow_since = "1582754945 -0500",
 )
 
-git_repository(
+new_git_repository(
     name = "z3",
-    commit = "d3c4aef4c4723e9ab7843302519e6919aa73f8e1",
-    remote = "git@gitlab.com:radix-labs/z3.git",
-    shallow_since = "1582754507 -0500",
+    build_file_content = """
+package(default_visibility = ["//visibility:public"])
+load("@//:tools/cmake_build.bzl", "cmake_tool")
+cmake_tool(
+    name = "cmaketool",
+    cmake_srcs = "@cmake//:all",
+)
+genrule(
+    name = "z3-raw",
+    srcs = glob(
+        ["**"],
+        exclude = [
+            "bazel-bin/**",
+            "bazel-out/**",
+            "bazel-testlogs/**",
+            "bazel-z3/**",
+            "BUILD",
+            "WORKSPACE",
+            "cmake-build-debug/**",
+            ".bazelrc",
+            "**/*.pyc",
+            ".git/**",
+            "**/*.swp",
+            ".*",
+            "**/*.class",
+            "build/*",
+        ],
+    ),
+    outs = [
+        "libz3.so.4.8",
+        "libz3java.so",
+        "com.microsoft.z3.jar",
+        "z3.h",
+        "z3java.h",
+        "z3_macros.h",
+        "z3_api.h",
+        "z3_ast_containers.h",
+        "z3_algebraic.h",
+        "z3_polynomial.h",
+        "z3_rcf.h",
+        "z3_fixedpoint.h",
+        "z3_optimization.h",
+        "z3_fpa.h",
+        "z3_spacer.h",
+    ],
+    tools = [":cmaketool"],
+    cmd = " && ".join(
+        [
+            "export INTERNAL_ROOT_DIR=$$(pwd)",
+            "if ! [ -d \\"$(GENDIR)/staging\\" ]; then mkdir $(GENDIR)/staging; fi",
+            "if ! [ -d \\"$(GENDIR)/staging/enums\\" ]; then mkdir $(GENDIR)/staging/enums; fi",
+            "if ! [ -d \\"$(GENDIR)/jni\\" ]; then mkdir $(GENDIR)/jni; fi",
+            "cd external/z3",
+            "export INTERNAL_BUILD_DIR=$$(pwd)",
+            "export JAVA_HOME=$$(readlink -f /usr/bin/javac | sed \\"s:/bin/javac::\\")",
+	    "mkdir build",
+	    "cd build",
+            "$$INTERNAL_ROOT_DIR/bazel-out/host/bin/external/z3/cmake/bin/cmake -DCMAKE_BUILD_TYPE=Release -DZ3_ENABLE_TRACING_FOR_NON_DEBUG=FALSE -DZ3_BUILD_JAVA_BINDINGS=TRUE -DZ3_BUILD_LIBZ3_SHARED=TRUE -DZ3_LINK_TIME_OPTIMIZATION=TRUE -DCMAKE_BUILD_RPATH_USE_ORIGIN=TRUE ../",
+            "make -j 1>/dev/null 2>/dev/null",
+	    "cp src/api/java/Native.java $$INTERNAL_ROOT_DIR/$(GENDIR)/staging",
+	    "cp src/api/java/Native.cpp $$INTERNAL_ROOT_DIR/$(GENDIR)/staging",
+	    "cp src/api/java/enumerations/*.java $$INTERNAL_ROOT_DIR/$(GENDIR)/staging/enums",
+            "cd $$INTERNAL_ROOT_DIR",
+	    "cp $$INTERNAL_BUILD_DIR/src/api/java/Z3Exception.java $(GENDIR)/staging",
+            "cp $$INTERNAL_BUILD_DIR/build/com.microsoft.z3.jar $(location com.microsoft.z3.jar)",
+            "cp $$INTERNAL_BUILD_DIR/build/libz3.so.4.8 $(location libz3.so.4.8)",
+            "cp $$INTERNAL_BUILD_DIR/build/libz3java.so $(location libz3java.so)",
+            "cp $$INTERNAL_BUILD_DIR/src/api/z3.h $(location z3.h)",
+            "cp $$INTERNAL_BUILD_DIR/src/api/z3_macros.h        $(location z3_macros.h)",
+            "cp $$INTERNAL_BUILD_DIR/src/api/z3_api.h           $(location z3_api.h)",
+            "cp $$INTERNAL_BUILD_DIR/src/api/z3_ast_containers.h $(location z3_ast_containers.h)",
+            "cp $$INTERNAL_BUILD_DIR/src/api/z3_algebraic.h     $(location z3_algebraic.h)",
+            "cp $$INTERNAL_BUILD_DIR/src/api/z3_polynomial.h    $(location z3_polynomial.h)",
+            "cp $$INTERNAL_BUILD_DIR/src/api/z3_rcf.h           $(location z3_rcf.h)",
+            "cp $$INTERNAL_BUILD_DIR/src/api/z3_fixedpoint.h    $(location z3_fixedpoint.h)",
+            "cp $$INTERNAL_BUILD_DIR/src/api/z3_optimization.h  $(location z3_optimization.h)",
+            "cp $$INTERNAL_BUILD_DIR/src/api/z3_fpa.h           $(location z3_fpa.h)",
+            "cp $$INTERNAL_BUILD_DIR/src/api/z3_spacer.h        $(location z3_spacer.h)",
+            "/usr/bin/javac -h $(GENDIR)/jni/ $(GENDIR)/staging/Native.java $(GENDIR)/staging/Z3Exception.java $(GENDIR)/staging/enums/*.java",
+            "cp $(GENDIR)/jni/com_microsoft_z3_Native.h $(location z3java.h)",
+
+        ],
+    ),
+    visibility = ["//visibility:public"],
+)
+
+java_import(
+    name = "z3-jar",
+    jars = [":com.microsoft.z3.jar"],
+)
+
+cc_import(
+    name = "z3_import_versioned",
+    hdrs = [
+        ":z3.h",
+        ":z3_algebraic.h",
+        ":z3_api.h",
+        ":z3_ast_containers.h",
+        ":z3_fixedpoint.h",
+        ":z3_fpa.h",
+        ":z3_macros.h",
+        ":z3_optimization.h",
+        ":z3_polynomial.h",
+        ":z3_rcf.h",
+        ":z3_spacer.h",
+    ],
+    shared_library = ":libz3.so.4.8",
+)
+
+cc_import(
+    name = "z3java",
+    hdrs = [
+        ":z3java.h",
+    ],
+    shared_library = ":libz3java.so"
+)
+""",
+    commit = "30e7c225cd510400eacd41d0a83e013b835a8ece",
+    remote = "https://github.com/Z3Prover/z3.git",
+    shallow_since = "1574197124 -0800",
+    workspace_file_content = """
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+_all_content = \"\"\"filegroup(name = "all", srcs = glob(["**"]), visibility = ["//visibility:public"])\"\"\"
+# Rule repository
+http_archive(
+   name = "rules_foreign_cc",
+   strip_prefix = "rules_foreign_cc-master",
+   url = "https://github.com/bazelbuild/rules_foreign_cc/archive/master.zip",
+)
+#vendored cmake (required)
+http_archive(
+    name = "cmake",
+    build_file_content = _all_content,
+    sha256 = "fc77324c4f820a09052a7785549b8035ff8d3461ded5bbd80d252ae7d1cd3aa5",
+    strip_prefix = "cmake-3.17.2",
+    urls = [
+        "https://github.com/Kitware/CMake/releases/download/v3.17.2/cmake-3.17.2.tar.gz",
+    ],
+)
+load("@rules_foreign_cc//:workspace_definitions.bzl", "rules_foreign_cc_dependencies")
+rules_foreign_cc_dependencies(register_default_tools = False)
+    """,
 )
 
 load("@io_bazel_rules_docker//container:container.bzl", "container_image", "container_layer", "container_pull", "container_push")
