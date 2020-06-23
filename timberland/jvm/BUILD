@@ -179,7 +179,7 @@ pkg_tar(
     name = "timberland-terraform-plugins",
     srcs = [
         "@terraform-provider-consul//:terraform-provider-consul_v2.7.0_x4",
-        "@terraform-provider-nomad//:terraform-provider-nomad_v1.4.5_x4",
+        "@terraform-provider-nomad//:terraform-provider-nomad_v1.4.7_x4",
     ],
     package_dir = "/opt/radix/timberland/terraform/plugins",
 )

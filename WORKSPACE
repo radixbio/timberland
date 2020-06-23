@@ -1233,9 +1233,9 @@ http_archive(
 
 http_archive(
     name = "terraform-provider-nomad",
-    build_file_content = "exports_files([\"terraform-provider-nomad_v1.4.5_x4\"])",
-    sha256 = "c41fc0142eea43a90c8b9ab03fa0ca56918655d507cd42a53893cf9ce9dec286",
-    url = "https://releases.hashicorp.com/terraform-provider-nomad/1.4.5/terraform-provider-nomad_1.4.5_linux_amd64.zip",
+    build_file_content = "exports_files([\"terraform-provider-nomad_v1.4.7_x4\"])",
+    sha256 = "d5aa264f5b92c61305822e368631417e2b8dc4feed29e2d6f16b36a36333a380",
+    url = "https://releases.hashicorp.com/terraform-provider-nomad/1.4.7/terraform-provider-nomad_1.4.7_linux_amd64.zip",
 )
 
 http_archive(
@@ -1261,13 +1261,6 @@ exports_files([
 ])""",
     sha256 = "bd682ffcf701e8f83283cdff7281aad0c83b02a56084d6e601216210732833f9",
     url = "https://github.com/containernetworking/plugins/releases/download/v0.8.5/cni-plugins-linux-amd64-v0.8.5.tgz",
-)
-
-http_archive(
-    name = "terraform-provider-nomad",
-    build_file_content = "exports_files([\"terraform-provider-nomad_v1.4.5_x4\"])",
-    sha256 = "c41fc0142eea43a90c8b9ab03fa0ca56918655d507cd42a53893cf9ce9dec286",
-    url = "https://releases.hashicorp.com/terraform-provider-nomad/1.4.5/terraform-provider-nomad_1.4.5_linux_amd64.zip",
 )
 
 http_archive(
