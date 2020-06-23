@@ -772,12 +772,74 @@ rules_foreign_cc_dependencies(register_default_tools = False)
 new_git_repository(
     name = "or_tools",
     build_file_content = """
+config_setting(
+    name = "darwin",
+    constraint_values = ["@bazel_tools//platforms:osx"],
+)
+
+config_setting(
+    name = "windows",
+    constraint_values = ["@bazel_tools//platforms:windows"],
+)
+
+config_setting(
+    name = "linux",
+    constraint_values = ["@bazel_tools//platforms:linux"],
+)
+
+
 genrule(
-    name = "ortools-java-raw",
+    name = "ortools-java-raw-mac",
     srcs = glob(["**"], ["bazel-out/**", "examples/**", "docs/**", "dependencies/archives/**", "dependencies/install/**", "ortools/gen/**", "classes/**", "tools/**", "**/BUILD", "**/*.bzl", "ortools/dotnet/**"]),
     outs = [
-        "com.google.ortools.jar",
-        "protobuf.jar",
+        "com.google.ortools.mac.jar",
+        "protobuf.mac.jar",
+        "libprotobuf.3.6.1.dylib",
+        "libortools.dylib",
+        "libjniortools.dylib",
+        "libglog.0.3.5.dylib",
+        "libgflags.2.2.dylib",
+        "libCbcSolver.3.dylib",
+        "libCbc.3.dylib",
+        "libClp.1.dylib",
+        "libClpSolver.1.dylib",
+        "libOsiClp.1.dylib",
+        "libOsiCbc.3.dylib",
+        "libCoinUtils.3.dylib",
+        "libCgl.1.dylib",
+        "libOsi.1.dylib"
+    ],
+    cmd =  " && ".join([
+      "sed -i '' 's/jnilib/dylib/' 'external/or_tools/makefiles/Makefile.unix.mk'",
+      "make -j -C external/or_tools third_party 2>/dev/null 1>/dev/null",
+      "make -j -C external/or_tools java 2>/dev/null 1>/dev/null",
+      "cp external/or_tools/lib/libjniortools.dylib                          $(location libjniortools.dylib)",
+      "cp external/or_tools/lib/com.google.ortools.jar                       $(location com.google.ortools.mac.jar)",
+      "cp external/or_tools/lib/libortools.dylib                             $(location libortools.dylib)",
+      "cp external/or_tools/dependencies/install/lib/libprotobuf.3.6.1.dylib $(location libprotobuf.3.6.1.dylib)",
+      "cp external/or_tools/dependencies/install/lib/protobuf.jar            $(location protobuf.mac.jar)",
+      "cp external/or_tools/dependencies/install/lib/libglog.0.3.5.dylib     $(location libglog.0.3.5.dylib)",
+      "cp external/or_tools/dependencies/install/lib/libgflags.2.2.dylib     $(location libgflags.2.2.dylib)",
+      "cp external/or_tools/dependencies/install/lib/libCbcSolver.3.dylib    $(location libCbcSolver.3.dylib)",
+      "cp external/or_tools/dependencies/install/lib/libCbc.3.dylib          $(location libCbc.3.dylib)",
+      "cp external/or_tools/dependencies/install/lib/libClp.1.dylib          $(location libClp.1.dylib)",
+      "cp external/or_tools/dependencies/install/lib/libClpSolver.1.dylib    $(location libClpSolver.1.dylib)",
+      "cp external/or_tools/dependencies/install/lib/libOsiClp.1.dylib       $(location libOsiClp.1.dylib)",
+      "cp external/or_tools/dependencies/install/lib/libOsiCbc.3.dylib       $(location libOsiCbc.3.dylib)",
+      "cp external/or_tools/dependencies/install/lib/libCoinUtils.3.dylib    $(location libCoinUtils.3.dylib)",
+      "cp external/or_tools/dependencies/install/lib/libCgl.1.dylib          $(location libCgl.1.dylib)",
+      "cp external/or_tools/dependencies/install/lib/libOsi.1.dylib          $(location libOsi.1.dylib)",
+    ]),
+    tags = ["requires-network"]
+
+)
+
+genrule(
+    name = "ortools-java-raw-linux",
+    srcs = glob(["**"], ["bazel-out/**", "examples/**", "docs/**", "dependencies/archives/**", "dependencies/install/**", "ortools/gen/**", "classes/**", "tools/**", "**/BUILD", "**/*.bzl", "ortools/dotnet/**"]),
+    outs = [
+        "com.google.ortools.linux.jar",
+        "protobuf.linux.jar",
         "libprotobuf.so.3.6.1",
         "libortools.so",
         "libjniortools.so",
@@ -795,10 +857,10 @@ genrule(
       "make -j -C external/or_tools third_party 2>/dev/null 1>/dev/null",
       "make -j -C external/or_tools java 2>/dev/null 1>/dev/null",
       "cp external/or_tools/lib/libjniortools.so                     $(location libjniortools.so)",
-      "cp external/or_tools/lib/com.google.ortools.jar               $(location com.google.ortools.jar)",
+      "cp external/or_tools/lib/com.google.ortools.jar               $(location com.google.ortools.linux.jar)",
       "cp external/or_tools/lib/libortools.so                        $(location libortools.so)",
       "if [ -f external/or_tools/dependencies/install/lib64/libprotobuf.so.3.6.1 ]; then cp external/or_tools/dependencies/install/lib64/libprotobuf.so.3.6.1 $(location libprotobuf.so.3.6.1); else cp external/or_tools/dependencies/install/lib/libprotobuf.so.3.6.1 $(location libprotobuf.so.3.6.1); fi",
-      "cp external/or_tools/dependencies/install/lib/protobuf.jar    $(location protobuf.jar)",
+      "cp external/or_tools/dependencies/install/lib/protobuf.jar    $(location protobuf.linux.jar)",
       "if [ -f external/or_tools/dependencies/install/lib64/libglog.so.0.3.5 ]; then cp external/or_tools/dependencies/install/lib64/libglog.so.0.3.5 $(location libglog.so.0.3.5); else cp external/or_tools/dependencies/install/lib/libglog.so.0.3.5 $(location libglog.so.0.3.5); fi",
       "cp external/or_tools/dependencies/install/lib/libgflags.so.2.2    $(location libgflags.so.2.2)",
       "cp external/or_tools/dependencies/install/lib/libCbcSolver.so.3 $(location libCbcSolver.so.3)",
@@ -808,20 +870,40 @@ genrule(
       "cp external/or_tools/dependencies/install/lib/libCoinUtils.so.3 $(location libCoinUtils.so.3)",
       "cp external/or_tools/dependencies/install/lib/libCgl.so.1       $(location libCgl.so.1)",
       "cp external/or_tools/dependencies/install/lib/libOsi.so.1       $(location libOsi.so.1)",
-    ])
+    ]),
+    tags = ["requires-network"]
 )
 
 java_import(
     name = "ortools-java-jar",
-    jars = [
-        ":com.google.ortools.jar",
-        ":protobuf.jar"
+    jars = select({":linux": [
+        ":com.google.ortools.linux.jar",
+        ":protobuf.linux.jar"
     ],
+     ":darwin": [":com.google.ortools.mac.jar",
+     ":protobuf.mac.jar"]})
 )
 
 java_library(
     name = "ortools-java",
-    resources = [
+    resources = select({
+    ":darwin" : [
+        ":libortools.dylib",
+        ":libjniortools.dylib",
+        ":libprotobuf.3.6.1.dylib",
+        ":libglog.0.3.5.dylib",
+        ":libgflags.2.2.dylib",
+        ":libCbcSolver.3.dylib",
+        ":libCbc.3.dylib",
+        ":libClp.1.dylib",
+        ":libClpSolver.1.dylib",
+        ":libOsiClp.1.dylib",
+        ":libOsiCbc.3.dylib",
+        ":libCoinUtils.3.dylib",
+        ":libCgl.1.dylib",
+        ":libOsi.1.dylib"
+    ],
+    ":linux" : [
         ":libortools.so",
         ":libjniortools.so",
         ":libprotobuf.so.3.6.1",
@@ -834,7 +916,8 @@ java_library(
         ":libCoinUtils.so.3",
         ":libCgl.so.1",
         ":libOsi.so.1"
-    ],
+    ]
+    }),
     exports = [
         ":ortools-java-jar"
     ],
@@ -859,6 +942,22 @@ git_repository(
 new_git_repository(
     name = "z3",
     build_file_content = """
+
+config_setting(
+    name = "darwin",
+    constraint_values = ["@bazel_tools//platforms:osx"],
+)
+
+config_setting(
+    name = "windows",
+    constraint_values = ["@bazel_tools//platforms:windows"],
+)
+
+config_setting(
+    name = "linux",
+    constraint_values = ["@bazel_tools//platforms:linux"],
+)
+
 package(default_visibility = ["//visibility:public"])
 load("@//:tools/cmake_build.bzl", "cmake_tool")
 cmake_tool(
@@ -866,7 +965,7 @@ cmake_tool(
     cmake_srcs = "@cmake//:all",
 )
 genrule(
-    name = "z3-raw",
+    name = "z3-raw-linux",
     srcs = glob(
         ["**"],
         exclude = [
@@ -889,19 +988,19 @@ genrule(
     outs = [
         "libz3.so.4.8",
         "libz3java.so",
-        "com.microsoft.z3.jar",
-        "z3.h",
-        "z3java.h",
-        "z3_macros.h",
-        "z3_api.h",
-        "z3_ast_containers.h",
-        "z3_algebraic.h",
-        "z3_polynomial.h",
-        "z3_rcf.h",
-        "z3_fixedpoint.h",
-        "z3_optimization.h",
-        "z3_fpa.h",
-        "z3_spacer.h",
+        "com.microsoft.z3.linux.jar",
+        "z3.linux.h",
+        "z3java.linux.h",
+        "z3_macros.linux.h",
+        "z3_api.linux.h",
+        "z3_ast_containers.linux.h",
+        "z3_algebraic.linux.h",
+        "z3_polynomial.linux.h",
+        "z3_rcf.linux.h",
+        "z3_fixedpoint.linux.h",
+        "z3_optimization.linux.h",
+        "z3_fpa.linux.h",
+        "z3_spacer.linux.h",
     ],
     tools = [":cmaketool"],
     cmd = " && ".join(
@@ -922,22 +1021,100 @@ genrule(
 	    "cp src/api/java/enumerations/*.java $$INTERNAL_ROOT_DIR/$(GENDIR)/staging/enums",
             "cd $$INTERNAL_ROOT_DIR",
 	    "cp $$INTERNAL_BUILD_DIR/src/api/java/Z3Exception.java $(GENDIR)/staging",
-            "cp $$INTERNAL_BUILD_DIR/build/com.microsoft.z3.jar $(location com.microsoft.z3.jar)",
+            "cp $$INTERNAL_BUILD_DIR/build/com.microsoft.z3.jar $(location com.microsoft.z3.linux.jar)",
             "cp $$INTERNAL_BUILD_DIR/build/libz3.so.4.8 $(location libz3.so.4.8)",
             "cp $$INTERNAL_BUILD_DIR/build/libz3java.so $(location libz3java.so)",
-            "cp $$INTERNAL_BUILD_DIR/src/api/z3.h $(location z3.h)",
-            "cp $$INTERNAL_BUILD_DIR/src/api/z3_macros.h        $(location z3_macros.h)",
-            "cp $$INTERNAL_BUILD_DIR/src/api/z3_api.h           $(location z3_api.h)",
-            "cp $$INTERNAL_BUILD_DIR/src/api/z3_ast_containers.h $(location z3_ast_containers.h)",
-            "cp $$INTERNAL_BUILD_DIR/src/api/z3_algebraic.h     $(location z3_algebraic.h)",
-            "cp $$INTERNAL_BUILD_DIR/src/api/z3_polynomial.h    $(location z3_polynomial.h)",
-            "cp $$INTERNAL_BUILD_DIR/src/api/z3_rcf.h           $(location z3_rcf.h)",
-            "cp $$INTERNAL_BUILD_DIR/src/api/z3_fixedpoint.h    $(location z3_fixedpoint.h)",
-            "cp $$INTERNAL_BUILD_DIR/src/api/z3_optimization.h  $(location z3_optimization.h)",
-            "cp $$INTERNAL_BUILD_DIR/src/api/z3_fpa.h           $(location z3_fpa.h)",
-            "cp $$INTERNAL_BUILD_DIR/src/api/z3_spacer.h        $(location z3_spacer.h)",
+            "cp $$INTERNAL_BUILD_DIR/src/api/z3.h $(location z3.linux.h)",
+            "cp $$INTERNAL_BUILD_DIR/src/api/z3_macros.h        $(location z3_macros.linux.h)",
+            "cp $$INTERNAL_BUILD_DIR/src/api/z3_api.h           $(location z3_api.linux.h)",
+            "cp $$INTERNAL_BUILD_DIR/src/api/z3_ast_containers.h $(location z3_ast_containers.linux.h)",
+            "cp $$INTERNAL_BUILD_DIR/src/api/z3_algebraic.h     $(location z3_algebraic.linux.h)",
+            "cp $$INTERNAL_BUILD_DIR/src/api/z3_polynomial.h    $(location z3_polynomial.linux.h)",
+            "cp $$INTERNAL_BUILD_DIR/src/api/z3_rcf.h           $(location z3_rcf.linux.h)",
+            "cp $$INTERNAL_BUILD_DIR/src/api/z3_fixedpoint.h    $(location z3_fixedpoint.linux.h)",
+            "cp $$INTERNAL_BUILD_DIR/src/api/z3_optimization.h  $(location z3_optimization.linux.h)",
+            "cp $$INTERNAL_BUILD_DIR/src/api/z3_fpa.h           $(location z3_fpa.linux.h)",
+            "cp $$INTERNAL_BUILD_DIR/src/api/z3_spacer.h        $(location z3_spacer.linux.h)",
             "/usr/bin/javac -h $(GENDIR)/jni/ $(GENDIR)/staging/Native.java $(GENDIR)/staging/Z3Exception.java $(GENDIR)/staging/enums/*.java",
-            "cp $(GENDIR)/jni/com_microsoft_z3_Native.h $(location z3java.h)",
+            "cp $(GENDIR)/jni/com_microsoft_z3_Native.h $(location z3java.linux.h)",
+
+        ],
+    ),
+    visibility = ["//visibility:public"],
+)
+genrule(
+    name = "z3-raw-mac",
+    srcs = glob(
+        ["**"],
+        exclude = [
+            "bazel-bin/**",
+            "bazel-out/**",
+            "bazel-testlogs/**",
+            "bazel-z3/**",
+            "BUILD",
+            "WORKSPACE",
+            "cmake-build-debug/**",
+            ".bazelrc",
+            "**/*.pyc",
+            ".git/**",
+            "**/*.swp",
+            ".*",
+            "**/*.class",
+            "build/*",
+        ],
+    ),
+    outs = [
+        "libz3.4.8.dylib",
+        "libz3java.dylib",
+        "com.microsoft.z3.mac.jar",
+        "z3.mac.h",
+        "z3java.mac.h",
+        "z3_macros.mac.h",
+        "z3_api.mac.h",
+        "z3_ast_containers.mac.h",
+        "z3_algebraic.mac.h",
+        "z3_polynomial.mac.h",
+        "z3_rcf.mac.h",
+        "z3_fixedpoint.mac.h",
+        "z3_optimization.mac.h",
+        "z3_fpa.mac.h",
+        "z3_spacer.mac.h",
+    ],
+    tools = [":cmaketool"],
+    cmd = " && ".join(
+        [
+            "export INTERNAL_ROOT_DIR=$$(pwd)",
+            "if ! [ -d \\"$(GENDIR)/staging\\" ]; then mkdir $(GENDIR)/staging; fi",
+            "if ! [ -d \\"$(GENDIR)/staging/enums\\" ]; then mkdir $(GENDIR)/staging/enums; fi",
+            "if ! [ -d \\"$(GENDIR)/jni\\" ]; then mkdir $(GENDIR)/jni; fi",
+            "cd external/z3",
+            "export INTERNAL_BUILD_DIR=$$(pwd)",
+            "export JAVA_HOME=$$(readlink -f /usr/bin/javac | sed \\"s:/bin/javac::\\")",
+	    "mkdir build",
+	    "cd build",
+            "$$INTERNAL_ROOT_DIR/bazel-out/host/bin/external/z3/cmake/bin/cmake -DCMAKE_BUILD_TYPE=Release -DZ3_ENABLE_TRACING_FOR_NON_DEBUG=FALSE -DZ3_BUILD_JAVA_BINDINGS=TRUE -DZ3_BUILD_LIBZ3_SHARED=TRUE -DZ3_LINK_TIME_OPTIMIZATION=TRUE -DCMAKE_BUILD_RPATH_USE_ORIGIN=TRUE ../",
+            "make -j 1>/dev/null 2>/dev/null",
+	    "cp src/api/java/Native.java $$INTERNAL_ROOT_DIR/$(GENDIR)/staging",
+	    "cp src/api/java/Native.cpp $$INTERNAL_ROOT_DIR/$(GENDIR)/staging",
+	    "cp src/api/java/enumerations/*.java $$INTERNAL_ROOT_DIR/$(GENDIR)/staging/enums",
+            "cd $$INTERNAL_ROOT_DIR",
+	    "cp $$INTERNAL_BUILD_DIR/src/api/java/Z3Exception.java $(GENDIR)/staging",
+            "cp $$INTERNAL_BUILD_DIR/build/com.microsoft.z3.jar $(location com.microsoft.z3.mac.jar)",
+            "cp $$INTERNAL_BUILD_DIR/build/libz3.4.8.dylib $(location libz3.4.8.dylib)",
+            "cp $$INTERNAL_BUILD_DIR/build/libz3java.dylib $(location libz3java.dylib)",
+            "cp $$INTERNAL_BUILD_DIR/src/api/z3.h $(location z3.mac.h)",
+            "cp $$INTERNAL_BUILD_DIR/src/api/z3_macros.h        $(location z3_macros.mac.h)",
+            "cp $$INTERNAL_BUILD_DIR/src/api/z3_api.h           $(location z3_api.mac.h)",
+            "cp $$INTERNAL_BUILD_DIR/src/api/z3_ast_containers.h $(location z3_ast_containers.mac.h)",
+            "cp $$INTERNAL_BUILD_DIR/src/api/z3_algebraic.h     $(location z3_algebraic.mac.h)",
+            "cp $$INTERNAL_BUILD_DIR/src/api/z3_polynomial.h    $(location z3_polynomial.mac.h)",
+            "cp $$INTERNAL_BUILD_DIR/src/api/z3_rcf.h           $(location z3_rcf.mac.h)",
+            "cp $$INTERNAL_BUILD_DIR/src/api/z3_fixedpoint.h    $(location z3_fixedpoint.mac.h)",
+            "cp $$INTERNAL_BUILD_DIR/src/api/z3_optimization.h  $(location z3_optimization.mac.h)",
+            "cp $$INTERNAL_BUILD_DIR/src/api/z3_fpa.h           $(location z3_fpa.mac.h)",
+            "cp $$INTERNAL_BUILD_DIR/src/api/z3_spacer.h        $(location z3_spacer.mac.h)",
+            "/usr/bin/javac -h $(GENDIR)/jni/ $(GENDIR)/staging/Native.java $(GENDIR)/staging/Z3Exception.java $(GENDIR)/staging/enums/*.java",
+            "cp $(GENDIR)/jni/com_microsoft_z3_Native.h $(location z3java.mac.h)",
 
         ],
     ),
@@ -946,33 +1123,47 @@ genrule(
 
 java_import(
     name = "z3-jar",
-    jars = [":com.microsoft.z3.jar"],
+    jars = select({":linux" : [":com.microsoft.z3.linux.jar"], ":darwin" : [":com.microsoft.z3.mac.jar"]}),
 )
 
 cc_import(
     name = "z3_import_versioned",
-    hdrs = [
-        ":z3.h",
-        ":z3_algebraic.h",
-        ":z3_api.h",
-        ":z3_ast_containers.h",
-        ":z3_fixedpoint.h",
-        ":z3_fpa.h",
-        ":z3_macros.h",
-        ":z3_optimization.h",
-        ":z3_polynomial.h",
-        ":z3_rcf.h",
-        ":z3_spacer.h",
+    hdrs = select({":linux": [
+        ":z3.linux.h",
+        ":z3_algebraic.linux.h",
+        ":z3_api.linux.h",
+        ":z3_ast_containers.linux.h",
+        ":z3_fixedpoint.linux.h",
+        ":z3_fpa.linux.h",
+        ":z3_macros.linux.h",
+        ":z3_optimization.linux.h",
+        ":z3_polynomial.linux.h",
+        ":z3_rcf.linux.h",
+        ":z3_spacer.linux.h",
     ],
-    shared_library = ":libz3.so.4.8",
+    ":darwin": [
+        ":z3.mac.h",
+        ":z3_algebraic.mac.h",
+        ":z3_api.mac.h",
+        ":z3_ast_containers.mac.h",
+        ":z3_fixedpoint.mac.h",
+        ":z3_fpa.mac.h",
+        ":z3_macros.mac.h",
+        ":z3_optimization.mac.h",
+        ":z3_polynomial.mac.h",
+        ":z3_rcf.mac.h",
+        ":z3_spacer.mac.h",
+    ]}),
+    shared_library = select({":linux": ":libz3.so.4.8", ":darwin" : ":libz3.4.8.dylib"}),
 )
 
 cc_import(
     name = "z3java",
-    hdrs = [
-        ":z3java.h",
+    hdrs = select({":linux" :[
+        ":z3java.linux.h",
     ],
-    shared_library = ":libz3java.so"
+    ":darwin" : [":z3java.mac.h"]}),
+    shared_library =  select({":linux": ":libz3java.so", ":darwin" : ":libz3java.dylib"})
 )
 """,
     commit = "30e7c225cd510400eacd41d0a83e013b835a8ece",
