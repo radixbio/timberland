@@ -1,0 +1,23 @@
+[Unit]
+Description=Vault
+Documentation=https://vaultproject.io/docs/
+Wants=network-online.target
+After=network-online.target
+Wants=consul.service
+After=consul.service
+
+[Service]
+ExecReload=/bin/kill -HUP $MAINPID
+ExecStart=/opt/radix/timberland/vault/vault server $VAULT_CMD_ARGS -config /opt/radix/timberland/vault/vault_config.conf
+KillMode=process
+KillSignal=SIGINT
+LimitNOFILE=65536
+LimitNPROC=infinity
+Restart=on-failure
+RestartSec=2
+StartLimitBurst=3
+TasksMax=infinity
+EnvironmentFile=/opt/radix/timberland/vault/vault.env.conf
+
+[Install]
+WantedBy=multi-user.target

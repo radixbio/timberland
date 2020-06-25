@@ -21,7 +21,6 @@ services_to_test = set([
   "retool-retool-postgres",
   "retool-retool-retool-main",
   "vault",
-  "vault-daemon-vault-vault",
   "yugabyte-yugabyte-ybmaster",
   "yugabyte-yugabyte-ybtserver",
   "zookeeper-daemons-zookeeper-zookeeper",

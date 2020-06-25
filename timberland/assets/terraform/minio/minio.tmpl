@@ -7,31 +7,63 @@ job "minio-job" {
     value = "linux"
   }
 
-  datacenters = ["dc1"]
+  datacenters = [
+    "dc1"]
 
   group "minio-group" {
     count = 1
 
     task "minio-local" {
+      vault {
+        policies = [
+          "read-aws"]
 
+        change_mode = "signal"
+        change_signal = "SIGUSR1"
+      }
+      template {
+        data = <<EOF
+      {{with secret "secret/aws/s3"}}
+      {{ if .Data.aws_access_key_id}}
+            MINIO_ACCESS_KEY = "{{.Data.aws_access_key_id}}"
+      {{else}}
+      	     MINIO_ACCESS_KEY = "minio-access-key"
+      {{end}}
+      {{end}}
+      {{with secret "secret/aws/s3"}}
+      {{ if .Data.aws_secret_access_key}}
+            MINIO_SECRET_KEY = "{{.Data.aws_secret_access_key}}"
+      {{else}}
+            MINIO_SECRET_KEY = "minio-secret-key"
+      {{end}}
+      {{end}}
+    EOF
+        destination = "secrets/file.env"
+        env = true
+      }
       config {
         image = "minio/minio:latest"
         auth_soft_fail = false
         hostname = "$${attr.unique.hostname}-em"
         privileged = false
         network_mode = "weave"
-        port_map = {"minio" = 9000}
-        entrypoint = ["minio", "--compat"]
-        args = ["server", "/data"]
-        volumes = ["/opt/radix/minio_data:/data"]
+        port_map = {
+          "minio" = 9000
+        }
+        entrypoint = [
+          "minio",
+          "--compat"]
+        args = [
+          "server",
+          "/data"]
+        volumes = [
+          "/opt/radix/minio_data:/data"]
         cap_add = []
       }
 
       driver = "docker"
       env = {
-        "MINIO_ACCESS_KEY" = "${upstream_access_key}",
         "MINIO_NOTIFY_KAFKA_ENABLE" = "true",
-        "MINIO_SECRET_KEY" = "${upstream_secret_key}",
         "MINIO_NOTIFY_KAFKA_BROKERS" = "kafka-daemons-kafka-kafka.service.consul:29092",
         "MINIO_NOTIFY_KAFKA_TOPIC" = "bucketevents"
       }
@@ -54,7 +86,9 @@ job "minio-job" {
 
       service {
         port = "minio"
-        tags = ["minio","client"]
+        tags = [
+          "minio",
+          "client"]
         address_mode = "auto"
 
         check {
@@ -73,27 +107,54 @@ job "minio-job" {
 
       shutdown_delay = "0s"
     }
-
-${ upstream_access_key == "minio-access-key" ? "" : <<-EOH
+    ${ !have_upstream_creds ? "" : <<-EOH
     task "minio-remote" {
+      vault {
+        policies = [
+          "read-aws"]
 
+        change_mode = "signal"
+        change_signal = "SIGUSR1"
+      }
       config {
         image = "minio/minio:latest"
-        args = ["gateway","s3"]
+        args = [
+          "gateway",
+          "s3"]
         auth_soft_fail = false
-        entrypoint = ["minio"]
+        entrypoint = [
+          "minio"]
         hostname = "$${attr.unique.hostname}-em"
         privileged = false
         network_mode = "weave"
-        port_map = {"minio_remote" = 9000}
-        volumes = ["/opt/radix/minio_data_remote:/data"]
+        port_map = {
+          "minio_remote" = 9000
+        }
+        volumes = [
+          "/opt/radix/minio_data_remote:/data"]
         cap_add = []
       }
 
       driver = "docker"
-      env = {
-        "MINIO_ACCESS_KEY" = "${upstream_access_key}",
-        "MINIO_SECRET_KEY" = "${upstream_secret_key}"
+      template {
+        data = <<EOF
+      {{with secret "secret/data/aws/s3"}}
+      {{ if .Data.data.aws_access_key_id}}
+            MINIO_ACCESS_KEY = "{{.Data.data.aws_access_key_id}}"
+      {{else}}
+      	     MINIO_ACCESS_KEY = "minio-access-key"
+      {{end}}
+      {{end}}
+      {{with secret "secret/data/aws/s3"}}
+      {{ if .Data.data.aws_secret_access_key}}
+            MINIO_SECRET_KEY = "{{.Data.data.aws_secret_access_key}}"
+      {{else}}
+            MINIO_SECRET_KEY = "minio-secret-key"
+      {{end}}
+      {{end}}
+    EOF
+        destination = "secrets/file.env"
+        env = true
       }
       kill_timeout = "5s"
       kill_signal = "SIGINT"
@@ -114,7 +175,9 @@ ${ upstream_access_key == "minio-access-key" ? "" : <<-EOH
 
       service {
         port = "minio_remote"
-        tags = ["minio","client"]
+        tags = [
+          "minio",
+          "client"]
         address_mode = "auto"
 
         check {
@@ -133,76 +196,87 @@ ${ upstream_access_key == "minio-access-key" ? "" : <<-EOH
 
       shutdown_delay = "0s"
     }
-    EOH
+        EOH
+  }
+
+  task "nginx-minio" {
+
+    config {
+      image = "nginx:latest"
+      auth_soft_fail = false
+      hostname = "$${attr.unique.hostname}-em"
+      privileged = false
+      network_mode = "weave"
+      volumes = [
+        "/opt/radix/timberland/nginx/${ have_upstream_creds ? "nginx-minios.conf" : "nginx-minio-noupstream.conf"  }:/etc/nginx/nginx.conf"]
+      port_map = {
+        "nginx" = 9000
+      }
+      cap_add = []
+    }
+
+    restart {
+      attempts = 10
+      delay = "20s"
+      mode = "fail"
+    }
+
+    driver = "docker"
+    kill_timeout = "5s"
+    kill_signal = "SIGINT"
+    leader = false
+
+    resources {
+      cpu = 1000
+      memory = 300
+
+      network {
+        mbits = 10
+
+        port "nginx" {
+          static = 1339
+        }
+      }
+    }
+
+    service {
+      port = "nginx"
+      tags = [
+        "minio",
+        "client"]
+      address_mode = "host"
+
+      check {
+        address_mode = "${ test ? "driver" : "host" }"
+        grpc_use_tls = true
+        initial_status = "critical"
+        interval = "10s"
+        method = "GET"
+        port = "nginx"
+        protocol = "http"
+        timeout = "2s"
+        type = "tcp"
+        tls_skip_verify = false
+      }
+    }
+
+    shutdown_delay = "0s"
+  }
 }
 
-    task "nginx-minio" {
+namespace = "default"
+priority = 50
+region = "global"
+type = "service"
 
-      config {
-        image = "nginx:latest"
-        auth_soft_fail = false
-        hostname = "$${attr.unique.hostname}-em"
-        privileged = false
-        network_mode = "weave"
-        volumes = ["/opt/radix/timberland/nginx/${ upstream_access_key == "minio-access-key" ? "nginx-minio-noupstream.conf" : "nginx-minios.conf" }:/etc/nginx/nginx.conf"]
-        port_map = {"nginx" = 9000}
-        cap_add = []
-      }
-      
-      driver = "docker"
-      kill_timeout = "5s"
-      kill_signal = "SIGINT"
-      leader = false
-
-      resources {
-        cpu = 1000
-        memory = 300
-
-        network {
-          mbits = 10
-
-          port "nginx" {
-            static = 1339
-          }
-        }
-      }
-
-      service {
-        port = "nginx"
-        tags = ["minio","client"]
-        address_mode = "host"
-
-        check {
-          address_mode = "${ test ? "driver" : "host" }"
-          grpc_use_tls = true
-          initial_status = "critical"
-          interval = "10s"
-          method = "GET"
-          port = "nginx"
-          protocol = "http"
-          timeout = "2s"
-          type = "tcp"
-          tls_skip_verify = false
-        }
-      }
-
-      shutdown_delay = "0s"
-    }
-  }
-
-  namespace = "default"
-  priority = 50
-  region = "global"
-  type = "service"
-
-  update {
-    max_parallel = 1
-    health_check = "checks"
-    min_healthy_time = "10s"
-    healthy_deadline = "5m"
-    progress_deadline = "10m"
-    auto_revert = false
-    canary = 0
-    stagger = "10s"
-  }
+update {
+  max_parallel = 1
+  health_check = "checks"
+  min_healthy_time = "10s"
+  healthy_deadline = "5m"
+  progress_deadline = "10m"
+  auto_revert = false
+  canary = 0
+  stagger = "10s"
+}
 }

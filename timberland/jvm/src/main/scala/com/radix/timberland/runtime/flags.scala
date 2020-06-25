@@ -4,7 +4,8 @@ import java.net.InetAddress
 
 import cats.effect.{ContextShift, IO}
 import cats.implicits._
-import com.radix.timberland.launch.{ServiceAddrs, daemonutil}
+import com.radix.timberland.launch.daemonutil
+import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.utils.helm
 import com.radix.utils.helm.{ConsulOp, QueryResponse}
 import com.radix.utils.helm.http4s.Http4sConsulClient
@@ -77,10 +78,7 @@ object flags {
     ),
     "elemental" -> Vector(
       "elemental-machines-em-em",
-    )
-    // "vault" -> Vector(
-    //   "vault-daemon-vault-vault",
-    // ),
+    ),
   )
 
   /**
@@ -92,8 +90,8 @@ object flags {
    * @return If Consul is up, the current state of all feature flags
    */
   def updateFlags(persistentDir: os.Path,
-                  flagsToSet: Map[String, Boolean] = Map.empty,
-                  serviceAddrs: ServiceAddrs = ServiceAddrs()): IO[FlagUpdateResponse] = {
+                  flagsToSet: Map[String, Boolean] = Map.empty)
+                 (implicit serviceAddrs: ServiceAddrs = ServiceAddrs()): IO[FlagUpdateResponse] = {
     for {
       validFlags <- validateFlags(persistentDir, flagsToSet)
       actualFlags = resolveSupersetFlags(flagsToSet, validFlags)
@@ -107,13 +105,13 @@ object flags {
             localFlags <- getLocalFlags(persistentDir)
             totalFlags = localFlags ++ actualFlags
             _ <- clearLocalFlagFile(persistentDir, totalFlags)
-            newFlags <- setConsulFlags(totalFlags, serviceAddrs)
+            newFlags <- setConsulFlags(totalFlags)
           } yield ConsulFlagsUpdated(newFlags)
       }
     } yield newFlags
   }
 
-  def getConsulFlags(serviceAddrs: ServiceAddrs = ServiceAddrs()): IO[Map[String, Boolean]] = {
+  def getConsulFlags(implicit serviceAddrs: ServiceAddrs = ServiceAddrs()): IO[Map[String, Boolean]] = {
     BlazeClientBuilder[IO](global).resource.use { client =>
       val consulUri = Uri.fromString(s"http://${serviceAddrs.consulAddr}:8500").toOption.get
       val interpreter = new Http4sConsulClient[IO](consulUri, client)
@@ -134,14 +132,14 @@ object flags {
    * @param flags The flags to push
    * @return The total set of all flags on Consul after pushing
    */
-  private def setConsulFlags(flags: Map[String, Boolean],
-                             serviceAddrs: ServiceAddrs = ServiceAddrs()): IO[Map[String, Boolean]] = {
+  private def setConsulFlags(flags: Map[String, Boolean])
+                            (implicit serviceAddrs: ServiceAddrs = ServiceAddrs()): IO[Map[String, Boolean]] = {
     BlazeClientBuilder[IO](global).resource.use { client =>
       val consulUri = Uri.fromString(s"http://${serviceAddrs.consulAddr}:8500").toOption.get
       val interpreter = new Http4sConsulClient[IO](consulUri, client)
       val setFeaturesOp = ConsulOp.kvSetJson("features", _: Map[String, Boolean])
       for {
-        curFlags <- getConsulFlags(serviceAddrs)
+        curFlags <- getConsulFlags()
         _ <- helm.run(interpreter, setFeaturesOp(curFlags ++ flags))
       } yield curFlags ++ flags
     }

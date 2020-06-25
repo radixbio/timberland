@@ -1,30 +1,18 @@
 package com.radix.timberland.runtime
 
-import cats._
 import cats.data._
-import cats.data.NonEmptyList.fromList
 import cats.effect.{ContextShift, Effect, IO}
 import cats.implicits._
-//import ammonite._
-//import ammonite.ops._
-import io.circe._
-import io.circe.generic.auto._
-import io.circe.parser._
-
-import scala.concurrent.{Await, Future}
-import scala.concurrent.duration._
-import scala.concurrent.ExecutionContext
-import java.util.concurrent.Executors
+import java.io.FileWriter
+import java.net.{InetAddress, InetSocketAddress, Socket}
 import java.nio.file.Paths
-import java.net.{InetAddress, InetSocketAddress, NetworkInterface, Socket}
-
-import scala.util.{Failure, Success, Try}
-import scala.collection.JavaConverters._
+import java.util.concurrent.Executors
 
 import com.radix.timberland.radixdefs._
+import com.radix.timberland.util.VaultStarter
 
-import java.io.{BufferedWriter, File, FileWriter}
-import scala.io.Source
+import scala.concurrent.ExecutionContext
+import scala.util.{Failure, Success, Try}
 
 object Mock {
 
@@ -63,41 +51,19 @@ object Mock {
           })) <* IO.shift
     }
 
-    override def readConfig(wd: os.Path, fname: String): F[String] = F.delay {
-      scribe.debug(s"trying to load $wd/$fname from file...")
-      //      Source.fromInputStream(this.getClass.getResourceAsStream(s"$wd/$fname")).getLines.mkString("\n")
-      val src = scala.io.Source.fromFile(wd.toIO.toString + "/" + fname)
-      val res = src.getLines().mkString("\n")
-      src.close()
-      res
-    }
-
-    override def mkTempFile(contents: String, fname: String, exn: String = "json"): F[os.Path] = F.liftIO {
-      import java.io.{BufferedWriter, File, FileWriter}
-      IO.shift(bcs) *> IO {
-        val f = File.createTempFile(fname, "." + exn)
-
-        scribe.debug(s"writing tempfile ${f.toPath.toAbsolutePath.toString} with contents:\n $contents")
-        val fw = new FileWriter(f)
-        val bw = new BufferedWriter(fw)
-        bw.write(contents)
-        bw.flush()
-        fw.flush()
-        bw.close()
-        fw.close()
-        scribe.debug(s"wrote tempfile ${f.toPath.toAbsolutePath.toString}")
-        os.Path(f.toPath)
-      }.flatMap(res => IO.shift *> IO.pure(res))
-    }
-
     override def startConsul(bind_addr: String, consulSeedsO: Option[String], bootstrapExpect: Int): F[Unit] =
       F.delay {
         scribe.debug(s"would have started consul with systemd (bind_addr: $bind_addr)")
       }
 
-    override def startNomad(bind_addr: String, bootstrapExpect: Int): F[Unit] =
+    override def startNomad(bind_addr: String, bootstrapExpect: Int, vaultToken: String): F[Unit] =
       F.delay {
-        scribe.debug(s"would have started nomad with systemd (bind_addr: $bind_addr)")
+        scribe.debug(s"would have started nomad with systemd (bind_addr: $bind_addr) (token: $vaultToken)")
+      }
+
+    override def startVault(bind_addr: String): F[Unit] =
+      F.delay {
+        scribe.debug("would have started vault")
       }
 
     override def stopConsul(): F[Unit] = F.delay {
@@ -108,14 +74,14 @@ object Mock {
       scribe.debug(s"would have stopped nomad with systemd")
     }
 
+    override def stopVault(): F[Unit] = F.delay {
+      scribe.debug(s"would have stopped vault with systemd")
+    }
+
     override def startWeave(hosts: List[String]): F[Unit] =
       F.delay {
         scribe.debug(s"would have launched weave with hosts ${hosts.mkString(" ")}")
       }
-
-    override def parseJson(json: String): F[Json] = F.fromEither {
-      parse(json)
-    }
 
   }
 
@@ -126,8 +92,6 @@ object Run {
   implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.Implicits.global)
   val bcs: ContextShift[IO] = IO.contextShift(ec)
 
-  def putStrLn(str: String): IO[Unit] = IO(println(str))
-
   def putStrLn(str: Vector[String]): IO[Unit] =
     if (str.isEmpty) {
       IO.pure(Unit)
@@ -135,124 +99,7 @@ object Run {
       putStrLn(str.reduce(_ + "\n" + _))
     }
 
-  class RuntimeServicesExec[F[_]](implicit F: Effect[F]) extends NetworkInfoExec[F] with RuntimeServicesAlg[F] {
-    override def searchForPort(netinf: List[String], port: Int): F[Option[NonEmptyList[String]]] = F.liftIO {
-      val addrs = for (last <- 0 to 254; octets <- netinf) yield {
-        F.liftIO {
-          IO {
-            Try {
-              val s = new Socket()
-              s.connect(new InetSocketAddress(octets + last, port), 200)
-              s.close()
-            } match {
-              case Success(_) => Some(octets + last)
-              case Failure(_) => None
-            }
-          }
-        }
-      }
-      IO.shift(bcs) *> addrs.toList.map(F.toIO).parSequence.map(_.flatten).map(NonEmptyList.fromList) <* IO.shift
-    }
-
-    override def readConfig(wd: os.Path = os.pwd, fname: String): F[String] = F.liftIO {
-      IO.shift(bcs) *> IO {
-        val src = scala.io.Source.fromFile(wd.toIO.toString + "/" + fname)
-        val res = src.getLines().mkString("\n")
-        src.close()
-        res
-      } <* IO.shift
-    }
-
-    override def mkTempFile(contents: String, fname: String, exn: String = "json"): F[os.Path] = F.liftIO {
-      IO.shift(bcs) *> IO {
-        val f = File.createTempFile(fname, "." + exn)
-        val fw = new FileWriter(f)
-        val bw = new BufferedWriter(fw)
-        bw.write(contents)
-        bw.flush()
-        fw.flush()
-        bw.close()
-        fw.close()
-        os.Path(f.toPath)
-      } <* IO.shift
-    }
-
-    override def startConsul(bind_addr: String, consulSeedsO: Option[String], bootstrapExpect: Int): F[Unit] =
-      F.delay {
-        scribe.info("spawning consul via systemd")
-
-        val baseArgs = bootstrapExpect match {
-          case 1 => s"-bind=$bind_addr -bootstrap-expect=$bootstrapExpect" //TODO enable dev mode in such a way that it doesn't break schema-registry
-          case _ => s"-bind=$bind_addr -bootstrap-expect=$bootstrapExpect"
-        }
-        val baseArgsWithSeeds = consulSeedsO match {
-          case Some(seedString) =>
-            seedString
-              .split(',')
-              .map { host => s"-retry-join=$host" }
-              .foldLeft(baseArgs) { (currentArgs, arg) => currentArgs + ' ' + arg }
-
-          case None => baseArgs
-        }
-
-        val envFilePath = Paths.get("/opt/radix/timberland/consul/consul.env.conf") // TODO make configurable
-        val envFileHandle = envFilePath.toFile
-        val writer = new FileWriter(envFileHandle)
-        writer.write(s"CONSUL_CMD_ARGS=$baseArgsWithSeeds")
-        writer.close()
-
-        Thread.sleep(10000)
-        os.proc("/usr/bin/sudo", "/bin/systemctl", "restart", "consul").call(stdout = os.Inherit, stderr = os.Inherit)
-      }
-
-
-    override def startNomad(bind_addr: String, bootstrapExpect: Int): F[Unit] = {
-      val args: String = bootstrapExpect match {
-        case 1 => s"""NOMAD_CMD_ARGS=-bind=$bind_addr -bootstrap-expect=$bootstrapExpect""" //TODO enable dev mode in a way such that it does not break schema registry
-        case _ => s"""NOMAD_CMD_ARGS=-bind=$bind_addr -bootstrap-expect=$bootstrapExpect"""
-      }
-      F.delay {
-        scribe.info("spawning nomad via systemd")
-
-        val envFilePath = Paths.get("/opt/radix/timberland/nomad/nomad.env.conf") // TODO make configurable
-        val envFileHandle = envFilePath.toFile
-        val writer = new FileWriter(envFileHandle)
-        writer.write(args)
-        writer.close()
-
-        os.proc("/usr/bin/sudo", "/bin/systemctl", "restart", "nomad").call(stdout = os.Inherit, stderr = os.Inherit)
-      }
-    }
-
-    override def stopConsul(): F[Unit] = {
-      F.delay{
-        scribe.info("Stopping consul via systemd")
-        os.proc("/usr/bin/sudo", "/bin/systemctl", "stop", "consul").call(stdout = os.Inherit, stderr = os.Inherit)
-      }
-    }
-
-    override def stopNomad(): F[Unit] = {
-      F.delay{
-        scribe.info("Stopping nomad via systemd")
-        os.proc("/usr/bin/sudo", "/bin/systemctl", "stop", "nomad").call(stdout = os.Inherit, stderr = os.Inherit)
-      }
-    }
-
-    override def startWeave(hosts: List[String]): F[Unit] = F.delay {
-      os.proc("/usr/bin/docker", "plugin", "disable", "weaveworks/net-plugin:latest_release").call(check = false, cwd = os.pwd, stdout = os.Inherit, stderr = os.Inherit)
-      os.proc("/usr/bin/docker", "plugin", "set", "weaveworks/net-plugin:latest_release", "IPALLOC_RANGE=10.32.0.0/12").call(check = false, stdout = os.Inherit, stderr = os.Inherit)
-      os.proc("/usr/bin/docker", "plugin", "enable", "weaveworks/net-plugin:latest_release").call(stdout = os.Inherit, stderr = os.Inherit)
-      //      os.proc(s"/usr/local/bin/weave", "launch", hosts.mkString(" "), "--ipalloc-range", "10.48.0.0/12")
-      //        .call(cwd = pwd, check = false, stdout = os.Inherit, stderr = os.Inherit)
-      //      os.proc(s"/usr/local/bin/weave", "connect", hosts.mkString(" "))
-      //        .call(check = false, stdout = os.Inherit, stderr = os.Inherit)
-      ()
-    }
-
-    override def parseJson(json: String): F[Json] = F.fromEither {
-      parse(json)
-    }
-  }
+  def putStrLn(str: String): IO[Unit] = IO(println(str))
 
 
   /**
@@ -307,7 +154,7 @@ object Run {
       _ <- F.liftIO(Run.putStrLn(s"weave peers: $weave"))
       _ <- F.liftIO(Run.putStrLn(s"consul peers: $consul"))
 
-      final_bind_addr <- F.delay {
+      finalBindAddr <- F.delay {
         bind_addr match {
           case Some(ip) => ip
           case None => {
@@ -318,16 +165,140 @@ object Run {
         }
       }
 
-      consulRestartProc <- H.startConsul(final_bind_addr, consulSeedsO, bootstrapExpect)
-      nomadRestartProc <- H.startNomad(final_bind_addr, bootstrapExpect)
+      consulRestartProc <- H.startConsul(finalBindAddr, consulSeedsO, bootstrapExpect)
+      vaultRestartProc <- H.startVault(finalBindAddr)
+      vaultToken <- F.liftIO {
+        (new VaultStarter).initializeAndUnsealAndSetupVault()
+      }
+      nomadRestartProc <- H.startNomad(finalBindAddr, bootstrapExpect, vaultToken)
       _ <- F.liftIO(Run.putStrLn("started consul and nomad"))
-    } yield (consulRestartProc, nomadRestartProc)
+    } yield (consulRestartProc, vaultRestartProc, nomadRestartProc)
+  }
+
+  class RuntimeServicesExec[F[_]](implicit F: Effect[F]) extends NetworkInfoExec[F] with RuntimeServicesAlg[F] {
+    override def searchForPort(netinf: List[String], port: Int): F[Option[NonEmptyList[String]]] = F.liftIO {
+      val addrs = for (last <- 0 to 254; octets <- netinf) yield {
+        F.liftIO {
+          IO {
+            Try {
+              val s = new Socket()
+              s.connect(new InetSocketAddress(octets + last, port), 200)
+              s.close()
+            } match {
+              case Success(_) => Some(octets + last)
+              case Failure(_) => None
+            }
+          }
+        }
+      }
+      IO.shift(bcs) *> addrs.toList.map(F.toIO).parSequence.map(_.flatten).map(NonEmptyList.fromList) <* IO.shift
+    }
+
+    override def startConsul(bind_addr: String, consulSeedsO: Option[String], bootstrapExpect: Int): F[Unit] =
+      F.delay {
+        scribe.info("spawning consul via systemd")
+
+        val baseArgs = s"-bind=$bind_addr -bootstrap-expect=$bootstrapExpect" //TODO enable dev mode in such a way that it doesn't break schema-registry
+
+        val baseArgsWithSeeds = consulSeedsO match {
+          case Some(seedString) =>
+            seedString
+              .split(',')
+              .map { host => s"-retry-join=$host" }
+              .foldLeft(baseArgs) { (currentArgs, arg) => currentArgs + ' ' + arg }
+
+          case None => baseArgs
+        }
+
+        val envFilePath = Paths.get("/opt/radix/timberland/consul/consul.env.conf") // TODO make configurable
+        val envFileHandle = envFilePath.toFile
+        val writer = new FileWriter(envFileHandle)
+        writer.write(s"CONSUL_CMD_ARGS=$baseArgsWithSeeds")
+        writer.close()
+
+        Thread.sleep(10000)
+        os.proc("/usr/bin/sudo", "/bin/systemctl", "restart", "consul").call(stdout = os.Inherit, stderr = os.Inherit)
+      }
+
+
+    override def startNomad(bind_addr: String, bootstrapExpect: Int, vaultToken: String): F[Unit] = {
+
+      F.delay {
+        val args: String =
+          s"""NOMAD_CMD_ARGS=-bind=$bind_addr -bootstrap-expect=$bootstrapExpect
+             |VAULT_TOKEN=$vaultToken
+             |""".stripMargin
+        scribe.info("spawning nomad via systemd")
+
+        val envFilePath = Paths.get("/opt/radix/timberland/nomad/nomad.env.conf") // TODO make configurable
+        val envFileHandle = envFilePath.toFile
+        val writer = new FileWriter(envFileHandle)
+        writer.write(args)
+        writer.close()
+
+        os.proc("/usr/bin/sudo", "/bin/systemctl", "restart", "nomad").call(stdout = os.Inherit, stderr = os.Inherit)
+      }
+    }
+
+    def startVault(bind_addr: String): F[Unit] = {
+      val args: String =
+        s"""VAULT_CMD_ARGS=-address=http://${bind_addr}:8200""".stripMargin
+
+      F.delay {
+        scribe.info("spawning vault via systemd")
+
+        val envFilePath = Paths.get("/opt/radix/timberland/vault/vault.env.conf")
+        val envFileHandle = envFilePath.toFile
+        val writer = new FileWriter(envFileHandle)
+        writer.write(args)
+        writer.close()
+
+        os.proc("/usr/bin/sudo", "/bin/systemctl", "restart", "vault").call(stdout = os.Inherit, stderr = os.Inherit)
+        Thread.sleep(10000)
+      }
+    }
+
+
+
+    override def stopConsul(): F[Unit] = {
+      F.delay{
+        scribe.info("Stopping consul via systemd")
+        os.proc("/usr/bin/sudo", "/bin/systemctl", "stop", "consul").call(stdout = os.Inherit, stderr = os.Inherit)
+      }
+    }
+
+    override def stopNomad(): F[Unit] = {
+      F.delay{
+        scribe.info("Stopping nomad via systemd")
+        os.proc("/usr/bin/sudo", "/bin/systemctl", "stop", "nomad").call(stdout = os.Inherit, stderr = os.Inherit)
+      }
+    }
+
+    override def stopVault(): F[Unit] = {
+      F.delay{
+        scribe.info("Stopping vault via systemd")
+        os.proc("/usr/bin/sudo", "/bin/systemctl", "stop", "vault").call(stdout = os.Inherit, stderr = os.Inherit)
+      }
+    }
+
+    override def startWeave(hosts: List[String]): F[Unit] = F.delay {
+      os.proc("/usr/bin/docker", "plugin", "disable", "weaveworks/net-plugin:latest_release").call(check = false, cwd = os.pwd, stdout = os.Inherit, stderr = os.Inherit)
+      os.proc("/usr/bin/docker", "plugin", "set", "weaveworks/net-plugin:latest_release", "IPALLOC_RANGE=10.32.0.0/12").call(check = false, stdout = os.Inherit, stderr = os.Inherit)
+      os.proc("/usr/bin/docker", "plugin", "enable", "weaveworks/net-plugin:latest_release").call(stdout = os.Inherit, stderr = os.Inherit)
+      //      os.proc(s"/usr/local/bin/weave", "launch", hosts.mkString(" "), "--ipalloc-range", "10.48.0.0/12")
+      //        .call(cwd = pwd, check = false, stdout = os.Inherit, stderr = os.Inherit)
+      //      os.proc(s"/usr/local/bin/weave", "connect", hosts.mkString(" "))
+      //        .call(check = false, stdout = os.Inherit, stderr = os.Inherit)
+      ()
+    }
+
   }
 
   def stopRuntimeProg[F[_]]()(implicit H: RuntimeServicesAlg[F], F: Effect[F]) = {
     for {
       stopConsulProc <- H.stopConsul()
       stopNomadProc <- H.stopNomad()
+      stopVaultProc <- H.stopVault()
       _ <- F.liftIO(Run.putStrLn("stopped consul and nomad"))
     } yield (stopConsulProc, stopNomadProc)
   }

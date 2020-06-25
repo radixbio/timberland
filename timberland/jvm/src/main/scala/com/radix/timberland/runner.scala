@@ -15,7 +15,7 @@ import io.circe.{Parser => _}
 import optparse_applicative._
 import optparse_applicative.types.Parser
 import scalaz.syntax.apply._
-import util.Util
+import util.{Util, VaultStarter}
 
 /**
  * radix|- dev|- ci|
@@ -77,8 +77,6 @@ case class Start(
                   registryListenerPort: Int = 8081,
                   username: Option[String] = None,
                   password: Option[String] = None,
-                  upstreamAccessKey: Option[String] = None,
-                  upstreamSecretKey: Option[String] = None,
                 ) extends Local
 
 case object Stop extends Local
@@ -209,24 +207,6 @@ object runner {
                     case Some(_) => exist.copy(password = password)
                     case None => exist
                   }
-                })
-                <*> optional(
-                strOption(long("upstreamAccessKey"),
-                  help("S3 access key")))
-                .map(upstreamAccessKey => { exist: Start =>
-                  upstreamAccessKey match {
-                    case Some(_) => exist.copy(upstreamAccessKey = upstreamAccessKey)
-                    case None => exist
-                  }
-                })
-                <*> optional(
-                strOption(long("upstreamSecretKey"),
-                  help("S3 secret key")))
-                .map(upstreamSecretKey => { exist: Start =>
-                  upstreamSecretKey match {
-                    case Some(_) => exist.copy(upstreamSecretKey = upstreamSecretKey)
-                    case None => exist
-                  }
                 }),
               progDesc("start the radix core services on the current system")
             )
@@ -278,7 +258,8 @@ object runner {
   val opts =
     info(res <*> helper,
       progDesc("Print a greeting for TARGET"),
-      header("hello - a test for scala-optparse-applicative"))
+      header("hello - a test for scala-optparse-apps" +
+        "licative"))
 
   var sudopw: Option[String] = None
 
@@ -312,6 +293,7 @@ object runner {
     val appdatadir = new File(persistentdir)
     val consul = new File(persistentdir + "/consul/consul")
     val nomad = new File(persistentdir + "/nomad/nomad")
+    val vault = new File(persistentdir + "/vault/vault")
     //    val timberlandJar = new File(persistentdir + "/timberland.jar")
     val nginx = new File(persistentdir + "/nginx/")
     nginx.mkdirs
@@ -321,6 +303,7 @@ object runner {
     minio_bucket.mkdirs
     nomad.getParentFile.mkdirs()
     consul.getParentFile.mkdirs()
+    vault.getParentFile.mkdirs()
 
 
     // helper object containing parsers for command-line representation of prism containers and paths
@@ -334,9 +317,10 @@ object runner {
       object PathParser extends RegexParsers {
         def parens[A](p: Parser[A]): Parser[A] = "(" ~ p ~ ")" ^^ { case _ ~ p ~ _ => p }
 
-        def number: Parser[Double] = """\d+(\.\d*)?""".r ^^ {
-          _.toDouble
-        }
+        def number: Parser[Double] =
+          """\d+(\.\d*)?""".r ^^ {
+            _.toDouble
+          }
 
         def offset1: Parser[Offset] = number ^^ { case n => Offset(Meters(n)) }
 
@@ -362,7 +346,7 @@ object runner {
             case local: Local =>
               local match {
                 case Nuke => Right(Unit)
-                case cmd@Start(dummy, loglevel, bindIP, consulSeedsO, remoteAddress, servicePort, registryListenerPort, username, password, upstreamAccessKey, upstreamSecretKey) => {
+                case cmd@Start(dummy, loglevel, bindIP, consulSeedsO, remoteAddress, servicePort, registryListenerPort, username, password) => {
                   scribe.Logger.root
                     .clearHandlers()
                     .clearModifiers()
@@ -419,19 +403,15 @@ object runner {
                       flagUpdateResp <- flags.updateFlags(Path(persistentdir))
                       featureFlags = flagUpdateResp.asInstanceOf[ConsulFlagsUpdated].flags
 
-                      _ <- daemonutil.runTerraform(featureFlags, integrationTest = false, upstreamAccessKey, upstreamSecretKey)
+                      _ <- daemonutil.runTerraform(featureFlags, integrationTest = false)
                       _ <- daemonutil.waitForQuorum(featureFlags)
-
-                      _ <- if (featureFlags.getOrElse("vault", false)) {
-                        daemonutil.unsealVault(featureFlags.getOrElse("dev", true))
-                      } else IO.unit
                     } yield ()
 
                     val remoteBootstrap = for {
                       serviceAddrs <- daemonutil.getServiceIps(remoteAddress.getOrElse("127.0.0.1"))
                       featureFlags <- flags.getConsulFlags(serviceAddrs)
-                      _ <- daemonutil.runTerraform(featureFlags, integrationTest = false, upstreamAccessKey, upstreamSecretKey, serviceAddrs)
-                      // TODO: Call Ilia's updated vault code here
+                      _ <- (new VaultStarter).initializeAndUnsealAndSetupVault()
+                      _ <- daemonutil.runTerraform(featureFlags, integrationTest = false)(serviceAddrs)
                     } yield ()
 
                     if (remoteAddress.isDefined) remoteBootstrap.unsafeRunSync() else bootstrap.unsafeRunSync()
@@ -471,7 +451,7 @@ object runner {
                 flagUpdateResp <- flags.updateFlags(Path(persistentdir), flagMap)
                 _ <- flagUpdateResp match {
                   case ConsulFlagsUpdated(featureFlags) =>
-                    daemonutil.runTerraform(featureFlags, integrationTest = false, None, None) *>
+                    daemonutil.runTerraform(featureFlags, integrationTest = false) *>
                     daemonutil.waitForQuorum(featureFlags)
                   case FlagsStoredLocally() =>
                     IO.unit
@@ -480,10 +460,10 @@ object runner {
 
               val remoteProc = for {
                 serviceAddrs <- daemonutil.getServiceIps(remoteAddress.getOrElse(""))
-                flagUpdateResp <- flags.updateFlags(Path(persistentdir), flagMap, serviceAddrs)
+                flagUpdateResp <- flags.updateFlags(Path(persistentdir), flagMap)(serviceAddrs)
                 _ <- flagUpdateResp match {
                   case ConsulFlagsUpdated(featureFlags) =>
-                    daemonutil.runTerraform(featureFlags, integrationTest = false, None, None, serviceAddrs)
+                    daemonutil.runTerraform(featureFlags, integrationTest = false)(serviceAddrs)
                   case FlagsStoredLocally() =>
                     IO(scribe.warn("Could not connect to remote consul instance. Flags stored locally."))
                 }

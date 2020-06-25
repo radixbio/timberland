@@ -15,6 +15,11 @@ provider "nomad" {
   version = "~> 1.4"
 }
 
+provider "vault" {
+  address = "http://${var.vault_address}:8200"
+  version = "2.11.0"
+}
+
 module "apprise" {
   enable = contains(var.feature_flags, "apprise")
   // count is not supported for modules yet - https://github.com/hashicorp/terraform/issues/17519
@@ -95,9 +100,8 @@ module "minio" {
 
   prefix = var.prefix
   test = var.test
-  upstream_access_key = var.minio_upstream_access_key
-  upstream_secret_key = var.minio_upstream_secret_key
   kafka_address = module.kafka.kafka_health_result
+  have_upstream_creds = var.have_upstream_creds
 }
 
 module "retool_pg_kafka_connector" {
@@ -136,16 +140,6 @@ module "s3lts" {
 
   test = var.test
   prefix = var.prefix
-}
-
-module "vault" {
-  enable = contains(var.feature_flags, "vault")
-
-  source = "/opt/radix/timberland/terraform/vault"
-
-  test = var.test
-  prefix = var.prefix
-  quorum_size = var.vault_quorum_size
 }
 
 module "yugabyte" {

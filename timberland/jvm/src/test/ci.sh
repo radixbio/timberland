@@ -74,8 +74,10 @@ echo "Transferring package to instance ($AWS_INSTANCE_IP)..."
 scp -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $PACKAGE_LOCATION $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP:~
 
 scp -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" ./timberland/jvm/src/test/service_test.py $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP:~
+scp -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $INSTALLATION_SCRIPT $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP:~
 
-ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP 'sudo su && bash -s' < $INSTALLATION_SCRIPT
+ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP "chmod +x ~/$(basename $INSTALLATION_SCRIPT)"
+ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP "sudo su -c ~/$(basename $INSTALLATION_SCRIPT)"
 
 echo "@@@@@@@@ SSH ended"
 

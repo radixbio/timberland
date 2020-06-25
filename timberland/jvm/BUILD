@@ -38,7 +38,7 @@ scala_library(
     ],
 )
 
-#TODO @sibblegp make this go away
+#TODO collapse the namespace, so "core_srcs" aren't from launch/, runtime/, util/...
 #it's shared dependencies that timberland the commandline tool
 #has with the in-container process
 timberland_core_srcs = [
@@ -46,6 +46,7 @@ timberland_core_srcs = [
     "src/main/scala/com/radix/timberland/launch/consulutil.scala",
     "src/main/scala/com/radix/timberland/runtime/install.scala",
     "src/main/scala/com/radix/timberland/runtime/services.scala",
+    "src/main/scala/com/radix/timberland/util/VaultStarter.scala",
 ]
 
 timberland_launcher_srcs = [
@@ -82,7 +83,6 @@ scala_library(
         "//3rdparty/jvm/com/github/xuwei_k:optparse_applicative",
         "//3rdparty/jvm/com/lihaoyi:ammonite_ops",
         "//3rdparty/jvm/com/outr:scribe",
-        #        "//3rdparty/jvm/org/scala_lang/modules:scala_parser_combinators",
         "//shared/shared/shared/shared:shared-shared",
         "//utils/helm:helm-jvm",
         "//utils/helm/core/shared:helm-elemental",
@@ -104,6 +104,7 @@ scala_library(
     ],
     deps = [
         ":timberland-core-lib",
+        ":timberland-lib",
     ],
 )
 
@@ -168,6 +169,19 @@ pkg_tar(
 )
 
 pkg_tar(
+    name = "timberland-vault",
+    srcs = [
+        "//timberland/assets:systemd/vault.env.conf",
+        "//timberland/assets:vault/nomad-cluster-role.json",
+        "//timberland/assets:vault/nomad-server-policy.hcl",
+        "//timberland/assets:vault/read-aws-policy.hcl",
+        "//timberland/assets:vault/vault_config.conf",
+        "@vault",
+    ],
+    package_dir = "/opt/radix/timberland/vault",
+)
+
+pkg_tar(
     name = "timberland-terraform",
     srcs = [
         "@terraform",
@@ -180,6 +194,7 @@ pkg_tar(
     srcs = [
         "@terraform-provider-consul//:terraform-provider-consul_v2.7.0_x4",
         "@terraform-provider-nomad//:terraform-provider-nomad_v1.4.7_x4",
+        "@terraform-provider-vault//:terraform-provider-vault_v2.11.0_x4",
     ],
     package_dir = "/opt/radix/timberland/terraform/plugins",
 )
@@ -399,6 +414,7 @@ pkg_tar(
     srcs = [
         "//timberland/assets:systemd/consul.service",
         "//timberland/assets:systemd/nomad.service",
+        "//timberland/assets:systemd/vault.service",
     ],
     package_dir = "/etc/systemd/system",
 )
@@ -466,6 +482,7 @@ pkg_tar(
         ":timberland-terraform-yugabyte-kafka-connector-module",
         ":timberland-terraform-yugabyte-module",
         ":timberland-terraform-zookeeper-module",
+        ":timberland-vault",
     ],
 )
 
@@ -503,9 +520,9 @@ sh_binary(
         "persist",
     ],
     data = [
-        "src/test/service_test.py",
         "src/test/install-deb.sh",
         "src/test/install-rpm.sh",
+        "src/test/service_test.py",
         ":radix-timberland_0.1_amd64.deb",
         ":timberland-rpm-amd64.rpm",
     ],
@@ -519,9 +536,9 @@ sh_test(
         "src/test/ci.sh",
     ],
     data = [
-        "src/test/service_test.py",
         "src/test/install-deb.sh",
         "src/test/install-rpm.sh",
+        "src/test/service_test.py",
         ":radix-timberland_0.1_amd64.deb",
         ":timberland-rpm-amd64.rpm",
     ],

@@ -21,6 +21,12 @@ exports_files([
     "systemd/consul.service",
     "systemd/nomad.env.conf",
     "systemd/nomad.service",
+    "systemd/vault.service",
+    "systemd/vault.env.conf",
+    "vault/nomad-cluster-role.json",
+    "vault/nomad-server-policy.hcl",
+    "vault/read-aws-policy.hcl",
+    "vault/vault_config.conf",
     "terraform/main/main.tf",
     "terraform/main/variables.tf",
 

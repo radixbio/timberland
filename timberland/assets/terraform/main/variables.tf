@@ -1,13 +1,7 @@
-variable "minio_upstream_access_key" {
-  description = "The upstream access key for minio"
-  type = string
-  default = "minio-access-key"
-}
-
-variable "minio_upstream_secret_key" {
-  description = "The secret key for minio"
-  type = string
-  default = "minio-secret-key"
+variable "have_upstream_creds" {
+  description = "Upstream credentials exist in Vault, multiple minios should be spawned."
+  type = bool
+  default = false
 }
 
 variable "test" {
@@ -38,12 +32,6 @@ variable "kafka_companions_quorum_size" {
   description = ""
   type = number
   default = 1 //3
-}
-
-variable "vault_quorum_size" {
-  description = ""
-  type = number
-  default = 1
 }
 
 variable "zookeeper_quorum_size" {
@@ -83,13 +71,19 @@ variable "prefix" {
 }
 
 variable "consul_address" {
-  description = "Resolved ip of consul"
+  description = "Dns address/resolved remote ip of consul"
   type = string
   default = "consul.service.consul"
 }
 
 variable "nomad_address" {
-  description = "Resolved ip of nomad"
+  description = "Dns address/resolved remote ip of nomad"
+  type = string
+  default = "nomad.service.consul"
+}
+
+variable "vault_address" {
+  description = "Dns address/resolved remote ip of nomad"
   type = string
   default = "nomad.service.consul"
 }

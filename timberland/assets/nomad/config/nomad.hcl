@@ -1,5 +1,11 @@
 data_dir = "/opt/radix/nomad"
 
+vault {
+  enabled     = true
+  address     = "http://vault.service.consul:8200"
+  create_from_role = "nomad-cluster"
+}
+
 server {
   enabled          = true
   bootstrap_expect = 3

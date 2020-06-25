@@ -1,13 +1,7 @@
-variable "upstream_access_key" {
-  description = "The upstream access key for minio"
-  type = string
-  default = "minio-access-key"
-}
-
-variable "upstream_secret_key" {
-  description = "The secret key for minio"
-  type = string
-  default = "minio-secret-key"
+variable "have_upstream_creds" {
+  description = "Upstream credentials exist in Vault, multiple minios should be spawned."
+  type = bool
+  default = false
 }
 
 variable "prefix" {

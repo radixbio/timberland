@@ -57,7 +57,7 @@ abstract class TimberlandIntegration
     // Make sure Consul and Nomad are up
     val res = daemonutil.waitForDNS("consul.service.consul", 1.minutes) *>
       daemonutil.waitForDNS("_nomad._http.service.consul", 1.minutes) *>
-      daemonutil.runTerraform(featureFlags, integrationTest = true, None, None) *>
+      daemonutil.runTerraform(featureFlags, integrationTest = true) *>
       daemonutil.waitForQuorum(featureFlags)
     res.unsafeRunSync()
   }
@@ -130,10 +130,6 @@ abstract class TimberlandIntegration
   if (featureFlags("yugabyte")) it should "bring up yugabyte" in {
     assert(check("yugabyte-yugabyte-ybmaster"))
     assert(check("yugabyte-yugabyte-ybtserver"))
-  }
-  if (featureFlags("vault")) it should "bring up vault" in {
-    assert(check("vault"))
-    assert(check("vault-daemon-vault-vault"))
   }
   if (featureFlags("es")) it should "bring up elasticsearch/kibana" in {
     assert(check("elasticsearch-elasticsearch-es-generic-node"))

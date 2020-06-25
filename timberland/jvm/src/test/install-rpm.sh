@@ -24,6 +24,6 @@ EXIT_CODE=$?
 echo "Service test exit code: $EXIT_CODE"
 
 mkdir /home/centos/nomad-logs
-cp /opt/radix/nomad/alloc/*/alloc/logs/*.0 /home/centos/nomad-logs/
+rsync -av --relative /opt/radix/nomad/alloc/./*/alloc/logs/* /home/centos/nomad-logs
 
 exit $EXIT_CODE

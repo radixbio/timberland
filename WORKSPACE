@@ -1211,6 +1211,13 @@ http_archive(
 )
 
 http_archive(
+    name = "vault",
+    build_file_content = "exports_files([\"vault\"])",
+    sha256 = "f2bca89cbffb8710265eb03bc9452cc316b03338c411ba8453ffe7419390b8f1",
+    url = "https://releases.hashicorp.com/vault/1.4.2/vault_1.4.2_linux_amd64.zip"
+)
+
+http_archive(
     name = "nomad",
     build_file_content = "exports_files([\"nomad\"])",
     sha256 = "711e98b89ac4f5540bf3d6273379999f6c4141529531c262222e63ce491f5176",
@@ -1236,6 +1243,13 @@ http_archive(
     build_file_content = "exports_files([\"terraform-provider-nomad_v1.4.7_x4\"])",
     sha256 = "d5aa264f5b92c61305822e368631417e2b8dc4feed29e2d6f16b36a36333a380",
     url = "https://releases.hashicorp.com/terraform-provider-nomad/1.4.7/terraform-provider-nomad_1.4.7_linux_amd64.zip",
+)
+
+http_archive(
+    name = "terraform-provider-vault",
+    build_file_content = "exports_files([\"terraform-provider-vault_v2.11.0_x4\"])",
+    sha256 = "01ecd700ad6887de8c0c88df265f5f2fa2601116348aef11a070d05250882a0c",
+    url = "https://releases.hashicorp.com/terraform-provider-vault/2.11.0/terraform-provider-vault_2.11.0_linux_amd64.zip",
 )
 
 http_archive(

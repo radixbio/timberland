@@ -103,7 +103,6 @@ class Vault[F[_]: ConcurrentEffect](authToken: Option[String], baseUrl: Uri, bla
 
   override def getSecret(name: String): F[Either[VaultError, KVGetResult]] = {
     submitRequest(Request[F](method = GET, uri = baseUrl / "v1" / "secret" / "data" / name, headers = baseHeaders))
-
   }
 
   override def createOauthSecret(name: String, req: CreateSecretRequest): F[Either[VaultError, CreateOauthSecretResponse]] =
