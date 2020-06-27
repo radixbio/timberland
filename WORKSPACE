@@ -934,9 +934,9 @@ java_library(
 
 git_repository(
     name = "scalaz3",
-    commit = "173f23079e899b496fbd91ac93b9861551adb113",
+    commit = "b3660c721ed8c4b620fa44e68010d25c2b25a96d",
     remote = "git@gitlab.com:radix-labs/scalaz3.git",
-    shallow_since = "1582754945 -0500",
+    shallow_since = "1593227973 +0000",
 )
 
 new_git_repository(
@@ -1014,7 +1014,7 @@ genrule(
             "export JAVA_HOME=$$(readlink -f /usr/bin/javac | sed \\"s:/bin/javac::\\")",
 	    "mkdir build",
 	    "cd build",
-            "$$INTERNAL_ROOT_DIR/bazel-out/host/bin/external/z3/cmake/bin/cmake -DCMAKE_BUILD_TYPE=Release -DZ3_ENABLE_TRACING_FOR_NON_DEBUG=FALSE -DZ3_BUILD_JAVA_BINDINGS=TRUE -DZ3_BUILD_LIBZ3_SHARED=TRUE -DZ3_LINK_TIME_OPTIMIZATION=TRUE -DCMAKE_BUILD_RPATH_USE_ORIGIN=TRUE ../",
+            "$$INTERNAL_ROOT_DIR/bazel-out/host/bin/external/z3/cmake/bin/cmake -DCMAKE_BUILD_TYPE=Release -DZ3_ENABLE_TRACING_FOR_NON_DEBUG=FALSE -DZ3_BUILD_JAVA_BINDINGS=TRUE -DZ3_BUILD_LIBZ3_SHARED=TRUE -DZ3_LINK_TIME_OPTIMIZATION=TRUE -DCMAKE_BUILD_RPATH_USE_ORIGIN=TRUE ../ 1>/dev/null 2>/dev/null",
             "make -j $$(nproc) 1>/dev/null 2>/dev/null",
 	    "cp src/api/java/Native.java $$INTERNAL_ROOT_DIR/$(GENDIR)/staging",
 	    "cp src/api/java/Native.cpp $$INTERNAL_ROOT_DIR/$(GENDIR)/staging",
@@ -1092,7 +1092,7 @@ genrule(
             "export JAVA_HOME=$$(readlink -f /usr/bin/javac | sed \\"s:/bin/javac::\\")",
 	    "mkdir build",
 	    "cd build",
-            "$$INTERNAL_ROOT_DIR/bazel-out/host/bin/external/z3/cmake/bin/cmake -DCMAKE_BUILD_TYPE=Release -DZ3_ENABLE_TRACING_FOR_NON_DEBUG=FALSE -DZ3_BUILD_JAVA_BINDINGS=TRUE -DZ3_BUILD_LIBZ3_SHARED=TRUE -DZ3_LINK_TIME_OPTIMIZATION=TRUE -DCMAKE_BUILD_RPATH_USE_ORIGIN=TRUE ../",
+            "$$INTERNAL_ROOT_DIR/bazel-out/host/bin/external/z3/cmake/bin/cmake -DCMAKE_BUILD_TYPE=Release -DZ3_ENABLE_TRACING_FOR_NON_DEBUG=FALSE -DZ3_BUILD_JAVA_BINDINGS=TRUE -DZ3_BUILD_LIBZ3_SHARED=TRUE -DZ3_LINK_TIME_OPTIMIZATION=TRUE -DCMAKE_BUILD_RPATH_USE_ORIGIN=TRUE ../ 1>/dev/null 2>/dev/null",
             "make -j $$(nproc) 1>/dev/null 2>/dev/null",
 	    "cp src/api/java/Native.java $$INTERNAL_ROOT_DIR/$(GENDIR)/staging",
 	    "cp src/api/java/Native.cpp $$INTERNAL_ROOT_DIR/$(GENDIR)/staging",
@@ -1214,7 +1214,7 @@ http_archive(
     name = "vault",
     build_file_content = "exports_files([\"vault\"])",
     sha256 = "f2bca89cbffb8710265eb03bc9452cc316b03338c411ba8453ffe7419390b8f1",
-    url = "https://releases.hashicorp.com/vault/1.4.2/vault_1.4.2_linux_amd64.zip"
+    url = "https://releases.hashicorp.com/vault/1.4.2/vault_1.4.2_linux_amd64.zip",
 )
 
 http_archive(
