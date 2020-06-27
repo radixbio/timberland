@@ -1301,3 +1301,9 @@ exports_files([
     sha256 = "bd682ffcf701e8f83283cdff7281aad0c83b02a56084d6e601216210732833f9",
     url = "https://github.com/containernetworking/plugins/releases/download/v0.8.5/cni-plugins-linux-amd64-v0.8.5.tgz",
 )
+
+http_archive(
+    name = "jaxws",
+    build_file_content = "exports_files([\"metro/lib/webservices-tools.jar\"])",
+    url = "https://maven.java.net/content/repositories/releases//org/glassfish/metro/metro-standalone/2.3.1/metro-standalone-2.3.1.zip",
+)

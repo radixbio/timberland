@@ -43,14 +43,14 @@ if ! [ -x "$(command -v ssh)" ]; then
   exit 1
 fi
 
-AWS_RESULT=$(aws ec2 run-instances --image-id $CI_EC2_AMI --instance-type $CI_EC2_INSTANCE_SIZE --security-group-ids $CI_EC2_SECURITY_GROUP --associate-public-ip-address --key-name radix-ci --instance-initiated-shutdown-behavior terminate)
+AWS_RESULT=$(aws ec2 run-instances --image-id $CI_EC2_AMI --instance-type $CI_EC2_INSTANCE_SIZE --security-group-ids $CI_EC2_SECURITY_GROUP --associate-public-ip-address --key-name radix-ci --instance-initiated-shutdown-behavior terminate --output json)
 AWS_INSTANCE_ID=$(echo $AWS_RESULT | jq -r .Instances[0].InstanceId)
 
 echo "Waiting for EC2 instance to become ready..."
 
 aws ec2 wait instance-running --instance-ids $AWS_INSTANCE_ID
 
-AWS_INSTANCE_IP=$(aws ec2 describe-instances --instance-ids $AWS_INSTANCE_ID | jq -r .Reservations[0].Instances[0].PublicIpAddress)
+AWS_INSTANCE_IP=$(aws ec2 describe-instances --instance-ids $AWS_INSTANCE_ID --output json | jq -r .Reservations[0].Instances[0].PublicIpAddress)
 
 function test_ssh {
   nc -w 2 -z $AWS_INSTANCE_IP 22
