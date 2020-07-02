@@ -37,7 +37,7 @@ object flags {
   private val flagSupersets = Map(
     "core" -> Set(
       "apprise", "kafka", "kafka_companions", "minio", "retool_pg_kafka_connector",
-      "retool_postgres", "vault", "zookeeper"
+      "retool_postgres", "zookeeper"
     )
   )
   // The default values for all flags
@@ -85,7 +85,7 @@ object flags {
    * Sets a feature flag either in Consul or in the local flag file (if Consul is not running)
    * If Consul is up, this also pushes pending changes in the local flag file. If flags is empty,
    * this function only pushes the pending changes.
-   * @param persistentDir Timberland directory. Usually /opt/radix/timberland
+   * @param persistentDir Timberland directory. Usually /opt/radix/timberland/terraform
    * @param flags A map of new flags to push
    * @return If Consul is up, the current state of all feature flags
    */

@@ -50,10 +50,7 @@ case class RegisterProvider(provider: String, client_id: String, client_secret: 
 class VaultUtils {
   def storeVaultTokenKey(key: String, token: String): String = {
     // if HOME isn't set, use /tmp (file still owed / readable only by root)
-    val prefix = sys.env.get("HOME") match {
-      case Some(home) => home
-      case None => "/tmp"
-    }
+    val prefix = "/opt/radix/timberland"
     val tokenFile = new File(prefix + "/.vault-token")
     val sealFile = new File(prefix + "/.vault-seal")
     val tokenWriter = new PrintWriter(tokenFile)
@@ -77,7 +74,7 @@ class VaultUtils {
     val token = sys.env.get("VAULT_SEAL") match {
       case Some(token) => token
       case None => {
-        val source = scala.io.Source.fromFile("/root/.vault-seal")
+        val source = scala.io.Source.fromFile("/opt/radix/timberland/.vault-seal")
         val lines = try source.mkString finally source.close()
         lines
       }
@@ -113,7 +110,7 @@ class VaultUtils {
     val token = sys.env.get("VAULT_TOKEN") match {
       case Some(token) => token
       case None => {
-        val source = scala.io.Source.fromFile("/root/.vault-token")
+        val source = scala.io.Source.fromFile("/opt/radix/timberland/.vault-token")
         val lines = try source.mkString finally source.close()
         lines
       }
