@@ -1,71 +1,24 @@
 package com.radix.timberland
 
-import io.circe.{Parser => _, _}
-import matryoshka.data.Fix
 import java.io.File
 
-import scala.io.StdIn.readLine
-import scala.concurrent.duration._
 import ammonite.ops._
 import cats.effect.IO
 import cats.implicits._
 import com.radix.timberland.launch.daemonutil
-import com.radix.timberland.runtime.acl
-import com.radix.timberland.runtime.{ConsulFlagsUpdated, FlagsStoredLocally, Mock, Run, flags}
+import com.radix.timberland.runtime._
+import com.radix.timberland.util.VaultStarter
 import io.circe.{Parser => _}
 import optparse_applicative._
 import optparse_applicative.types.Parser
 import scalaz.syntax.apply._
-import util.{Util, VaultStarter}
 
-/**
- * radix|- dev|- ci|
- * |     |    |- compile
- * |     |    |- test
- * |     |- native <RADIX_MONOREPO_DIR>
- * |     |- install <RADIX_MONOREPO_DIR>
- * |- runtime|
- * |- start [debug] [dry-run] [force-bind-ip] [dev] [vault] [es] [core] [remote-address] [service-port] [registry-listener-port] [no-restart] [username] [password]
- * |- stop
- * |- trace
- * |- nuke
- * |- start_nomad
- * |- configure| // this all relies on the runtime being active
- * |           |- add|
- * |           |     |- sensor|
- * |           |     |        |- elemental_machines|
- * |           |     |                             |- api_key <api_key>
- * |           |     |                             |- sensor <uuid>
- * |           |     |- robot|
- * |           |             |- opentrons <ip> <node_hostname>
- * |           |- remove <uuid>
- * |           |- move <uuid> <offset> [new_parent_uuid]
- * |- oauth|
- * |- google-sheets
- *
- *
- */
+import scala.io.StdIn.readLine
 
 sealed trait RadixCMD
 
-sealed trait Dev extends RadixCMD
-
-sealed trait CI extends Dev
-
-case class Compile(target: Option[String], dir: Option[String]) extends CI
-
-case class Test(targer: Option[String], dir: Option[String]) extends CI
-
-case object Pass extends CI
-
-object DevList extends CI
-
-
-case class InstallDeps(dir: Option[String]) extends Dev
-
 sealed trait Runtime extends RadixCMD
 
-//case class Dry(run: Runtime) extends Runtime
 sealed trait Local extends Runtime
 
 case class Start(
@@ -117,26 +70,6 @@ object runner {
   implicit class Weakener[F[_], A](fa: F[A])(implicit F: scalaz.Functor[F]) {
     def weaken[B](implicit ev: A <:< B): F[B] = fa.map(identity(_))
   }
-
-  val ci = subparser[CI](
-    command(
-      "ci",
-      info(
-        subparser[CI](command("compile", info(^(optional(strArgument(metavar("TARGET"))),
-          optional(strOption(long("dir"))))(Compile),
-          progDesc("compile all the projects"))),
-          command("test", info(^(optional(strArgument(metavar("TARGET"))),
-            optional(strOption(long("dir"))))(Test),
-            progDesc("test all the projects"))),
-          command("pass", info(pure(Pass), progDesc("test all the projects"))),
-          command("list", info(pure(DevList), progDesc("list available build targets")))),
-        progDesc("continuous integration tooling for radix")
-      )
-    ))
-
-  val bindepinstall = subparser[Dev](command("install", info(optional(strOption(long("dir"))).map(InstallDeps(_)), progDesc("install the native dependencies required to build radix"))))
-  val dev = subparser[Dev](
-    command("dev", info(ci.weaken[Dev] <|> bindepinstall, progDesc("developer tools for radix"))))
 
   val runtime = subparser[Runtime](
     command(
@@ -253,25 +186,18 @@ object runner {
     )
   ) <*> helper
 
-  val prism = subparser[Prism](
-    command("prism", info(subparser[Prism](
-      command("list", info(pure(PList), progDesc("list prism tree"))),
-      command("path", info(strArgument(metavar("PATH")).map(PPath),
-        progDesc("idk make a path or s/t")))))))
 
   val oauth = subparser[Oauth](
     command("oauth", info(subparser[Oauth](command("google-sheets", info(pure(GoogleSheets),
       progDesc("set up a google sheets token")))))
     ))
 
-  val res: Parser[RadixCMD] = dev.weaken[RadixCMD] <|> runtime.weaken[RadixCMD] <|>
-    prism.weaken[RadixCMD] <|> oauth.weaken[RadixCMD]
+  val res: Parser[RadixCMD] = runtime.weaken[RadixCMD]
 
   val opts =
     info(res <*> helper,
-      progDesc("Print a greeting for TARGET"),
-      header("hello - a test for scala-optparse-apps" +
-        "licative"))
+      progDesc("Welcome to Timberland"),
+      header(""))
 
   var sudopw: Option[String] = None
 
@@ -306,7 +232,6 @@ object runner {
     val consul = new File(persistentdir + "/consul/consul")
     val nomad = new File(persistentdir + "/nomad/nomad")
     val vault = new File(persistentdir + "/vault/vault")
-    //    val timberlandJar = new File(persistentdir + "/timberland.jar")
     val nginx = new File(persistentdir + "/nginx/")
     nginx.mkdirs
     val minio = new File("/opt/radix/minio_data/")
@@ -316,40 +241,6 @@ object runner {
     nomad.getParentFile.mkdirs()
     consul.getParentFile.mkdirs()
     vault.getParentFile.mkdirs()
-
-
-    // helper object containing parsers for command-line representation of prism containers and paths
-    object PrismParse {
-
-      import scala.util.parsing.combinator._
-      import scala.util.parsing.input.CharSequenceReader
-      import com.radix.shared.util.prism._
-      import squants.space._
-
-      object PathParser extends RegexParsers {
-        def parens[A](p: Parser[A]): Parser[A] = "(" ~ p ~ ")" ^^ { case _ ~ p ~ _ => p }
-
-        def number: Parser[Double] =
-          """\d+(\.\d*)?""".r ^^ {
-            _.toDouble
-          }
-
-        def offset1: Parser[Offset] = number ^^ { case n => Offset(Meters(n)) }
-
-        def offset2: Parser[Offset] = (number ~ "," ~ number) ^^ { case s ~ _ ~ t => Offset(Meters(s), Meters(t)) }
-
-        def offset3: Parser[Offset] = (number ~ "," ~ number ~ "," ~ number) ^^ { case s ~ _ ~ t ~ _ ~ u => Offset(Meters(s), Meters(t), Meters(u)) }
-
-        def offset: Parser[Offset] = offset3 | offset2 | offset1 | parens(offset)
-
-        def terminal: Parser[Fix[Container]] = offset ^^ { case offset => Fix(Shim(offset, Seq())) }
-
-        def nonterminal: Parser[Fix[Container]] = offset ~ "/" ~ container ^^ { case offset ~ _ ~ container => Fix(Shim(offset, Seq(container))) }
-
-        def container: Parser[Fix[Container]] = nonterminal | terminal
-      }
-
-    }
 
     def cmdEval(cmd: RadixCMD): Unit = {
       cmd match {
@@ -450,10 +341,6 @@ object runner {
                   }
                 }
                 case Stop => {
-                  //Right(println(daemonutil.stopAllServices.unsafeRunSync))
-                  //scribe.info("All services stopped")
-                  //sys.exit(0)
-//                  scribe.error("Stop command not implemented!")
                   implicit val host = new Run.RuntimeServicesExec[IO]
                   (daemonutil.stopTerraform(integrationTest = false) *>
                     Run.stopRuntimeProg[IO]() *>
@@ -512,22 +399,6 @@ object runner {
               }
             }
           }
-
-        case prism: Prism => {
-          prism match {
-            case PList => {
-              // TODO(lily) this should query prism (how?) and display the kd tree in some form
-            }
-            case PPath(path) => {
-              // this just tends parsing logic
-              import PrismParse.PathParser
-              println(PathParser.parseAll(PathParser.container, path))
-
-              // TODO(lily) we should do something to a) convert the parsed container into an actual
-              // path, and b) check that that path is a valid index into the prism
-            }
-          }
-        }
 
         case oauth: Oauth =>
           oauth match {
