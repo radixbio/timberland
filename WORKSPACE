@@ -12,14 +12,24 @@ http_archive(
     url = "https://github.com/bazelbuild/bazel-skylib/releases/download/{}/bazel-skylib.{}.tar.gz".format(skylib_version, skylib_version),
 )
 
-rules_scala_version = "a676633dc14d8239569affb2acafbef255df3480"  # update this as needed
+rules_scala_version = "1b9f63bafc7e867945edf2eed45a51b1304c8130"  # update this as needed
 
 http_archive(
     name = "io_bazel_rules_scala",
-    sha256 = "b8b18d0fe3f6c3401b4f83f78f536b24c7fb8b92c593c1dcbcd01cc2b3e85c9a",
+    sha256 = "06b775f169bd0694cd415d46908aa5462b3c36944d3d9fbb3811723a7a5cb2fd",
     strip_prefix = "rules_scala-%s" % rules_scala_version,
     type = "zip",
     url = "https://github.com/bazelbuild/rules_scala/archive/%s.zip" % rules_scala_version,
+)
+
+bind(
+    name = "io_bazel_rules_scala_dependency_scalatest_scalatest",
+    actual = "//3rdparty/jvm/org/scalatest:scalatest",
+)
+
+bind(
+    name = "io_bazel_rules_scala_dependency_scala_scalactic_scalactic",
+    actual = "//3rdparty/jvm/org/scalactic:scalactic",
 )
 
 http_archive(
@@ -41,21 +51,16 @@ load(
     "scala_repositories",
 )
 
-#bind(
-#    name = "io_bazel_rules_scala_dependency_scalatest_scalatest",
-#    actual = "//3rdparty/jvm/org/scalatest:scalatest",
-#)
-
 scala_repositories(
     scala_extra_jars = {
         "2.12": {
             "scalatest": {
-                "version": "3.1.1",
-                "sha256": "6412fde52c48ad1c97ff7e8f5b5f4f91b774158d82a80ed8250d2570cee0f83b",
+                "version": "3.0.8",
+                "sha256": "a4045cea66f3eaab525696f3000d7d610593778bd070e98349a7066f872844cd",
             },
             "scalactic": {
-                "version": "3.1.1",
-                "sha256": "4fbdce1a3c06823bdb81408c57c85f2fe696a5e5af3bc828022016155c0c5bc4",
+                "version": "3.0.8",
+                "sha256": "5f9ad122f54e9a0112ff4fcaadfb2802d8796f5dde021caa4c831067fca68469",
             },
             "scala_xml": {
                 "version": "1.0.5",
@@ -80,15 +85,15 @@ scala_repositories(
 
 #register_toolchains("//:scala_toolchain")
 
-protobuf_version = "09745575a923640154bcf307fba8aedff47f240a"
+protobuf_version = "3.11.3"
 
-protobuf_version_sha256 = "416212e14481cff8fd4849b1c1c1200a7f34808a54377e22d7447efdf54ad758"
+protobuf_version_sha256 = "cf754718b0aa945b00550ed7962ddc167167bd922b842199eeb6505e6f344852"
 
 http_archive(
     name = "com_google_protobuf",
     sha256 = protobuf_version_sha256,
     strip_prefix = "protobuf-%s" % protobuf_version,
-    url = "https://github.com/protocolbuffers/protobuf/archive/%s.tar.gz" % protobuf_version,
+    url = "https://github.com/protocolbuffers/protobuf/archive/v%s.tar.gz" % protobuf_version,
 )
 
 load(

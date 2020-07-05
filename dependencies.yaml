@@ -205,13 +205,15 @@ dependencies:
       lang: java
       version: 5.3.1
       modules: [avro-serializer]
+  # NOTE: this /has/ to be pinned to 3.0.8 due to rules_scala not supporting things higher than that as of 2020-07-03
   org.scalactic:
     scalactic:
-      version: 3.1.1
+      version: 3.0.8
       lang: scala
+  # NOTE: this /has/ to be pinned to 3.0.8 due to rules_scala not supporting things higher than that as of 2020-07-03
   org.scalatest:
     scalatest:
-      version: 3.1.1
+      version: 3.0.8
       lang: scala
   org.scalatestplus:
     scalatestplus-scalacheck:
