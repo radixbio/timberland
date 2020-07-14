@@ -15,9 +15,9 @@ package object kafka {
   private[this] implicit val timer: Timer[IO]     = IO.timer(global)
   //  private[this] implicit val cs: ContextShift[IO] = IO.contextShift(global)
 
-  def startKafka(implicit minQuorumSize: Int): IO[Unit] = {
+  def startKafka(prefix: String)(implicit minQuorumSize: Int): IO[Unit] = {
     for {
-      zk_connect_env <- consulutil.waitForService("zookeeper-daemons-zookeeper-zookeeper", Set("zookeeper-client", "zookeeper-quorum"), minQuorumSize)
+      zk_connect_env <- consulutil.waitForService(s"${prefix}zookeeper-daemons-zookeeper-zookeeper", Set("zookeeper-client", "zookeeper-quorum"), minQuorumSize)
         .map(nel => nel.map(sr => s"${sr.serviceAddress}:${sr.servicePort}").mkString_(","))
       _ <- IO(scribe.debug(s"found extant zookeeper servers for kafka $zk_connect_env"))
       _ <- IO {

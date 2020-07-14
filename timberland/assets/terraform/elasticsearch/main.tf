@@ -5,7 +5,7 @@ resource "nomad_job" "elasticsearch" {
 
 data "consul_service_health" "es_health" {
   count = var.enable ? 1 : 0
-  name = "elasticsearch-elasticsearch-es-generic-node"
+  name = "${var.prefix}elasticsearch-es-es-generic-node"
   passing = true
   depends_on = [nomad_job.elasticsearch]
   wait_for = "300s"
@@ -13,7 +13,7 @@ data "consul_service_health" "es_health" {
 
 data "consul_service_health" "kibana_health" {
   count = var.enable ? 1 : 0
-  name = "elasticsearch-kibana-kibana"
+  name = "${var.prefix}elasticsearch-kibana-kibana"
   passing = true
   depends_on = [nomad_job.elasticsearch]
   wait_for = "300s"

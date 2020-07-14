@@ -1,6 +1,6 @@
 package com.radix.timberland.launch
 
-import java.io.{File, IOException, PrintWriter}
+import java.io.{File, FileWriter, IOException, PrintWriter}
 import java.net.{InetAddress, ServerSocket, UnknownHostException}
 
 import cats.effect.{ContextShift, IO, Resource, Timer}
@@ -23,30 +23,16 @@ import com.radix.timberland.runtime.flags
 import org.http4s.Uri
 import org.http4s.client.Client
 
-import scala.io.StdIn
+import scala.io.{Source, StdIn}
 
 sealed trait DaemonState
 
 case object AllDaemonsStarted extends DaemonState
 
-/** A holder class for combining a task with it's associated tags that need to be all checked for Daemon Availability
- *
- * @param name    The full extended task name which is "{jobName}-{groupName}-{taskName}" for any given task
- * @param tagList A list of type Set[String] which are unique combinations of services that should be checked for
- *                availability
- */
-case class TaskAndTags(name: String, tagList: List[Set[String]], quorumSize: Int = 1)
-
 package object daemonutil {
   private[this] implicit val timer: Timer[IO] = IO.timer(global)
   private[this] implicit val cs: ContextShift[IO] = IO.contextShift(global)
-  private[this] implicit val blaze: Resource[IO, Client[IO]] =  BlazeClientBuilder[IO](global).resource
-
-  def checkNomadState(implicit interp: Http4sNomadClient[IO]): IO[NomadReadRaftConfigurationResponse] = {
-    for {
-      state <- NomadOp.nomadReadRaftConfiguration().foldMap(interp)
-    } yield state
-  }
+  private[this] implicit val blaze: Resource[IO, Client[IO]] = BlazeClientBuilder[IO](global).resource
 
   def getServiceIps(remoteConsulDnsAddress: String): IO[ServiceAddrs] = {
     def queryDns(host: String) = IO {
@@ -67,37 +53,62 @@ package object daemonutil {
   }
 
   def getTerraformWorkDir(is_integration: Boolean): File = {
-    if(is_integration) new File("/tmp/radix/terraform") else new File("/opt/radix/terraform")
+    if (is_integration) new File("/tmp/radix/terraform") else new File("/opt/radix/terraform")
   }
+
+  def updatePrefixFile(prefix: Option[String]): Unit = {
+    prefix match {
+      case Some(str) => {
+        val file = "/opt/radix/timberland/git-branch-workspace-status.txt"
+        val writer = new FileWriter(file)
+        try writer.write(str) finally writer.close()
+      }
+      case None => ()
+    }
+  }
+
+  def getPrefix(integration: Boolean): String = {
+    val rawPrefix = if (integration) "integration" else {
+      val bufferedSource = Source.fromFile("/opt/radix/timberland/git-branch-workspace-status.txt")
+      val result = bufferedSource.getLines().mkString
+      if (result.length > 0) result else {
+        sys.env.get("NOMAD_PREFIX") match {
+          case Some(prefix) => prefix
+          case None => ""
+        }
+      }
+    }
+
+    if (rawPrefix.length > 0) rawPrefix + "-" else rawPrefix
+  }
+
   val execDir = "/opt/radix/timberland/terraform"
+
   /** Start up the specified daemons (or all or a combination) based upon the passed parameters. Will immediately exit
    * after submitting the job to Nomad via Terraform.
    *
    * @param featureFlags A map specifying which modules to enable
-   * @param masterToken The access token used to communicate with consul/nomad
+   * @param masterToken  The access token used to communicate with consul/nomad
    * @return Returns an IO of DaemonState and since the function is blocking/recursive, the only return value is
    *         AllDaemonsStarted
    */
   def runTerraform(featureFlags: Map[String, Boolean],
                    masterToken: String,
-                   integrationTest: Boolean
+                   integrationTest: Boolean,
+                   prefix: Option[String]
                   )(implicit serviceAddrs: ServiceAddrs = ServiceAddrs()): IO[Int] = {
     val workingDir = getTerraformWorkDir(integrationTest)
     val mkTmpDirCommand = Seq("bash", "-c", "rm -rf /tmp/radix && mkdir -p /tmp/radix/terraform")
 
-    val prefix = if(integrationTest) "integration-" else {
-      val home = sys.env.getOrElse("HOME", "")
-      val file = new File(s"$home/monorepo")
-      if (file.exists) Process(Seq("git", "rev-parse", "--abbrev-ref", "HEAD"), Some(new File(s"$home/monorepo"))).!!.trim.toLowerCase.replaceAll("/", "-") + "-" else ""
-    }
+    updatePrefixFile(prefix)
 
     val variables =
-      s"-var='prefix=$prefix' " +
-      s"-var='test=$integrationTest' " +
-      s"-var='acl_token=$masterToken' " +
-      s"-var='consul_address=${serviceAddrs.consulAddr}' " +
-      s"-var='nomad_address=${serviceAddrs.nomadAddr}' " +
-      s"""-var='feature_flags=["${featureFlags.filter(_._2).keys.mkString("""","""")}"]' """
+      s"-var='prefix=${getPrefix(integrationTest)}' " +
+        s"-var='test=$integrationTest' " +
+        s"-var='acl_token=$masterToken' " +
+        s"-var='consul_address=${serviceAddrs.consulAddr}' " +
+        s"-var='nomad_address=${serviceAddrs.nomadAddr}' " +
+        s"""-var='feature_flags=["${featureFlags.filter(_._2).keys.mkString("""","""")}"]' """
 
     val mkTmpDir = for {
       mkDirExitCode <- IO(Process(mkTmpDirCommand) !)
@@ -122,7 +133,7 @@ package object daemonutil {
           "put",
           s"-address=http://${serviceAddrs.consulAddr}:8200",
           "secret/aws/s3",
-          s"$creds").call(stdout = os.Inherit, stderr = os.Inherit, env = Map ("VAULT_TOKEN" -> vaultToken))
+          s"$creds").call(stdout = os.Inherit, stderr = os.Inherit, env = Map("VAULT_TOKEN" -> vaultToken))
       }
       hasAWSCreds <- checkVaultHasCredentials(vaultToken, "aws/s3", "aws_access_key_id")
       haveUpstreamCreds = s"-var=have_upstream_creds=$hasAWSCreds "
@@ -132,7 +143,7 @@ package object daemonutil {
       applyExitCode <- IO(Process(applyCommand, Some(workingDir)) !)
     } yield applyExitCode
 
-    if(integrationTest)
+    if (integrationTest)
       mkTmpDir *> initTerraform(integrationTest, Some(masterToken)) *> apply
     else
       initTerraform(integrationTest, Some(masterToken)) *> apply
@@ -157,9 +168,10 @@ package object daemonutil {
 
   /**
    * Runs the terraform init command
-   * @param integrationTest Runs init in a temporary directory
+   *
+   * @param integrationTest    Runs init in a temporary directory
    * @param backendMasterToken ACL token to access consul. If this isn't specified, terraform won't connect to consul
-   * @param serviceAddrs Contains addresses for consul and nomad
+   * @param serviceAddrs       Contains addresses for consul and nomad
    * @return Nothing
    */
   def initTerraform(integrationTest: Boolean, backendMasterToken: Option[String])
@@ -195,12 +207,14 @@ package object daemonutil {
     IO(ret.exitCode)
   }
 
-  def waitForQuorum(featureFlags: Map[String, Boolean]): IO[DaemonState] = {
+  def waitForQuorum(featureFlags: Map[String, Boolean], integrationTest: Boolean = false): IO[DaemonState] = {
     implicit val cs: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
     implicit val timer: Timer[IO] = IO.timer(ExecutionContext.global)
 
+    val prefix = getPrefix(integrationTest)
+
     val enabledServices = featureFlags.toList.flatMap {
-      case (feature, enabled) => if (enabled) flags.flagServiceMap.getOrElse(feature, Vector()) else Vector()
+      case (feature, enabled) => if (enabled) flags.flagServiceMap.getOrElse(feature, Vector()).map(name => prefix + name) else Vector()
     }
 
     enabledServices.parTraverse { service =>
@@ -211,7 +225,7 @@ package object daemonutil {
   /** Wait for a DNS record to become available. Consul will not return a record for failing services.
    * This returns Unit because we do not care what the result is, only that there is at least one.
    *
-   * @param dnsName The DNS name to look up
+   * @param dnsName         The DNS name to look up
    * @param timeoutDuration How long to wait before throwing an exception
    */
   def waitForDNS(dnsName: String, timeoutDuration: FiniteDuration): IO[Unit] = {
@@ -220,7 +234,7 @@ package object daemonutil {
     def queryProg(): IO[Unit] = for {
       _ <- IO(Console.println(s"Waiting for DNS: $dnsName"))
       dnsAnswers <- IO(Option(dnsQuery.run.toSeq).getOrElse(Seq.empty))
-      _ <- if(dnsQuery.getResult != DNS.Lookup.SUCCESSFUL || dnsAnswers.isEmpty)
+      _ <- if (dnsQuery.getResult != DNS.Lookup.SUCCESSFUL || dnsAnswers.isEmpty)
         IO.sleep(1.seconds) *> queryProg
       else
         IO(Console.println(s"Found DNS record: $dnsName"))

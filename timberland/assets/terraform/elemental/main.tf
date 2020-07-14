@@ -5,7 +5,7 @@ resource "nomad_job" "elemental" {
 
 data "consul_service_health" "elemental_health" {
   count = var.enable ? 1 : 0
-  name = "elemental-machines-em-em"
+  name = "${var.prefix}elemental-machines-em-em"
   passing = true
   depends_on = [nomad_job.elemental]
   wait_for = "300s"

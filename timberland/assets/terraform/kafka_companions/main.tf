@@ -5,7 +5,7 @@ resource "nomad_job" "kafka_companions" {
 
 data "consul_service_health" "schema_registry_health" {
   count = var.enable ? 1 : 0
-  name = "kafka-companion-daemons-kafkaCompanions-schemaRegistry"
+  name = "${var.prefix}kc-daemons-companions-schema-registry"
   passing = true
   depends_on = [nomad_job.kafka_companions]
   wait_for = "300s"
@@ -13,7 +13,7 @@ data "consul_service_health" "schema_registry_health" {
 
 data "consul_service_health" "connect_health" {
   count = var.enable ? 1 : 0
-  name = "kafka-companion-daemons-kafkaCompanions-kafkaConnect"
+  name = "${var.prefix}kc-daemons-companions-connect"
   passing = true
   depends_on = [nomad_job.kafka_companions]
   wait_for = "300s"
@@ -21,7 +21,7 @@ data "consul_service_health" "connect_health" {
 
 data "consul_service_health" "rest_proxy_health" {
   count = var.enable ? 1 : 0
-  name = "kafka-companion-daemons-kafkaCompanions-kafkaRestProxy"
+  name = "${var.prefix}kc-daemons-companions-rest-proxy"
   passing = true
   depends_on = [nomad_job.kafka_companions]
   wait_for = "300s"
@@ -29,7 +29,7 @@ data "consul_service_health" "rest_proxy_health" {
 
 data "consul_service_health" "ksql_health" {
   count = var.enable ? 1 : 0
-  name = "kafka-companion-daemons-kafkaCompanions-kSQL"
+  name = "${var.prefix}kc-daemons-companions-kSQL"
   passing = true
   depends_on = [nomad_job.kafka_companions]
   wait_for = "300s"

@@ -1,4 +1,4 @@
-job "s3lts" {
+job "${prefix}s3lts" {
   all_at_once = false
   datacenters = ["dc1"]
 
@@ -17,13 +17,13 @@ job "s3lts" {
 
       driver = "docker"
       env = {
-        "MINIO_REMOTE_HOSTPORT" = "mockminio.service.consul:9000",
-        "MINIO_LOCAL_HOSTPORT" = "minio-job-minio-group-minio-local.service.consul:9000",
+        "MINIO_REMOTE_HOSTPORT" = "${prefix}mockminio.service.consul:9000",
+        "MINIO_LOCAL_HOSTPORT" = "${prefix}minio-job-minio-group-minio-local.service.consul:9000",
         "HOSTNAME" = "runtime-minio-syncer-$${NOMAD_ALLOC_INDEX}.service.consul",
         "SECRETACCESSKEY" = "minio-secret-key",
-        "KAFKA_BOOTSTRAP_SERVERS" = "PLAINTEXT://kafka-daemons-kafka-kafka.service.consul:29092",
+        "KAFKA_BOOTSTRAP_SERVERS" = "PLAINTEXT://${prefix}kafka-daemons-kafka-kafka.service.consul:29092",
         "ACCESSKEYID" = "minio-access-key",
-        "AVRO_SCHEMA_REGISTRY_URL" = "http://kafka-companion-daemons-kafkaCompanions-schemaRegistry.service.consul:8081",
+        "AVRO_SCHEMA_REGISTRY_URL" = "http://${prefix}kc-daemons-companions-schema-registry.service.consul:8081",
         "TARGET_BUCKET_NAME" = "radix-userdata-test",
         "TCP_AKKA_PORT" = "2552"
       }

@@ -1,4 +1,4 @@
-job "minio-job" {
+job "${prefix}minio-job" {
   all_at_once = false
 
   constraint {
@@ -7,20 +7,19 @@ job "minio-job" {
     value = "linux"
   }
 
-  datacenters = [
-    "dc1"]
+  datacenters = ["dc1"]
 
   group "minio-group" {
     count = 1
 
     task "minio-local" {
       vault {
-        policies = [
-          "read-aws"]
+        policies = ["read-aws"]
 
         change_mode = "signal"
         change_signal = "SIGUSR1"
       }
+
       template {
         data = <<EOF
       {{with secret "secret/aws/s3"}}
@@ -41,6 +40,7 @@ job "minio-job" {
         destination = "secrets/file.env"
         env = true
       }
+
       config {
         image = "minio/minio:latest"
         auth_soft_fail = false
@@ -50,21 +50,16 @@ job "minio-job" {
         port_map = {
           "minio" = 9000
         }
-        entrypoint = [
-          "minio",
-          "--compat"]
-        args = [
-          "server",
-          "/data"]
-        volumes = [
-          "/opt/radix/minio_data:/data"]
+        entrypoint = ["minio", "--compat"]
+        args = ["server", "/data"]
+        volumes = ["/opt/radix/minio_data:/data"]
         cap_add = []
       }
 
       driver = "docker"
       env = {
         "MINIO_NOTIFY_KAFKA_ENABLE" = "true",
-        "MINIO_NOTIFY_KAFKA_BROKERS" = "kafka-daemons-kafka-kafka.service.consul:29092",
+        "MINIO_NOTIFY_KAFKA_BROKERS" = "${prefix}kafka-daemons-kafka-kafka.service.consul:29092",
         "MINIO_NOTIFY_KAFKA_TOPIC" = "bucketevents"
       }
       kill_timeout = "5s"
@@ -86,9 +81,7 @@ job "minio-job" {
 
       service {
         port = "minio"
-        tags = [
-          "minio",
-          "client"]
+        tags = ["minio", "client"]
         address_mode = "auto"
 
         check {
@@ -110,28 +103,24 @@ job "minio-job" {
     ${ !have_upstream_creds ? "" : <<-EOH
     task "minio-remote" {
       vault {
-        policies = [
-          "read-aws"]
+        policies = ["read-aws"]
 
         change_mode = "signal"
         change_signal = "SIGUSR1"
       }
+
       config {
         image = "minio/minio:latest"
-        args = [
-          "gateway",
-          "s3"]
+        args = ["gateway", "s3"]
         auth_soft_fail = false
-        entrypoint = [
-          "minio"]
+        entrypoint = ["minio"]
         hostname = "$${attr.unique.hostname}-em"
         privileged = false
         network_mode = "weave"
         port_map = {
           "minio_remote" = 9000
         }
-        volumes = [
-          "/opt/radix/minio_data_remote:/data"]
+        volumes = ["/opt/radix/minio_data_remote:/data"]
         cap_add = []
       }
 
@@ -197,86 +186,140 @@ job "minio-job" {
       shutdown_delay = "0s"
     }
         EOH
-  }
+    }
 
-  task "nginx-minio" {
+    task "nginx-minio" {
 
-    config {
-      image = "nginx:latest"
-      auth_soft_fail = false
-      hostname = "$${attr.unique.hostname}-em"
-      privileged = false
-      network_mode = "weave"
-      volumes = [
-        "/opt/radix/timberland/nginx/${ have_upstream_creds ? "nginx-minios.conf" : "nginx-minio-noupstream.conf"  }:/etc/nginx/nginx.conf"]
-      port_map = {
-        "nginx" = 9000
+      config {
+        image = "nginx:latest"
+        auth_soft_fail = false
+        hostname = "$${attr.unique.hostname}-em"
+        privileged = false
+        network_mode = "weave"
+        volumes = ["local/nginx.conf:/etc/nginx/nginx.conf"]
+        port_map = {
+          "nginx" = 9000
+        }
+        cap_add = []
       }
-      cap_add = []
-    }
 
-    restart {
-      attempts = 10
-      delay = "20s"
-      mode = "fail"
-    }
+      template {
+        change_mode = "noop"
+        destination = "local/nginx.conf"
 
-    driver = "docker"
-    kill_timeout = "5s"
-    kill_signal = "SIGINT"
-    leader = false
+        data = <<EOH
+        worker_processes 1;
 
-    resources {
-      cpu = 1000
-      memory = 300
+        events {
+          worker_connections 1024;
+        }
 
-      network {
-        mbits = 10
+        http {
+          default_type text/html;
+          access_log /dev/stdout;
+          sendfile on;
+          keepalive_timeout 65;
 
-        port "nginx" {
-          static = 1339
+          upstream minio {
+            {{ range service "${prefix}minio-job-minio-group-minio-local" }}
+              server {{ .Address }}:{{ .Port }};
+            {{ end }}
+
+            {{ range service "${prefix}minio-job-minio-group-minio-remote" }}
+              server {{ .Address }}:{{ .Port }} backup;
+            {{ end }}
+          }
+
+          server {
+            listen 9000;
+            server_name ${prefix}minio-job-minio-group-nginx-minio.service.consul;
+
+            ignore_invalid_headers off;
+            client_max_body_size 10000m;
+            proxy_buffering off;
+
+            location / {
+              proxy_set_header X-Real-IP $remote_addr;
+              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-Proto $scheme;
+              proxy_set_header Host $http_host;
+              proxy_hide_header "X-AMZ-Bucket-Region";
+              proxy_hide_header "X-AMZ-Request-Id";
+
+              proxy_connect_timeout 300;
+              # Default is HTTP/1, keepalive is only enabled in HTTP/1.1
+              proxy_http_version 1.1;
+              proxy_set_header Connection "";
+              chunked_transfer_encoding off;
+
+              proxy_pass http://minio;
+              ${ have_upstream_creds ? "proxy_next_upstream error http_404;" : "" }
+            }
+          }
+        }
+        EOH
+      }
+
+      restart {
+        attempts = 10
+        delay = "20s"
+        mode = "fail"
+      }
+
+      driver = "docker"
+      kill_timeout = "5s"
+      kill_signal = "SIGINT"
+      leader = false
+
+      resources {
+        cpu = 1000
+        memory = 300
+
+        network {
+          mbits = 10
+
+          port "nginx" {
+            static = 1339
+          }
         }
       }
-    }
 
-    service {
-      port = "nginx"
-      tags = [
-        "minio",
-        "client"]
-      address_mode = "host"
-
-      check {
-        address_mode = "${ test ? "driver" : "host" }"
-        grpc_use_tls = true
-        initial_status = "critical"
-        interval = "10s"
-        method = "GET"
+      service {
         port = "nginx"
-        protocol = "http"
-        timeout = "2s"
-        type = "tcp"
-        tls_skip_verify = false
+        tags = ["minio", "client"]
+        address_mode = "host"
+
+        check {
+          address_mode = "${ test ? "driver" : "host" }"
+          grpc_use_tls = true
+          initial_status = "critical"
+          interval = "10s"
+          method = "GET"
+          port = "nginx"
+          protocol = "http"
+          timeout = "2s"
+          type = "tcp"
+          tls_skip_verify = false
+        }
       }
+
+      shutdown_delay = "0s"
     }
-
-    shutdown_delay = "0s"
   }
-}
 
-namespace = "default"
-priority = 50
-region = "global"
-type = "service"
+  namespace = "default"
+  priority = 50
+  region = "global"
+  type = "service"
 
-update {
-  max_parallel = 1
-  health_check = "checks"
-  min_healthy_time = "10s"
-  healthy_deadline = "5m"
-  progress_deadline = "10m"
-  auto_revert = false
-  canary = 0
-  stagger = "10s"
-}
+  update {
+    max_parallel = 1
+    health_check = "checks"
+    min_healthy_time = "10s"
+    healthy_deadline = "5m"
+    progress_deadline = "10m"
+    auto_revert = false
+    canary = 0
+    stagger = "10s"
+  }
 }

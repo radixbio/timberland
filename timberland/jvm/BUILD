@@ -10,6 +10,7 @@ load("@rules_pkg//:pkg.bzl", "pkg_deb", "pkg_tar")
 load("@io_bazel_rules_docker//docker/util:run.bzl", "container_run_and_commit", "container_run_and_extract")
 load("@io_bazel_rules_docker//container:container.bzl", "container_image", "container_layer", "container_load", "container_push")
 load("//:tools/pkg_rpm_with_branch.bzl", "pkg_rpm_with_branch")
+load("//:tools/write_git_branch_to_file.bzl", "write_git_branch_to_file")
 
 package(
     default_visibility = ["//timberland:__subpackages__"],
@@ -319,17 +320,6 @@ pkg_tar(
 )
 
 pkg_tar(
-    name = "timberland-terraform-vault-module",
-    srcs = [
-        "//timberland/assets:terraform/vault/main.tf",
-        "//timberland/assets:terraform/vault/outputs.tf",
-        "//timberland/assets:terraform/vault/variables.tf",
-        "//timberland/assets:terraform/vault/vault.tmpl",
-    ],
-    package_dir = "/opt/radix/timberland/terraform/vault",
-)
-
-pkg_tar(
     name = "timberland-terraform-minio-module",
     srcs = [
         "//timberland/assets:terraform/minio/main.tf",
@@ -393,16 +383,6 @@ pkg_tar(
 )
 
 pkg_tar(
-    name = "timberland-nomad-connect",
-    srcs = [
-        "//timberland/assets:nomad/connect/postgres_source.sh",
-        "//timberland/assets:nomad/connect/start.sh",
-        "//timberland/assets:nomad/connect/yugabyte_sink.sh",
-    ],
-    package_dir = "/opt/radix/timberland/nomad/connect",
-)
-
-pkg_tar(
     name = "timberland-nomad-config-elasticsearch",
     srcs = [
         "//timberland/assets:nomad/config/elasticsearch/unicast_hosts.tpl",
@@ -440,16 +420,6 @@ pkg_tar(
 )
 
 pkg_tar(
-    name = "timberland-nginx",
-    srcs = [
-        "//timberland/assets:nginx/nginx-minio-noupstream.conf",
-        "//timberland/assets:nginx/nginx-minios.conf",
-        "//timberland/assets:nginx/nginx-retool.conf",
-    ],
-    package_dir = "/opt/radix/timberland/nginx",
-)
-
-pkg_tar(
     name = "timberland-devdrivers",
     srcs = [
         "//device_drivers/hw_discovery/jvm:hw-discovery-bin_deploy.jar",
@@ -461,20 +431,24 @@ pkg_tar(
     package_dir = "/opt/radix/device_drivers/",
 )
 
+write_git_branch_to_file(
+    name = "git-branch-file",
+    package_dir = "/opt/radix/timberland",
+)
+
 pkg_tar(
     name = "timberland-full-tar",
     deps = [
+        ":git-branch-file",
         ":timberland-consul",
         ":timberland-consul-config",
         ":timberland-devdrivers",
         ":timberland-exec",
         ":timberland-networkd",
-        ":timberland-nginx",
         ":timberland-nomad",
         ":timberland-nomad-config",
         ":timberland-nomad-config-elasticsearch",
         ":timberland-nomad-config-zookeeper",
-        ":timberland-nomad-connect",
         ":timberland-systemd-services",
         ":timberland-terraform",
         ":timberland-terraform-apprise-module",
@@ -490,7 +464,6 @@ pkg_tar(
         ":timberland-terraform-retool-pg-kafka-connector-module",
         ":timberland-terraform-runtime-module",
         ":timberland-terraform-s3lts-module",
-        ":timberland-terraform-vault-module",
         ":timberland-terraform-yugabyte-kafka-connector-module",
         ":timberland-terraform-yugabyte-module",
         ":timberland-terraform-zookeeper-module",

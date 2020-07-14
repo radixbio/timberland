@@ -5,25 +5,32 @@ import socket
 import sys
 import time
 
+file = open("/opt/radix/timberland/git-branch-workspace-status.txt", "r")
+prefix = file.read().strip()
+if len(prefix) > 0:
+  prefix += "-"
+
+file.close()
+
 services_to_test = set([
-  "apprise-apprise-apprise",
+  prefix + "apprise-apprise-apprise",
   "consul",
-  "elasticsearch-elasticsearch-es-generic-node",
-  "elasticsearch-kibana-kibana",
-  "kafka-companion-daemons-kafkaCompanions-kSQL",
-  "kafka-companion-daemons-kafkaCompanions-kafkaConnect",
-  "kafka-companion-daemons-kafkaCompanions-kafkaRestProxy",
-  "kafka-companion-daemons-kafkaCompanions-schemaRegistry",
-  "kafka-daemons-kafka-kafka",
-  "minio-job-minio-group-nginx-minio",
+  prefix + "elasticsearch-es-es-generic-node",
+  prefix + "elasticsearch-kibana-kibana",
+  prefix + "kc-daemons-companions-kSQL",
+  prefix + "kc-daemons-companions-connect",
+  prefix + "kc-daemons-companions-rest-proxy",
+  prefix + "kc-daemons-companions-schema-registry",
+  prefix + "kafka-daemons-kafka-kafka",
+  prefix + "minio-job-minio-group-nginx-minio",
   "nomad",
   "nomad-client",
-  "retool-retool-postgres",
-  "retool-retool-retool-main",
+  prefix + "retool-retool-postgres",
+  prefix + "retool-retool-retool-main",
   "vault",
-  "yugabyte-yugabyte-ybmaster",
-  "yugabyte-yugabyte-ybtserver",
-  "zookeeper-daemons-zookeeper-zookeeper",
+  prefix + "yugabyte-yugabyte-ybmaster",
+  prefix + "yugabyte-yugabyte-ybtserver",
+  prefix + "zookeeper-daemons-zookeeper-zookeeper",
 ])
 
 def wait_for_consul():

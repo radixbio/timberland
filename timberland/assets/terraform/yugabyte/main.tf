@@ -5,7 +5,7 @@ resource "nomad_job" "yugabyte" {
 
 data "consul_service_health" "yb_master_health" {
   count = var.enable ? 1 : 0
-  name = "yugabyte-yugabyte-ybmaster"
+  name = "${var.prefix}yugabyte-yugabyte-ybmaster"
   passing = true
   depends_on = [nomad_job.yugabyte]
   wait_for = "300s"
@@ -13,7 +13,7 @@ data "consul_service_health" "yb_master_health" {
 
 data "consul_service_health" "yb_tserver_health" {
   count = var.enable ? 1 : 0
-  name = "yugabyte-yugabyte-ybtserver"
+  name = "${var.prefix}yugabyte-yugabyte-ybtserver"
   passing = true
   depends_on = [nomad_job.yugabyte]
   wait_for = "300s"

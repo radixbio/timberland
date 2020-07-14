@@ -1,4 +1,4 @@
-job "kafka-daemons" {
+job "${prefix}kafka-daemons" {
   all_at_once = false
 
   constraint {
@@ -34,7 +34,7 @@ job "kafka-daemons" {
 
       config {
         image = "confluentinc/cp-kafka:5.3.1"
-        args = ["/timberland/exec/timberland-launcher_deploy.jar","launch","kafka" ${dev ? ", \"--dev\"" : ""}]
+        args = ["/timberland/exec/timberland-launcher_deploy.jar","launch","kafka" ${dev ? ", \"--dev\"" : ""}, "--prefix", "${prefix}"]
         auth_soft_fail = false
         command = "-jar"
         entrypoint = ["java"]
@@ -54,7 +54,6 @@ job "kafka-daemons" {
         "TOPIC_AUTO_CREATE" = "true",
         "KAFKA_INTER_BROKER_LISTENER_NAME" = "INSIDE",
         ${ dev ? "\"KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR\" = \"1\"," : "" }
-        "KAFKA_ZOOKEEPER_CONNECT" = "${ zk_addr }",
       }
       kill_timeout = "5s"
       kill_signal = "SIGINT"

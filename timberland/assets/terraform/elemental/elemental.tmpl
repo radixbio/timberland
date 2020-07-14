@@ -1,4 +1,4 @@
-job "elemental-machines" {
+job "${prefix}elemental-machines" {
   all_at_once = false
 
   constraint {
@@ -35,8 +35,8 @@ job "elemental-machines" {
       env = {
         "VAULT_TOKEN" = "${token}",
         "TCP_AKKA_PORT" = "64501",
-        "KAFKA_BOOTSTRAP_SERVERS" = "OUTSIDE://kafka-daemons-kafka-kafka.service.consul:9092",
-        "AVRO_SCHEMA_REGISTRY_URL" = "http://kafka-companion-daemons-kafkacompanions-schemaregistry.service.consul:8081"
+        "KAFKA_BOOTSTRAP_SERVERS" = "OUTSIDE://${prefix}kafka-daemons-kafka-kafka.service.consul:9092",
+        "AVRO_SCHEMA_REGISTRY_URL" = "http://${prefix}kc-daemons-companions-schema-registry.service.consul:8081"
       }
       kill_timeout = "5s"
       kill_signal = "SIGINT"

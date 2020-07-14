@@ -3,9 +3,6 @@ exports_files([
     "consul/default-policy.hcl",
     "debian/postinst.sh",
     "debian/prerm.sh",
-    "nomad/connect/postgres_source.sh",
-    "nomad/connect/start.sh",
-    "nomad/connect/yugabyte_sink.sh",
     "nomad/config/nomad.hcl",
     "nomad/config/elasticsearch/unicast_hosts.tpl",
     "nomad/config/zookeeper/config/zoo.tpl",
@@ -13,11 +10,7 @@ exports_files([
     "nomad/config/zookeeper/config/zoo_replicated.cfg.dynamic",
     "networkd/10-radix-consul",
     "networkd/10-radix-nomad",
-    "nginx/nginx-retool.conf",
     "redhat/rpm.spec",
-    "nginx/nginx-minios.conf",
-    "nginx/nginx-minio-noupstream.conf",
-    "nginx/nginx-retool.conf",
     "systemd/consul.env.conf",
     "systemd/consul.service",
     "systemd/nomad.env.conf",
@@ -84,12 +77,6 @@ exports_files([
     "terraform/elasticsearch/main.tf",
     "terraform/elasticsearch/outputs.tf",
     "terraform/elasticsearch/variables.tf",
-
-    # VAULT MODULE
-    "terraform/vault/vault.tmpl",
-    "terraform/vault/main.tf",
-    "terraform/vault/outputs.tf",
-    "terraform/vault/variables.tf",
 
     # MINIO MODULE
     "terraform/minio/minio.tmpl",

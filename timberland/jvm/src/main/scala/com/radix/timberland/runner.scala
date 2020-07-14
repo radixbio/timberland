@@ -30,6 +30,7 @@ case class Start(
                   servicePort: Int = 9092,
                   accessToken: Option[String] = None,
                   registryListenerPort: Int = 8081,
+                  prefix: Option[String] = None,
                   username: Option[String] = None,
                   password: Option[String] = None,
                 ) extends Local
@@ -79,7 +80,7 @@ object runner {
           command(
             "start",
             info(
-              switch(long("dry-run"), help("whether to run the mock intepreter")).map({ flag =>
+              switch(long("dry-run"), help("whether to run the mock interpreter")).map({ flag =>
                 Start(flag)
               }) <*>
                 optional(strOption(long("debug"), help("what debug level the service should run at"))).map(debug => {
@@ -132,6 +133,14 @@ object runner {
                 .map(rlp => { exist: Start =>
                   rlp match {
                     case str@Some(_) => exist.copy(registryListenerPort = rlp.get)
+                    case None => exist
+                  }
+                }) <*> optional(
+                strOption(long("prefix"),
+                  help("Nomad job prefix")))
+                .map(prefix => { exist: Start =>
+                  prefix match {
+                    case Some(_) => exist.copy(prefix = prefix)
                     case None => exist
                   }
                 }) <*> optional(
@@ -249,7 +258,7 @@ object runner {
             case local: Local =>
               local match {
                 case Nuke => Right(Unit)
-                case cmd@Start(dummy, loglevel, bindIP, consulSeedsO, remoteAddress, servicePort, accessToken, registryListenerPort, username, password) => {
+                case cmd@Start(dummy, loglevel, bindIP, consulSeedsO, remoteAddress, servicePort, accessToken, registryListenerPort, prefix, username, password) => {
                   scribe.Logger.root
                     .clearHandlers()
                     .clearModifiers()
@@ -317,7 +326,7 @@ object runner {
                       flagUpdateResp <- flags.updateFlags(Path(persistentdir), Some(masterToken))
                       featureFlags = flagUpdateResp.asInstanceOf[ConsulFlagsUpdated].flags
 
-                      _ <- daemonutil.runTerraform(featureFlags, masterToken, integrationTest = false)
+                      _ <- daemonutil.runTerraform(featureFlags, masterToken, integrationTest = false, prefix)
                       _ <- daemonutil.waitForQuorum(featureFlags)
                     } yield ()
 
@@ -327,7 +336,7 @@ object runner {
                       featureFlags <- flags.getConsulFlags(masterToken)(serviceAddrs)
 
                       _ <- (new VaultStarter).initializeAndUnsealAndSetupVault()
-                      _ <- daemonutil.runTerraform(featureFlags, masterToken, integrationTest = false)(serviceAddrs)
+                      _ <- daemonutil.runTerraform(featureFlags, masterToken, integrationTest = false, prefix)(serviceAddrs)
                     } yield ()
 
                     (remoteAddress, accessToken) match {
@@ -369,7 +378,7 @@ object runner {
                 flagUpdateResp <- flags.updateFlags(Path(persistentdir), accessToken, flagMap)
                 _ <- flagUpdateResp match {
                   case ConsulFlagsUpdated(featureFlags) =>
-                    daemonutil.runTerraform(featureFlags, accessToken.get, integrationTest = false) *>
+                    daemonutil.runTerraform(featureFlags, accessToken.get, integrationTest = false, None) *>
                     daemonutil.waitForQuorum(featureFlags)
                   case FlagsStoredLocally() =>
                     IO.unit
@@ -381,7 +390,7 @@ object runner {
                 flagUpdateResp <- flags.updateFlags(Path(persistentdir), accessToken, flagMap)(serviceAddrs)
                 _ <- flagUpdateResp match {
                   case ConsulFlagsUpdated(featureFlags) =>
-                    daemonutil.runTerraform(featureFlags, accessToken.get, integrationTest = false)(serviceAddrs)
+                    daemonutil.runTerraform(featureFlags, accessToken.get, integrationTest = false, None)(serviceAddrs)
                   case FlagsStoredLocally() =>
                     IO(scribe.warn("Could not connect to remote consul instance. Flags stored locally."))
                 }

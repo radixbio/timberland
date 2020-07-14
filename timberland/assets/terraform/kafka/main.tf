@@ -5,7 +5,7 @@ resource "nomad_job" "kafka" {
 
 data "consul_service_health" "kafka_health" {
   count = var.enable ? 1 : 0
-  name = "kafka-daemons-kafka-kafka"
+  name = "${var.prefix}kafka-daemons-kafka-kafka"
   passing = true
   depends_on = [nomad_job.kafka]
   wait_for = "300s"

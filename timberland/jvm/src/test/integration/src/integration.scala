@@ -58,8 +58,8 @@ abstract class TimberlandIntegration
     // Make sure Consul and Nomad are up
     val res = daemonutil.waitForDNS("consul.service.consul", 1.minutes) *>
       daemonutil.waitForDNS("_nomad._http.service.consul", 1.minutes) *>
-      daemonutil.runTerraform(featureFlags, accessToken, integrationTest = true) *>
-      daemonutil.waitForQuorum(featureFlags)
+      daemonutil.runTerraform(featureFlags, accessToken, integrationTest = true, Some("integration")) *>
+      daemonutil.waitForQuorum(featureFlags, integrationTest = true)
     res.unsafeRunSync()
   }
 
@@ -109,32 +109,38 @@ abstract class TimberlandIntegration
       .unsafeRunSync()
   }
 
+  val prefix = "integration-"
+
   "timberland" should "bring up backing runtimesystem containers" in {
     assert(check("nomad"))
     assert(check("nomad-client"))
   }
-  if (featureFlags("core")) it should "bring up dev services" in {
-    assert(check("apprise-apprise-apprise"))
-    assert(check("zookeeper-daemons-zookeeper-zookeeper"))
-    assert(check("kafka-daemons-kafka-kafka"))
-    assert(check("kafka-companion-daemons-kafkaCompanions-kSQL"))
-    assert(check("kafka-companion-daemons-kafkaCompanions-kafkaConnect"))
-    assert(check("kafka-companion-daemons-kafkaCompanions-kafkaRestProxy"))
-    assert(check("kafka-companion-daemons-kafkaCompanions-schemaRegistry"))
-    assert(check("minio-job-minio-group-minio-local"))
-    assert(check("minio-job-minio-group-nginx-minio"))
+
+  if (featureFlags("core")) it should "bring up core services" in {
+    assert(check(s"${prefix}apprise-apprise-apprise"))
+    assert(check(s"${prefix}zookeeper-daemons-zookeeper-zookeeper"))
+    assert(check(s"${prefix}kafka-daemons-kafka-kafka"))
+    assert(check(s"${prefix}kc-daemons-companions-kSQL"))
+    assert(check(s"${prefix}kc-daemons-companions-connect"))
+    assert(check(s"${prefix}kc-daemons-companions-rest-proxy"))
+    assert(check(s"${prefix}kc-daemons-companions-schema-registy"))
+    assert(check(s"${prefix}minio-job-minio-group-minio-local"))
+    assert(check(s"${prefix}minio-job-minio-group-nginx-minio"))
   }
+
   if (featureFlags("retool")) it should "bring up retool" in {
-    assert(check("retool-retool-postgres"))
-    assert(check("retool-retool-retool-main"))
+    assert(check(s"${prefix}retool-retool-postgres"))
+    assert(check(s"${prefix}retool-retool-retool-main"))
   }
+
   if (featureFlags("yugabyte")) it should "bring up yugabyte" in {
-    assert(check("yugabyte-yugabyte-ybmaster"))
-    assert(check("yugabyte-yugabyte-ybtserver"))
+    assert(check(s"${prefix}yugabyte-yugabyte-ybmaster"))
+    assert(check(s"${prefix}yugabyte-yugabyte-ybtserver"))
   }
+
   if (featureFlags("es")) it should "bring up elasticsearch/kibana" in {
-    assert(check("elasticsearch-elasticsearch-es-generic-node"))
-    assert(check("elasticsearch-kibana-kibana"))
+    assert(check(s"${prefix}elasticsearch-es-es-generic-node"))
+    assert(check(s"${prefix}elasticsearch-kibana-kibana"))
   }
 
 }

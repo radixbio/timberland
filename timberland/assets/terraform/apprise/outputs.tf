@@ -1,3 +1,4 @@
 output "apprise_health_result" {
-  value = [data.consul_service_health.apprise_health.*.results]
+  value = [for entry in data.consul_service_health.apprise_health: format("%s:%s", entry.results.0.service.0.address, entry.results.0.service.0.port)]
+  depends_on = [data.consul_service_health.apprise_health]
 }
