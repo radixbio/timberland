@@ -18,23 +18,23 @@ package(
 scala_library(
     name = "timberland-dependencies",
     exports = [
-        "//3rdparty/jvm/com/github/oshi:oshi_core",
-        "//3rdparty/jvm/com/github/xuwei_k:optparse_applicative",
-        "//3rdparty/jvm/com/lihaoyi:ammonite_ops",
-        "//3rdparty/jvm/com/outr:scribe",
-        "//3rdparty/jvm/dnsjava",
-        "//3rdparty/jvm/org/scala_lang/modules:scala_parser_combinators",
         "//shared/shared/shared/shared:shared-shared",
         "//utils/helm:helm-jvm",
+        "@third_party//3rdparty/jvm/com/github/oshi:oshi_core",
+        "@third_party//3rdparty/jvm/com/github/xuwei_k:optparse_applicative",
+        "@third_party//3rdparty/jvm/com/lihaoyi:ammonite_ops",
+        "@third_party//3rdparty/jvm/com/outr:scribe",
+        "@third_party//3rdparty/jvm/dnsjava",
+        "@third_party//3rdparty/jvm/org/scala_lang/modules:scala_parser_combinators",
     ],
     deps = [
-        "//3rdparty/jvm/com/github/oshi:oshi_core",
-        "//3rdparty/jvm/com/github/xuwei_k:optparse_applicative",
-        "//3rdparty/jvm/com/lihaoyi:ammonite_ops",
-        "//3rdparty/jvm/com/outr:scribe",
-        "//3rdparty/jvm/org/scala_lang/modules:scala_parser_combinators",
         "//shared/shared/shared/shared:shared-shared",
         "//utils/helm:helm-jvm",
+        "@third_party//3rdparty/jvm/com/github/oshi:oshi_core",
+        "@third_party//3rdparty/jvm/com/github/xuwei_k:optparse_applicative",
+        "@third_party//3rdparty/jvm/com/lihaoyi:ammonite_ops",
+        "@third_party//3rdparty/jvm/com/outr:scribe",
+        "@third_party//3rdparty/jvm/org/scala_lang/modules:scala_parser_combinators",
     ],
 )
 
@@ -83,13 +83,13 @@ scala_library(
     ],
     exports = [
         ":timberland-core-lib",
-        "//3rdparty/jvm/com/github/xuwei_k:optparse_applicative",
-        "//3rdparty/jvm/com/lihaoyi:ammonite_ops",
-        "//3rdparty/jvm/com/outr:scribe",
         "//shared/shared/shared/shared:shared-shared",
         "//utils/helm:helm-jvm",
         "//utils/helm/core/shared:helm-elemental",
         "//utils/sheets/jvm/src/main/scala/com/radix/util/sheets:sheets-interps",  #TODO remove this
+        "@third_party//3rdparty/jvm/com/github/xuwei_k:optparse_applicative",
+        "@third_party//3rdparty/jvm/com/lihaoyi:ammonite_ops",
+        "@third_party//3rdparty/jvm/com/outr:scribe",
     ],
     deps = [
         ":timberland-core-lib",
@@ -633,16 +633,16 @@ scala_library(
     ],
     visibility = ["//visibility:public"],
     exports = [
-        "//3rdparty/jvm/com/dimafeng:testcontainers_scala",
-        "//3rdparty/jvm/io/7mind/izumi:logstage_core",
-        "//3rdparty/jvm/org/scalatest",
         "//timberland/jvm:timberland-lib",
+        "@third_party//3rdparty/jvm/com/dimafeng:testcontainers_scala",
+        "@third_party//3rdparty/jvm/io/7mind/izumi:logstage_core",
+        "@third_party//3rdparty/jvm/org/scalatest",
     ],
     deps = [
-        "//3rdparty/jvm/com/dimafeng:testcontainers_scala",
-        "//3rdparty/jvm/io/7mind/izumi:logstage_core",
-        "//3rdparty/jvm/org/scalatest",
         "//timberland/jvm:timberland-lib",
+        "@third_party//3rdparty/jvm/com/dimafeng:testcontainers_scala",
+        "@third_party//3rdparty/jvm/io/7mind/izumi:logstage_core",
+        "@third_party//3rdparty/jvm/org/scalatest",
     ],
 )
 

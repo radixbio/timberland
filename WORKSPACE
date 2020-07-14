@@ -109,6 +109,10 @@ load("//3rdparty:workspace.bzl", "maven_dependencies")
 
 maven_dependencies()
 
+load("//3rdparty:target_file.bzl", "build_external_workspace")
+
+build_external_workspace(name = "third_party")
+
 http_archive(
     name = "io_bazel_rules_docker",
     sha256 = "dc97fccceacd4c6be14e800b2a00693d5e8d07f69ee187babfd04a80a9f8e250",
