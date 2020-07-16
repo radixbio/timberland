@@ -4,13 +4,20 @@ import requests
 import socket
 import sys
 import time
+import os
+import re
 
-file = open("/opt/radix/timberland/git-branch-workspace-status.txt", "r")
-prefix = file.read().strip()
-if len(prefix) > 0:
-  prefix += "-"
+def read_prefix_file():
+  file = open("/opt/radix/timberland/git-branch-workspace-status.txt", "r")
+  prefix = file.read().strip()
+  file.close()
+  if len(prefix) > 0:
+    prefix += "-"
+  prefix = re.sub('_', '-', prefix)
+  prefix = re.sub("[^a-zA-Z\d-]", '', prefix)
+  return prefix
 
-file.close()
+prefix = os.getenv("NOMAD_PREFIX", read_prefix_file())[:25]
 
 services_to_test = set([
   prefix + "apprise-apprise-apprise",

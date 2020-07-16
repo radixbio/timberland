@@ -69,17 +69,26 @@ package object daemonutil {
 
   def getPrefix(integration: Boolean): String = {
     val rawPrefix = if (integration) "integration" else {
-      val bufferedSource = Source.fromFile("/opt/radix/timberland/git-branch-workspace-status.txt")
-      val result = bufferedSource.getLines().mkString
-      if (result.length > 0) result else {
-        sys.env.get("NOMAD_PREFIX") match {
-          case Some(prefix) => prefix
-          case None => ""
+      sys.env.get("NOMAD_PREFIX") match {
+        case Some(prefix) => prefix
+        case None => {
+          val bufferedSource = Source.fromFile("/opt/radix/timberland/git-branch-workspace-status.txt")
+          val result = bufferedSource.getLines().mkString
+          bufferedSource.close()
+          if (result.length > 0) result else ""
         }
       }
     }
 
-    if (rawPrefix.length > 0) rawPrefix + "-" else rawPrefix
+    println("raw prefix: " + rawPrefix)
+
+    val cutPrefix = if (rawPrefix.length > 0) rawPrefix.substring(0, Math.min(rawPrefix.length, 25)) + "-" else rawPrefix
+
+    println("cut prefix: " + cutPrefix)
+
+    if(cutPrefix.matches("[a-zA-Z\\d-]*")) cutPrefix else {
+      cutPrefix.replaceAll("_", "-").replaceAll("[^a-zA-Z\\d-]", "")
+    }
   }
 
   val execDir = "/opt/radix/timberland/terraform"
