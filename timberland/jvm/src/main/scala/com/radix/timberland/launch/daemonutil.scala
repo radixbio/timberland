@@ -41,11 +41,12 @@ package object daemonutil {
   val flagServiceMap = Map(
     "core" -> Vector(
       "zookeeper-daemons-zookeeper-zookeeper",
-      "kafka-companion-daemons-kafkaCompanions-kSQL",
-      "kafka-companion-daemons-kafkaCompanions-kafkaConnect",
-      "kafka-companion-daemons-kafkaCompanions-kafkaRestProxy",
-      "kafka-companion-daemons-kafkaCompanions-schemaRegistry",
+      "kc-daemons-companions-kSQL",
+      "kc-daemons-companions-connect",
+      "kc-daemons-companions-rest-proxy",
+      "kc-daemons-companions-schema-registry",
       "kafka-daemons-kafka-kafka",
+      "minio-job-minio-group-minio-local",
       "minio-job-minio-group-nginx-minio",
       "apprise-apprise-apprise",
     ),
@@ -54,12 +55,12 @@ package object daemonutil {
       "yugabyte-yugabyte-ybtserver",
     ),
     "es" -> Vector(
-      "elasticsearch-elasticsearch-es-generic-node",
+      "elasticsearch-es-es-generic-node",
       "elasticsearch-kibana-kibana",
     ),
     "retool" -> Vector(
       "retool-retool-postgres",
-      "retool-retool-retool-main",
+      "retool-retool-retool-main",                                                                                                                                                                         
     ),
     "elemental" -> Vector(
       "elemental-machines-em-em",

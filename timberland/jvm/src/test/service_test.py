@@ -29,6 +29,7 @@ services_to_test = set([
   prefix + "kc-daemons-companions-rest-proxy",
   prefix + "kc-daemons-companions-schema-registry",
   prefix + "kafka-daemons-kafka-kafka",
+  prefix + "minio-job-minio-group-minio-local",
   prefix + "minio-job-minio-group-nginx-minio",
   "nomad",
   "nomad-client",
