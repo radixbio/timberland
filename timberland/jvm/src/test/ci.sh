@@ -81,7 +81,7 @@ ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANC
 
 echo "@@@@@@@@ SSH ended"
 
-scp -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP:~/service_test.log /tmp/service_test.log
+scp -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP:/tmp/service_test.log /tmp/service_test.log
 
 echo "@@@@@@@@ Got service test log"
 

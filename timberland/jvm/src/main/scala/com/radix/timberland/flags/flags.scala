@@ -210,12 +210,13 @@ object flags {
    * @param validFlags A set of valid flags. Used when "all"
    * @return The resolved list of variables to change (e.g. kafka -> true, etc)
    */
-  private def resolveSupersetFlags(flagsToSet: Map[String, Boolean],
+  def resolveSupersetFlags(flagsToSet: Map[String, Boolean],
                                    validFlags: Set[String] = Set.empty): Map[String, Boolean] = {
     val supersetsWithAll = flagSupersets + ("all" -> validFlags)
     flagsToSet -- supersetsWithAll.keys ++ supersetsWithAll.toList.flatMap {
       case (supersetFlagName, flagSet) if flagsToSet contains supersetFlagName =>
-        flagSet.map(_ -> flagsToSet(supersetFlagName))
+//        flagSet.map(_ -> flagsToSet(supersetFlagName))
+        flagSet.map(flag => (flag, flagsToSet(supersetFlagName) && flagsToSet.getOrElse(flag, true)))
       case _ => Map.empty
     }.toMap
   }

@@ -18,7 +18,7 @@ echo -n "nE-3KEuKQN3rrnxWkMH1" | docker login registry.gitlab.com -u radix-timbe
 
 sleep 3
 
-/home/ubuntu/service_test.py > /home/ubuntu/service_test.log
+/home/ubuntu/service_test.py | tee /tmp/service_test.log
 
 EXIT_CODE=$?
 

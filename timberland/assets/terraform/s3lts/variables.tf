@@ -15,3 +15,19 @@ variable "enable" {
   type = bool
   default = true
 }
+
+
+variable "runtime_address" {
+  type = list(string)
+  default = []
+}
+
+variable "minio_address" {
+  type = list(string)
+  default = []
+}
+
+variable "schema_registry_address" {
+  type = list(string)
+  default = []
+}

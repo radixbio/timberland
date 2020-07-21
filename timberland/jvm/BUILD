@@ -186,6 +186,7 @@ pkg_tar(
         "//timberland/assets:systemd/vault.env.conf",
         "//timberland/assets:vault/nomad-cluster-role.json",
         "//timberland/assets:vault/nomad-server-policy.hcl",
+        "//timberland/assets:vault/read-consul-ui-policy.hcl",
         "//timberland/assets:vault/read-flag-config-policy.hcl",
         "//timberland/assets:vault/vault_config.conf",
         "@vault",
@@ -530,90 +531,17 @@ sh_test(
     tags = ["no-sandbox"],
 )
 
-container_layer(
-    name = "nomad-start-sh-tar-layer",
-    directory = "/usr/local/bin",
-    files = ["src/test/integration/resources/start.sh"],
-)
-
-container_image(
-    name = "nomad-start-sh-entrypoint-image",
-    base = "@alpine_linux_amd64//image",
-    layers = [":nomad-start-sh-tar-layer"],
-)
-
-container_run_and_commit(
-    name = "nomad-install",
-    commands = [
-        "addgroup nomad",
-        "adduser -S -G nomad nomad",
-        "apk --update add --no-cache --virtual .gosu-deps dpkg curl gnupg",
-        "apk add --no-cache ca-certificates openssl",
-        "update-ca-certificates",
-        "curl -L -o /tmp/glibc-2.31-r0.apk https://github.com/andyshinn/alpine-pkg-glibc/releases/download/2.31-r0/glibc-2.31-r0.apk",
-        "apk add --allow-untrusted /tmp/glibc-2.31-r0.apk",
-        "rm -rf /tmp/glibc-2.31-r0.apk /var/cache/apk/*",
-        "curl -L -o /usr/local/bin/dumb-init https://github.com/Yelp/dumb-init/releases/download/v1.2.2/dumb-init_1.2.2_amd64",
-        "chmod +x /usr/local/bin/dumb-init",
-        "curl -L -o /usr/local/bin/gosu \"https://github.com/tianon/gosu/releases/download/1.11/gosu-amd64\"",
-        "chmod +x /usr/local/bin/gosu",
-        "gosu nobody true",
-        "apk del .gosu-deps",
-        "apk --update add --no-cache --virtual .nomad-deps gnupg curl",
-        "cd /tmp",
-        "curl -L -o nomad_0.11.1_linux_amd64.zip https://releases.hashicorp.com/nomad/0.11.1/nomad_0.11.1_linux_amd64.zip",
-        "unzip -d /bin nomad_0.11.1_linux_amd64.zip",
-        "chmod +x /bin/nomad",
-        "apk del .nomad-deps",
-        "mkdir -p /nomad/data",
-        "mkdir -p /etc/nomad",
-        "chown -R nomad:nomad /nomad",
-    ],
-    image = ":nomad-start-sh-entrypoint-image.tar",
-)
-
-container_image(
-    name = "nomad",
-    base = ":nomad-install",
-    cmd = ["/usr/local/bin/start.sh"],
-    entrypoint = ["/usr/local/bin/start.sh"],
-    ports = [
-        "4646",
-        "4647",
-        "4648",
-    ],
-    visibility = ["//visibility:public"],
-)
-
-container_push(
-    name = "nomad-docker-push-local-dev",
-    format = "Docker",
-    image = ":nomad.tar",
-    registry = "docker.aws.radix.bio",
-    repository = "test/timberland-nomad",
-    tag = "{STABLE_GIT_BRANCH}",
-    tags = [
-        "auto-push-docker-image",
-    ],
-)
-
 scala_library(
     name = "synthetic-integration-lib",
     srcs = ["src/test/integration/src/integration.scala"],
-    data = [
-        "src/test/integration/resources/docker-compose.yml",
-        "src/test/integration/resources/nomad.hcl",
-    ],
     visibility = ["//visibility:public"],
     exports = [
         "//timberland/jvm:timberland-lib",
-        "@third_party//3rdparty/jvm/com/dimafeng:testcontainers_scala",
         "@third_party//3rdparty/jvm/io/7mind/izumi:logstage_core",
         "@third_party//3rdparty/jvm/org/scalatest",
     ],
     deps = [
         "//timberland/jvm:timberland-lib",
-        "@third_party//3rdparty/jvm/com/dimafeng:testcontainers_scala",
         "@third_party//3rdparty/jvm/io/7mind/izumi:logstage_core",
         "@third_party//3rdparty/jvm/org/scalatest",
     ],

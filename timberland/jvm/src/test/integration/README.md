@@ -1,7 +1,5 @@
-the files in this directory are referred to statically by the integration test. This can be packed up using a strategy similar to our linking of native libraries, but it's not implemented yet.
-
-start.sh is used in the build, it's the entrypoint for the image.
-
-the weave network must be running and attachable, and timberland must be `runtime install`ed, and you may have to clear out /tmp/nomad every once in a while, but those are the caveats.
-
-Oh and ofc nomad's running in privileged mode
+To runt the integration tests, the weave network must be running, attachable, and exposed (via `weave expose`).
+Additionally, Timberland must be `runtime install`ed and Consul, Nomad, and Vault must all be running in the proper
+configuration (which should be taken care of by `runtime install`.)
+ 
+Nomad logs end up in `/tmp/nomad`, which you may have to clear out every once in a while.

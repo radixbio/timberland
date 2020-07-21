@@ -119,11 +119,7 @@ package object daemonutil {
       }
     }
 
-    println("raw prefix: " + rawPrefix)
-
     val cutPrefix = if (rawPrefix.length > 0) rawPrefix.substring(0, Math.min(rawPrefix.length, 25)) + "-" else rawPrefix
-
-    println("cut prefix: " + cutPrefix)
 
     if(cutPrefix.matches("[a-zA-Z\\d-]*")) cutPrefix else {
       cutPrefix.replaceAll("_", "-").replaceAll("[^a-zA-Z\\d-]", "")
@@ -150,7 +146,7 @@ package object daemonutil {
 
     updatePrefixFile(prefix)
 
-    implicit val persistentDir: os.Path = os.Path(workingDir) / os.up / 'timberland
+    implicit val persistentDir: os.Path = os.Path("/opt/radix/timberland")
 
     val variables =
       s"-var='prefix=${getPrefix(integrationTest)}' " +
@@ -210,8 +206,8 @@ package object daemonutil {
       _ <- if (backendMasterToken.isEmpty) IO.unit else IO {
         Console.println(s"Init command: ${initCommand.mkString(" ")}")
       }
-      _ <- IO(os.proc(initCommand).call(cwd = os.Path(workingDir), check = false))
-    } yield ()
+      exitCode <- IO(Process(initCommand, workingDir).!)
+    } yield exitCode
   }
 
   def stopTerraform(integrationTest: Boolean): IO[Int] = {

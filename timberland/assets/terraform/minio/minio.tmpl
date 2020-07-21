@@ -56,11 +56,13 @@ job "${prefix}minio-job" {
       }
 
       driver = "docker"
+
       env = {
         "MINIO_NOTIFY_KAFKA_ENABLE" = "true",
         "MINIO_NOTIFY_KAFKA_BROKERS" = "${prefix}kafka-daemons-kafka-kafka.service.consul:29092",
         "MINIO_NOTIFY_KAFKA_TOPIC" = "bucketevents"
       }
+
       kill_timeout = "5s"
       kill_signal = "SIGINT"
       leader = false
@@ -84,7 +86,7 @@ job "${prefix}minio-job" {
         address_mode = "auto"
 
         check {
-          address_mode = "${ test ? "driver" : "host" }"
+          address_mode = "host"
           grpc_use_tls = true
           initial_status = "critical"
           interval = "10s"
@@ -99,6 +101,7 @@ job "${prefix}minio-job" {
 
       shutdown_delay = "0s"
     }
+
     ${ !have_upstream_creds ? "" : <<-EOH
     task "minio-remote" {
       vault {
@@ -143,6 +146,7 @@ job "${prefix}minio-job" {
         destination = "secrets/file.env"
         env = true
       }
+
       kill_timeout = "5s"
       kill_signal = "SIGINT"
       leader = false
@@ -162,13 +166,11 @@ job "${prefix}minio-job" {
 
       service {
         port = "minio_remote"
-        tags = [
-          "minio",
-          "client"]
+        tags = ["minio", "client"]
         address_mode = "auto"
 
         check {
-          address_mode = "${ test ? "driver" : "host" }"
+          address_mode = "host"
           grpc_use_tls = true
           initial_status = "critical"
           interval = "10s"
@@ -288,7 +290,7 @@ job "${prefix}minio-job" {
         address_mode = "host"
 
         check {
-          address_mode = "${ test ? "driver" : "host" }"
+          address_mode = "host"
           grpc_use_tls = true
           initial_status = "critical"
           interval = "10s"

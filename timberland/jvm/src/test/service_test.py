@@ -7,17 +7,26 @@ import time
 import os
 import re
 
+def alt_print(*args):
+    sys.stdout.write(" ".join(args)+"\n")
+    sys.stdout.flush()
+
 def read_prefix_file():
   file = open("/opt/radix/timberland/git-branch-workspace-status.txt", "r")
   prefix = file.read().strip()
   file.close()
-  if len(prefix) > 0:
-    prefix += "-"
-  prefix = re.sub('_', '-', prefix)
-  prefix = re.sub("[^a-zA-Z\d-]", '', prefix)
   return prefix
 
-prefix = os.getenv("NOMAD_PREFIX", read_prefix_file())[:25]
+def trim_prefix(original_prefix):
+  prefix = original_prefix
+  prefix = re.sub('_', '-', prefix)
+  prefix = re.sub("[^a-zA-Z\d-]", '', prefix)
+  prefix = prefix[:25]
+  if len(prefix) > 0:
+    prefix += "-"
+  return prefix
+
+prefix = trim_prefix(os.getenv("NOMAD_PREFIX", read_prefix_file()))
 
 services_to_test = set([
   prefix + "apprise-apprise-apprise",
@@ -45,7 +54,7 @@ def wait_for_consul():
   try:
     socket.gethostbyname("consul.service.consul")
   except:
-    print("Waiting for consul...")
+    alt_print("Waiting for consul...")
     time.sleep(2)
     wait_for_consul()
 
@@ -59,7 +68,7 @@ waiting_for = services_to_test
 
 while waiting_for != set():
   waiting_for = services_to_test - registered_services
-  print(f"Waiting for the following services: {waiting_for}")
+  alt_print(f"Waiting for the following services: {waiting_for}")
   time.sleep(5)
   registered_services = get_service_set()
 
@@ -74,17 +83,17 @@ def wait_for_all_checks(max_retries):
   failing_checks = [ check['name'] for check in results if not check['passing'] ]
 
   if len(failing_checks) > 0:
-    print(f"The following checks are passing: {passing_checks}")
-    print(f"The following checks are failing: {failing_checks}")
+    alt_print(f"The following checks are passing: {passing_checks}")
+    alt_print(f"The following checks are failing: {failing_checks}")
 
     if max_retries > 0:
       time.sleep(5)
       wait_for_all_checks(max_retries - 1)
     else:
-      print("Service check failed.")
+      alt_print("Service check failed.")
       sys.exit(1)
 
 wait_for_all_checks(150)
 
-print("Service check succeeded.")
+alt_print("Service check succeeded.")
 sys.exit(0)

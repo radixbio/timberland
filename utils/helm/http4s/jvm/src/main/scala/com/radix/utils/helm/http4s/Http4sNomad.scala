@@ -23,13 +23,10 @@ import org.http4s.Method.POST
 import org.http4s.circe._
 import org.http4s.client.Client
 
-
-
-
 final class Http4sNomadClient[F[_]](
     val baseUri: Uri,
     val client: Client[F],
-    override val accessToken: Option[String] = None,
+    override val accessToken: Option[String] = util.getTokenFromEnvVars(),
     override val credentials: Option[(String, String)] = None)(
     implicit F: Effect[F])
     extends NomadInterface[F] {

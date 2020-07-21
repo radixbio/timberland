@@ -96,13 +96,13 @@ class VaultUtils {
       "-address=http://127.0.0.1:8200",
       "-path=secret",
       "kv").call(stdout = os.Inherit, stderr = os.Inherit, env = Map("VAULT_TOKEN" -> vaultToken))
-    List("nomad-server", "read-flag-config").map(policy =>
+    List("nomad-server", "read-flag-config", "read-consul-ui").map(policy =>
       os.proc("/opt/radix/timberland/vault/vault",
         "policy",
         "write",
         "-address=http://127.0.0.1:8200",
         s"${policy}",
-        s"/opt/radix/timberland/vault/${policy}-policy.hcl").call(stdout = os.Inherit, stderr = os.Inherit, env = Map("VAULT_TOKEN" -> vaultToken))
+        s"/opt/radix/timberland/vault/${policy}-policy.hcl").call(stdout = os.Inherit, stderr = os.Inherit, env = Map("VAULT_TOKEN" -> vaultToken)) 
     )
   })
 

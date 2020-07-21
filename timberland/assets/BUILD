@@ -19,6 +19,7 @@ exports_files([
     "systemd/vault.env.conf",
     "vault/nomad-cluster-role.json",
     "vault/nomad-server-policy.hcl",
+    "vault/read-consul-ui-policy.hcl",
     "vault/read-flag-config-policy.hcl",
     "vault/vault_config.conf",
     "terraform/main/main.tf",

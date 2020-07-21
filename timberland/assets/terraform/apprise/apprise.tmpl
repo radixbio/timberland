@@ -51,7 +51,7 @@ job "${prefix}apprise" {
       service {
 
         check {
-          address_mode = "${ test ? "driver" : "host" }"
+          address_mode = "host"
           grpc_use_tls = true
           initial_status = "critical"
           interval = "10s"

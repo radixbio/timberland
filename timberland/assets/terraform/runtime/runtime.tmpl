@@ -4,17 +4,39 @@ job "${prefix}runtime" {
   group "runtime" {
     count = 3
     task "bootstrap" {
+
+      vault {
+        policies = ["read-consul-ui"]
+
+        change_mode = "signal"
+        change_signal = "SIGUSR1"
+      }
+
+      template {
+        data = <<EOF
+      {{with secret "secret/consul-ui-token"}}
+      {{ if .Data.token}}
+            CONSUL_HTTP_TOKEN = "{{.Data.token}}"
+      {{else}}
+      	    CONSUL_HTTP_TOKEN = ""
+      {{end}}
+      {{end}}
+    EOF
+        destination = "secrets/file.env"
+        env = true
+      }
+
       config {
         image = "bazel/runtime/jvm:runtime-bootstrap-docker"
         auth_soft_fail = false
-        hostname = "radix-runtime-bootstrap-$${NOMAD_ALLOC_INDEX}"
+        hostname = "${prefix}radix-runtime-bootstrap-$${NOMAD_ALLOC_INDEX}"
         network_mode = "weave"
         port_map = {"cluster" = 2552}
       }
       driver = "docker"
       env = {
         "TCP_AKKA_PORT" = "2552",
-        "HOSTNAME" = "runtime-bootstrap-discovery-$${NOMAD_ALLOC_INDEX}.service.consul"
+        "HOSTNAME" = "${prefix}runtime-bootstrap-discovery-$${NOMAD_ALLOC_INDEX}.service.consul",
       }
       kill_timeout = "10s"
       kill_signal = "SIGINT"
@@ -28,7 +50,7 @@ job "${prefix}runtime" {
         }
       }
       service {
-        name = "runtime-bootstrap-discovery-$${NOMAD_ALLOC_INDEX}"
+        name = "${prefix}runtime-bootstrap-discovery-$${NOMAD_ALLOC_INDEX}"
         port = "cluster"
         address_mode = "auto"
       }

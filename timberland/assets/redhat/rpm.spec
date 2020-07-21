@@ -46,6 +46,7 @@ rm {timberland-full-tar.tar}
 /etc/systemd/system/vault.service
 /opt/radix/timberland/vault/vault
 /opt/radix/timberland/vault/vault.env.conf
+/opt/radix/timberland/vault/read-consul-ui-policy.hcl
 /opt/radix/timberland/vault/read-flag-config-policy.hcl
 /opt/radix/timberland/vault/nomad-server-policy.hcl
 /opt/radix/timberland/vault/nomad-cluster-role.json

@@ -64,7 +64,7 @@ job "${prefix}retool" {
         address_mode = "auto"
 
         check {
-          address_mode = "${ test ? "driver" : "host" }"
+          address_mode = "host"
           grpc_use_tls = true
           initial_status = "critical"
           interval = "10s"
@@ -137,7 +137,7 @@ job "${prefix}retool" {
         address_mode = "auto"
 
         check {
-          address_mode = "${ test ? "driver" : "host" }"
+          address_mode = "host"
           grpc_use_tls = true
           initial_status = "critical"
           interval = "10s"
@@ -154,6 +154,11 @@ job "${prefix}retool" {
     }
 
     task "retool-nginx" {
+
+      restart {
+        attempts = 5
+        delay = "20s"
+      }
 
       config {
         image = "nginx:latest"
@@ -237,7 +242,7 @@ job "${prefix}retool" {
         address_mode = "host"
 
         check {
-          address_mode = "${ test ? "driver" : "host" }"
+          address_mode = "host"
           grpc_use_tls = true
           initial_status = "critical"
           interval = "10s"

@@ -21,7 +21,7 @@ import org.http4s.circe._
 
 final class Http4sConsulClient[F[_]](val baseUri: Uri,
                                      val client: Client[F],
-                                     override val accessToken: Option[String] = None,
+                                     override val accessToken: Option[String] = util.getTokenFromEnvVars(),
                                      override val credentials: Option[(String, String)] = None)(implicit F: Effect[F])
     extends ConsulInterface[F] {
 

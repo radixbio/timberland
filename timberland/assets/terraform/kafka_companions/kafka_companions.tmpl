@@ -53,7 +53,7 @@ job "${prefix}kc-daemons" {
         address_mode = "auto"
 
         check {
-          address_mode = "${ test ? "driver" : "host" }"
+          address_mode = "host"
           grpc_use_tls = true
           initial_status = "critical"
           interval = "10s"
@@ -110,7 +110,7 @@ job "${prefix}kc-daemons" {
         address_mode = "auto"
 
         check {
-          address_mode = "${ test ? "driver" : "host" }"
+          address_mode = "host"
           grpc_use_tls = true
           initial_status = "critical"
           interval = "10s"
@@ -184,7 +184,7 @@ job "${prefix}kc-daemons" {
         address_mode = "auto"
 
         check {
-          address_mode = "${ test ? "driver" : "host" }"
+          address_mode = "host"
           grpc_use_tls = true
           initial_status = "critical"
           interval = "10s"
@@ -243,7 +243,7 @@ job "${prefix}kc-daemons" {
         address_mode = "auto"
 
         check {
-          address_mode = "${ test ? "driver" : "host" }"
+          address_mode = "host"
           grpc_use_tls = true
           initial_status = "critical"
           interval = "10s"

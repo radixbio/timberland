@@ -143,6 +143,9 @@ module "s3lts" {
 
   test = var.test
   prefix = var.prefix
+  runtime_address = module.runtime.runtime_health_result
+  minio_address = module.minio.minio_health_result
+  schema_registry_address = module.kafka_companions.schema_registry_health_result
 }
 
 module "yugabyte" {

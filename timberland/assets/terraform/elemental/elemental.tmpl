@@ -82,7 +82,7 @@ job "${prefix}elemental-machines" {
         address_mode = "auto"
 
         check {
-          address_mode = "${ test ? "driver" : "host" }"
+          address_mode = "host"
           grpc_use_tls = true
           initial_status = "critical"
           interval = "10s"
