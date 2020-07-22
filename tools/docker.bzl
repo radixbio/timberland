@@ -47,7 +47,7 @@ def dockerize_scala(
     name = image_name + "-push",
     format = "Docker",
     image = ":" + image_name,
-    registry = "docker.aws.radix.bio",
+    registry = "registry.gitlab.com/radix-labs/monorepo",
     repository = repository,
     tag = "{STABLE_GIT_BRANCH}",
     tags = [ "auto-push-docker-image" ],

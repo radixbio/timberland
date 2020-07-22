@@ -27,7 +27,7 @@ job "${prefix}runtime" {
       }
 
       config {
-        image = "docker.aws.radix.bio/runtime/runtime-bootstrap-docker:master"
+        image = "registry.gitlab.com/radix-labs/monorepo/runtime/runtime-bootstrap-docker:master"
         auth_soft_fail = false
         hostname = "${prefix}radix-runtime-bootstrap-$${NOMAD_ALLOC_INDEX}"
         network_mode = "weave"

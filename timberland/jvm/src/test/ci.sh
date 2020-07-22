@@ -78,10 +78,6 @@ scp -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $INSTALLATIO
 
 
 echo "@@@@@@@@ logging into docker registries"
-# temporary hack until timberland autologin happens - Ilia 07/22/20
-echo "if this fails, you may need to define NEXUS_PASSWORD and CI_DOCKER_PASSWORD or login to the registries on the remote machine"
-
-echo -n $NEXUS_PASSWORD | ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no"  $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP "sudo su root -c 'docker login docker.aws.radix.bio -u gitlab-ci --password-stdin'" || true
 
 echo -n $CI_DOCKER_PASSWORD | ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no"  $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP "sudo su root -c 'docker login registry.gitlab.com -u radix-timberland-ci --password-stdin'" || true
 
