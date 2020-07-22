@@ -32,13 +32,29 @@ case object config {
         key = "password",
         isSensitive = true,
         prompt = "Elemental Machines Password",
+      ),
+    ),
+    "google-oauth" -> List(
+      FlagConfigEntry(
+        key = "GOOGLE_OAUTH_ID",
+        isSensitive = true,
+        prompt = "Google OAUTH ID"
+      ),
+      FlagConfigEntry(
+        key = "GOOGLE_OAUTH_SECRET",
+        isSensitive = true,
+        prompt = "Google OAUTH Secret"
       )
     )
+
   )
 
+
   // Defines functions that get run for
-  val flagConfigHooks: Map[String, List[(Map[String, Option[String]], ServiceAddrs) => IO[Unit]]] = Map()
+  val flagConfigHooks: Map[String, List[(Map[String, Option[String]], ServiceAddrs) => IO[Unit]]] =
+    Map("google-oauth" -> List((new OauthConfig).handler))
+
 
   // The list of flags that are enabled by default
-  val flagDefaults: List[String] = List("core", "dev")
+  val flagDefaults: List[String] = List("core", "dev", "tui")
 }

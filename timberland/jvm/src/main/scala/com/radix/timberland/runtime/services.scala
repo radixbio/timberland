@@ -10,7 +10,7 @@ import java.util.UUID
 import java.util.concurrent.Executors
 
 import com.radix.timberland.radixdefs._
-import com.radix.timberland.util.VaultStarter
+import com.radix.timberland.util._
 
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success, Try}
@@ -152,8 +152,8 @@ object Run {
       ipaddrswithcoresrvs <- socks(ifaces)
       weave = ipaddrswithcoresrvs._2
       consul = ipaddrswithcoresrvs._1
-      _ <- F.liftIO(Run.putStrLn(s"weave peers: $weave"))
-      _ <- F.liftIO(Run.putStrLn(s"consul peers: $consul"))
+//      _ <- F.liftIO(Run.putStrLn(s"weave peers: $weave"))
+//      _ <- F.liftIO(Run.putStrLn(s"consul peers: $consul"))
 
       finalBindAddr <- F.delay {
         bind_addr match {
@@ -174,14 +174,14 @@ object Run {
       _ <- F.liftIO(acl.setupDefaultConsulToken(persistentDir, consulToken))
 
       vaultRestartProc <- H.startVault(finalBindAddr)
-      vaultToken <- F.liftIO {
+      vaultSealStatus <- F.liftIO {
         (new VaultStarter).initializeAndUnsealAndSetupVault()
       }
-
+      vaultToken <- F.liftIO( IO((new VaultUtils).findVaultToken()))
       nomadRestartProc <- H.startNomad(finalBindAddr, bootstrapExpect, vaultToken)
-      masterToken <- F.liftIO(acl.setupNomadMasterToken(persistentDir, consulToken))
 
-      _ <- F.liftIO(Run.putStrLn("started consul, nomad, and vault"))
+      masterToken <- F.liftIO(acl.setupNomadMasterToken(persistentDir, consulToken))
+      //      _ <- F.liftIO(Run.putStrLn("started consul, nomad, and vault"))
     } yield masterToken
   }
 
@@ -207,7 +207,8 @@ object Run {
     override def startConsul(bind_addr: String, consulSeedsO: Option[String], bootstrapExpect: Int): F[Unit] =
       F.delay {
         val persistentDir = "/opt/radix/timberland"
-        scribe.info("spawning consul via systemd")
+        LogTUI.event(ConsulStarting)
+        LogTUI.writeLog("spawning consul via systemd")
 
         //TODO enable dev mode in such a way that it doesn't break schema-registry
         val baseArgs = s"-bind=$bind_addr -bootstrap-expect=$bootstrapExpect -config-dir=$persistentDir/consul/config"
@@ -230,6 +231,7 @@ object Run {
 
         Thread.sleep(10000)
         os.proc("/usr/bin/sudo", "/bin/systemctl", "restart", "consul").call(stdout = os.Inherit, stderr = os.Inherit)
+        LogTUI.event(ConsulSystemdUp)
       }
 
 
@@ -241,7 +243,8 @@ object Run {
           s"""NOMAD_CMD_ARGS=-bind=$bind_addr -bootstrap-expect=$bootstrapExpect -config=$persistentDir/nomad/config
              |VAULT_TOKEN=$vaultToken
              |""".stripMargin
-        scribe.info("spawning nomad via systemd")
+        LogTUI.event(NomadStarting)
+        LogTUI.writeLog("spawning nomad via systemd")
 
         val envFilePath = Paths.get(s"$persistentDir/nomad/nomad.env.conf") // TODO make configurable
         val envFileHandle = envFilePath.toFile
@@ -250,6 +253,7 @@ object Run {
         writer.close()
 
         os.proc("/usr/bin/sudo", "/bin/systemctl", "restart", "nomad").call(stdout = os.Inherit, stderr = os.Inherit)
+        LogTUI.event(NomadSystemdUp)
       }
     }
 
@@ -259,7 +263,8 @@ object Run {
         s"""VAULT_CMD_ARGS=-address=http://${bind_addr}:8200 -config=$persistentDir/vault/vault_config.conf""".stripMargin
 
       F.delay {
-        scribe.info("spawning vault via systemd")
+        LogTUI.event(VaultStarting)
+        LogTUI.writeLog("spawning vault via systemd")
 
         val envFilePath = Paths.get(s"$persistentDir/vault/vault.env.conf")
         val envFileHandle = envFilePath.toFile
@@ -269,6 +274,7 @@ object Run {
 
         os.proc("/usr/bin/sudo", "/bin/systemctl", "restart", "vault").call(stdout = os.Inherit, stderr = os.Inherit)
         Thread.sleep(10000)
+        LogTUI.event(VaultSystemdUp)
       }
     }
 
@@ -313,7 +319,7 @@ object Run {
       stopConsulProc <- H.stopConsul()
       stopNomadProc <- H.stopNomad()
       stopVaultProc <- H.stopVault()
-      _ <- F.liftIO(Run.putStrLn("stopped consul and nomad"))
+//      _ <- F.liftIO(Run.putStrLn("stopped consul and nomad"))
     } yield (stopConsulProc, stopNomadProc)
   }
 

@@ -1227,6 +1227,14 @@ http_archive(
 )
 
 http_archive(
+    name = "vault-plugin-secrets-oauthapp",
+    build_file_content = "exports_files([\"vault-plugin-secrets-oauthapp\"])",
+    sha256 = "5ed0f0df011ede9426fbe59c11ac9d16d0d769c5ed14878ddcf8b931c87fc119",
+    url = "https://github.com/puppetlabs/vault-plugin-secrets-oauthapp/releases/download/v1.3.0/vault-plugin-secrets-oauthapp-v1.3.0-linux-amd64.tar.xz",
+    patch_cmds = ["mv vault-plugin-secrets-oauthapp-v1.3.0-linux-amd64 vault-plugin-secrets-oauthapp"]
+)
+
+http_archive(
     name = "nomad",
     build_file_content = "exports_files([\"nomad\"])",
     sha256 = "711e98b89ac4f5540bf3d6273379999f6c4141529531c262222e63ce491f5176",

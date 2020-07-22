@@ -105,11 +105,11 @@ class Vault[F[_]: ConcurrentEffect](authToken: Option[String], baseUrl: Uri, bla
     submitRequest(Request[F](method = GET, uri = baseUrl / "v1" / "secret" / "data" / name, headers = baseHeaders))
   }
 
-  override def createOauthSecret(name: String, req: CreateSecretRequest): F[Either[VaultError, CreateOauthSecretResponse]] =
-    submitRequest(Request[F](method = POST, uri = baseUrl / "v1" / name, headers = baseHeaders).withEntity(req.data.asJson))
+  override def createOauthSecret(name: String, req: CreateSecretRequest): F[Either[VaultError, Unit]] =
+    submitRequestNoResponse(Request[F](method = PUT, uri = appendPath(baseUrl / "v1", name), headers = baseHeaders).withEntity(req.data.asJson))
 
   override def getOauthSecret(name: String): F[Either[VaultError, KVOauthGetResult]] = {
-    submitRequest(Request[F](method = GET, uri = baseUrl / "v1" / name, headers = baseHeaders))
+    submitRequest(Request[F](method = GET, uri = appendPath(baseUrl / "v1", name), headers = baseHeaders))
   }
 
 }

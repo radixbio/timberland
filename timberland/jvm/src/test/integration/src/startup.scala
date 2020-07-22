@@ -9,6 +9,6 @@ class TimberlandIntegrationSpec extends TimberlandIntegration {
     "vault" -> true,
     "retool" -> true,
     "elemental" -> false,
-    "es" -> true
+    "elasticsearch" -> true
   )
 }

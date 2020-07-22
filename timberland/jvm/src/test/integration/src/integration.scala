@@ -51,7 +51,7 @@ abstract class TimberlandIntegration
     "vault" -> false,
     "retool_postgres" -> false,
     "elemental" -> false,
-    "es" -> false
+    "elasticsearch" -> false
   )
 
   private lazy val resolvedFlags = flags.resolveSupersetFlags(featureFlags)
@@ -101,8 +101,8 @@ abstract class TimberlandIntegration
     // Make sure Consul and Nomad are up before using terraform
     val res = daemonutil.waitForDNS("consul.service.consul", 1.minutes) *>
       daemonutil.waitForDNS("nomad.service.consul", 1.minutes) *>
-      daemonutil.runTerraform(resolvedFlags, accessToken, integrationTest = true, None) *>
-      daemonutil.waitForQuorum(resolvedFlags)
+      daemonutil.runTerraform(resolvedFlags, accessToken, integrationTest = true, None) *> IO(println(resolvedFlags)) *>
+      daemonutil.waitForQuorum(resolvedFlags, true)
     res.unsafeRunSync()
   }
 
@@ -159,7 +159,7 @@ abstract class TimberlandIntegration
     assert(check(s"${prefix}apprise-apprise-apprise"))
   }
 
-  if (resolvedFlags.getOrElse("es", false)) it should "bring up elasticsearch/kibana" in {
+  if (resolvedFlags.getOrElse("elasticsearch", false)) it should "bring up elasticsearch/kibana" in {
     assert(check(s"${prefix}elasticsearch-elasticsearch-es-generic-node"))
     assert(check(s"${prefix}elasticsearch-kibana-kibana"))
   }

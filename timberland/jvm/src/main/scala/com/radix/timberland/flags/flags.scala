@@ -31,11 +31,12 @@ object flags {
   private val flagFile = os.rel / "terraform" / "flags.json"
 
   // A list of flags which don't have any relation to modules
-  private val specialFlags = Set("dev")
+  private val specialFlags = Set("dev", "google-oauth", "tui")
+
   // A map from flag name to a list of module names
   private val flagSupersets = Map(
     "core" -> Set(
-      "apprise", "kafka", "kafka_companions", "minio", "retool_pg_kafka_connector",
+      "apprise", "kafka", "minio", "retool_pg_kafka_connector", "kafka_companions",
       "retool_postgres", "zookeeper"
     )
   )
@@ -47,7 +48,7 @@ object flags {
    * If Consul is up, this also pushes pending changes in the local flag file. If flags is empty,
    * this function only pushes the pending changes.
    * @param persistentDir Timberland directory. Usually /opt/radix/timberland/terraform
-   * @param flags A map of new flags to push
+   * @param flagsToSet A map of new flags to push
    * @return If Consul is up, the current state of all feature flags
    */
   def updateFlags(persistentDir: os.Path,

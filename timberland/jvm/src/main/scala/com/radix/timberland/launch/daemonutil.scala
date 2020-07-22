@@ -6,7 +6,7 @@ import java.net.{InetAddress, ServerSocket, UnknownHostException}
 import cats.effect.{ContextShift, IO, Resource, Timer}
 import cats.implicits._
 import com.radix.timberland.flags.flagConfig
-import com.radix.timberland.util.VaultUtils
+import com.radix.timberland.util.{LogTUI, ResolveDNS, TerraformMagic, VaultUtils, WaitForDNS}
 import com.radix.utils.helm.http4s.Http4sNomadClient
 import com.radix.utils.helm.http4s.vault.{Vault => VaultSession}
 import com.radix.utils.helm.{NomadOp, NomadReadRaftConfigurationResponse}
@@ -20,8 +20,12 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{ExecutionContext, TimeoutException}
 import scala.concurrent.duration._
 import org.xbill.DNS
+//import com.radix.timberland.runtime.flags
+import io.circe.parser.parse
+import io.circe.{DecodingFailure, Json}
 import org.http4s.Uri
 import org.http4s.client.Client
+import os.{ProcessOutput, proc}
 
 import scala.io.{Source, StdIn}
 
@@ -39,28 +43,36 @@ package object daemonutil {
    * This is used to determine when features have finished starting up
    */
   val flagServiceMap = Map(
-    "core" -> Vector(
+    "zookeeper" -> Vector(
       "zookeeper-daemons-zookeeper-zookeeper",
+    ),
+    "minio" -> Vector(
+      "minio-job-minio-group-nginx-minio",
+      "minio-job-minio-group-minio-local",
+    ),
+    "apprise" -> Vector(
+      "apprise-apprise-apprise",
+    ),
+    "kafka_companions" -> Vector(
       "kc-daemons-companions-kSQL",
       "kc-daemons-companions-connect",
       "kc-daemons-companions-rest-proxy",
       "kc-daemons-companions-schema-registry",
+    ),
+    "kafka" -> Vector(
       "kafka-daemons-kafka-kafka",
-      "minio-job-minio-group-minio-local",
-      "minio-job-minio-group-nginx-minio",
-      "apprise-apprise-apprise",
     ),
     "yugabyte" -> Vector(
       "yugabyte-yugabyte-ybmaster",
       "yugabyte-yugabyte-ybtserver",
     ),
-    "es" -> Vector(
+    "elasticsearch" -> Vector(
       "elasticsearch-es-es-generic-node",
       "elasticsearch-kibana-kibana",
     ),
     "retool" -> Vector(
       "retool-retool-postgres",
-      "retool-retool-retool-main",                                                                                                                                                                         
+      "retool-retool-retool-main",
     ),
     "elemental" -> Vector(
       "elemental-machines-em-em",
@@ -91,9 +103,9 @@ package object daemonutil {
     } yield ServiceAddrs(consulAddr, nomadAddr)
   }
 
-  def getTerraformWorkDir(is_integration: Boolean): File = {
-    if (is_integration) new File("/tmp/radix/terraform") else new File("/opt/radix/terraform")
-  }
+//  def getTerraformWorkDir(is_integration: Boolean): File = {
+//    if (is_integration) new File("/tmp/radix/terraform") else new File("/opt/radix/terraform")
+//  }
 
   def updatePrefixFile(prefix: Option[String]): Unit = {
     prefix match {
@@ -104,6 +116,94 @@ package object daemonutil {
       }
       case None => ()
     }
+  }
+
+
+  def readTerraformPlan(execDir: String, workingDir: os.Path, variables: String): IO[(TerraformMagic.TerraformPlan, Map[String, List[String]])] = {
+    IO {
+      val F = File.createTempFile("radix", ".plan")
+      val planCommand = Seq("bash", "-c", s"$execDir/terraform plan $variables -out=$F")
+      val showCommand = s"$execDir/terraform show -json $F".split(" ")
+      val planout = proc(planCommand).call(cwd = workingDir)
+      val planshow = proc(showCommand).call(cwd = workingDir)
+      parse(new String(planshow.out.bytes)) match {
+        case Left(value)  => IO.raiseError(value)
+        case Right(value) => IO.pure(value)
+      }
+    }.flatten
+      .flatMap(x => {
+        //        import cats._
+        //        import cats.instances.all._
+        //        import cats.implicits._
+        import cats.instances.either._
+        import cats.instances.list._
+        import cats.syntax.traverse._
+        import cats.syntax.either._
+
+        type Err[A] = Either[DecodingFailure, A]
+        val prog = for {
+          //extract changed resources
+          resource_changes <- x.hcursor.downField("resource_changes").as[Array[Json]]
+          addresses <- resource_changes.map(_.hcursor.downField("address").as[String]).toList.sequence
+          //strip off the [0] to get the actual addresses
+          withoutindex = addresses.map(TerraformMagic.stripindex)
+          actions <- resource_changes
+            .map(_.hcursor.downField("change").downField("actions").as[List[String]])
+            .toList
+            .sequence
+          // extract dependency structure of resources
+          modules <- Right(x.hcursor.downField("configuration").keys.get.filterNot(_ == "provider_config"))
+          dependencies <- modules
+            .flatMap(m => {
+              for {submod <- x.hcursor.downField("configuration").downField(m).downField("module_calls").keys.getOrElse(List.empty)}
+                yield (
+                  x.hcursor
+                    .downField("configuration")
+                    //be generic about modules
+                    .downField(m)
+                    .downField("module_calls")
+                    .downField(submod)
+                    .downField("module")
+                    .downField("resources")
+                    .as[Array[Json]]
+                    .flatMap(_.map(resource =>
+                      for {
+                        addr <- resource.hcursor.get[String]("address")
+                        deps <- resource.hcursor.getOrElse("depends_on")(List.empty[String])
+                      } yield (addr, deps)).toList.sequence[Err, (String, List[String])])
+                  )
+            })
+            .toList
+            .sequence[Err, List[(String, List[String])]]
+            //WARN: Intellij syntax hightlighting and typing gets funky here. It works though!
+            // hand over only the relavant keys
+            .map(_.flatten.toMap
+              .filterKeys(withoutindex.toSet.contains)
+              .mapValues(_.filter(withoutindex.toSet.contains))): Either[DecodingFailure, Map[String, List[String]]]
+        } yield {
+          (addresses.zip(actions).flatMap(x => x._2.map(y => (y, x._1))).groupBy(_._1).mapValues(_.map(_._2)), dependencies)
+        }
+
+        prog match {
+          case Left(err) => IO.raiseError(err)
+          case Right(v)  => IO.pure(v)
+        }
+      })
+      //      .map(_.toMap)
+      .map({case (plan, deps) => {
+        (TerraformMagic.TerraformPlan(
+          plan.getOrElse("create", List.empty).toSet,
+          plan.getOrElse("read", List.empty).toSet,
+          plan.getOrElse("update", List.empty).toSet,
+          plan.getOrElse("delete", List.empty).toSet,
+          plan.getOrElse("no-op", List.empty).toSet
+        ), deps)
+      }})
+  }
+
+
+  def getTerraformWorkDir(is_integration: Boolean): os.Path = {
+    if (is_integration) os.root / "tmp" / "radix" / "terraform" else os.root / "opt" / "radix" / "terraform"
   }
 
   def getPrefix(integration: Boolean): String = {
@@ -160,21 +260,27 @@ package object daemonutil {
       mkDirExitCode <- IO(Process(mkTmpDirCommand) !)
     } yield mkDirExitCode
 
+    val show: IO[(TerraformMagic.TerraformPlan, Map[String, List[String]])] = readTerraformPlan(execDir,
+                                                                                                workingDir,
+                                                                                                variables)
+
     val apply = for {
-      //TODO don't spawn another bash shell
       flagConfig <- flagConfig.updateFlagConfig(featureFlags, Some(masterToken))
       configEntriesStr = flagConfig.configVars.map(kv => s"-var='${kv._1}=${kv._2}'").mkString(" ")
       definedVarsStr = s"""-var='defined_config_vars=["${flagConfig.definedVars.mkString("""","""")}"]'"""
       configStr = s"$configEntriesStr $definedVarsStr "
       applyCommand = Seq("bash", "-c", s"$execDir/terraform apply -auto-approve " + variables + configStr)
-      _ <- IO(Console.println(s"Running apply command in ${workingDir}: ${applyCommand.mkString(" ")}"))
-      applyExitCode <- IO(Process(applyCommand, Some(workingDir)) !)
+      applyExitCode <- IO(os.proc(applyCommand).call(
+        cwd = workingDir,
+        stdout = os.ProcessOutput(LogTUI.tfapply),
+        stderr = os.ProcessOutput(LogTUI.stdErrs("terraform-apply"))
+      ).exitCode)
     } yield applyExitCode
 
-    if (integrationTest)
-      mkTmpDir *> initTerraform(integrationTest, Some(masterToken)) *> apply
+    if(integrationTest)
+      mkTmpDir *> initTerraform(integrationTest, Some(masterToken)) *> show.flatMap(LogTUI.plan) *> apply
     else
-      initTerraform(integrationTest, Some(masterToken)) *> apply
+      initTerraform(integrationTest, Some(masterToken)) *> show.flatMap(LogTUI.plan) *> apply
   }
 
   /**
@@ -201,20 +307,21 @@ package object daemonutil {
     val workingDir = getTerraformWorkDir(integrationTest)
 
     for {
-      alreadyInitialized <- IO(workingDir.listFiles.nonEmpty)
+      alreadyInitialized <- IO(os.list(workingDir).nonEmpty)
       initCommand = if (alreadyInitialized) initAgainCommand else initFirstCommand
-      _ <- if (backendMasterToken.isEmpty) IO.unit else IO {
-        Console.println(s"Init command: ${initCommand.mkString(" ")}")
-      }
-      exitCode <- IO(Process(initCommand, workingDir).!)
-    } yield exitCode
+      _ <- IO(os.proc(initCommand).call(
+        cwd = workingDir,
+        stdout = ProcessOutput(LogTUI.init),
+        stderr = ProcessOutput(LogTUI.stdErrs("terraform-init")),
+        check = false))
+    } yield ()
   }
 
   def stopTerraform(integrationTest: Boolean): IO[Int] = {
     val workingDir = getTerraformWorkDir(integrationTest)
     val cmd = Seq("bash", "-c", s"$execDir/terraform destroy -auto-approve")
     println(s"Destroy command ${cmd.mkString(" ")}")
-    val ret = os.proc(cmd).call(stdout = os.Inherit, stderr = os.Inherit, cwd = os.Path(workingDir))
+    val ret = os.proc(cmd).call(stdout = os.Inherit, stderr = os.Inherit, cwd = workingDir)
     IO(ret.exitCode)
   }
 
@@ -225,7 +332,9 @@ package object daemonutil {
     val prefix = getPrefix(integrationTest)
 
     val enabledServices = featureFlags.toList.flatMap {
-      case (feature, enabled) => if (enabled) flagServiceMap.getOrElse(feature, Vector()).map(name => prefix + name) else Vector()
+      case (feature, enabled) => if (enabled) {
+        flagServiceMap.getOrElse(feature, Vector()).map(name => prefix + name)
+      } else Vector()
     }
 
     enabledServices.parTraverse { service =>
@@ -239,19 +348,18 @@ package object daemonutil {
    * @param dnsName         The DNS name to look up
    * @param timeoutDuration How long to wait before throwing an exception
    */
-  def waitForDNS(dnsName: String, timeoutDuration: FiniteDuration): IO[Unit] = {
+  def waitForDNS(dnsName: String, timeoutDuration: FiniteDuration): IO[Boolean] = {
     val dnsQuery = new DNS.Lookup(dnsName, DNS.Type.SRV, DNS.DClass.IN)
-
-    def queryProg(): IO[Unit] = for {
-      _ <- IO(Console.println(s"Waiting for DNS: $dnsName"))
+    def queryProg(): IO[Boolean] = for {
+      _ <- IO(LogTUI.writeLog(s"checking: ${dnsName}"))
       dnsAnswers <- IO(Option(dnsQuery.run.toSeq).getOrElse(Seq.empty))
-      _ <- if (dnsQuery.getResult != DNS.Lookup.SUCCESSFUL || dnsAnswers.isEmpty)
+      result <- if (dnsQuery.getResult != DNS.Lookup.SUCCESSFUL || dnsAnswers.isEmpty)
         IO.sleep(1.seconds) *> queryProg
       else
-        IO(Console.println(s"Found DNS record: $dnsName"))
-    } yield ()
+        LogTUI.dns(ResolveDNS(dnsName)) *> IO.pure(true)
+    } yield result
 
-    timeout(queryProg, timeoutDuration) *> IO.unit
+    LogTUI.dns(WaitForDNS(dnsName)) *> timeoutTo(queryProg, timeoutDuration, IO.pure(false))
   }
 
   /**
@@ -269,6 +377,17 @@ package object daemonutil {
         case _: IOException => None
       }
     socket.map(_.close()).isEmpty
+  }
+
+  def waitForPortUp(port: Int, timeoutDuration: FiniteDuration): IO[Boolean] = {
+    def queryProg(): IO[Boolean] = for {
+      portUp <- isPortUp(port)
+      _ <- if (!portUp) {
+        IO.sleep(1.second) *> queryProg
+      }
+      else IO(portUp)
+    } yield portUp
+    timeout(queryProg, timeoutDuration)
   }
 
   /** Let a specified function run for a specified period of time before interrupting it and raising an error. This

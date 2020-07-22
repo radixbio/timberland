@@ -1,6 +1,7 @@
 package com.radix.timberland.runtime
 
 import com.radix.timberland.launch.daemonutil
+import com.radix.timberland.util.LogTUI
 
 import scala.concurrent.duration._
 import cats.effect.{ContextShift, IO, Timer}
@@ -88,8 +89,9 @@ object acl {
     val masterPolicy = "00000000-0000-0000-0000-000000000001"
 
     for {
-      _ <- daemonutil.waitForDNS("nomad.service.consul", 15 seconds)
-      _ <- IO.sleep(5 seconds)
+      nomadResolves <- daemonutil.waitForDNS("nomad.service.consul", 60 seconds)
+      nomadUp <- daemonutil.waitForPortUp(4646, 60.seconds)
+      _ <- IO.pure(scribe.info(s"nomad resolves: ${nomadResolves}, nomad listening on 4646: ${nomadUp}"))
 
       bootstrapCmd = s"$nomad acl bootstrap -address=$addr"
       bootstrapCmdRes <- exec(bootstrapCmd)
@@ -99,6 +101,7 @@ object acl {
       _ <- exec(consulMasterTokenCreationCmd)
 
       _ <- IO.pure(scribe.info(s"ADMIN TOKEN FOR CONSUL/NOMAD: $masterToken"))
+      _ <- IO.pure(LogTUI.printAfter(s"ADMIN TOKEN FOR CONSUL/NOMAD: $masterToken"))
     } yield masterToken
   }
 
@@ -112,7 +115,10 @@ object acl {
         s"-address=http://vault.service.consul:8200",
         "secret/consul-ui-token",
         s"token=$masterToken"
-      ).call(stdout = os.Inherit, stderr = os.Inherit, env = Map("VAULT_TOKEN" -> vaultToken))
+      ).call(
+        stdout = os.ProcessOutput(LogTUI.writeLogFromStream),
+        stderr = os.ProcessOutput(LogTUI.writeLogFromStream),
+        env = Map("VAULT_TOKEN" -> vaultToken))
     }
   }
 

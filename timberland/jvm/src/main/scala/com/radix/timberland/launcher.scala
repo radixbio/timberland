@@ -91,7 +91,6 @@ object launcher {
       header("hello - a test for scala-optparse-applicative"))
 
   def main(args: Array[String]): Unit = {
-    println(s"args: ${args.toList}")
     val osname = System.getProperty("os.name") match {
       case mac if mac.toLowerCase.contains("mac")       => "darwin"
       case linux if linux.toLowerCase.contains("linux") => "linux"

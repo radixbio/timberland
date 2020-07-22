@@ -62,6 +62,5 @@ scala_test(
         "@third_party//3rdparty/jvm/com/dimafeng:testcontainers_scala",
         "@third_party//3rdparty/jvm/org/scalacheck",
         "@third_party//3rdparty/jvm/org/scalatestplus:scalatestplus_scalacheck",
-        "@third_party//3rdparty/jvm/org/slf4j:slf4j_simple",
     ],
 )

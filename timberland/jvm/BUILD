@@ -27,6 +27,7 @@ scala_library(
         "@third_party//3rdparty/jvm/com/outr:scribe",
         "@third_party//3rdparty/jvm/dnsjava",
         "@third_party//3rdparty/jvm/org/scala_lang/modules:scala_parser_combinators",
+        "@third_party//3rdparty/jvm/org/fusesource/jansi",
     ],
     deps = [
         "//shared/shared/shared/shared:shared-shared",
@@ -36,6 +37,8 @@ scala_library(
         "@third_party//3rdparty/jvm/com/lihaoyi:ammonite_ops",
         "@third_party//3rdparty/jvm/com/outr:scribe",
         "@third_party//3rdparty/jvm/org/scala_lang/modules:scala_parser_combinators",
+        "@third_party//3rdparty/jvm/org/fusesource/jansi",
+        "@third_party//3rdparty/jvm/org/slf4j:slf4j_nop"
     ],
 )
 
@@ -64,12 +67,15 @@ timberland_launcher_srcs = [
 
 scala_library(
     name = "timberland-core-lib",
-    srcs = timberland_core_srcs,
+    srcs = timberland_core_srcs + ["src/main/scala/com/radix/timberland/util/LogTUI.scala"],
     resources = glob([
         "src/main/resources/application.conf",
     ]),
+    visibility = ["//visibility:public"],
     exports = [":timberland-dependencies"],
-    deps = [":timberland-dependencies"],
+    deps = [
+        ":timberland-dependencies",
+    ],
 )
 
 scala_library(
@@ -81,6 +87,7 @@ scala_library(
         ],
         exclude = timberland_launcher_srcs + timberland_core_srcs,
     ),
+    scalacopts = ["-Ypartial-unification"],
     visibility = [
         "//timberland:__subpackages__",
     ],
@@ -116,6 +123,13 @@ scala_binary(
     name = "timberland-bin",
     srcs = ["src/main/scala/com/radix/timberland/runner.scala"],
     main_class = "com.radix.timberland.runner",
+    deps = [":timberland-lib"],
+)
+
+scala_binary(
+    name = "timberland-test",
+    srcs = ["src/main/scala/com/radix/timberland/runner.scala"],
+    main_class = "com.radix.timberland.TestApp",
     deps = [":timberland-lib"],
 )
 
@@ -189,6 +203,7 @@ pkg_tar(
         "//timberland/assets:vault/read-consul-ui-policy.hcl",
         "//timberland/assets:vault/read-flag-config-policy.hcl",
         "//timberland/assets:vault/vault_config.conf",
+        "@vault-plugin-secrets-oauthapp",
         "@vault",
     ],
     package_dir = "/opt/radix/timberland/vault",

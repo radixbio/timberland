@@ -51,6 +51,7 @@ rm {timberland-full-tar.tar}
 /opt/radix/timberland/vault/nomad-server-policy.hcl
 /opt/radix/timberland/vault/nomad-cluster-role.json
 /opt/radix/timberland/vault/vault_config.conf
+/opt/radix/timberland/vault/vault-plugin-secrets-oauthapp
 /opt/radix/timberland/terraform/terraform
 /opt/radix/timberland/terraform/main
 /opt/radix/timberland/terraform/main/main.tf

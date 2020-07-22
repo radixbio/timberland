@@ -113,7 +113,6 @@ job "${prefix}elasticsearch" {
         right_delimiter = "}}"
         source = "/opt/radix/timberland/nomad/config/elasticsearch/unicast_hosts.tpl"
         splay = "5s"
-        vault_grace = "15s"
       }
     }
   }

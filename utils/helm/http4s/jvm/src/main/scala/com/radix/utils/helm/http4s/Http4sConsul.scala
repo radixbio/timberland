@@ -47,7 +47,7 @@ final class Http4sConsulClient[F[_]](val baseUri: Uri,
     : EntityDecoder[F, List[CatalogListNodesForServiceResponse]] =
     jsonOf[F, List[CatalogListNodesForServiceResponse]]
 
-  private val log = IzLogger()
+  private val log = IzLogger(Log.Level.Crit)
 
   def apply[A](op: ConsulOp[A]): F[A] = op match {
     case ConsulOp.KVGet(key, recurse, datacenter, separator, index, wait) =>

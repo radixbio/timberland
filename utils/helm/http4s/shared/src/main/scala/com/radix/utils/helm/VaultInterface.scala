@@ -36,7 +36,7 @@ trait VaultInterface[F[_]] {
   // https://www.vaultproject.io/api/secret/kv/kv-v2.html#read-secret-version
   def getSecret(name: String): F[Either[VaultError, KVGetResult]]
 
-  def createOauthSecret(name: String, req: CreateSecretRequest): F[Either[VaultError, CreateOauthSecretResponse]]
+  def createOauthSecret(name: String, req: CreateSecretRequest): F[Either[VaultError, Unit]]
 
   def getOauthSecret(name: String): F[Either[VaultError, KVOauthGetResult]]
 }

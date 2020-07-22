@@ -9,12 +9,14 @@ import com.radix.timberland.flags.{ConsulFlagsUpdated, FlagsStoredLocally, flagC
 import com.radix.timberland.launch.daemonutil
 import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.timberland.runtime._
-import com.radix.timberland.util.VaultStarter
+import com.radix.timberland.util.{LogTUI, LogTUIWriter, VaultStarter}
 import io.circe.{Parser => _}
 import optparse_applicative._
 import optparse_applicative.types.Parser
 import scalaz.syntax.apply._
 
+import scala.concurrent.ExecutionContext.global
+import scala.concurrent.duration._
 import scala.io.StdIn.readLine
 
 sealed trait RadixCMD
@@ -109,7 +111,7 @@ object runner {
                       case list@Some(_) => exist.copy(consulSeeds = list)
                       case None => exist
                     }
-              }) <*> optional(
+                }) <*> optional(
                 strOption(long("remote-address"),
                   help("remote consul address")))
                 .map(ra => { exist: Start =>
@@ -185,7 +187,7 @@ object runner {
       progDesc("set up a google sheets token")))))
     ))
 
-  val res: Parser[RadixCMD] = runtime.weaken[RadixCMD]
+  val res: Parser[RadixCMD] = runtime.weaken[RadixCMD] <|> oauth.weaken[RadixCMD]
 
   val opts =
     info(res <*> helper,
@@ -209,7 +211,6 @@ object runner {
   }
 
   def main(args: Array[String]): Unit = {
-    println(s"args: ${args.toList}")
     val osname = System.getProperty("os.name") match {
       case mac if mac.toLowerCase.contains("mac") => "darwin"
       case linux if linux.toLowerCase.contains("linux") => "linux"
@@ -246,7 +247,7 @@ object runner {
                   scribe.Logger.root
                     .clearHandlers()
                     .clearModifiers()
-                    .withHandler(minimumLevel = Some(loglevel))
+                    .withHandler(scribe.handler.SynchronousLogHandler(writer = LogTUIWriter()))
                     .replace()
                   scribe.info(s"starting runtime with $cmd")
 
@@ -279,46 +280,65 @@ object runner {
                     implicit val host = new Run.RuntimeServicesExec[IO]
                     val startServices = for {
                       localFlags <- flags.flags.getLocalFlags(Path(persistentdir))
-
                       consulPath = Path(consul.toPath.getParent)
                       nomadPath = Path(nomad.toPath.getParent)
                       bootstrapExpect = if (localFlags.getOrElse("dev", true)) 1 else 3
-
                       consulUp <- daemonutil.isPortUp(8500)
                       masterToken <- (consulUp, accessToken) match {
                         // If consul is up and token is specified, skip the service setup
                         case (true, Some(token)) => IO.pure(token)
                         // If consul is down and no token is specified, do the service setup
                         case (false, None) =>
-                          IO(scribe.info(s"***********DAEMON SIZE${bootstrapExpect}***************")) *>
-                            Run.initializeRuntimeProg[IO](consulPath, nomadPath, bindIP, consulSeedsO, bootstrapExpect)
+                          //                          IO(scribe.info(s"***********DAEMON SIZE${bootstrapExpect}***************")) *>
+                          Run.initializeRuntimeProg[IO](consulPath, nomadPath, bindIP, consulSeedsO, bootstrapExpect)
                         case (true, None) =>
-                          scribe.error("Please provide an access token to connect to the existing nomad/consul instances")
-                          sys.exit(1)
+                          LogTUI.printAfter("Please provide an access token to connect to the existing nomad/consul instances")
+                          throw new RuntimeException("Missing access token")
                         case (false, Some(token)) =>
-                          scribe.error("System has not been bootstrapped, so an access token cannot be specified")
-                          sys.exit(1)
+                          LogTUI.printAfter("System has not been bootstrapped, so an access token cannot be specified")
+                          throw new RuntimeException("Cannot use provided access token")
                       }
                     } yield masterToken
 
-                    scribe.info("Launching daemons")
-                    val bootstrap = for {
+
+                    val runFlagQueries = for {
+                      flagDefaults <- IO(flags.flags.resolveSupersetFlags(flags.config.flagDefaults.map(_ -> true).toMap))
+                      localFlags <- (flags.flags.getLocalFlags(Path(persistentdir)))
+                      allFlags <- IO(localFlags ++ flagDefaults)
+                      serviceAddrs <- IO(new ServiceAddrs)
+                      partialFlagConfig <- flags.flagConfig.readFlagConfig(None)(serviceAddrs, Path(persistentdir))
+                      configs <- flags.flagConfig.addMissingParams(allFlags.filter(_._2).keys.toList, partialFlagConfig)
+                      _ <- new flags.LocalConfig()(Path(persistentdir)).write(configs)
+                      _ <- IO(LogTUI.writeLog(s"using flags: ${allFlags} with ${configs}"))
+                    } yield localFlags
+
+                    val runServicesAndModules = for {
                       _ <- createWeaveNetwork
                       masterToken <- startServices
+                      _ <- daemonutil.waitForDNS("vault.service.consul", 1.minute)
                       _ <- acl.storeMasterTokenInVault(Path(persistentdir), masterToken)
 
                       flagUpdateResp <- flags.flags.updateFlags(Path(persistentdir), Some(masterToken))
                       featureFlags = flagUpdateResp.asInstanceOf[ConsulFlagsUpdated].flags
+                      _ <- IO(LogTUI.writeLog(s"using featureFlags: ${featureFlags} with ${flagUpdateResp}"))
 
                       _ <- daemonutil.runTerraform(featureFlags, masterToken, integrationTest = false, prefix)
                       _ <- daemonutil.waitForQuorum(featureFlags)
+                    } yield ()
+
+                    //                    scribe.info("Launching daemons")
+                    val bootstrap = for {
+                      flags <- runFlagQueries
+                      stop_tui <- if (flags.getOrElse("tui", true)) LogTUI.activate() else IO(IO(Unit))
+                      _ <- runServicesAndModules.handleErrorWith(err =>
+                        stop_tui *> LogTUI.end_tui(false) *> IO(println(s"Startup hit exception: ${err.toString()}")) *> IO(sys.exit(1)))
+                      _ <- IO(LogTUI.isActive = false) *> IO.sleep(2.seconds)(IO.timer(global)) *> stop_tui *> LogTUI.end_tui(true)
                     } yield ()
 
                     val remoteBootstrap = for {
                       serviceAddrs <- daemonutil.getServiceIps(remoteAddress.getOrElse("127.0.0.1"))
                       masterToken = accessToken.get
                       featureFlags <- flags.flags.getConsulFlags(masterToken)(serviceAddrs)
-
                       _ <- (new VaultStarter).initializeAndUnsealAndSetupVault()
                       _ <- daemonutil.runTerraform(featureFlags, masterToken, integrationTest = false, prefix)(serviceAddrs)
                     } yield ()
@@ -363,7 +383,7 @@ object runner {
                 _ <- flagUpdateResp match {
                   case ConsulFlagsUpdated(featureFlags) =>
                     daemonutil.runTerraform(featureFlags, accessToken.get, integrationTest = false, None) *>
-                    daemonutil.waitForQuorum(featureFlags)
+                      daemonutil.waitForQuorum(featureFlags)
                   case FlagsStoredLocally() =>
                     flagConfig.updateFlagConfig(flagMap, None)(ServiceAddrs(), Path(persistentdir))
                 }
@@ -377,7 +397,7 @@ object runner {
                     daemonutil.runTerraform(featureFlags, accessToken.get, integrationTest = false, None)(serviceAddrs)
                   case FlagsStoredLocally() =>
                     flagConfig.updateFlagConfig(flagMap, None)(serviceAddrs, Path(persistentdir)) *>
-                    IO(scribe.warn("Could not connect to remote consul instance. Flags stored locally."))
+                      IO(scribe.warn("Could not connect to remote consul instance. Flags stored locally."))
                 }
               } yield ()
 
@@ -393,7 +413,6 @@ object runner {
               }
             }
           }
-
         case oauth: Oauth =>
           oauth match {
             case GoogleSheets => {

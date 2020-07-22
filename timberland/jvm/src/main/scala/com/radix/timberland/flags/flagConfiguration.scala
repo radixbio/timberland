@@ -1,15 +1,19 @@
 package com.radix.timberland.flags
 
 import java.io.File
-import cats.effect.{ContextShift, IO, Resource}
+
+import cats.effect.{ContextShift, IO, Resource, Timer}
 import cats.implicits._
 import com.radix.timberland.radixdefs.ServiceAddrs
-import com.radix.timberland.util.VaultUtils
+import com.radix.timberland.launch.daemonutil.timeoutTo
+import scala.concurrent.duration._
+import com.radix.timberland.util.{RegisterProvider, VaultUtils}
 import com.radix.utils.helm
 import com.radix.utils.helm.http4s.Http4sConsulClient
 import com.radix.utils.helm.http4s.vault.Vault
 import com.radix.utils.helm.vault.{CreateSecretRequest, KVGetResult, VaultErrorResponse}
 import com.radix.utils.helm.{ConsulOp, QueryResponse}
+import io.circe.generic.auto._
 import io.circe.generic.semiauto._
 import io.circe.parser.decode
 import io.circe.syntax._
@@ -18,6 +22,7 @@ import org.http4s.Uri
 import org.http4s.client.Client
 import org.http4s.client.blaze.BlazeClientBuilder
 
+import scala.concurrent.ExecutionContext
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.io.StdIn
 
@@ -151,8 +156,8 @@ object flagConfig {
    *
    * @return A flagConfig object containing the current accessible configuration
    */
-  private def readFlagConfig(masterToken: Option[String])
-                            (implicit serviceAddrs: ServiceAddrs, persistentDir: os.Path): IO[FlagConfigs] = {
+  def readFlagConfig(masterToken: Option[String])
+                    (implicit serviceAddrs: ServiceAddrs, persistentDir: os.Path): IO[FlagConfigs] = {
     val topCfg = new LocalConfig().read()
     val bottomCfg = masterToken match {
       case Some(token) => flags.isConsulUp().flatMap {
@@ -185,7 +190,7 @@ object flagConfig {
    * @param partialFlagConfig A potentially incomplete FlagConfigs object
    * @return A FlagConfigs object containing a full set of configuration parameters for each enabled flag
    */
-  private def addMissingParams(flagList: List[String], partialFlagConfig: FlagConfigs): IO[FlagConfigs] = {
+  def addMissingParams(flagList: List[String], partialFlagConfig: FlagConfigs): IO[FlagConfigs] = {
     for {
       newConsulData <- getMissingParams(flagList, sensitive = false, partialFlagConfig.consulData)
       newVaultData <- getMissingParams(flagList, sensitive = true, partialFlagConfig.vaultData)
@@ -225,18 +230,25 @@ object flagConfig {
    * @param entry The config entry specifying the prompt string, whether the value is optional, and a default value
    * @return The response from stdin if the response is nonempty and the terminal is interactive
    */
-  private def promptUser(entry: FlagConfigEntry): IO[Option[String]] = IO {
-    val optionalPromptPrefix = if (entry.optional) "[Optional] " else ""
-    Console.print(optionalPromptPrefix + entry.prompt + "> ")
-    StdIn.readLine() match {
-      case null | "" => if (entry.optional) None else Some(entry.default.getOrElse {
-        Console.err.println("\nConfig option not specified with no available fallback value, quitting")
-        sys.exit(1)
-      })
-      case response => Some(response)
-    }
+  private def promptUser(entry: FlagConfigEntry, timeout: FiniteDuration = 30.seconds): IO[Option[String]] = {
+    implicit val cs: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
+    implicit val timer: Timer[IO] = IO.timer(ExecutionContext.global)
+    for {
+      _ <- IO(Console.print((if (entry.optional) "[Optional] " else "") + entry.prompt + "> "))
+      userInput <- timeoutTo(IO(StdIn.readLine()), timeout, IO.pure(null))
+      maybeUserInput <- IO {
+        userInput match {
+          case null | "" => if (entry.optional) None else Some(entry.default.getOrElse {
+            Console.err.println("\nConfig option not specified with no available fallback value, quitting")
+            sys.exit(1)
+          })
+          case response: String => Some(response)
+        }
+      }
+    } yield maybeUserInput
   }
 }
+
 
 class LocalConfig(implicit persistentDir: os.Path) {
   private implicit val cfgDecoder: Decoder[FlagConfigs] = deriveDecoder[FlagConfigs]
@@ -262,6 +274,32 @@ class LocalConfig(implicit persistentDir: os.Path) {
 
   def clear(): IO[Unit] = IO {
     os.write.over(flagConfigFile, "")
+  }
+}
+
+class OauthConfig {
+  private implicit val cs: ContextShift[IO] = IO.contextShift(global)
+  private implicit val blaze: Resource[IO, Client[IO]] = BlazeClientBuilder[IO](global).resource
+
+  def handler(options: Map[String, Option[String]], addrs: ServiceAddrs): IO[Unit] =
+    (options.get("GOOGLE_OAUTH_ID"), options.get("GOOGLE_OAUTH_SECRET")) match {
+      case (Some(Some(a: String)), Some(Some(b: String))) => for {
+        test <- writeConfigToVault(a, b, addrs)
+      } yield test
+      case _ => IO()
+    }
+
+  private def writeConfigToVault(OAUTH_ID: String, OAUTH_SECRET: String, serviceAddrs: ServiceAddrs): IO[String] = blaze.use { client =>
+    for {
+      vaultToken <- IO(new VaultUtils().findVaultToken())
+      vaultUri = Uri.fromString(s"http://${serviceAddrs.consulAddr}:8200").toOption.get
+      vaultSession = new Vault[IO](authToken = Some(vaultToken), baseUrl = vaultUri, blazeClient = client)
+      oauthConfigRequest = CreateSecretRequest(data = RegisterProvider("google", OAUTH_ID, OAUTH_SECRET).asJson, cas = None)
+      writeOauthConfig <- vaultSession.createOauthSecret("oauth2/google/config", oauthConfigRequest)
+    } yield writeOauthConfig match {
+      case Left(VaultErrorResponse(_@x)) => x.get(0).getOrElse("empty error resp")
+      case Right(()) => "ok json decode"
+    }
   }
 }
 

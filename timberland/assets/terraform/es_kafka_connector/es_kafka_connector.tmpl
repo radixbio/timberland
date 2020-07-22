@@ -41,7 +41,6 @@ job "${prefix}es-kafka-connector" {
         perms = "755"
         right_delimiter = "}}"
         splay = "5s"
-        vault_grace = "15s"
         data = <<EOH
         #!/usr/bin/env ash
 

@@ -56,7 +56,6 @@ job "${prefix}zookeeper-daemons" {
         right_delimiter = "}}"
         data = "$${NOMAD_ALLOC_ID}"
         splay = "5s"
-        vault_grace = "15s"
       }
 
       template {
