@@ -10,7 +10,6 @@ yum install -y ./timberland-rpm-amd64.rpm
 
 cd /opt/radix/timberland/exec
 docker network create --attachable -d weaveworks/net-plugin:2.6.0 weave
-echo -n "nE-3KEuKQN3rrnxWkMH1" | docker login registry.gitlab.com -u radix-timberland-ci --password-stdin
 ./timberland runtime enable all
 ./timberland runtime disable elemental
 ./timberland runtime start

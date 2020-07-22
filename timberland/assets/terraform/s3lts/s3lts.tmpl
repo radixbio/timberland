@@ -29,7 +29,7 @@ job "${prefix}s3lts" {
       }
 
       config {
-        image = "bazel/utils/s3lts:minio-syncer-uservice-docker"
+        image = "docker.aws.radix.bio/utils/s3lts:master"
         auth_soft_fail = false
         hostname = "${prefix}minio-syncer-$${NOMAD_ALLOC_INDEX}"
         network_mode = "weave"
