@@ -89,8 +89,9 @@ object acl {
     val masterPolicy = "00000000-0000-0000-0000-000000000001"
 
     for {
-      nomadResolves <- daemonutil.waitForDNS("nomad.service.consul", 60 seconds)
+      nomadResolves <- daemonutil.waitForDNS("nomad.service.consul", 60.seconds)
       nomadUp <- daemonutil.waitForPortUp(4646, 60.seconds)
+      _ <- IO.sleep(10.seconds)
       _ <- IO.pure(scribe.info(s"nomad resolves: ${nomadResolves}, nomad listening on 4646: ${nomadUp}"))
 
       bootstrapCmd = s"$nomad acl bootstrap -address=$addr"

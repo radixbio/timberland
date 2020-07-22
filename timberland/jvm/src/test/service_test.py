@@ -21,7 +21,7 @@ def trim_prefix(original_prefix):
   prefix = original_prefix
   prefix = re.sub('_', '-', prefix)
   prefix = re.sub("[^a-zA-Z\d-]", '', prefix)
-  prefix = prefix[:25]
+  prefix = prefix[:24]
   if len(prefix) > 0:
     prefix += "-"
   return prefix

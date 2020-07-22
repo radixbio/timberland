@@ -533,6 +533,7 @@ sh_binary(
 sh_test(
     name = "timberland-ci",
     size = "large",
+    timeout = "eternal",
     srcs = [
         "src/test/ci.sh",
     ],

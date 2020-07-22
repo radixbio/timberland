@@ -98,12 +98,14 @@ echo "@@@@@@@@ Got service test log"
 
 scp -r -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP:~/nomad-logs/* /tmp/nomad-logs
 
+scp -r -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP:/opt/radix/timberland.log /tmp/timberland.log
+
 echo "@@@@@@@@ Got nomad logs"
 
 if [ "$PERSIST" != "true" ];
 then
   # This should terminate the instance due to "--instance-initiated-shutdown-behavior terminate"
-  ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP 'sudo poweroff' || exit 0
+  ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP 'sudo shutdown 600' || exit 0
 else
   echo "CONNECTION INFO: ssh $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP"
 fi
