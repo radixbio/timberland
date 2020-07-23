@@ -36,7 +36,7 @@ case object AllDaemonsStarted extends DaemonState
 package object daemonutil {
   private[this] implicit val timer: Timer[IO] = IO.timer(global)
   private[this] implicit val cs: ContextShift[IO] = IO.contextShift(global)
-  private[this] implicit val blaze: Resource[IO, Client[IO]] =  BlazeClientBuilder[IO](global).resource
+  private[this] implicit val blaze: Resource[IO, Client[IO]] = BlazeClientBuilder[IO](global).resource
 
   /**
    * A map from feature flag to a list of services associated with that flag
@@ -47,8 +47,8 @@ package object daemonutil {
       "zookeeper-daemons-zookeeper-zookeeper",
     ),
     "minio" -> Vector(
-      "minio-job-minio-group-nginx-minio",
       "minio-job-minio-group-minio-local",
+      "minio-job-minio-group-nginx-minio",
     ),
     "apprise" -> Vector(
       "apprise-apprise-apprise",
@@ -85,6 +85,27 @@ package object daemonutil {
     } yield state
   }
 
+
+  def handleRegistryAuth(options: Map[String, Option[String]], addrs: ServiceAddrs): IO[Unit] = {
+    for {
+      _ <- IO(println("Reg auth handler!"))
+      success <- containerRegistryLogin(options.getOrElse("ID", None), options.getOrElse("TOKEN", None), options.getOrElse("URL", Some("registry.gitlab.com")).get)
+      _ <- if (success == 0) IO(scribe.warn("Container registry login was not successful!")) else IO(Unit)
+    } yield ()
+  }
+
+  def containerRegistryLogin(regUser: Option[String], regToken: Option[String], regAddress: String): IO[Int] = {
+    val user = if (regUser.nonEmpty) regUser else sys.env.get("CONTAINER_REG_USER")
+    val token = if (regToken.nonEmpty) regToken else sys.env.get("CONTAINER_REG_TOKEN")
+    (user, token) match {
+      case (None, _) => scribe.warn("No user/id provided for container registry, not logging in"); IO(0)
+      case (_, None) => scribe.warn("No password/token provided for container registry, not logging in"); IO(0)
+      case (Some(user), Some(token)) => IO(
+        os.proc(Seq("docker", "login", regAddress, "-u", user, "-p", token))
+          .call().exitCode)
+    }
+  }
+
   def getServiceIps(remoteConsulDnsAddress: String): IO[ServiceAddrs] = {
     def queryDns(host: String) = IO {
       try {
@@ -103,9 +124,9 @@ package object daemonutil {
     } yield ServiceAddrs(consulAddr, nomadAddr)
   }
 
-//  def getTerraformWorkDir(is_integration: Boolean): File = {
-//    if (is_integration) new File("/tmp/radix/terraform") else new File("/opt/radix/terraform")
-//  }
+  //  def getTerraformWorkDir(is_integration: Boolean): File = {
+  //    if (is_integration) new File("/tmp/radix/terraform") else new File("/opt/radix/terraform")
+  //  }
 
   def updatePrefixFile(prefix: Option[String]): Unit = {
     prefix match {
@@ -127,7 +148,7 @@ package object daemonutil {
       val planout = proc(planCommand).call(cwd = workingDir)
       val planshow = proc(showCommand).call(cwd = workingDir)
       parse(new String(planshow.out.bytes)) match {
-        case Left(value)  => IO.raiseError(value)
+        case Left(value) => IO.raiseError(value)
         case Right(value) => IO.pure(value)
       }
     }.flatten
@@ -186,11 +207,11 @@ package object daemonutil {
 
         prog match {
           case Left(err) => IO.raiseError(err)
-          case Right(v)  => IO.pure(v)
+          case Right(v) => IO.pure(v)
         }
       })
       //      .map(_.toMap)
-      .map({case (plan, deps) => {
+      .map({ case (plan, deps) => {
         (TerraformMagic.TerraformPlan(
           plan.getOrElse("create", List.empty).toSet,
           plan.getOrElse("read", List.empty).toSet,
@@ -198,7 +219,8 @@ package object daemonutil {
           plan.getOrElse("delete", List.empty).toSet,
           plan.getOrElse("no-op", List.empty).toSet
         ), deps)
-      }})
+      }
+      })
   }
 
 
@@ -221,7 +243,7 @@ package object daemonutil {
 
     val cutPrefix = if (rawPrefix.length > 0) rawPrefix.substring(0, Math.min(rawPrefix.length, 25)) + "-" else rawPrefix
 
-    if(cutPrefix.matches("[a-zA-Z\\d-]*")) cutPrefix else {
+    if (cutPrefix.matches("[a-zA-Z\\d-]*")) cutPrefix else {
       cutPrefix.replaceAll("_", "-").replaceAll("[^a-zA-Z\\d-]", "")
     }
   }
@@ -261,8 +283,8 @@ package object daemonutil {
     } yield mkDirExitCode
 
     val show: IO[(TerraformMagic.TerraformPlan, Map[String, List[String]])] = readTerraformPlan(execDir,
-                                                                                                workingDir,
-                                                                                                variables)
+      workingDir,
+      variables)
 
     val apply = for {
       flagConfig <- flagConfig.updateFlagConfig(featureFlags, Some(masterToken))
@@ -277,7 +299,7 @@ package object daemonutil {
       ).exitCode)
     } yield applyExitCode
 
-    if(integrationTest)
+    if (integrationTest)
       mkTmpDir *> initTerraform(integrationTest, Some(masterToken)) *> show.flatMap(LogTUI.plan) *> apply
     else
       initTerraform(integrationTest, Some(masterToken)) *> show.flatMap(LogTUI.plan) *> apply
@@ -350,6 +372,7 @@ package object daemonutil {
    */
   def waitForDNS(dnsName: String, timeoutDuration: FiniteDuration): IO[Boolean] = {
     val dnsQuery = new DNS.Lookup(dnsName, DNS.Type.SRV, DNS.DClass.IN)
+
     def queryProg(): IO[Boolean] = for {
       _ <- IO(LogTUI.writeLog(s"checking: ${dnsName}"))
       dnsAnswers <- IO(Option(dnsQuery.run.toSeq).getOrElse(Seq.empty))
@@ -387,6 +410,7 @@ package object daemonutil {
       }
       else IO(portUp)
     } yield portUp
+
     timeout(queryProg, timeoutDuration)
   }
 

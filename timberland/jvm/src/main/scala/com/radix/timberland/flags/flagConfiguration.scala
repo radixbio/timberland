@@ -236,9 +236,13 @@ object flagConfig {
     for {
       _ <- IO(Console.print((if (entry.optional) "[Optional] " else "") + entry.prompt + "> "))
       userInput <- timeoutTo(IO(StdIn.readLine()), timeout, IO.pure(null))
+      maybeDefault <- IO { entry.default match {
+        case Some(value) => Some(value)
+        case None => None
+      }}
       maybeUserInput <- IO {
         userInput match {
-          case null | "" => if (entry.optional) None else Some(entry.default.getOrElse {
+          case null | "" => if (entry.optional) maybeDefault else Some(entry.default.getOrElse {
             Console.err.println("\nConfig option not specified with no available fallback value, quitting")
             sys.exit(1)
           })

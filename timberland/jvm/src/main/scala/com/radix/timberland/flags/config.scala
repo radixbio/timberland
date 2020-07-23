@@ -1,6 +1,7 @@
 package com.radix.timberland.flags
 
 import cats.effect.IO
+import com.radix.timberland.launch.daemonutil
 import com.radix.timberland.radixdefs.ServiceAddrs
 
 case object config {
@@ -45,16 +46,43 @@ case object config {
         isSensitive = true,
         prompt = "Google OAUTH Secret"
       )
+    ),
+    "docker-auth" -> List(
+      FlagConfigEntry(
+        key = "ID",
+        isSensitive = true,
+        prompt = "Login ID for the container registry",
+        optional = true,
+        default = Some("radix-fetch-images")
+      ),
+      FlagConfigEntry(
+        key = "TOKEN",
+        isSensitive = true,
+        prompt = "Password or token to the container registry",
+        optional = true,
+        // read-registry-only permissions, for all gitlab private projects, expires 2023-01-01
+        // revoke @ https://gitlab.com/profile/personal_access_tokens
+        default = Some("Mz-TpEuBXch9n65KZKZe")
+      ),
+      FlagConfigEntry(
+        key = "URL",
+        isSensitive = true,
+        prompt = "URL of the container registry",
+        optional = true,
+        default = Some("registry.gitlab.com")
+      )
     )
-
   )
 
 
   // Defines functions that get run for
   val flagConfigHooks: Map[String, List[(Map[String, Option[String]], ServiceAddrs) => IO[Unit]]] =
-    Map("google-oauth" -> List((new OauthConfig).handler))
+    Map(
+      "google-oauth" -> List((new OauthConfig).handler),
+      "docker-auth" -> List(daemonutil.handleRegistryAuth)
+    )
 
 
   // The list of flags that are enabled by default
-  val flagDefaults: List[String] = List("core", "dev", "tui")
+  val flagDefaults: List[String] = List("core", "dev", "tui", "docker-auth")
 }

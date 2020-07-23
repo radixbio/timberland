@@ -34,7 +34,7 @@ case class Start(
                   servicePort: Int = 9092,
                   accessToken: Option[String] = None,
                   registryListenerPort: Int = 8081,
-                  prefix: Option[String] = None,
+                  prefix: Option[String] = None
                 ) extends Local
 
 case object Stop extends Local
@@ -145,7 +145,7 @@ object runner {
                     case Some(_) => exist.copy(prefix = prefix)
                     case None => exist
                   }
-                }),
+                }) ,
               progDesc("start the radix core services on the current system")
             )
           ),
@@ -243,7 +243,11 @@ object runner {
             case local: Local =>
               local match {
                 case Nuke => Right(Unit)
-                case cmd@Start(dummy, loglevel, bindIP, consulSeedsO, remoteAddress, servicePort, accessToken, registryListenerPort, prefix) => {
+                case cmd@Start(
+                  dummy, loglevel, bindIP, consulSeedsO, remoteAddress, servicePort,
+                  accessToken, registryListenerPort,
+                  prefix
+                ) => {
                   scribe.Logger.root
                     .clearHandlers()
                     .clearModifiers()
@@ -314,6 +318,7 @@ object runner {
 
                     val runServicesAndModules = for {
                       _ <- createWeaveNetwork
+//                      _ <- daemonutil.containerRegistryLogin(containerRegistryUser, containerRegistryToken)
                       masterToken <- startServices
                       _ <- daemonutil.waitForDNS("vault.service.consul", 1.minute)
                       _ <- acl.storeMasterTokenInVault(Path(persistentdir), masterToken)
