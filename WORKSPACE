@@ -1237,8 +1237,8 @@ http_archive(
 http_archive(
     name = "nomad",
     build_file_content = "exports_files([\"nomad\"])",
-    sha256 = "711e98b89ac4f5540bf3d6273379999f6c4141529531c262222e63ce491f5176",
-    url = "https://releases.hashicorp.com/nomad/0.11.1/nomad_0.11.1_linux_amd64.zip",
+    sha256 = "b9a266340306f5e8ccbc41b1076250296abb626f7f233c79b70e000e531da509",
+    url = "https://releases.hashicorp.com/nomad/0.12.1/nomad_0.12.1_linux_amd64.zip",
 )
 
 http_archive(
@@ -1257,9 +1257,9 @@ http_archive(
 
 http_archive(
     name = "terraform-provider-nomad",
-    build_file_content = "exports_files([\"terraform-provider-nomad_v1.4.7_x4\"])",
-    sha256 = "d5aa264f5b92c61305822e368631417e2b8dc4feed29e2d6f16b36a36333a380",
-    url = "https://releases.hashicorp.com/terraform-provider-nomad/1.4.7/terraform-provider-nomad_1.4.7_linux_amd64.zip",
+    build_file_content = "exports_files([\"terraform-provider-nomad_v1.4.8_x4\"])",
+    sha256 = "122a87b8c09b12ab29641f198db2db13d8f559346996d6472ad5bb676de1002b",
+    url = "https://releases.hashicorp.com/terraform-provider-nomad/1.4.8/terraform-provider-nomad_1.4.8_linux_amd64.zip",
 )
 
 http_archive(

@@ -57,7 +57,7 @@ rm {timberland-full-tar.tar}
 /opt/radix/timberland/terraform/main
 /opt/radix/timberland/terraform/main/main.tf
 /opt/radix/timberland/terraform/main/variables.tf
-/opt/radix/timberland/terraform/plugins/terraform-provider-nomad_v1.4.7_x4
+/opt/radix/timberland/terraform/plugins/terraform-provider-nomad_v1.4.8_x4
 /opt/radix/timberland/terraform/plugins/terraform-provider-consul_v2.7.0_x4
 /opt/radix/timberland/terraform/plugins/terraform-provider-vault_v2.11.0_x4
 /opt/radix/timberland/terraform/apprise
