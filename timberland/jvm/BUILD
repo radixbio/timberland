@@ -26,8 +26,8 @@ scala_library(
         "@third_party//3rdparty/jvm/com/lihaoyi:ammonite_ops",
         "@third_party//3rdparty/jvm/com/outr:scribe",
         "@third_party//3rdparty/jvm/dnsjava",
-        "@third_party//3rdparty/jvm/org/scala_lang/modules:scala_parser_combinators",
         "@third_party//3rdparty/jvm/org/fusesource/jansi",
+        "@third_party//3rdparty/jvm/org/scala_lang/modules:scala_parser_combinators",
     ],
     deps = [
         "//shared/shared/shared/shared:shared-shared",
@@ -36,9 +36,9 @@ scala_library(
         "@third_party//3rdparty/jvm/com/github/xuwei_k:optparse_applicative",
         "@third_party//3rdparty/jvm/com/lihaoyi:ammonite_ops",
         "@third_party//3rdparty/jvm/com/outr:scribe",
-        "@third_party//3rdparty/jvm/org/scala_lang/modules:scala_parser_combinators",
         "@third_party//3rdparty/jvm/org/fusesource/jansi",
-        "@third_party//3rdparty/jvm/org/slf4j:slf4j_nop"
+        "@third_party//3rdparty/jvm/org/scala_lang/modules:scala_parser_combinators",
+        "@third_party//3rdparty/jvm/org/slf4j:slf4j_nop",
     ],
 )
 
@@ -204,8 +204,8 @@ pkg_tar(
         "//timberland/assets:vault/read-flag-config-policy.hcl",
         "//timberland/assets:vault/remote-access-policy.hcl",
         "//timberland/assets:vault/vault_config.conf",
-        "@vault-plugin-secrets-oauthapp",
         "@vault",
+        "@vault-plugin-secrets-oauthapp",
     ],
     package_dir = "/opt/radix/timberland/vault",
 )
@@ -496,6 +496,7 @@ pkg_deb(
         "docker.io | docker-ce",
         "openjdk-11-jdk",
         "net-tools",
+        "avahi-utils",
     ],
     description = "Radix Timberland deploy file",
     maintainer = "Alex Hulbert",
