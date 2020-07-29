@@ -16,7 +16,8 @@ docker network create --attachable -d weaveworks/net-plugin:2.6.0 weave  --ip-ra
 ./timberland runtime disable elemental
 ./timberland runtime start
 
-echo "Timberland test exit code: $?"
+EXIT_CODE=$?
+echo "Timberland test exit code: $EXIT_CODE"
 
 sleep 3
 
