@@ -88,9 +88,9 @@ package object daemonutil {
 
   def handleRegistryAuth(options: Map[String, Option[String]], addrs: ServiceAddrs): IO[Unit] = {
     for {
-      _ <- IO(println("Reg auth handler!"))
+      _ <- IO(LogTUI.writeLog("Reg auth handler invoked!"))
       success <- containerRegistryLogin(options.getOrElse("ID", None), options.getOrElse("TOKEN", None), options.getOrElse("URL", Some("registry.gitlab.com")).get)
-      _ <- if (success == 0) IO(scribe.warn("Container registry login was not successful!")) else IO(Unit)
+      _ <- if (success != 0) IO(scribe.warn("Container registry login was not successful!")) else IO(Unit)
     } yield ()
   }
 
@@ -98,11 +98,15 @@ package object daemonutil {
     val user = if (regUser.nonEmpty) regUser else sys.env.get("CONTAINER_REG_USER")
     val token = if (regToken.nonEmpty) regToken else sys.env.get("CONTAINER_REG_TOKEN")
     (user, token) match {
-      case (None, _) => scribe.warn("No user/id provided for container registry, not logging in"); IO(0)
-      case (_, None) => scribe.warn("No password/token provided for container registry, not logging in"); IO(0)
-      case (Some(user), Some(token)) => IO(
+      case (None, _) => scribe.warn("No user/id provided for container registry, not logging in"); IO(-1)
+      case (_, None) => scribe.warn("No password/token provided for container registry, not logging in"); IO(-1)
+      case (Some(user), Some(token)) => IO {
         os.proc(Seq("docker", "login", regAddress, "-u", user, "-p", token))
-          .call().exitCode)
+          .call(
+            stdout = os.ProcessOutput(LogTUI.writeLogFromStream),
+            stderr = os.ProcessOutput(LogTUI.writeLogFromStream))
+          .exitCode
+      }
     }
   }
 
@@ -253,9 +257,9 @@ package object daemonutil {
   /** Start up the specified daemons (or all or a combination) based upon the passed parameters. Will immediately exit
    * after submitting the job to Nomad via Terraform.
    *
-   * @param featureFlags A map specifying which modules to enable
+   * @param featureFlags    A map specifying which modules to enable
    * @param integrationTest Whether to run terraform for integration tests
-   * @param prefix An optional prefix to prepend to job names
+   * @param prefix          An optional prefix to prepend to job names
    * @return Returns an IO of DaemonState and since the function is blocking/recursive, the only return value is
    *         AllDaemonsStarted
    */
@@ -292,7 +296,7 @@ package object daemonutil {
       configEntriesStr = flagConfig.configVars.map(kv => s"-var='${kv._1}=${kv._2}'").mkString(" ")
       definedVarsStr = s"""-var='defined_config_vars=["${flagConfig.definedVars.mkString("""","""")}"]'"""
       configStr = s"$configEntriesStr $definedVarsStr "
-      applyCommand = Seq("bash", "-c", s"$execDir/terraform apply -auto-approve " + variables + configStr)
+      applyCommand = Seq("bash", "-c", s"$execDir/terraform apply -no-color -auto-approve " + variables + configStr)
       applyExitCode <- IO(os.proc(applyCommand).call(
         cwd = workingDir,
         stdout = os.ProcessOutput(LogTUI.tfapply),

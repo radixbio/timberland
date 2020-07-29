@@ -16,13 +16,13 @@ docker network create --attachable -d weaveworks/net-plugin:2.6.0 weave  --ip-ra
 ./timberland runtime disable elemental
 ./timberland runtime start
 
+echo "Timberland test exit code: $?"
+
 sleep 3
 
 /home/ubuntu/service_test.py | tee /tmp/service_test.log
 
-EXIT_CODE=$?
-
-echo "Service test exit code: $EXIT_CODE"
+echo "Service test exit code: $?"
 
 mkdir /home/ubuntu/nomad-logs
 

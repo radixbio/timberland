@@ -28,7 +28,7 @@ job "${prefix}elemental-machines" {
       }
       template {
         data = <<EOF
-      {{with secret "secret/data/flag-config"}}
+      {{with secret "secret/flag-config"}}
             ELEMENTAL_USERNAME = "{{.Data.data.elemental.username}}"
             ELEMENTAL_PASSWORD = "{{.Data.data.elemental.password}}"
       {{end}}

@@ -294,6 +294,7 @@ object runner {
                       nomadPath = Path(nomad.toPath.getParent)
                       bootstrapExpect = if (localFlags.getOrElse("dev", true)) 1 else 3
                       tokens <- Run.initializeRuntimeProg[IO](consulPath, nomadPath, bindIP, consulSeedsO, bootstrapExpect)
+                      _ <- daemonutil.waitForDNS("vault.service.consul", 10.seconds)
                     } yield tokens
 
                     def startLogTuiAndRunTerraform(featureFlags: Map[String, Boolean],
@@ -303,7 +304,13 @@ object runner {
                       for {
                         _ <- if (featureFlags.getOrElse("tui", true)) LogTUI.startTUI() else IO.unit
                         _ <- IO(LogTUI.writeLog(s"using flags: $featureFlags"))
-                        _ <- daemonutil.runTerraform(featureFlags, prefix=prefix)(serviceAddrs, authTokens)
+                        tfStatus <- daemonutil.runTerraform(featureFlags, prefix=prefix)(serviceAddrs, authTokens)
+                        _ <- IO { tfStatus match {
+                          case 0 => true
+                          case code => {
+                            LogTUI.writeLog("runTerraform failed, exiting")}
+                            sys.exit(code)
+                        }}
                         _ <- if (waitForQuorum) daemonutil.waitForQuorum(featureFlags) else IO.unit
                       } yield ()
 
@@ -331,6 +338,7 @@ object runner {
 
                     val bootstrapIO = if (remoteAddress.isDefined) remoteBootstrap else localBootstrap
                     val bootstrap = bootstrapIO.handleErrorWith(err => LogTUI.endTUI(Some(err))) *> LogTUI.endTUI()
+
                     bootstrap.unsafeRunSync()
                     sys.exit(0)
                   }

@@ -145,16 +145,19 @@ object TerraformMagic {
   val creationCompletePat = "(.*): Creation complete after (.*) (.*)".r.unanchored
   val createRefreshingStatePat = "(.*): Refreshing state...".r.unanchored // before this one
   val creatingPat = "(.*): Creating...".r.unanchored
-  val applyCompletePat = "Apply complete! Resources: (.*) added, (.*) changed, (.*) destroyed.".r.unanchored
+  val applyCompletePat = "Apply complete! Resources: (\\d+) added, (\\d+) changed, (\\d+) destroyed.".r.unanchored
+
 
   def cleanStr(str: String): String = {
-    str.replaceAll("^[A-Za-z0-9\\.\\[\\] ]", "")
+    str.replaceAll("[^A-Za-z0-9.,!:\\[\\] ]", "")
   }
   val getnamePat = ".*\\.(.*)\\[0\\]".r.unanchored
+  val namePat = "(\\w+)".r.unanchored
   def res_name(in: String): String = cleanStr(in) match {
     case getnamePat(name) => name
+    case namePat(name) => name
     case _ => {
-      LogTUI.writeLog(s"Parse error: $in")
+      LogTUI.writeLog(s"Parse error: $in?")
       in
     }
   }
@@ -266,24 +269,30 @@ object LogTUI {
   /*
   * Cancels LogTUI fiber and prints out all messages stored in calls to LogTUI.printAfter()
   * */
-  def endTUI(error: Option[Throwable] = None): IO[Unit] = if (isActive) for {
+  def endTUI(error: Option[Throwable] = None): IO[Unit] =
+    for {
+      wasActive <- IO(isActive)
+    _ <- IO(writeLog("shutting down TUI"))
     _ <- IO { isActive = false }
     _ <- if (error.isEmpty) IO.sleep(2.seconds) else IO.unit
-    _ <- printerFiber.get.cancel.toIO
     _ <- IO {
-      Console.flush()
-      denouement.foreach(println)
-      println()
-      if (error.isEmpty) {
-        println("Complete")
-      } else {
-        println("Encountered Errors")
-        println("Startup hit exception:")
-        println(error.get)
+      if (wasActive) {
+        printerFiber.get.cancel
+        Console.flush()
+        denouement.foreach(println)
+        println()
+        if (error.isEmpty) {
+          println("Complete")
+        } else {
+          println("Encountered Errors")
+          println("Startup hit exception:")
+          println(error.get)
+          sys.exit(1)
+        }
+        println("\n")
       }
-      println("\n")
     }
-  } yield () else IO.unit
+  } yield ()
 
 
   def writeLog(output: String): Unit = {
@@ -374,7 +383,7 @@ object LogTUI {
    * */
   def printAfter(str: String): Unit = {
     denouement.enqueue(str)
-    debugprint(s"printAfter ${str}")
+    writeLog(s"printAfter ${str}")
   }
 
   object Printer {
@@ -475,6 +484,7 @@ object LogTUI {
             d <- if (dnsdata) quorum(c) else IO(c)
           } yield d
           drawnst <- draw(st, newst)
+          _ <- IO(Console.flush())
 
           _ <- if (isActive) IO.sleep(500.millis) *> iterStateAndPrint(drawnst, newplan) else IO()
         } yield ()
@@ -767,7 +777,8 @@ object PrintElements {
     }
   }
 
-  def componentLine(name: String, target: PlanTarget, stage: PlanStage): String = {
+  def componentLine(rawName: String, target: PlanTarget, stage: PlanStage): String = {
+    val name = TerraformMagic.res_name(rawName)
     val verb = target match {
       case CreateT() => "Create"
       case UpdateT() => "Update"
