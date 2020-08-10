@@ -386,7 +386,7 @@ dependencies:
   org.slf4j:
     slf4j:
       lang: java
-      modules: [ "api", "simple", "nop" ]
+      modules: [ "api", "nop", "simple" ]
       version: "1.7.30"
 
   org.tpolecat:
