@@ -343,6 +343,11 @@ dependencies:
       lang: java
       version: "1.12.1"
 
+  org.scala-lang:
+    scalap:
+      lang: java
+      version: "2.12.10"
+
   org.scala-lang.modules:
     scala-parser-combinators:
       lang: scala

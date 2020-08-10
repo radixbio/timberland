@@ -1,11 +1,6 @@
-load(
-    "@io_bazel_rules_scala//scala:scala.bzl",
-    "scala_binary",
-    "scala_library",
-    #    "scala_library_suite",
-    "scala_macro_library",
-    "scala_test",
-)
+load("//:tools/define_scala_targets_with_fmt_phase.bzl", "scala_library", "scala_binary")
+
+
 load("@rules_pkg//:pkg.bzl", "pkg_deb", "pkg_tar")
 load("@io_bazel_rules_docker//docker/util:run.bzl", "container_run_and_commit", "container_run_and_extract")
 load("@io_bazel_rules_docker//container:container.bzl", "container_image", "container_layer", "container_load", "container_push")

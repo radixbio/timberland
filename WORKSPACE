@@ -12,14 +12,27 @@ http_archive(
     url = "https://github.com/bazelbuild/bazel-skylib/releases/download/{}/bazel-skylib.{}.tar.gz".format(skylib_version, skylib_version),
 )
 
-rules_scala_version = "1b9f63bafc7e867945edf2eed45a51b1304c8130"  # update this as needed
+rules_scala_version = "eabb1d28fb288fb5b15857260f87818dda5a97c8"  # update this as needed
 
 http_archive(
     name = "io_bazel_rules_scala",
-    sha256 = "06b775f169bd0694cd415d46908aa5462b3c36944d3d9fbb3811723a7a5cb2fd",
+    sha256 = "c75f3f6725369171f7a670767a28fd488190070fc9f31d882d9b7a61caffeb26",
     strip_prefix = "rules_scala-%s" % rules_scala_version,
     type = "zip",
     url = "https://github.com/bazelbuild/rules_scala/archive/%s.zip" % rules_scala_version,
+)
+
+load(
+    "@io_bazel_rules_scala//scala/scalafmt:scalafmt_repositories.bzl",
+    "scalafmt_default_config",
+    "scalafmt_repositories"
+)
+
+scalafmt_repositories()
+scalafmt_default_config()
+bind(
+    name = "io_bazel_rules_scala_dependency_scalap_scalap",
+    actual = "//3rdparty/jvm/org/scala-lang:scalap",
 )
 
 bind(
@@ -96,6 +109,8 @@ http_archive(
     url = "https://github.com/protocolbuffers/protobuf/archive/v%s.tar.gz" % protobuf_version,
 )
 
+
+
 load(
     "@io_bazel_rules_scala//scala:scala_cross_version.bzl",
     "default_scala_major_version",
@@ -105,6 +120,8 @@ load(
     "@io_bazel_rules_scala//scala:scala_maven_import_external.bzl",
     "scala_maven_import_external",
 )
+
+
 load("//3rdparty:workspace.bzl", "maven_dependencies")
 
 maven_dependencies()
@@ -1324,3 +1341,4 @@ http_archive(
     build_file_content = "exports_files([\"metro/lib/webservices-tools.jar\"])",
     url = "https://maven.java.net/content/repositories/releases//org/glassfish/metro/metro-standalone/2.3.1/metro-standalone-2.3.1.zip",
 )
+
