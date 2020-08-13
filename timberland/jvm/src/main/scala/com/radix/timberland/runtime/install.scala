@@ -8,7 +8,7 @@ import cats.implicits._
 import java.io.{File, FileOutputStream}
 import java.nio.channels.Channels
 import java.nio.charset.Charset
-import java.nio.file.{Files, StandardCopyOption, CopyOption}
+import java.nio.file.{CopyOption, Files, StandardCopyOption}
 
 import scala.collection.mutable.ListBuffer
 import com.radix.timberland.radixdefs._
@@ -25,7 +25,7 @@ object Installer {
     scribe.trace("initializing jvm class mover")
     private[this] def copyResourceToFolder(resname: String, name: String, to: os.Path, options: CopyOption*): Unit = {
       val is = Thread.currentThread().getContextClassLoader.getResourceAsStream(resname)
-      val f  = new File(to + "/" + name)
+      val f = new File(to + "/" + name)
       f.getParentFile.mkdirs()
       val fout = new FileOutputStream(f)
       fout.getChannel.transferFrom(Channels.newChannel(is), 0, Long.MaxValue)
@@ -39,9 +39,9 @@ object Installer {
       if (fromstream.available() == 0) {
         val jarFile = new File(getClass.getProtectionDomain.getCodeSource.getLocation.getPath)
         val toCopy = if (jarFile.isFile) { // Run with JAR file
-          val jar     = new JarFile(jarFile)
+          val jar = new JarFile(jarFile)
           val entries = jar.entries //gives ALL entries in jar
-          val lb      = new ListBuffer[String]
+          val lb = new ListBuffer[String]
           while ({
             entries.hasMoreElements
           }) {
@@ -55,14 +55,13 @@ object Installer {
         } else List.empty[String]
         toCopy.foreach(r => scribe.info(s"preparing to move (from resource directory $from) $r to $to"))
         if (toCopy.isEmpty) scribe.warn(s"the directory $from is empty")
-        toCopy.foreach(
-          r =>
-            copyResourceToFolder(
-              r,
-              r.replaceAllLiterally(from.toString.drop(1) + "/", ""),
-              to,
-              StandardCopyOption.REPLACE_EXISTING
-            )
+        toCopy.foreach(r =>
+          copyResourceToFolder(
+            r,
+            r.replaceAllLiterally(from.toString.drop(1) + "/", ""),
+            to,
+            StandardCopyOption.REPLACE_EXISTING
+          )
         )
       } else {
         copyResourceToFolder(

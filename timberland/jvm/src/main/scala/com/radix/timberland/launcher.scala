@@ -48,47 +48,54 @@ object launcher {
           subparser[Launch](
             command(
               "zookeeper",
-              info(
-                switch(long("dev"), help("start zookeeper in dev mode")).map({
-                  dev =>
-                    LaunchZookeeper(dev)
-                }),
-                progDesc("launch zookeeper at runtime, launched from nomad"))
+              info(switch(long("dev"), help("start zookeeper in dev mode")).map({ dev =>
+                LaunchZookeeper(dev)
+              }), progDesc("launch zookeeper at runtime, launched from nomad"))
             ),
             command(
               "kafka",
-              info(^(
-                switch(long("dev"), help("start kafka in dev mode")),
-                strOption(long("prefix"), help("zookeeper's job prefix"), metavar("<PREFIX>")))
-              ((dev, prefix) => LaunchKafka(dev, prefix)),
-                progDesc("launch kafka at runtime, launched from nomad"))
+              info(
+                ^(
+                  switch(long("dev"), help("start kafka in dev mode")),
+                  strOption(long("prefix"), help("zookeeper's job prefix"), metavar("<PREFIX>"))
+                )((dev, prefix) => LaunchKafka(dev, prefix)),
+                progDesc("launch kafka at runtime, launched from nomad")
+              )
             ),
             command(
               "yugabyte-master",
-              info(^(
-                switch(long("dev"), help("start yugabyte master in dev mode")),
-                strOption(long("prefix"), help("the prefix of the nomad jobs"), metavar("<PREFIX>")))
-              ((dev, prefix) => LaunchYugabyte(dev, true, prefix)),
-                progDesc("launch yugabyte master at runtime, launched from nomad"))
+              info(
+                ^(
+                  switch(long("dev"), help("start yugabyte master in dev mode")),
+                  strOption(long("prefix"), help("the prefix of the nomad jobs"), metavar("<PREFIX>"))
+                )((dev, prefix) => LaunchYugabyte(dev, true, prefix)),
+                progDesc("launch yugabyte master at runtime, launched from nomad")
+              )
             ),
             command(
               "yugabyte-tserver",
-              info(^(
-                switch(long("dev"), help("start yugabyte tserver in dev mode")),
-                strOption(long("prefix"), help("the prefix of the nomad jobs"), metavar("<PREFIX>")))
-              ((dev, prefix) => LaunchYugabyte(dev, false, prefix)),
-                progDesc("launch yugabyte tserver at runtime, launched from nomad"))
+              info(
+                ^(
+                  switch(long("dev"), help("start yugabyte tserver in dev mode")),
+                  strOption(long("prefix"), help("the prefix of the nomad jobs"), metavar("<PREFIX>"))
+                )((dev, prefix) => LaunchYugabyte(dev, false, prefix)),
+                progDesc("launch yugabyte tserver at runtime, launched from nomad")
+              )
             )
-          ).weaken[LaunchMe], progDesc("radix Launcher component"))
+          ).weaken[LaunchMe],
+          progDesc("radix Launcher component")
+        )
       )
     ) <*> helper
 
   val res: Parser[LauncherCMD] = launcher.weaken[LauncherCMD]
 
   val opts =
-    info(res <*> helper,
+    info(
+      res <*> helper,
       progDesc("Print a greeting for TARGET"),
-      header("hello - a test for scala-optparse-applicative"))
+      header("hello - a test for scala-optparse-applicative")
+    )
 
   def main(args: Array[String]): Unit = {
     val osname = System.getProperty("os.name") match {
@@ -96,9 +103,7 @@ object launcher {
       case linux if linux.toLowerCase.contains("linux") => "linux"
     }
     val arch = System.getProperty("os.arch") match {
-      case x86
-        if x86.toLowerCase.contains("amd64") || x86.toLowerCase.contains(
-          "x86") =>
+      case x86 if x86.toLowerCase.contains("amd64") || x86.toLowerCase.contains("x86") =>
         "amd64"
       case _ => "arm"
     }
@@ -119,17 +124,18 @@ object launcher {
                     .clearModifiers()
                     .withHandler(minimumLevel = Some(scribe.Level.Trace))
                     .replace()
-                  scribe.trace(
-                    "launching zookeeper (to be run inside docker container)")
+                  scribe.trace("launching zookeeper (to be run inside docker container)")
                   val copier = new Installer.MoveFromJVMResources[IO]
 
                   val prog = for {
                     _ <- IO(scribe.debug("starting zookeeper..."))
                     zk <- launch.zookeeper
-                      .startZookeeper(os.Path("/local/conf/zoo_servers"),
+                      .startZookeeper(
+                        os.Path("/local/conf/zoo_servers"),
                         os.Path("/conf/zoo.cfg"),
                         os.Path("/conf/zoo_replicated.cfg.dynamic"),
-                        minQuorumSize)
+                        minQuorumSize
+                      )
                       .run(launch.zookeeper.NoMinQuorum)
                     _ <- IO(scribe.debug("zookeeper started!"))
                     _ <- IO.never

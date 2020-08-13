@@ -29,16 +29,13 @@ import org.fusesource.jansi._
 import org.fusesource.jansi.Ansi
 import org.fusesource.jansi.internal.CLibrary.{isatty, STDOUT_FILENO}
 
-
 import scala.concurrent.ExecutionContext
-
 
 case class LogTUIWriter() extends Writer {
   override def write[M](record: LogRecord[M], output: LogOutput): Unit = {
     LogTUI.writeLog(output.plainText)
   }
 }
-
 
 sealed trait WKEvent
 //TODO up/down
@@ -51,8 +48,6 @@ case object VaultSystemdUp extends WKEvent
 case object ConsulDNSUp extends WKEvent
 case object NomadDNSUp extends WKEvent
 case object VaultDNSUp extends WKEvent
-
-
 
 trait PlanTarget
 case class CreateT() extends PlanTarget
@@ -73,11 +68,13 @@ case class ErrorDNS(name: String) extends DNSStage
 case class EmptyDNS(name: String) extends DNSStage // When does this happen?
 
 object TerraformMagic {
-  case class TerraformPlan(create: Set[String],
-                           read: Set[String],
-                           update: Set[String],
-                           delete: Set[String],
-                           noop: Set[String]) {
+  case class TerraformPlan(
+    create: Set[String],
+    read: Set[String],
+    update: Set[String],
+    delete: Set[String],
+    noop: Set[String]
+  ) {
     def removecreate(elem: String): TerraformPlan = this.copy(create = this.create.filterNot(_ == elem))
     def removeread(elem: String): TerraformPlan = this.copy(read = this.read.filterNot(_ == elem))
     def removeupdate(elem: String): TerraformPlan = this.copy(update = this.update.filterNot(_ == elem))
@@ -85,10 +82,10 @@ object TerraformMagic {
     def removenoop(elem: String): TerraformPlan = this.copy(noop = this.noop.filterNot(_ == elem))
 
     def addcreate(elem: String): TerraformPlan = this.copy(create = this.create + elem)
-    def addread(elem: String): TerraformPlan = this.copy(create = this.read + elem)
-    def addupdate(elem: String): TerraformPlan = this.copy(create = this.update + elem)
-    def adddelete(elem: String): TerraformPlan = this.copy(create = this.delete + elem)
-    def addnoop(elem: String): TerraformPlan = this.copy(create = this.noop + elem)
+    def addread(elem: String): TerraformPlan = this.copy(read = this.read + elem)
+    def addupdate(elem: String): TerraformPlan = this.copy(update = this.update + elem)
+    def adddelete(elem: String): TerraformPlan = this.copy(delete = this.delete + elem)
+    def addnoop(elem: String): TerraformPlan = this.copy(noop = this.noop + elem)
 
     def diff(other: TerraformPlan): TerraformPlan =
       TerraformPlan(
@@ -114,7 +111,7 @@ object TerraformMagic {
     def _symdiff[A](a: Set[A], b: Set[A]): Set[A] = (a | b) -- (a & b)
   }
   case object TerraformPlan {
-      def empty: TerraformPlan = TerraformPlan(Set(), Set(), Set(), Set(), Set())
+    def empty: TerraformPlan = TerraformPlan(Set(), Set(), Set(), Set(), Set())
   }
 
   sealed trait TFStateChange
@@ -124,20 +121,19 @@ object TerraformMagic {
   case class CreateStart(name: String) extends TFStateChange
   case class CreateComplete(name: String, duration: String, id: String) extends TFStateChange
   case class ApplyComplete() extends TFStateChange
+  case class ReadStart(name: String) extends TFStateChange
+  case class ReadComplete(name: String, duration: String) extends TFStateChange
   case class NotChange() extends TFStateChange
   def TFStateChangePriority(sc: TFStateChange): Int =
     sc match {
-      case NotChange() => 0
-      case DestroyStart(_, _) => 1
-      case CreateStart(_) => 2
-      case Data(_) => 3
-      case DestroyComplete(_, _) => 4
+      case NotChange()             => 0
+      case DestroyStart(_, _)      => 1
+      case CreateStart(_)          => 2
+      case Data(_)                 => 3
+      case DestroyComplete(_, _)   => 4
       case CreateComplete(_, _, _) => 5
-      case ApplyComplete() => 6
+      case ApplyComplete()         => 6
     }
-
-
-
 
   val destroyPat = "(.*): Destroying... (.*)".r.unanchored
   val destroyCompletePat = "(.*): Destruction complete after (.*)".r.unanchored
@@ -145,17 +141,23 @@ object TerraformMagic {
   val creationCompletePat = "(.*): Creation complete after (.*) (.*)".r.unanchored
   val createRefreshingStatePat = "(.*): Refreshing state...".r.unanchored // before this one
   val creatingPat = "(.*): Creating...".r.unanchored
+  val readingPat = "(.*): Reading...".r.unanchored
+  val stillReadingPat = "(.*): Still reading... (.*)".r.unanchored
+  val readCompletePat = "(.*): Read complete after (.*)".r.unanchored
   val applyCompletePat = "Apply complete! Resources: (\\d+) added, (\\d+) changed, (\\d+) destroyed.".r.unanchored
-
 
   def cleanStr(str: String): String = {
     str.replaceAll("[^A-Za-z0-9.,!:\\[\\] ]", "")
   }
   val getnamePat = ".*\\.(.*)\\[0\\]".r.unanchored
   val namePat = "(\\w+)".r.unanchored
+  val nomadJobPat = "nomadjob\\.(.*)".r.unanchored
+  val consulHPat = "consulservicehealth\\.(.*)".r.unanchored
   def res_name(in: String): String = cleanStr(in) match {
-    case getnamePat(name) => name
-    case namePat(name) => name
+    case getnamePat(name)  => name
+    case nomadJobPat(name) => name
+    case consulHPat(name)  => name
+    case namePat(name)     => name
     case _ => {
       LogTUI.writeLog(s"Parse error: $in?")
       in
@@ -163,12 +165,16 @@ object TerraformMagic {
   }
   def translate(in: String): TerraformMagic.TFStateChange = {
     cleanStr(in) match {
-      case TerraformMagic.destroyPat(name, id)                    => TerraformMagic.DestroyStart(res_name(name), id)
-      case TerraformMagic.destroyCompletePat(name, duration)      => TerraformMagic.DestroyComplete(res_name(name), duration)
-      case TerraformMagic.destroyRefreshingStatePat(name, id)     => TerraformMagic.Data(res_name(name))
-      case TerraformMagic.creatingPat(name)                       => TerraformMagic.CreateStart(res_name(name))
-      case TerraformMagic.creationCompletePat(name, duration, id) => TerraformMagic.CreateComplete(res_name(name), duration, id)
-      case TerraformMagic.createRefreshingStatePat(name)          => TerraformMagic.Data(res_name(name))
+      case TerraformMagic.destroyPat(name, id)                => TerraformMagic.DestroyStart(res_name(name), id)
+      case TerraformMagic.destroyCompletePat(name, duration)  => TerraformMagic.DestroyComplete(res_name(name), duration)
+      case TerraformMagic.destroyRefreshingStatePat(name, id) => TerraformMagic.Data(res_name(name))
+      case TerraformMagic.creatingPat(name)                   => TerraformMagic.CreateStart(res_name(name))
+      case TerraformMagic.creationCompletePat(name, duration, id) =>
+        TerraformMagic.CreateComplete(res_name(name), duration, id)
+      case TerraformMagic.createRefreshingStatePat(name)  => TerraformMagic.Data(res_name(name))
+      case TerraformMagic.readCompletePat(name, duration) => TerraformMagic.ReadComplete(res_name(name), duration)
+      case TerraformMagic.stillReadingPat(name)           => TerraformMagic.NotChange()
+      case TerraformMagic.readingPat(name)                => TerraformMagic.ReadStart(res_name(name))
       case TerraformMagic.applyCompletePat(n_added, n_changed, n_destroyed) =>
         TerraformMagic.ApplyComplete()
       case x => {
@@ -177,8 +183,6 @@ object TerraformMagic {
       }
     }
   }
-
-
 
   def stripindex(in: String): String = in.replaceAll("\\[[0-9]+\\]", "")
 
@@ -221,8 +225,6 @@ object CLIMagic {
   }
 }
 
-
-
 /*
   Notes:
     - While LogTUI is active, all terminal output should be through printState(), so
@@ -251,49 +253,46 @@ object LogTUI {
 
   val log_path = os.root / "opt" / "radix" / "timberland.log" // Make settable/timestamped?
 
-
-
-
-
   /** *
-  * Turns on the LogTUI display.
-  * */
+   * Turns on the LogTUI display.
+   * */
   def startTUI(): IO[Unit] =
-    if (isActive) IO.unit else for {
-      _ <- IO { isActive = true }
-      _ <- IO.shift(cs)
-      printer <- Printer.beginIterPrint.start
-      _ <- IO(this.printerFiber = Some(printer))
-    } yield ()
+    if (isActive) IO.unit
+    else
+      for {
+        _ <- IO { isActive = true }
+        _ <- IO.shift(cs)
+        printer <- Printer.beginIterPrint.start
+        _ <- IO(this.printerFiber = Some(printer))
+      } yield ()
 
   /*
-  * Cancels LogTUI fiber and prints out all messages stored in calls to LogTUI.printAfter()
-  * */
+   * Cancels LogTUI fiber and prints out all messages stored in calls to LogTUI.printAfter()
+   * */
   def endTUI(error: Option[Throwable] = None): IO[Unit] =
     for {
       wasActive <- IO(isActive)
-    _ <- IO(writeLog("shutting down TUI"))
-    _ <- IO { isActive = false }
-    _ <- if (error.isEmpty) IO.sleep(2.seconds) else IO.unit
-    _ <- IO {
-      if (wasActive) {
-        printerFiber.get.cancel
-        Console.flush()
-        denouement.foreach(println)
-        println()
-        if (error.isEmpty) {
-          println("Complete")
-        } else {
-          println("Encountered Errors")
-          println("Startup hit exception:")
-          println(error.get)
-          sys.exit(1)
+      _ <- IO(writeLog("shutting down TUI"))
+      _ <- IO { isActive = false }
+      _ <- if (error.isEmpty) IO.sleep(2.seconds) else IO.unit
+      _ <- IO {
+        if (wasActive) {
+          printerFiber.get.cancel
+          Console.flush()
+          denouement.foreach(println)
+          println()
+          if (error.isEmpty) {
+            println("Complete")
+          } else {
+            println("Encountered Errors")
+            println("Startup hit exception:")
+            println(error.get)
+            sys.exit(1)
+          }
+          println("\n")
         }
-        println("\n")
       }
-    }
-  } yield ()
-
+    } yield ()
 
   def writeLog(output: String): Unit = {
     if (!isActive) println(output)
@@ -334,7 +333,6 @@ object LogTUI {
     IO(Unit)
   }
 
-
   /**
    * Receives state updates from startup functions for systemd services (Consul, Nomad, Vault)
    * */
@@ -360,7 +358,6 @@ object LogTUI {
   def tfapply(bytearr: Array[Byte], len: Int): Unit = {
     val str = new String(bytearr.take(len), StandardCharsets.UTF_8)
     applyq.enqueue(str.split("\n").filterNot(_ == "").map(TerraformMagic.translate): _*)
-    writeLog(str)
     debugprint(s"tfapply ${applyq.size} $str")
   }
 
@@ -383,7 +380,7 @@ object LogTUI {
    * */
   def printAfter(str: String): Unit = {
     denouement.enqueue(str)
-    writeLog(s"printAfter ${str}")
+    writeLog(s"${str}")
   }
 
   object Printer {
@@ -395,17 +392,18 @@ object LogTUI {
       }
       (consoleDim("cols"), consoleDim("lines"))
     }
-    case class Apply(pending: TerraformMagic.TerraformPlan,
-                     deps: Map[String, List[String]])
+    case class Apply(pending: TerraformMagic.TerraformPlan, deps: Map[String, List[String]])
 
     sealed trait PrestartState
     case object Systemdnotstarted extends PrestartState
     case object Dnsnotresolving extends PrestartState
     case object Done extends PrestartState
     case object Missing extends PrestartState
-    case class Prestart(consul: PrestartState = Missing,
-                        nomad: PrestartState = Missing,
-                        vault: PrestartState = Missing) {
+    case class Prestart(
+      consul: PrestartState = Missing,
+      nomad: PrestartState = Missing,
+      vault: PrestartState = Missing
+    ) {
       def updatewk(in: WKEvent): Prestart =
         in match {
           case ConsulStarting =>
@@ -432,14 +430,15 @@ object LogTUI {
       def empty: Prestart = Prestart()
     }
 
-
-    case class State(prestart: Option[Prestart] = None,
-                     app: Option[Apply] = None,
-                     inflight: Option[TerraformMagic.TerraformPlan] = None, // Changed since deps is immutable
-                     quorum: Map[String, DNSStage] = Map.empty,
-                     linemap: Map[String, Int] = Map.empty,
-                     lineno: Int = 0,
-                     tick: Int = 0) { // Considering lineno as number of lines currently being printed
+    case class State(
+      prestart: Option[Prestart] = None,
+      app: Option[Apply] = None,
+      inflight: Option[TerraformMagic.TerraformPlan] = None, // Changed since deps is immutable
+      quorum: Map[String, DNSStage] = Map.empty,
+      linemap: Map[String, Int] = Map.empty,
+      lineno: Int = 0,
+      tick: Int = 0
+    ) { // Considering lineno as number of lines currently being printed
       def mod_prestart(modifier: Prestart => Prestart): State = this.copy(prestart = this.prestart.map(modifier))
       def mod_app(modifier: TerraformMagic.TerraformPlan => TerraformMagic.TerraformPlan): State = {
         this.copy(app = this.app.map(ap => ap.copy(pending = modifier(ap.pending))))
@@ -456,6 +455,32 @@ object LogTUI {
     }
 
     /**
+     * Helper function for iterStateAndPrint; applies the name-extraction regex to all
+     * module names received from "terraform plan"
+     *
+     * @param plan_tuple the TerraformPlan and dependency mapping as produced by
+     *                   daemonutil.readTerraformPlan
+     *
+     * @return Apply object with names formatted to match those received via tfapply
+     * */
+    def translatePlan(plan_tuple: (TerraformPlan, Map[String, List[String]])): Apply = {
+      val (tp, deps) = plan_tuple
+      val translated_tp = tp.copy(
+        create = tp.create.map(TerraformMagic.res_name),
+        read = tp.read.map(TerraformMagic.res_name),
+        update = tp.update.map(TerraformMagic.res_name),
+        delete = tp.delete.map(TerraformMagic.res_name),
+        noop = tp.noop.map(TerraformMagic.res_name)
+      )
+      val translated_deps = deps.keys
+        .foldLeft(Map.empty[String, List[String]])((mp, k) =>
+          mp + (TerraformMagic.res_name(k) -> deps(k).map(TerraformMagic.res_name))
+        )
+
+      Apply.tupled((translated_tp, translated_deps))
+    }
+
+    /**
      * Checks for input from any of the new-state queues, dispatches
      * to the appropriate State-updating functions(s) for each non-empty queue,
      * and invokes draw.  Recursively calls itself.
@@ -466,47 +491,52 @@ object LogTUI {
      *
      * Does not return
      *
-    * */
+     * */
     def iterStateAndPrint(st: State, plan: Option[Apply]): IO[Unit] = {
       for {
-          evtextdata <- IO(extevtq.nonEmpty)
-          initdata <- IO(initq.nonEmpty)
-          plandata <- planvar.isEmpty.map(x => !x) // fake nonEmpty
-          appdata <- IO(applyq.nonEmpty)
-          dnsdata <- IO(dnsq.nonEmpty)
-          newplan <- if (plandata) planvar.take.map(Apply.tupled).map(x => Some(x)) else IO(plan)
-          planstate = if (plandata) st.copy(app = newplan, inflight = Some(TerraformPlan.empty)) else st
+        evtextdata <- IO(extevtq.nonEmpty)
+        initdata <- IO(initq.nonEmpty)
+        plandata <- planvar.isEmpty.map(x => !x) // fake nonEmpty
+        appdata <- IO(applyq.nonEmpty)
+        dnsdata <- IO(dnsq.nonEmpty)
+        newplan <- if (plandata) planvar.take.map(translatePlan).map(x => Some(x)) else IO(plan)
+        planstate = if (plandata) st.copy(app = newplan, inflight = Some(TerraformPlan.empty)) else st
 
-          newst <- for {
-            a <- if (evtextdata) prestart(planstate) else IO(planstate)
-            b <- if (initdata) init(a) else IO(a)
-            c <- if (appdata && plan.nonEmpty) tfapplyp(plan)(b) else IO(b)
-            d <- if (dnsdata) quorum(c) else IO(c)
-          } yield d
-          drawnst <- draw(st, newst)
-          _ <- IO(Console.flush())
+        newst <- for {
+          a <- if (evtextdata) prestart(planstate) else IO(planstate)
+          b <- if (initdata) init(a) else IO(a)
+          c <- if (appdata && plan.nonEmpty) tfapplyp(plan)(b) else IO(b)
+          d <- if (dnsdata) quorum(c) else IO(c)
+        } yield d
+        drawnst <- draw(st, newst)
+        _ <- IO(Console.flush())
 
-          _ <- if (isActive) IO.sleep(500.millis) *> iterStateAndPrint(drawnst, newplan) else IO()
-        } yield ()
+        _ <- if (isActive) IO.sleep(500.millis) *> iterStateAndPrint(drawnst, newplan) else IO()
+      } yield ()
     }
+
     /**
      * Updates state to reflect events from the systemd service startup
      * */
     def prestart(st: State): IO[State] =
       for {
         ext <- IO(extevtq.headOption.map(_ => extevtq.dequeueAll(_ => true).toList))
-        newps =
-          ext match {
-            case None => st.prestart
-            case Some(value) =>
-              // Apply all the log messages to deterimine new print state, in order
-              value
-                .map({in: WKEvent => {pst: Prestart => pst.updatewk(in)}})
-                .foldLeft(st.prestart)({
-                  case (Some(st), f) => Some(f(st))
-                  case (None, f)     => Some(f(Prestart.empty))
-                })
-          }
+        newps = ext match {
+          case None        => st.prestart
+          case Some(value) =>
+            // Apply all the log messages to deterimine new print state, in order
+            value
+              .map({
+                in: WKEvent =>
+                  { pst: Prestart =>
+                    pst.updatewk(in)
+                  }
+              })
+              .foldLeft(st.prestart)({
+                case (Some(st), f) => Some(f(st))
+                case (None, f)     => Some(f(Prestart.empty))
+              })
+        }
         newst <- IO.pure(st.copy(prestart = newps))
       } yield newst
 
@@ -523,8 +553,6 @@ object LogTUI {
         //_ <- IO(evt.map(debugprint))
       } yield st
 
-
-
     /**
      * Updates state to reflect events from waitForDNS
      * */
@@ -536,7 +564,7 @@ object LogTUI {
       for {
         evt <- IO(dnsq.headOption.map(_ => dnsq.dequeueAll(_ => true).toList))
         newstate = evt match {
-          case None => st
+          case None           => st
           case Some(dns_evts) => dns_evts.foldl(st)(applyQuorumUpdates)
         }
       } yield newstate
@@ -559,7 +587,8 @@ object LogTUI {
     def applyChange(deps: Map[String, List[String]])(st: State, change: TerraformMagic.TFStateChange): State = {
       change match {
         case TerraformMagic.DestroyStart(name, id) => {
-          st.mod_app(_.removedelete(name)).mod_inflight(_.adddelete(name)) // Take thing from app.destroy and add to inflight
+          st.mod_app(_.removedelete(name))
+            .mod_inflight(_.adddelete(name)) // Take thing from app.destroy and add to inflight
         }
         case TerraformMagic.DestroyComplete(name, duration) => {
           st.mod_inflight(_.removedelete(name))
@@ -568,12 +597,17 @@ object LogTUI {
           st.mod_app(_.removeread(name)).mod_inflight(_.addread(name)) // Take thing from app.read
         }
         case TerraformMagic.CreateStart(name) => {
-          val fulfilled_deps = deps.getOrElse(name, List.empty)
-          fulfilled_deps.foldl(st)((s, d) => st.mod_inflight(_.removeread(d)))
-              .mod_app(_.removecreate(name)).mod_inflight(_.addcreate(name)) // Take thing from app.create and add to inflight.create
+          st.mod_app(_.removecreate(name))
+            .mod_inflight(_.addcreate(name)) // Take thing from app.create and add to inflight.create
         } //check data dependency fulfillment + emit line
         case TerraformMagic.CreateComplete(name, duration, id) => {
           st.mod_inflight(_.removecreate(name)) // Take thing from inflight.create
+        }
+        case TerraformMagic.ReadStart(name) => {
+          st.mod_app(_.removeread(name)).mod_inflight(_.addread(name))
+        }
+        case TerraformMagic.ReadComplete(name, _) => {
+          st.mod_inflight(_.removeread(name))
         }
         case TerraformMagic.ApplyComplete() => {
           // Clear app and inflight (assert that app is empty?)
@@ -586,13 +620,14 @@ object LogTUI {
     def tfapplyp(opapp: Option[Apply])(st: State): IO[State] = {
       opapp match {
         case None => IO(st)
-        case Some(app) => for {
-          evt <- IO(applyq.headOption.map(_ => applyq.dequeueAll(_ => true).toList))
-          newstate <- IO(evt match {
-            case None => st
-            case Some(change_list) => change_list.reverse.foldl(st)(applyChange(app.deps))
-          })
-        } yield newstate
+        case Some(app) =>
+          for {
+            evt <- IO(applyq.headOption.map(_ => applyq.dequeueAll(_ => true).toList))
+            newstate <- IO(evt match {
+              case None              => st
+              case Some(change_list) => change_list.reverse.foldl(st)(applyChange(app.deps))
+            })
+          } yield newstate
       }
     }
 
@@ -606,8 +641,7 @@ object LogTUI {
      * @return tuple equivalent to clistate, with elements updated to reflect cursor movement and new lines
      *
      * */
-    def update_element(clistate: (Int, Int, State),
-                       element: (String, String)): IO[(Int, Int, State)] = {
+    def update_element(clistate: (Int, Int, State), element: (String, String)): IO[(Int, Int, State)] = {
       val cur_line = clistate._1
       val last_line = clistate._2
       val st = clistate._3
@@ -620,10 +654,11 @@ object LogTUI {
       for {
         _ <- CLIMagic.move(target_line - cur_line)
         _ <- CLIMagic.print(update)
-      } yield if (adding_new)
-        (target_line, last_line + 1, st.copy(linemap = st.linemap + (name -> target_line)))
-      else
-        (target_line, last_line, st)
+      } yield
+        if (adding_new)
+          (target_line, last_line + 1, st.copy(linemap = st.linemap + (name -> target_line)))
+        else
+          (target_line, last_line, st)
     }
 
     /**
@@ -656,10 +691,10 @@ object LogTUI {
     def terraformPlanStatements(tf: TerraformPlan, stage: PlanStage): List[(String, String)] = {
       (
         (for (c <- tf.create) yield (c, PrintElements.componentLine(c, CreateT(), stage))) |
-        (for (u <- tf.update) yield (u, PrintElements.componentLine(u, UpdateT(), stage))) |
-        (for (r <- tf.read) yield (r, PrintElements.componentLine(r, ReadT(), stage))) |
-        (for (d <- tf.delete) yield (d, PrintElements.componentLine(d, DeleteT(), stage))) |
-        (for (n <- tf.noop) yield (n, PrintElements.componentLine(n, NoopT(), stage)))
+          (for (u <- tf.update) yield (u, PrintElements.componentLine(u, UpdateT(), stage))) |
+          (for (r <- tf.read) yield (r, PrintElements.componentLine(r, ReadT(), stage))) |
+          (for (d <- tf.delete) yield (d, PrintElements.componentLine(d, DeleteT(), stage))) |
+          (for (n <- tf.noop) yield (n, PrintElements.componentLine(n, NoopT(), stage)))
       ).toList
     }
 
@@ -691,14 +726,13 @@ object LogTUI {
     def init_draw(st: State, plan: Apply): IO[State] = {
       val display_seq = (
         List(("1", PrintElements.displayBar), ("2", "")) ++
-        prestartStatements(st.prestart.getOrElse(Prestart())) ++
-        List(("3", ""), ("4", PrintElements.displayBar), ("5", ""))
-        )
+          prestartStatements(st.prestart.getOrElse(Prestart())) ++
+          List(("3", ""), ("4", PrintElements.displayBar), ("5", ""))
+      )
       val print_update = display_seq.foldLeftM((0, st.lineno, st))(((a, b) => update_element(a, b)))
       (CLIMagic.clearScreenSpace() *> CLIMagic.savePos() *>
-        print_update.map((tup : (Int, Int, State)) => (tup._3.copy(lineno = tup._2): State)))
+        print_update.map((tup: (Int, Int, State)) => (tup._3.copy(lineno = tup._2): State)))
     }
-
 
     /**
      * Draws to the screen the diff between the current state and the previous state.
@@ -711,42 +745,48 @@ object LogTUI {
     def draw(oldst: State, st: State): IO[State] = {
       val pres_needs_update = oldst.prestart != st.prestart
       val app_needs_update = (oldst.app, st.app) match {
-        case (None, None) => Set.empty[String]
-        case (None, Some(app)) => app.pending.all
-        case (Some(app), None) => app.pending.all
+        case (None, None)                 => Set.empty[String]
+        case (None, Some(app))            => app.pending.all
+        case (Some(app), None)            => app.pending.all
         case (Some(oldapp), Some(newapp)) => newapp.pending.diff(oldapp.pending).all
       }
       val ifl_needs_update = (oldst.inflight, st.inflight) match {
-        case (None, None) => Set.empty[String]
-        case (None, Some(ifl)) => ifl.all
-        case (Some(ifl), None) => ifl.all
+        case (None, None)                 => Set.empty[String]
+        case (None, Some(ifl))            => ifl.all
+        case (Some(ifl), None)            => ifl.all
         case (Some(oldifl), Some(newifl)) => newifl.diff(oldifl).all
       }
       val tf_needs_update = app_needs_update.union(ifl_needs_update)
       val q_needs_update = (oldst.quorum.keySet | st.quorum.keySet)
-          .filter(k => oldst.quorum.getOrElse(k, NoDNS(k)) != st.quorum.getOrElse(k, NoDNS(k)))
+        .filter(k => oldst.quorum.getOrElse(k, NoDNS(k)) != st.quorum.getOrElse(k, NoDNS(k)))
       val pres_update_lines = if (pres_needs_update) {
         prestartStatements(st.prestart.getOrElse(Prestart.empty))
-      } else {List.empty}
+      } else {
+        List.empty
+      }
 
       val tf_update_lines = if (tf_needs_update.nonEmpty) {
         val update_applying = oldst.app.map(app => app.pending.filter(tf_needs_update)).getOrElse(TerraformPlan.empty)
         val update_inflight = oldst.inflight.getOrElse(TerraformPlan.empty).filter(tf_needs_update)
         (
           terraformPlanStatements(update_applying, InflightS()) ++
-          terraformPlanStatements(update_inflight, IsDoneS())
+            terraformPlanStatements(update_inflight, IsDoneS())
         )
-      } else {List.empty}
+      } else {
+        List.empty
+      }
       val q_update_lines = if (q_needs_update.nonEmpty) {
         q_needs_update.map(k => quorumStatement(st.quorum.getOrElse(k, NoDNS(k))))
-      } else {List.empty}
+      } else {
+        List.empty
+      }
 
       val update_lines = pres_update_lines ++ tf_update_lines ++ q_update_lines
       val print_update = update_lines.foldLeftM((0, st.lineno, st))(((a, b) => update_element(a, b)))
       CLIMagic.loadPos() *>
-          print_update
-            .flatMap(update_ticker)
-            .map((tup : (Int, Int, State)) => (tup._3.copy(lineno = tup._2) : State))
+        print_update
+          .flatMap(update_ticker)
+          .map((tup: (Int, Int, State)) => (tup._3.copy(lineno = tup._2): State))
     }
 
     def beginIterPrint: IO[Unit] = {
@@ -771,9 +811,9 @@ object PrintElements {
   def prestartLine(name: String, state: PrestartState): String = {
     state match {
       case LogTUI.Printer.Systemdnotstarted => s"$name:\t@|bold Waiting for systemd start|@"
-      case LogTUI.Printer.Dnsnotresolving => s"$name:\t@|green Service started|@           "
-      case LogTUI.Printer.Done => s"$name:\t@|green Service started and DNS resolves|@     "
-      case LogTUI.Printer.Missing => s"$name:\t@|faint ...|@                                 "
+      case LogTUI.Printer.Dnsnotresolving   => s"$name:\t@|green Service started|@           "
+      case LogTUI.Printer.Done              => s"$name:\t@|green Service started and DNS resolves|@     "
+      case LogTUI.Printer.Missing           => s"$name:\t@|faint ...|@                                 "
     }
   }
 
@@ -782,28 +822,28 @@ object PrintElements {
     val verb = target match {
       case CreateT() => "Create"
       case UpdateT() => "Update"
-      case ReadT() => "Receive"
+      case ReadT()   => "Receive"
       case DeleteT() => "Delete"
-      case NoopT() => "Do nothing"
+      case NoopT()   => "Do nothing"
     }
     stage match {
-      case WaitingS() => s"@|bold ${verb} $name|@  ".padTo(50, '-') + " @|faint Waiting|@                 "
+      case WaitingS()  => s"@|bold ${verb} $name|@  ".padTo(50, '-') + " @|faint Waiting|@                 "
       case InflightS() => s"@|bold ${verb} $name|@  ".padTo(50, '-') + " @|bold In process...|@           "
-      case IsDoneS() => s"@|bold $verb $name|@  ".padTo(50, '-') + " @|green Successful|@                             "
+      case IsDoneS()   => s"@|bold $verb $name|@  ".padTo(50, '-') + " @|green Successful|@                             "
     }
   }
 
   def quorumLine(stage: DNSStage): String = {
     stage match {
 //      case NoDNS(name) => s"@|faint Not waiting for DNS for $name|@                      "
-      case WaitForDNS(name) => s"$name:".padTo(70, '-') +  " @|bold Waiting for DNS resolution|@              "
-      case ResolveDNS(name) => s"$name:".padTo(70, '-') +  " @|green DNS resolved successfully|@              "
-      case ErrorDNS(name) => s"$name:".padTo(70, '-') +  " @|yellow DNS lookup encountered errors|@           "
-      case EmptyDNS(name) => s"$name:".padTo(70, '-') +  " @|yellow DNS lookup resolved with empty results|@  "
+      case WaitForDNS(name) => s"$name:".padTo(70, '-') + " @|bold Waiting for DNS resolution|@              "
+      case ResolveDNS(name) => s"$name:".padTo(70, '-') + " @|green DNS resolved successfully|@              "
+      case ErrorDNS(name)   => s"$name:".padTo(70, '-') + " @|yellow DNS lookup encountered errors|@           "
+      case EmptyDNS(name)   => s"$name:".padTo(70, '-') + " @|yellow DNS lookup resolved with empty results|@  "
     }
   }
 
   def ticker(stage: Int): String = {
-    "."*(stage+1) + "        "
+    "." * (stage + 1) + "        "
   }
 }

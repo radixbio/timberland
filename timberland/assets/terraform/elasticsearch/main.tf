@@ -1,6 +1,6 @@
 resource "nomad_job" "elasticsearch" {
   count = var.enable ? 1 : 0
-  jobspec = templatefile("/opt/radix/timberland/terraform/elasticsearch/elastic_search.tmpl", {quorum_size = var.quorum_size, dev = var.dev, prefix = var.prefix, test = var.test})
+  jobspec = templatefile("/opt/radix/timberland/terraform/modules/elasticsearch/elastic_search.tmpl", {quorum_size = var.quorum_size, dev = var.dev, prefix = var.prefix, test = var.test})
 }
 
 data "consul_service_health" "es_health" {

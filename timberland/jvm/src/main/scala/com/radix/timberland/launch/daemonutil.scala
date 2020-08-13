@@ -26,7 +26,7 @@ import io.circe.parser.parse
 import io.circe.{DecodingFailure, Json}
 import org.http4s.Uri
 import org.http4s.client.Client
-import os.{ProcessOutput, proc}
+import os.{proc, ProcessOutput}
 
 import scala.io.{Source, StdIn}
 
@@ -45,39 +45,39 @@ package object daemonutil {
    */
   val flagServiceMap = Map(
     "zookeeper" -> Vector(
-      "zookeeper-daemons-zookeeper-zookeeper",
+      "zookeeper-daemons-zookeeper-zookeeper"
     ),
     "minio" -> Vector(
       "minio-job-minio-group-minio-local",
-      "minio-job-minio-group-nginx-minio",
+      "minio-job-minio-group-nginx-minio"
     ),
     "apprise" -> Vector(
-      "apprise-apprise-apprise",
+      "apprise-apprise-apprise"
     ),
     "kafka_companions" -> Vector(
       "kc-daemons-companions-kSQL",
       "kc-daemons-companions-connect",
       "kc-daemons-companions-rest-proxy",
-      "kc-daemons-companions-schema-registry",
+      "kc-daemons-companions-schema-registry"
     ),
     "kafka" -> Vector(
-      "kafka-daemons-kafka-kafka",
+      "kafka-daemons-kafka-kafka"
     ),
     "yugabyte" -> Vector(
       "yugabyte-yugabyte-ybmaster",
-      "yugabyte-yugabyte-ybtserver",
+      "yugabyte-yugabyte-ybtserver"
     ),
     "elasticsearch" -> Vector(
       "elasticsearch-es-es-generic-node",
-      "elasticsearch-kibana-kibana",
+      "elasticsearch-kibana-kibana"
     ),
     "retool" -> Vector(
       "retool-retool-postgres",
-      "retool-retool-retool-main",
+      "retool-retool-retool-main"
     ),
     "elemental" -> Vector(
-      "elemental-machines-em-em",
-    ),
+      "elemental-machines-em-em"
+    )
   )
 
   def checkNomadState(implicit interp: Http4sNomadClient[IO]): IO[NomadReadRaftConfigurationResponse] = {
@@ -89,7 +89,11 @@ package object daemonutil {
   def handleRegistryAuth(options: Map[String, Option[String]], addrs: ServiceAddrs): IO[Unit] = {
     for {
       _ <- IO(LogTUI.writeLog("Reg auth handler invoked!"))
-      success <- containerRegistryLogin(options.getOrElse("ID", None), options.getOrElse("TOKEN", None), options.getOrElse("URL", Some("registry.gitlab.com")).get)
+      success <- containerRegistryLogin(
+        options.getOrElse("ID", None),
+        options.getOrElse("TOKEN", None),
+        options.getOrElse("URL", Some("registry.gitlab.com")).get
+      )
       _ <- if (success != 0) IO(scribe.warn("Container registry login was not successful!")) else IO(Unit)
     } yield ()
   }
@@ -100,13 +104,15 @@ package object daemonutil {
     (user, token) match {
       case (None, _) => scribe.warn("No user/id provided for container registry, not logging in"); IO(-1)
       case (_, None) => scribe.warn("No password/token provided for container registry, not logging in"); IO(-1)
-      case (Some(user), Some(token)) => IO {
-        os.proc(Seq("docker", "login", regAddress, "-u", user, "-p", token))
-          .call(
-            stdout = os.ProcessOutput(LogTUI.writeLogFromStream),
-            stderr = os.ProcessOutput(LogTUI.writeLogFromStream))
-          .exitCode
-      }
+      case (Some(user), Some(token)) =>
+        IO {
+          os.proc(Seq("docker", "login", regAddress, "-u", user, "-p", token))
+            .call(
+              stdout = os.ProcessOutput(LogTUI.writeLogFromStream),
+              stderr = os.ProcessOutput(LogTUI.writeLogFromStream)
+            )
+            .exitCode
+        }
     }
   }
 
@@ -137,14 +143,18 @@ package object daemonutil {
       case Some(str) => {
         val file = "/opt/radix/timberland/git-branch-workspace-status.txt"
         val writer = new FileWriter(file)
-        try writer.write(str) finally writer.close()
+        try writer.write(str)
+        finally writer.close()
       }
       case None => ()
     }
   }
 
-
-  def readTerraformPlan(execDir: String, workingDir: os.Path, variables: String): IO[(TerraformMagic.TerraformPlan, Map[String, List[String]])] = {
+  def readTerraformPlan(
+    execDir: String,
+    workingDir: os.Path,
+    variables: String
+  ): IO[(TerraformMagic.TerraformPlan, Map[String, List[String]])] = {
     IO {
       val F = File.createTempFile("radix", ".plan")
       val planCommand = Seq("bash", "-c", s"$execDir/terraform plan $variables -out=$F")
@@ -152,7 +162,7 @@ package object daemonutil {
       val planout = proc(planCommand).call(cwd = workingDir)
       val planshow = proc(showCommand).call(cwd = workingDir)
       parse(new String(planshow.out.bytes)) match {
-        case Left(value) => IO.raiseError(value)
+        case Left(value)  => IO.raiseError(value)
         case Right(value) => IO.pure(value)
       }
     }.flatten
@@ -180,74 +190,99 @@ package object daemonutil {
           modules <- Right(x.hcursor.downField("configuration").keys.get.filterNot(_ == "provider_config"))
           dependencies <- modules
             .flatMap(m => {
-              for {submod <- x.hcursor.downField("configuration").downField(m).downField("module_calls").keys.getOrElse(List.empty)}
-                yield (
-                  x.hcursor
-                    .downField("configuration")
-                    //be generic about modules
-                    .downField(m)
-                    .downField("module_calls")
-                    .downField(submod)
-                    .downField("module")
-                    .downField("resources")
-                    .as[Array[Json]]
-                    .flatMap(_.map(resource =>
+              for {
+                submod <- x.hcursor
+                  .downField("configuration")
+                  .downField(m)
+                  .downField("module_calls")
+                  .keys
+                  .getOrElse(List.empty)
+              } yield (
+                x.hcursor
+                  .downField("configuration")
+                  //be generic about modules
+                  .downField(m)
+                  .downField("module_calls")
+                  .downField(submod)
+                  .downField("module")
+                  .downField("resources")
+                  .as[Array[Json]]
+                  .flatMap(
+                    _.map(resource =>
                       for {
                         addr <- resource.hcursor.get[String]("address")
                         deps <- resource.hcursor.getOrElse("depends_on")(List.empty[String])
-                      } yield (addr, deps)).toList.sequence[Err, (String, List[String])])
+                      } yield (addr, deps)
+                    ).toList.sequence[Err, (String, List[String])]
                   )
+                )
             })
             .toList
             .sequence[Err, List[(String, List[String])]]
             //WARN: Intellij syntax hightlighting and typing gets funky here. It works though!
             // hand over only the relavant keys
-            .map(_.flatten.toMap
-              .filterKeys(withoutindex.toSet.contains)
-              .mapValues(_.filter(withoutindex.toSet.contains))): Either[DecodingFailure, Map[String, List[String]]]
+            .map(_.flatten.toMap): Either[DecodingFailure, Map[String, List[String]]]
+//              .filterKeys(withoutindex.toSet.contains) // TODO Disabling this for now as it filtered out everything.  Fix?
+//              .mapValues(_.filter(withoutindex.toSet.contains))): Either[DecodingFailure, Map[String, List[String]]]
         } yield {
-          (addresses.zip(actions).flatMap(x => x._2.map(y => (y, x._1))).groupBy(_._1).mapValues(_.map(_._2)), dependencies)
+          (
+            addresses.zip(actions).flatMap(x => x._2.map(y => (y, x._1))).groupBy(_._1).mapValues(_.map(_._2)),
+            dependencies
+          )
         }
 
         prog match {
           case Left(err) => IO.raiseError(err)
-          case Right(v) => IO.pure(v)
+          case Right(v)  => IO.pure(v)
         }
       })
       //      .map(_.toMap)
-      .map({ case (plan, deps) => {
-        (TerraformMagic.TerraformPlan(
-          plan.getOrElse("create", List.empty).toSet,
-          plan.getOrElse("read", List.empty).toSet,
-          plan.getOrElse("update", List.empty).toSet,
-          plan.getOrElse("delete", List.empty).toSet,
-          plan.getOrElse("no-op", List.empty).toSet
-        ), deps)
-      }
+      .map({
+        case (plan, deps) => {
+          (
+            TerraformMagic.TerraformPlan(
+              plan.getOrElse("create", List.empty).toSet,
+              plan.getOrElse("read", List.empty).toSet,
+              plan.getOrElse("update", List.empty).toSet,
+              plan.getOrElse("delete", List.empty).toSet,
+              plan.getOrElse("no-op", List.empty).toSet
+            ),
+            deps
+          )
+        }
       })
   }
-
 
   def getTerraformWorkDir(is_integration: Boolean): os.Path = {
     if (is_integration) os.root / "tmp" / "radix" / "terraform" else os.root / "opt" / "radix" / "terraform"
   }
 
   def getPrefix(integration: Boolean): String = {
-    val rawPrefix = if (integration) "integration" else {
-      sys.env.get("NOMAD_PREFIX") match {
-        case Some(prefix) => prefix
-        case None => {
-          val bufferedSource = Source.fromFile("/opt/radix/timberland/git-branch-workspace-status.txt")
-          val result = bufferedSource.getLines().mkString
-          bufferedSource.close()
-          if (result.length > 0) result else ""
+    val prefixPath = "/opt/radix/timberland/git-branch-workspace-status.txt"
+    val rawPrefix: String =
+      if (integration) "integration"
+      else {
+        sys.env.get("NOMAD_PREFIX") match {
+          case Some(prefix) => prefix
+          case None => {
+            new java.io.File(prefixPath).isFile match {
+              case true => {
+                val bufferedSource = Source.fromFile(prefixPath)
+                val result = bufferedSource.getLines().mkString
+                bufferedSource.close()
+                if (result.length > 0) result else ""
+              }
+              case false => ""
+            }
+          }
         }
       }
-    }
 
-    val cutPrefix = if (rawPrefix.length > 0) rawPrefix.substring(0, Math.min(rawPrefix.length, 25)) + "-" else rawPrefix
+    val cutPrefix =
+      if (rawPrefix.length > 0) rawPrefix.substring(0, Math.min(rawPrefix.length, 25)) + "-" else rawPrefix
 
-    if (cutPrefix.matches("[a-zA-Z\\d-]*")) cutPrefix else {
+    if (cutPrefix.matches("[a-zA-Z\\d-]*")) cutPrefix
+    else {
       cutPrefix.replaceAll("_", "-").replaceAll("[^a-zA-Z\\d-]", "")
     }
   }
@@ -263,10 +298,10 @@ package object daemonutil {
    * @return Returns an IO of DaemonState and since the function is blocking/recursive, the only return value is
    *         AllDaemonsStarted
    */
-  def runTerraform(featureFlags: Map[String, Boolean],
-                   integrationTest: Boolean = false,
-                   prefix: Option[String] = None
-                  )(implicit serviceAddrs: ServiceAddrs = ServiceAddrs(), tokens: AuthTokens): IO[Int] = {
+  def runTerraform(featureFlags: Map[String, Boolean], integrationTest: Boolean = false, prefix: Option[String] = None)(
+    implicit serviceAddrs: ServiceAddrs = ServiceAddrs(),
+    tokens: AuthTokens
+  ): IO[Int] = {
     val workingDir = getTerraformWorkDir(integrationTest)
     val mkTmpDirCommand = Seq("bash", "-c", "rm -rf /tmp/radix && mkdir -p /tmp/radix/terraform")
 
@@ -287,9 +322,8 @@ package object daemonutil {
       mkDirExitCode <- IO(Process(mkTmpDirCommand) !)
     } yield mkDirExitCode
 
-    val show: IO[(TerraformMagic.TerraformPlan, Map[String, List[String]])] = readTerraformPlan(execDir,
-      workingDir,
-      variables)
+    val show: IO[(TerraformMagic.TerraformPlan, Map[String, List[String]])] =
+      readTerraformPlan(execDir, workingDir, variables)
 
     val apply = for {
       flagConfig <- flagConfig.updateFlagConfig(featureFlags)
@@ -297,11 +331,15 @@ package object daemonutil {
       definedVarsStr = s"""-var='defined_config_vars=["${flagConfig.definedVars.mkString("""","""")}"]'"""
       configStr = s"$configEntriesStr $definedVarsStr "
       applyCommand = Seq("bash", "-c", s"$execDir/terraform apply -no-color -auto-approve " + variables + configStr)
-      applyExitCode <- IO(os.proc(applyCommand).call(
-        cwd = workingDir,
-        stdout = os.ProcessOutput(LogTUI.tfapply),
-        stderr = os.ProcessOutput(LogTUI.stdErrs("terraform-apply"))
-      ).exitCode)
+      applyExitCode <- IO(
+        os.proc(applyCommand)
+          .call(
+            cwd = workingDir,
+            stdout = os.ProcessOutput(LogTUI.tfapply),
+            stderr = os.ProcessOutput(LogTUI.stdErrs("terraform-apply"))
+          )
+          .exitCode
+      )
     } yield applyExitCode
 
     if (integrationTest)
@@ -318,29 +356,41 @@ package object daemonutil {
    * @param serviceAddrs       Contains addresses for consul and nomad
    * @return Nothing
    */
-  def initTerraform(integrationTest: Boolean, backendMasterToken: Option[String])
-                   (implicit serviceAddrs: ServiceAddrs = ServiceAddrs()): IO[Unit] = {
-    val backendVars = if (backendMasterToken.isDefined) Seq(
-      s"-backend-config=address=${serviceAddrs.consulAddr}:8500",
-      s"-backend-config=access_token=${backendMasterToken.get}",
-      s"-var='acl_token=${backendMasterToken.get}'"
-    ) else Seq.empty
+  def initTerraform(integrationTest: Boolean, backendMasterToken: Option[String])(
+    implicit serviceAddrs: ServiceAddrs = ServiceAddrs()
+  ): IO[Unit] = {
+    val backendVars =
+      if (backendMasterToken.isDefined)
+        Seq(
+          s"-backend-config=address=${serviceAddrs.consulAddr}:8500",
+          s"-backend-config=access_token=${backendMasterToken.get}",
+          s"-var='acl_token=${backendMasterToken.get}'"
+        )
+      else Seq.empty
     val initAgainCommand = Seq(
-      s"$execDir/terraform", "init",
-      "-plugin-dir", s"$execDir/plugins",
+      s"$execDir/terraform",
+      "init",
+      "-plugin-dir",
+      s"$execDir/plugins",
       s"-backend=${backendMasterToken.isDefined}"
     ) ++ backendVars
-    val initFirstCommand = initAgainCommand ++ Seq("-from-module", s"$execDir/main")
+
+    val initFirstCommand = initAgainCommand ++ Seq("-from-module", s"$execDir/modules")
+
     val workingDir = getTerraformWorkDir(integrationTest)
 
     for {
       alreadyInitialized <- IO(os.list(workingDir).nonEmpty)
       initCommand = if (alreadyInitialized) initAgainCommand else initFirstCommand
-      _ <- IO(os.proc(initCommand).call(
-        cwd = workingDir,
-        stdout = ProcessOutput(LogTUI.init),
-        stderr = ProcessOutput(LogTUI.stdErrs("terraform-init")),
-        check = false))
+      _ <- IO(
+        os.proc(initCommand)
+          .call(
+            cwd = workingDir,
+            stdout = ProcessOutput(LogTUI.init),
+            stderr = ProcessOutput(LogTUI.stdErrs("terraform-init")),
+            check = false
+          )
+      )
     } yield ()
   }
 
@@ -359,9 +409,10 @@ package object daemonutil {
     val prefix = getPrefix(integrationTest)
 
     val enabledServices = featureFlags.toList.flatMap {
-      case (feature, enabled) => if (enabled) {
-        flagServiceMap.getOrElse(feature, Vector()).map(name => prefix + name)
-      } else Vector()
+      case (feature, enabled) =>
+        if (enabled) {
+          flagServiceMap.getOrElse(feature, Vector()).map(name => prefix + name)
+        } else Vector()
     }
 
     enabledServices.parTraverse { service =>
@@ -378,14 +429,15 @@ package object daemonutil {
   def waitForDNS(dnsName: String, timeoutDuration: FiniteDuration): IO[Boolean] = {
     val dnsQuery = new DNS.Lookup(dnsName, DNS.Type.SRV, DNS.DClass.IN)
 
-    def queryProg(): IO[Boolean] = for {
-      _ <- IO(LogTUI.writeLog(s"checking: ${dnsName}"))
-      dnsAnswers <- IO(Option(dnsQuery.run.toSeq).getOrElse(Seq.empty))
-      result <- if (dnsQuery.getResult != DNS.Lookup.SUCCESSFUL || dnsAnswers.isEmpty)
-        IO.sleep(1.seconds) *> queryProg
-      else
-        LogTUI.dns(ResolveDNS(dnsName)) *> IO.pure(true)
-    } yield result
+    def queryProg(): IO[Boolean] =
+      for {
+        _ <- IO(LogTUI.writeLog(s"checking: ${dnsName}"))
+        dnsAnswers <- IO(Option(dnsQuery.run.toSeq).getOrElse(Seq.empty))
+        result <- if (dnsQuery.getResult != DNS.Lookup.SUCCESSFUL || dnsAnswers.isEmpty)
+          IO.sleep(1.seconds) *> queryProg
+        else
+          LogTUI.dns(ResolveDNS(dnsName)) *> IO.pure(true)
+      } yield result
 
     LogTUI.dns(WaitForDNS(dnsName)) *> timeoutTo(queryProg, timeoutDuration, IO.pure(false))
   }
@@ -408,13 +460,13 @@ package object daemonutil {
   }
 
   def waitForPortUp(port: Int, timeoutDuration: FiniteDuration): IO[Boolean] = {
-    def queryProg(): IO[Boolean] = for {
-      portUp <- isPortUp(port)
-      _ <- if (!portUp) {
-        IO.sleep(1.second) *> queryProg
-      }
-      else IO(portUp)
-    } yield portUp
+    def queryProg(): IO[Boolean] =
+      for {
+        portUp <- isPortUp(port)
+        _ <- if (!portUp) {
+          IO.sleep(1.second) *> queryProg
+        } else IO(portUp)
+      } yield portUp
 
     timeout(queryProg, timeoutDuration)
   }
@@ -450,11 +502,13 @@ package object daemonutil {
    * @tparam A The type of our result
    * @return Returns the result of fa if it completes within @after or returns fallback (all IO[A])
    */
-  def timeoutTo[A](fa: IO[A], after: FiniteDuration, fallback: IO[A])(implicit timer: Timer[IO],
-                                                                      cs: ContextShift[IO]): IO[A] = {
+  def timeoutTo[A](fa: IO[A], after: FiniteDuration, fallback: IO[A])(
+    implicit timer: Timer[IO],
+    cs: ContextShift[IO]
+  ): IO[A] = {
 
     IO.race(fa, timer.sleep(after)).flatMap {
-      case Left(a) => IO.pure(a)
+      case Left(a)  => IO.pure(a)
       case Right(_) => fallback
     }
   }

@@ -17,14 +17,19 @@ object consulutil {
   private[this] implicit val timer: Timer[IO] = IO.timer(global)
   private[this] implicit val cs: ContextShift[IO] = IO.contextShift(global)
 
-  def waitForService(serviceName: String, tags: Set[String], quorum: Int, fail: Boolean = false, statuses: NonEmptyList[HealthStatus] = NonEmptyList.of(HealthStatus.Passing))(
-      implicit poll_interval: FiniteDuration = 1.second,
-      timer: Timer[IO])
-    : IO[List[CatalogListNodesForServiceResponse]] = {
+  def waitForService(
+    serviceName: String,
+    tags: Set[String],
+    quorum: Int,
+    fail: Boolean = false,
+    statuses: NonEmptyList[HealthStatus] = NonEmptyList.of(HealthStatus.Passing)
+  )(
+    implicit poll_interval: FiniteDuration = 1.second,
+    timer: Timer[IO]
+  ): IO[List[CatalogListNodesForServiceResponse]] = {
     BlazeClientBuilder[IO](global).resource.use(client => {
       val interpreter =
-        new Http4sConsulClient[IO](uri("http://consul.service.consul:8500"),
-                                   client)
+        new Http4sConsulClient[IO](uri("http://consul.service.consul:8500"), client)
       for {
         _ <- IO(scribe.debug(s"checking for services that match $serviceName"))
         servicespossiblyempty <- helm
@@ -34,39 +39,38 @@ object consulutil {
         matchedNodes <- {
           val srvs = for {
             existingServices <- OptionT.pure[IO](services)
-            serviceswithTags <- OptionT.pure[IO](existingServices
-              .map(_.toList.filter(srv =>
-                tags.map(tag => srv.serviceTags.contains(tag)).reduce(_ && _)))
-              .flatMap(NonEmptyList.fromList))
+            serviceswithTags <- OptionT.pure[IO](
+              existingServices
+                .map(_.toList.filter(srv => tags.map(tag => srv.serviceTags.contains(tag)).reduce(_ && _)))
+                .flatMap(NonEmptyList.fromList)
+            )
             _ <- OptionT.liftF(IO {
-              scribe.debug(
-                s"found nodes that matched tags $tags, $serviceswithTags")
+              scribe.debug(s"found nodes that matched tags $tags, $serviceswithTags")
             })
             matched <- for {
-                    healthQuery <- OptionT.pure[IO](serviceswithTags.map(_.map(resp => {
-                      ConsulOp
-                        .healthListChecksForService(resp.serviceName,
-                          Some(resp.datacenter),
-                          None,
-                          None,
-                          None,
-                          None)
-                    }).sequence))
-                    matched <- OptionT
-                      .fromOption[IO](healthQuery.map(helm.run(interpreter, _)))
-                      .flatMap(OptionT.liftF(_))
-                      .map(
-                        x =>
-                          x.toList
-                            .zip(serviceswithTags.map(_.toList))
-                            .filter(_._1.value
-                              .map({ service => statuses.toList.contains(service.status)})
-                              //                            .map(_.status == HealthStatus.Passing)
-                              .reduce(_ && _)))
-                      .map(_.flatMap(_._2))
-                      .map(NonEmptyList.fromList)
-                      .flatMap(OptionT.fromOption[IO](_))
-                  } yield matched
+              healthQuery <- OptionT.pure[IO](serviceswithTags.map(_.map(resp => {
+                ConsulOp
+                  .healthListChecksForService(resp.serviceName, Some(resp.datacenter), None, None, None, None)
+              }).sequence))
+              matched <- OptionT
+                .fromOption[IO](healthQuery.map(helm.run(interpreter, _)))
+                .flatMap(OptionT.liftF(_))
+                .map(x =>
+                  x.toList
+                    .zip(serviceswithTags.map(_.toList))
+                    .filter(
+                      _._1.value
+                        .map({ service =>
+                          statuses.toList.contains(service.status)
+                        })
+                        //                            .map(_.status == HealthStatus.Passing)
+                        .reduce(_ && _)
+                    )
+                )
+                .map(_.flatMap(_._2))
+                .map(NonEmptyList.fromList)
+                .flatMap(OptionT.fromOption[IO](_))
+            } yield matched
           } yield matched
           srvs.value
         }
@@ -78,53 +82,47 @@ object consulutil {
                 IO.pure(List())
               } else {
                 IO {
-                  scribe.debug(
-                    s"quorum size of $quorum not found, ${nel.size} out of $quorum so far.")
-                } *> IO.sleep(poll_interval) *> waitForService(serviceName,
-                  tags,
-                  quorum, fail, statuses)
+                  scribe.debug(s"quorum size of $quorum not found, ${nel.size} out of $quorum so far.")
+                } *> IO.sleep(poll_interval) *> waitForService(serviceName, tags, quorum, fail, statuses)
               }
             } else IO.pure(nel.toList)
           case None =>
-            if(fail) {
+            if (fail) {
               IO.pure(List())
             } else {
               IO {
                 scribe.debug(s"no nodes for $serviceName with tags $tags found")
-              } *> IO.sleep(poll_interval) *> waitForService(serviceName,
-                tags,
-                quorum, fail, statuses)
+              } *> IO.sleep(poll_interval) *> waitForService(serviceName, tags, quorum, fail, statuses)
             }
         }
       } yield quorumDecision
     })
   }
   val getZKs: OptionT[IO, String] = {
-      OptionT.liftF(waitForService("zookeeper-daemons-zookeeper-zookeeper", Set("zookeeper-client", "zookeeper-quorum"), 3)
-        .map(nel => nel.map(sr => s"${sr.serviceAddress}:${sr.servicePort}").mkString_(",")))
+    OptionT.liftF(
+      waitForService("zookeeper-daemons-zookeeper-zookeeper", Set("zookeeper-client", "zookeeper-quorum"), 3)
+        .map(nel => nel.map(sr => s"${sr.serviceAddress}:${sr.servicePort}").mkString_(","))
+    )
   }
-  def getDomain(
-      implicit service: String,
-      tags: List[String],
-      client: Client[IO]): OptionT[IO, Int] = //TODO: Generalize this code
+  def getDomain(implicit service: String, tags: List[String], client: Client[IO]): OptionT[IO, Int] = //TODO: Generalize this code
     // There's an extra comma due to templating
     OptionT({
       val interpreter =
-        new Http4sConsulClient[IO](uri("http://consul.service.consul:8500"),
-                                   client)
+        new Http4sConsulClient[IO](uri("http://consul.service.consul:8500"), client)
       for {
-        services <- helm.run(interpreter,
-                             ConsulOp.catalogListNodesForService(service))
+        services <- helm.run(interpreter, ConsulOp.catalogListNodesForService(service))
         runningTasks = services
-          .filter(
-            srv =>
-              srv.serviceTags.contains(tags(2)) && srv.serviceTags
-                .contains(tags(1)) && srv.serviceName.contains(tags(0)))
+          .filter(srv =>
+            srv.serviceTags.contains(tags(2)) && srv.serviceTags
+              .contains(tags(1)) && srv.serviceName.contains(tags(0))
+          )
           .map(zk => s"${zk.serviceAddress}:${zk.servicePort}")
         _ <- IO(scribe.debug(s"${service}: $runningTasks"))
         res <- if (runningTasks.size > 0) {
           IO.pure(Some(runningTasks.size))
-        } else { IO.pure(None) }
+        } else {
+          IO.pure(None)
+        }
       } yield res
     })
 

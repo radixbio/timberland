@@ -27,11 +27,12 @@ object auth {
   implicit val timer: Timer[IO] = IO.timer(ExecutionContext.global)
   implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.Implicits.global)
 
-  def getAuthTokens(isRemote: Boolean,
-                    serviceAddrs: ServiceAddrs,
-                    usernameOption: Option[String],
-                    passwordOption: Option[String]
-                   ): IO[AuthTokens] = {
+  def getAuthTokens(
+    isRemote: Boolean,
+    serviceAddrs: ServiceAddrs,
+    usernameOption: Option[String],
+    passwordOption: Option[String]
+  ): IO[AuthTokens] = {
     if (isRemote) {
       for {
         username <- IO(usernameOption.getOrElse(System.console.readLine("Vault username>")))
@@ -75,10 +76,11 @@ object auth {
 
   private def getConsulTokenFromVault(vault: Vault[IO]): IO[String] =
     vault.getSecret("consul-ui-token").map {
-      case Right(KVGetResult(_, data)) => data.hcursor.get[String]("token").toOption.getOrElse {
-        Console.err.println("Error parsing consul/nomad token from vault secret")
-        sys.exit(1)
-      }
+      case Right(KVGetResult(_, data)) =>
+        data.hcursor.get[String]("token").toOption.getOrElse {
+          Console.err.println("Error parsing consul/nomad token from vault secret")
+          sys.exit(1)
+        }
       case Left(err) =>
         Console.err.println("Error getting consul/nomad token from vault\n" + err)
         sys.exit(1)
@@ -209,10 +211,12 @@ object auth {
     val request = GET(uri"http://127.0.0.1:8500/v1/agent/self", Header("X-Consul-Token", consulToken))
     def queryConsul: IO[Unit] = {
       BlazeClientBuilder[IO](global).resource
-        .use { client => client.status(request).attempt }
+        .use { client =>
+          client.status(request).attempt
+        }
         .flatMap {
           case Right(Status(200)) => IO.unit
-          case thing@_ => IO.sleep(1 second) *> queryConsul
+          case thing @ _          => IO.sleep(1 second) *> queryConsul
         }
     }
 

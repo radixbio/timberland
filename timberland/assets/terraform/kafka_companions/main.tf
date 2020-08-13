@@ -1,6 +1,6 @@
 resource "nomad_job" "kafka_companions" {
   count = var.enable ? 1 : 0
-  jobspec = templatefile("/opt/radix/timberland/terraform/kafka_companions/kafka_companions.tmpl", {prefix = var.prefix, test = var.test, dev = var.dev, quorum_size = var.quorum_size, interbroker_port = var.interbroker_port, kafka_address = var.kafka_address})
+  jobspec = templatefile("/opt/radix/timberland/terraform/modules/kafka_companions/kafka_companions.tmpl", {prefix = var.prefix, test = var.test, dev = var.dev, quorum_size = var.quorum_size, interbroker_port = var.interbroker_port, kafka_address = var.kafka_address})
 }
 
 data "consul_service_health" "schema_registry_health" {

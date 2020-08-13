@@ -11,6 +11,7 @@ import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.timberland.runtime._
 import com.radix.timberland.util.{LogTUI, LogTUIWriter, VaultStarter, VaultUtils}
 import com.radix.utils.helm.http4s.vault.Vault
+import com.radix.timberland.util.{UpdateModules, VaultStarter}
 import io.circe.{Parser => _}
 import optparse_applicative._
 import optparse_applicative.types.Parser
@@ -30,21 +31,28 @@ sealed trait Runtime extends RadixCMD
 sealed trait Local extends Runtime
 
 case class Start(
-                  dummy: Boolean = false,
-                  loglevel: scribe.Level = scribe.Level.Debug,
-                  bindIP: Option[String] = None,
-                  consulSeeds: Option[String] = None,
-                  remoteAddress: Option[String] = None,
-                  prefix: Option[String] = None,
-                  username: Option[String] = None,
-                  password: Option[String] = None,
-                ) extends Local
+  dummy: Boolean = false,
+  loglevel: scribe.Level = scribe.Level.Debug,
+  bindIP: Option[String] = None,
+  consulSeeds: Option[String] = None,
+  remoteAddress: Option[String] = None,
+  prefix: Option[String] = None,
+  username: Option[String] = None,
+  password: Option[String] = None
+) extends Local
 
 case object Stop extends Local
 
 case object Nuke extends Local
 
 case object StartNomad extends Local
+
+case class Update(
+  remoteAddress: Option[String] = None,
+  prefix: Option[String] = None,
+  username: Option[String] = None,
+  password: Option[String] = None
+) extends Local
 
 sealed trait DNS extends Runtime
 
@@ -53,12 +61,12 @@ case class DNSUp(service: Option[String], bindIP: Option[String]) extends DNS
 case class DNSDown(service: Option[String], bindIP: Option[String]) extends DNS
 
 case class FlagSet(
-                    flags: List[String],
-                    enable: Boolean,
-                    remoteAddress: Option[String],
-                    username: Option[String],
-                    password: Option[String]
-                  ) extends Runtime
+  flags: List[String],
+  enable: Boolean,
+  remoteAddress: Option[String],
+  username: Option[String],
+  password: Option[String]
+) extends Runtime
 
 case class FlagQuery(remoteAddress: Option[String], username: Option[String], password: Option[String]) extends Runtime
 
@@ -98,56 +106,56 @@ object runner {
                     debug match {
                       case Some("debug") => exist.copy(loglevel = scribe.Level.Debug)
                       case Some("error") => exist.copy(loglevel = scribe.Level.Error)
-                      case Some("info") => exist.copy(loglevel = scribe.Level.Info)
+                      case Some("info")  => exist.copy(loglevel = scribe.Level.Info)
                       case Some("trace") => exist.copy(loglevel = scribe.Level.Trace)
-                      case Some(flag) => throw new IllegalArgumentException(s"$flag isn't a valid loglevel")
-                      case None => exist
+                      case Some(flag)    => throw new IllegalArgumentException(s"$flag isn't a valid loglevel")
+                      case None          => exist
                     }
-                }) <*> optional(strOption(long("force-bind-ip"),
-                help("force services to use the specified subnet and IP (in form \"192.168.1.5\")")))
-                .map(subnet => { exist: Start =>
+                }) <*> optional(
+                strOption(
+                  long("force-bind-ip"),
+                  help("force services to use the specified subnet and IP (in form \"192.168.1.5\")")
+                )
+              ).map(subnet => {
+                exist: Start =>
                   subnet match {
-                    case str@Some(_) => exist.copy(bindIP = str)
-                    case None => exist
+                    case str @ Some(_) => exist.copy(bindIP = str)
+                    case None          => exist
                   }
-                }) <*> optional(
-                strOption(long("consul-seeds"),
-                  help("comma separated list of seed nodes for consul (maps to retry_join in consul.json)")))
-                .map(seeds => {
-                  exist: Start =>
-                    seeds match {
-                      case list@Some(_) => exist.copy(consulSeeds = list)
-                      case None => exist
-                    }
-                }) <*> optional(
-                strOption(long("remote-address"),
-                  help("remote consul address")))
-                .map(ra => { exist: Start =>
-                  exist.copy(remoteAddress = ra)
-                }) <*> optional(
-                strOption(long("prefix"),
-                  help("Nomad job prefix")))
-                .map(prefix => { exist: Start =>
+              }) <*> optional(
+                strOption(
+                  long("consul-seeds"),
+                  help("comma separated list of seed nodes for consul (maps to retry_join in consul.json)")
+                )
+              ).map(seeds => {
+                exist: Start =>
+                  seeds match {
+                    case list @ Some(_) => exist.copy(consulSeeds = list)
+                    case None           => exist
+                  }
+              }) <*> optional(strOption(long("remote-address"), help("remote consul address")))
+                .map(ra => { exist: Start => exist.copy(remoteAddress = ra) }) <*> optional(
+                strOption(long("prefix"), help("Nomad job prefix"))
+              ).map(prefix => {
+                exist: Start =>
                   prefix match {
                     case Some(_) => exist.copy(prefix = prefix)
-                    case None => exist
+                    case None    => exist
                   }
-                }) <*> optional(
-                strOption(long("username"),
-                  help("timberland username")))
-                .map(username => { exist: Start =>
-                  username match {
-                    case Some(_) => exist.copy(username = username)
-                    case None => exist
-                  }
-                }) <*> optional(
-                strOption(long("password"),
-                  help("timberland password")))
-                .map(password => { exist: Start =>
-                  password match {
-                    case Some(_) => exist.copy(password = password)
-                    case None => exist
-                  }
+              }) <*> optional(strOption(long("username"), help("timberland username")))
+                .map(username => {
+                  exist: Start =>
+                    username match {
+                      case Some(_) => exist.copy(username = username)
+                      case None    => exist
+                    }
+                }) <*> optional(strOption(long("password"), help("timberland password")))
+                .map(password => {
+                  exist: Start =>
+                    password match {
+                      case Some(_) => exist.copy(password = password)
+                      case None    => exist
+                    }
                 }),
               progDesc("start the radix core services on the current system")
             )
@@ -157,56 +165,117 @@ object runner {
           command("start_nomad", info(pure(StartNomad), progDesc("start a nomad job"))),
           command(
             "dns",
-            info(subparser[DNS](
-              command("up",
-                info(^(optional(strOption(long("service"))), optional(strOption(long("force-bind-ip"))))(DNSUp),
-                  progDesc("inject consul into dns resolution"))),
-              command(
-                "down",
-                info(^(optional(strOption(long("service"))), optional(strOption(long("force-bind-ip"))))(DNSDown),
-                  progDesc("deinject consul from dns resolution"))
-              ),
-            ).weaken[Runtime])
+            info(
+              subparser[DNS](
+                command(
+                  "up",
+                  info(
+                    ^(optional(strOption(long("service"))), optional(strOption(long("force-bind-ip"))))(DNSUp),
+                    progDesc("inject consul into dns resolution")
+                  )
+                ),
+                command(
+                  "down",
+                  info(
+                    ^(optional(strOption(long("service"))), optional(strOption(long("force-bind-ip"))))(DNSDown),
+                    progDesc("deinject consul from dns resolution")
+                  )
+                )
+              ).weaken[Runtime]
+            )
           ),
-          command("add_user", info(^(
-            strArgument(metavar("NAME")),
-            many(strArgument(metavar("[POLICIES...]")))
-          )(AddUser))),
-          command("enable", info(^^^(
-            many(strArgument(metavar("FLAGS"))),
-            optional(strOption(long("remote-address"), help("remote consul address"))),
-            optional(strOption(long("username"), help("timberland username"))),
-            optional(strOption(long("password"), help("timberland password")))
-          )(FlagSet(_, true, _, _, _)), progDesc("enable feature flags"))),
-          command("disable", info(^^^(
-            many(strArgument(metavar("FLAGS"))),
-            optional(strOption(long("remote-address"), help("remote consul address"))),
-            optional(strOption(long("username"), help("timberland username"))),
-            optional(strOption(long("password"), help("timberland password")))
-          )(FlagSet(_, false, _, _, _)), progDesc("disable feature flags"))),
-          command("query", info(^^(
-            optional(strOption(long("remote-address"), help("remote consul address"))),
-            optional(strOption(long("username"), help("timberland username"))),
-            optional(strOption(long("password"), help("timberland password")))
-          )(FlagQuery), progDesc("query current state of feature flags"))),
+          command(
+            "add_user",
+            info(
+              ^(
+                strArgument(metavar("NAME")),
+                many(strArgument(metavar("[POLICIES...]")))
+              )(AddUser)
+            )
+          ),
+          command(
+            "enable",
+            info(
+              ^^^(
+                many(strArgument(metavar("FLAGS"))),
+                optional(strOption(long("remote-address"), help("remote consul address"))),
+                optional(strOption(long("username"), help("timberland username"))),
+                optional(strOption(long("password"), help("timberland password")))
+              )(FlagSet(_, true, _, _, _)),
+              progDesc("enable feature flags")
+            )
+          ),
+          command(
+            "disable",
+            info(
+              ^^^(
+                many(strArgument(metavar("FLAGS"))),
+                optional(strOption(long("remote-address"), help("remote consul address"))),
+                optional(strOption(long("username"), help("timberland username"))),
+                optional(strOption(long("password"), help("timberland password")))
+              )(FlagSet(_, false, _, _, _)),
+              progDesc("disable feature flags")
+            )
+          ),
+          command(
+            "query",
+            info(
+              ^^(
+                optional(strOption(long("remote-address"), help("remote consul address"))),
+                optional(strOption(long("username"), help("timberland username"))),
+                optional(strOption(long("password"), help("timberland password")))
+              )(FlagQuery),
+              progDesc("query current state of feature flags")
+            )
+          ),
+          command(
+            "update",
+            info(
+              pure(Update()) <*> optional(strOption(long("remote-address"), help("remote consul address")))
+                .map(ra => { exist: Update => exist.copy(remoteAddress = ra) }) <*> optional(
+                strOption(long("prefix"), help("Nomad job prefix"))
+              ).map(prefix => {
+                exist: Update =>
+                  prefix match {
+                    case Some(_) => exist.copy(prefix = prefix)
+                    case None    => exist.copy(prefix = Some(daemonutil.getPrefix(false)))
+                  }
+              }) <*> optional(strOption(long("username"), help("timberland username")))
+                .map(username => {
+                  exist: Update =>
+                    username match {
+                      case Some(_) => exist.copy(username = username)
+                      case None    => exist
+                    }
+                }) <*> optional(strOption(long("password"), help("timberland password")))
+                .map(password => {
+                  exist: Update =>
+                    password match {
+                      case Some(_) => exist.copy(password = password)
+                      case None    => exist
+                    }
+                })
+            )
+          )
         ),
         progDesc("radix runtime component")
       )
     )
   ) <*> helper
 
-
   val oauth = subparser[Oauth](
-    command("oauth", info(subparser[Oauth](command("google-sheets", info(pure(GoogleSheets),
-      progDesc("set up a google sheets token")))))
-    ))
+    command(
+      "oauth",
+      info(
+        subparser[Oauth](command("google-sheets", info(pure(GoogleSheets), progDesc("set up a google sheets token"))))
+      )
+    )
+  )
 
   val res: Parser[RadixCMD] = runtime.weaken[RadixCMD] <|> oauth.weaken[RadixCMD]
 
   val opts =
-    info(res <*> helper,
-      progDesc("Welcome to Timberland"),
-      header(""))
+    info(res <*> helper, progDesc("Welcome to Timberland"), header(""))
 
   var sudopw: Option[String] = None
 
@@ -226,23 +295,23 @@ object runner {
 
   def main(args: Array[String]): Unit = {
     val osname = System.getProperty("os.name") match {
-      case mac if mac.toLowerCase.contains("mac") => "darwin"
+      case mac if mac.toLowerCase.contains("mac")       => "darwin"
       case linux if linux.toLowerCase.contains("linux") => "linux"
     }
     val arch = System.getProperty("os.arch") match {
       case x86 if x86.toLowerCase.contains("amd64") || x86.toLowerCase.contains("x86") => "amd64"
-      case _ => "arm"
+      case _                                                                           => "arm"
     }
 
     val persistentDirStr = "/opt/radix/timberland/" // TODO make configurable
     implicit val persistentDirPath = Path(persistentDirStr)
 
     val systemdDir = "/opt/radix/systemd/"
-    val appdatadir = new File(persistentDirStr )
+    val appdatadir = new File(persistentDirStr)
     val consul = new File(persistentDirStr + "/consul/consul")
-    val nomad = new File(persistentDirStr  + "/nomad/nomad")
-    val vault = new File(persistentDirStr  + "/vault/vault")
-    val nginx = new File(persistentDirStr  + "/nginx/")
+    val nomad = new File(persistentDirStr + "/nomad/nomad")
+    val vault = new File(persistentDirStr + "/vault/vault")
+    val nginx = new File(persistentDirStr + "/nginx/")
     nginx.mkdirs
     val minio = new File("/opt/radix/minio_data/")
     minio.mkdirs
@@ -259,7 +328,7 @@ object runner {
             case local: Local =>
               local match {
                 case Nuke => Right(Unit)
-                case cmd@Start(dummy, loglevel, bindIP, consulSeedsO, remoteAddress, prefix, username, password) => {
+                case cmd @ Start(dummy, loglevel, bindIP, consulSeedsO, remoteAddress, prefix, username, password) => {
                   scribe.Logger.root
                     .clearHandlers()
                     .clearModifiers()
@@ -273,22 +342,39 @@ object runner {
                   if (dummy) {
                     implicit val host = new Mock.RuntimeNolaunch[IO]
                     Right(
-                      println(Run
-                        .initializeRuntimeProg[IO](Path(consul.toPath.getParent), Path(nomad.toPath.getParent), bindIP, consulSeedsO, 0)
-                        .unsafeRunSync)
+                      println(
+                        Run
+                          .initializeRuntimeProg[IO](
+                            Path(consul.toPath.getParent),
+                            Path(nomad.toPath.getParent),
+                            bindIP,
+                            consulSeedsO,
+                            0
+                          )
+                          .unsafeRunSync
+                      )
                     )
                     System.exit(0)
                   } else {
                     val createWeaveNetwork = for {
                       _ <- IO(scribe.info("Creating weave network"))
                       _ <- IO(os.proc("/usr/bin/sudo /sbin/sysctl -w vm.max_map_count=262144".split(' ')).spawn())
-                      pluginList <- IO(os.proc("/usr/bin/docker plugin ls".split(' ')).call(cwd = os.root, check = false))
+                      pluginList <- IO(
+                        os.proc("/usr/bin/docker plugin ls".split(' ')).call(cwd = os.root, check = false)
+                      )
                       _ <- pluginList.out.string.contains("weaveworks/net-plugin:2.6.0") match {
                         case true => {
-                          IO(os.proc("/usr/bin/docker network create --driver=weaveworks/net-plugin:2.6.0 --attachable weave  --ip-range 10.32.0.0/12 --subnet 10.32.0.0/12".split(' ')).call(cwd = os.root, stdout = os.Inherit, check = false))
+                          IO(
+                            os.proc(
+                                "/usr/bin/docker network create --driver=weaveworks/net-plugin:2.6.0 --attachable weave  --ip-range 10.32.0.0/12 --subnet 10.32.0.0/12"
+                                  .split(' ')
+                              )
+                              .call(cwd = os.root, stdout = os.Inherit, check = false)
+                          )
                           IO.pure(scribe.info("Weave network exists or was created"))
                         }
-                        case false => IO.pure(scribe.info("Weave plugin not installed. Skipping creation of weave network."))
+                        case false =>
+                          IO.pure(scribe.info("Weave plugin not installed. Skipping creation of weave network."))
                       }
                     } yield ()
 
@@ -301,24 +387,30 @@ object runner {
                       consulPath = Path(consul.toPath.getParent)
                       nomadPath = Path(nomad.toPath.getParent)
                       bootstrapExpect = if (localFlags.getOrElse("dev", true)) 1 else 3
-                      tokens <- Run.initializeRuntimeProg[IO](consulPath, nomadPath, bindIP, consulSeedsO, bootstrapExpect)
+                      tokens <- Run
+                        .initializeRuntimeProg[IO](consulPath, nomadPath, bindIP, consulSeedsO, bootstrapExpect)
                       _ <- daemonutil.waitForDNS("vault.service.consul", 10.seconds)
                     } yield tokens
 
-                    def startLogTuiAndRunTerraform(featureFlags: Map[String, Boolean],
-                                                   serviceAddrs: ServiceAddrs,
-                                                   authTokens: AuthTokens,
-                                                   waitForQuorum: Boolean) =
+                    def startLogTuiAndRunTerraform(
+                      featureFlags: Map[String, Boolean],
+                      serviceAddrs: ServiceAddrs,
+                      authTokens: AuthTokens,
+                      waitForQuorum: Boolean
+                    ) =
                       for {
                         _ <- if (featureFlags.getOrElse("tui", true)) LogTUI.startTUI() else IO.unit
                         _ <- IO(LogTUI.writeLog(s"using flags: $featureFlags"))
-                        tfStatus <- daemonutil.runTerraform(featureFlags, prefix=prefix)(serviceAddrs, authTokens)
-                        _ <- IO { tfStatus match {
-                          case 0 => true
-                          case code => {
-                            LogTUI.writeLog("runTerraform failed, exiting")}
+                        tfStatus <- daemonutil.runTerraform(featureFlags, prefix = prefix)(serviceAddrs, authTokens)
+                        _ <- IO {
+                          tfStatus match {
+                            case 0 => true
+                            case code => {
+                              LogTUI.writeLog("runTerraform failed, exiting")
+                            }
                             sys.exit(code)
-                        }}
+                          }
+                        }
                         _ <- if (waitForQuorum) daemonutil.waitForQuorum(featureFlags) else IO.unit
                       } yield ()
 
@@ -332,7 +424,9 @@ object runner {
                         // daemonutil.containerRegistryLogin(containerRegistryUser, containerRegistryToken) *>
                         flagConfig.promptForDefaultConfigs *> createWeaveNetwork *> startServices
                       }
-                      featureFlags <- featureFlags.updateFlags(persistentDirPath, Some(authTokens), confirm = true)(serviceAddrs)
+                      featureFlags <- featureFlags.updateFlags(persistentDirPath, Some(authTokens), confirm = true)(
+                        serviceAddrs
+                      )
                       _ <- startLogTuiAndRunTerraform(featureFlags, serviceAddrs, authTokens, waitForQuorum = true)
                     } yield ()
 
@@ -358,6 +452,31 @@ object runner {
                     IO(scribe.info("Stopped."))).unsafeRunSync
                   sys.exit(0)
                 }
+                case cmd @ Update(remoteAddress, prefix, username, password) => {
+
+                  System.setProperty("dns.server", remoteAddress.getOrElse("127.0.0.1"))
+
+                  val consulExistsProc = for {
+                    serviceAddrs <- if (remoteAddress.isDefined) daemonutil.getServiceIps() else IO.pure(ServiceAddrs())
+                    authTokens <- auth.getAuthTokens(
+                      isRemote = remoteAddress.isDefined,
+                      serviceAddrs,
+                      username,
+                      password
+                    )
+                    flagMap <- featureFlags.updateFlags(persistentDirPath, Some(authTokens))(serviceAddrs)
+                    _ <- daemonutil.runTerraform(flagMap)(serviceAddrs, authTokens) // calls updateFlagConfig
+                    _ <- if (remoteAddress.isEmpty) daemonutil.waitForQuorum(flagMap) else IO.unit
+                  } yield true
+
+                  daemonutil
+                    .isPortUp(8500)
+                    .flatMap {
+                      case true  => UpdateModules.run(consulExistsProc, prefix = prefix)
+                      case false => IO.unit
+                    }
+                    .unsafeRunSync()
+                }
                 case StartNomad => Right(Unit)
               }
             case dns: DNS => {
@@ -367,7 +486,7 @@ object runner {
                 .withHandler(minimumLevel = Some(scribe.Level.Debug))
                 .replace()
               val dns_set = dns match {
-                case DNSUp(service, bindIP) => launch.dns.up()
+                case DNSUp(service, bindIP)   => launch.dns.up()
                 case DNSDown(service, bindIP) => launch.dns.down()
               }
               dns_set.unsafeRunSync()
@@ -380,7 +499,12 @@ object runner {
               val consulExistsProc = for {
                 serviceAddrs <- if (remoteAddress.isDefined) daemonutil.getServiceIps() else IO.pure(ServiceAddrs())
                 authTokens <- auth.getAuthTokens(isRemote = remoteAddress.isDefined, serviceAddrs, username, password)
-                flagMap <- featureFlags.updateFlags(persistentDirPath, Some(authTokens), flagsToSet, confirm = remoteAddress.isDefined)(serviceAddrs)
+                flagMap <- featureFlags.updateFlags(
+                  persistentDirPath,
+                  Some(authTokens),
+                  flagsToSet,
+                  confirm = remoteAddress.isDefined
+                )(serviceAddrs)
                 _ <- daemonutil.runTerraform(flagMap)(serviceAddrs, authTokens) // calls updateFlagConfig
                 _ <- if (remoteAddress.isEmpty) daemonutil.waitForQuorum(flagMap) else IO.unit
               } yield ()
@@ -391,10 +515,12 @@ object runner {
                 _ <- IO(scribe.warn("Could not connect to remote consul instance. Flags stored locally."))
               } yield ()
 
-              IO(os.exists(persistentDirPath / ".bootstrap-complete")).flatMap {
-                case true => consulExistsProc
-                case false => noConsulProc
-              }.unsafeRunSync()
+              IO(os.exists(persistentDirPath / ".bootstrap-complete"))
+                .flatMap {
+                  case true  => consulExistsProc
+                  case false => noConsulProc
+                }
+                .unsafeRunSync()
 
             case FlagQuery(remoteAddress, username, password) =>
               System.setProperty("dns.server", remoteAddress.getOrElse("127.0.0.1"))
@@ -417,19 +543,21 @@ object runner {
               val policiesWithDefault = if (policies.nonEmpty) policies else List("remote-access")
               val vaultToken = (new VaultUtils).findVaultToken()
               implicit val contextShift: ContextShift[IO] = IO.contextShift(global)
-              BlazeClientBuilder[IO](global).resource.use { client =>
-                val vault = new Vault[IO](Some(vaultToken), uri"http://127.0.0.1:8200", client)
-                for {
-                  password <- IO(System.console.readPassword("Password> ").mkString)
-                  _ <- vault.enableAuthMethod("userpass")
-                  res <- vault.createUser(name, password, policiesWithDefault)
-                } yield res match {
-                  case Right(_) => ()
-                  case Left(err) =>
-                    println(err)
-                    sys.exit(1)
+              BlazeClientBuilder[IO](global).resource
+                .use { client =>
+                  val vault = new Vault[IO](Some(vaultToken), uri"http://127.0.0.1:8200", client)
+                  for {
+                    password <- IO(System.console.readPassword("Password> ").mkString)
+                    _ <- vault.enableAuthMethod("userpass")
+                    res <- vault.createUser(name, password, policiesWithDefault)
+                  } yield res match {
+                    case Right(_) => ()
+                    case Left(err) =>
+                      println(err)
+                      sys.exit(1)
+                  }
                 }
-              }.unsafeRunSync()
+                .unsafeRunSync()
           }
         case oauth: Oauth =>
           oauth match {

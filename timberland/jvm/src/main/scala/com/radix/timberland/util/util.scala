@@ -10,7 +10,6 @@ import cats.implicits._
 import java.io.{File, FileInputStream, FileOutputStream, IOException}
 import java.net.{InetAddress, NetworkInterface, ServerSocket}
 
-
 object Util {
   def putStrLn(str: String): IO[Unit] = IO(scribe.info(str))
 
@@ -29,12 +28,12 @@ object Util {
       _ <- IO {
         scribe.trace(s"copying ${from.toPath.toAbsolutePath.toString} to ${to.toPath.toAbsolutePath.toString}")
       }
-      fis    <- IO { new FileInputStream(from) }
-      fos    <- IO { new FileOutputStream(to) }
+      fis <- IO { new FileInputStream(from) }
+      fos <- IO { new FileOutputStream(to) }
       xfered <- IO { fos.getChannel.transferFrom(fis.getChannel, 0, Long.MaxValue) }
-      _      <- IO { fos.flush() }
-      _      <- IO { fos.close() }
-      _      <- IO { fis.close() }
+      _ <- IO { fos.flush() }
+      _ <- IO { fos.close() }
+      _ <- IO { fis.close() }
       _ <- IO {
         scribe.trace(s"xfered $xfered ${from.toPath.toAbsolutePath.toString} to ${to.toPath.toAbsolutePath.toString}")
       }
@@ -60,16 +59,17 @@ object Util {
       sudopw.get // TODO(lily) this should never fail; can I guarantee that statically?
     }
     final case class RootShell(proc: os.SubProcess) {
-      def read(file: os.Path): IO[String]                = IO(os.read(file))
+      def read(file: os.Path): IO[String] = IO(os.read(file))
       def overwrite(in: String, file: os.Path): IO[Unit] = exec(s"/bin/echo '$in' > '$file'") *> exec("/bin/sync")
       def append(in: String, file: os.Path): IO[Unit] = exec(s"/bin/echo '$in' >> '$file'") *> exec("/bin/sync")
-      def move(from: os.Path, to: os.Path): IO[Unit]     = exec(s"/bin/mv $from $to") *> exec("/bin/sync")
-      def remove(path: os.Path): IO[Unit]                = exec(s"/bin/rm $path") *> exec("/bin/sync")
-      def copy(from: os.Path, to: os.Path): IO[Unit]     = exec(s"/bin/cp $from $to") *> exec("/bin/sync")
-      def exec(in: String): IO[Unit]                     = IO{
-        scribe.debug(s"root shell is executing $in")
-        proc.stdin.writeLine(in)
-      } *> IO.sleep(1.second)
+      def move(from: os.Path, to: os.Path): IO[Unit] = exec(s"/bin/mv $from $to") *> exec("/bin/sync")
+      def remove(path: os.Path): IO[Unit] = exec(s"/bin/rm $path") *> exec("/bin/sync")
+      def copy(from: os.Path, to: os.Path): IO[Unit] = exec(s"/bin/cp $from $to") *> exec("/bin/sync")
+      def exec(in: String): IO[Unit] =
+        IO {
+          scribe.debug(s"root shell is executing $in")
+          proc.stdin.writeLine(in)
+        } *> IO.sleep(1.second)
     }
     private def aquire: IO[RootShell] =
       IO({
@@ -77,7 +77,7 @@ object Util {
         try {
           os.proc(Seq("/usr/bin/sudo", "-Sp", "", "su")).call(stdin = s"${sudopw.get}\n")
         } catch {
-          case exn : os.SubprocessException => ()
+          case exn: os.SubprocessException => ()
         }
         RootShell(os.proc(Seq("/usr/bin/sudo", "-Sp", "", "su")).spawn())
       })

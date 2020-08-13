@@ -1,11 +1,9 @@
-load("//:tools/define_scala_targets_with_fmt_phase.bzl", "scala_library", "scala_binary")
-
-
 load("@rules_pkg//:pkg.bzl", "pkg_deb", "pkg_tar")
 load("@io_bazel_rules_docker//docker/util:run.bzl", "container_run_and_commit", "container_run_and_extract")
 load("@io_bazel_rules_docker//container:container.bzl", "container_image", "container_layer", "container_load", "container_push")
-load("//:tools/pkg_rpm_with_branch.bzl", "pkg_rpm_with_branch")
-load("//:tools/write_git_branch_to_file.bzl", "write_git_branch_to_file")
+load("//tools:pkg_rpm_with_branch.bzl", "pkg_rpm_with_branch")
+load("//tools:terraform.bzl", "dynamic_rpm_spec", "terraform_deployment", "terraform_module", "terraform_provider")
+load("//tools:write_git_branch_to_file.bzl", "write_git_branch_to_file")
 
 package(
     default_visibility = ["//timberland:__subpackages__"],
@@ -37,7 +35,7 @@ scala_library(
     ],
 )
 
-#TODO collapse the namespace, so "core_srcs" aren't from launch/, runtime/, util/...
+#TODO @sibblegp make this go away
 #it's shared dependencies that timberland the commandline tool
 #has with the in-container process
 timberland_core_srcs = [
@@ -51,6 +49,7 @@ timberland_core_srcs = [
     "src/main/scala/com/radix/timberland/runtime/install.scala",
     "src/main/scala/com/radix/timberland/runtime/services.scala",
     "src/main/scala/com/radix/timberland/util/VaultStarter.scala",
+    "src/main/scala/com/radix/timberland/util/LogTUI.scala",
 ]
 
 timberland_launcher_srcs = [
@@ -62,7 +61,7 @@ timberland_launcher_srcs = [
 
 scala_library(
     name = "timberland-core-lib",
-    srcs = timberland_core_srcs + ["src/main/scala/com/radix/timberland/util/LogTUI.scala"],
+    srcs = timberland_core_srcs,
     resources = glob([
         "src/main/resources/application.conf",
     ]),
@@ -71,6 +70,39 @@ scala_library(
     deps = [
         ":timberland-dependencies",
     ],
+)
+
+scala_library(
+    name = "timberland-update-lib",
+    srcs = ["src/main/scala/com/radix/timberland/util/UpdateModules.scala"],
+    exports = [
+        ":timberland-core-lib",
+        ":timberland-dependencies",
+        ":timberland-launcher-lib",
+        "@third_party//3rdparty/jvm/io/circe:circe_core",
+        "@third_party//3rdparty/jvm/io/circe:circe_derivation",
+        "@third_party//3rdparty/jvm/io/circe:circe_generic_extras",
+        "@third_party//3rdparty/jvm/io/circe:circe_literal",
+        "@third_party//3rdparty/jvm/org/apache/commons:commons_compress",
+        "@third_party//3rdparty/jvm/org/http4s:http4s_core",
+    ],
+    deps = [
+        ":timberland-core-lib",
+        ":timberland-dependencies",
+        ":timberland-launcher-lib",
+        "@third_party//3rdparty/jvm/io/circe:circe_core",
+        "@third_party//3rdparty/jvm/io/circe:circe_derivation",
+        "@third_party//3rdparty/jvm/io/circe:circe_generic_extras",
+        "@third_party//3rdparty/jvm/io/circe:circe_literal",
+        "@third_party//3rdparty/jvm/org/apache/commons:commons_compress",
+        "@third_party//3rdparty/jvm/org/http4s:http4s_core",
+    ],
+)
+
+scala_binary(
+    name = "timberland-update-test",
+    main_class = "com.radix.timberland.util.Test",  # TODO for testing only, remove
+    deps = [":timberland-update-lib"],
 )
 
 scala_library(
@@ -97,6 +129,7 @@ scala_library(
     ],
     deps = [
         ":timberland-core-lib",
+        ":timberland-update-lib",
         "//utils/helm:helm-jvm",
         "//utils/sheets/jvm/src/main/scala/com/radix/util/sheets:sheets-interps",  #TODO remove this
     ],
@@ -110,7 +143,6 @@ scala_library(
     ],
     deps = [
         ":timberland-core-lib",
-        ":timberland-lib",
     ],
 )
 
@@ -153,6 +185,22 @@ pkg_tar(
 )
 
 pkg_tar(
+    name = "timberland-vault",
+    srcs = [
+        "//timberland/assets:systemd/vault.env.conf",
+        "//timberland/assets:vault/nomad-cluster-role.json",
+        "//timberland/assets:vault/nomad-server-policy.hcl",
+        "//timberland/assets:vault/read-consul-ui-policy.hcl",
+        "//timberland/assets:vault/read-flag-config-policy.hcl",
+        "//timberland/assets:vault/remote-access-policy.hcl",
+        "//timberland/assets:vault/vault_config.conf",
+        "@vault",
+        "@vault-plugin-secrets-oauthapp",
+    ],
+    package_dir = "/opt/radix/timberland/vault",
+)
+
+pkg_tar(
     name = "timberland-exec",
     srcs = [
         "wrappers/timberland",
@@ -187,203 +235,6 @@ pkg_tar(
         "@nomad",
     ],
     package_dir = "/opt/radix/timberland/nomad",
-)
-
-pkg_tar(
-    name = "timberland-vault",
-    srcs = [
-        "//timberland/assets:systemd/vault.env.conf",
-        "//timberland/assets:vault/nomad-cluster-role.json",
-        "//timberland/assets:vault/nomad-server-policy.hcl",
-        "//timberland/assets:vault/read-consul-ui-policy.hcl",
-        "//timberland/assets:vault/read-flag-config-policy.hcl",
-        "//timberland/assets:vault/remote-access-policy.hcl",
-        "//timberland/assets:vault/vault_config.conf",
-        "@vault",
-        "@vault-plugin-secrets-oauthapp",
-    ],
-    package_dir = "/opt/radix/timberland/vault",
-)
-
-pkg_tar(
-    name = "timberland-terraform",
-    srcs = [
-        "@terraform",
-    ],
-    package_dir = "/opt/radix/timberland/terraform",
-)
-
-pkg_tar(
-    name = "timberland-terraform-plugins",
-    srcs = [
-        "@terraform-provider-consul//:terraform-provider-consul_v2.7.0_x4",
-        "@terraform-provider-nomad//:terraform-provider-nomad_v1.4.8_x4",
-        "@terraform-provider-vault//:terraform-provider-vault_v2.11.0_x4",
-    ],
-    package_dir = "/opt/radix/timberland/terraform/plugins",
-)
-
-pkg_tar(
-    name = "timberland-terraform-main-module",
-    srcs = [
-        "//timberland/assets:terraform/main/main.tf",
-        "//timberland/assets:terraform/main/variables.tf",
-    ],
-    package_dir = "/opt/radix/timberland/terraform/main",
-)
-
-pkg_tar(
-    name = "timberland-terraform-apprise-module",
-    srcs = [
-        "//timberland/assets:terraform/apprise/apprise.tmpl",
-        "//timberland/assets:terraform/apprise/main.tf",
-        "//timberland/assets:terraform/apprise/outputs.tf",
-        "//timberland/assets:terraform/apprise/variables.tf",
-    ],
-    package_dir = "/opt/radix/timberland/terraform/apprise",
-)
-
-pkg_tar(
-    name = "timberland-terraform-runtime-module",
-    srcs = [
-        "//timberland/assets:terraform/runtime/main.tf",
-        "//timberland/assets:terraform/runtime/outputs.tf",
-        "//timberland/assets:terraform/runtime/runtime.tmpl",
-        "//timberland/assets:terraform/runtime/variables.tf",
-    ],
-    package_dir = "/opt/radix/timberland/terraform/runtime",
-)
-
-pkg_tar(
-    name = "timberland-terraform-s3lts-module",
-    srcs = [
-        "//timberland/assets:terraform/s3lts/main.tf",
-        "//timberland/assets:terraform/s3lts/outputs.tf",
-        "//timberland/assets:terraform/s3lts/s3lts.tmpl",
-        "//timberland/assets:terraform/s3lts/variables.tf",
-    ],
-    package_dir = "/opt/radix/timberland/terraform/s3lts",
-)
-
-pkg_tar(
-    name = "timberland-terraform-zookeeper-module",
-    srcs = [
-        "//timberland/assets:terraform/zookeeper/main.tf",
-        "//timberland/assets:terraform/zookeeper/outputs.tf",
-        "//timberland/assets:terraform/zookeeper/variables.tf",
-        "//timberland/assets:terraform/zookeeper/zookeeper.tmpl",
-    ],
-    package_dir = "/opt/radix/timberland/terraform/zookeeper",
-)
-
-pkg_tar(
-    name = "timberland-terraform-kafka-module",
-    srcs = [
-        "//timberland/assets:terraform/kafka/kafka.tmpl",
-        "//timberland/assets:terraform/kafka/main.tf",
-        "//timberland/assets:terraform/kafka/outputs.tf",
-        "//timberland/assets:terraform/kafka/variables.tf",
-    ],
-    package_dir = "/opt/radix/timberland/terraform/kafka",
-)
-
-pkg_tar(
-    name = "timberland-terraform-kafka-companions-module",
-    srcs = [
-        "//timberland/assets:terraform/kafka_companions/kafka_companions.tmpl",
-        "//timberland/assets:terraform/kafka_companions/main.tf",
-        "//timberland/assets:terraform/kafka_companions/outputs.tf",
-        "//timberland/assets:terraform/kafka_companions/variables.tf",
-    ],
-    package_dir = "/opt/radix/timberland/terraform/kafka_companions",
-)
-
-pkg_tar(
-    name = "timberland-terraform-retool-module",
-    srcs = [
-        "//timberland/assets:terraform/retool/main.tf",
-        "//timberland/assets:terraform/retool/outputs.tf",
-        "//timberland/assets:terraform/retool/retool.tmpl",
-        "//timberland/assets:terraform/retool/variables.tf",
-    ],
-    package_dir = "/opt/radix/timberland/terraform/retool",
-)
-
-pkg_tar(
-    name = "timberland-terraform-elemental-module",
-    srcs = [
-        "//timberland/assets:terraform/elemental/elemental.tmpl",
-        "//timberland/assets:terraform/elemental/main.tf",
-        "//timberland/assets:terraform/elemental/outputs.tf",
-        "//timberland/assets:terraform/elemental/variables.tf",
-    ],
-    package_dir = "/opt/radix/timberland/terraform/elemental",
-)
-
-pkg_tar(
-    name = "timberland-terraform-elasticsearch-module",
-    srcs = [
-        "//timberland/assets:terraform/elasticsearch/elastic_search.tmpl",
-        "//timberland/assets:terraform/elasticsearch/main.tf",
-        "//timberland/assets:terraform/elasticsearch/outputs.tf",
-        "//timberland/assets:terraform/elasticsearch/variables.tf",
-    ],
-    package_dir = "/opt/radix/timberland/terraform/elasticsearch",
-)
-
-pkg_tar(
-    name = "timberland-terraform-minio-module",
-    srcs = [
-        "//timberland/assets:terraform/minio/main.tf",
-        "//timberland/assets:terraform/minio/minio.tmpl",
-        "//timberland/assets:terraform/minio/outputs.tf",
-        "//timberland/assets:terraform/minio/variables.tf",
-    ],
-    package_dir = "/opt/radix/timberland/terraform/minio",
-)
-
-pkg_tar(
-    name = "timberland-terraform-yugabyte-module",
-    srcs = [
-        "//timberland/assets:terraform/yugabyte/main.tf",
-        "//timberland/assets:terraform/yugabyte/outputs.tf",
-        "//timberland/assets:terraform/yugabyte/variables.tf",
-        "//timberland/assets:terraform/yugabyte/yugabyte.tmpl",
-    ],
-    package_dir = "/opt/radix/timberland/terraform/yugabyte",
-)
-
-pkg_tar(
-    name = "timberland-terraform-es-kafka-connector-module",
-    srcs = [
-        "//timberland/assets:terraform/es_kafka_connector/es_kafka_connector.tmpl",
-        "//timberland/assets:terraform/es_kafka_connector/main.tf",
-        "//timberland/assets:terraform/es_kafka_connector/outputs.tf",
-        "//timberland/assets:terraform/es_kafka_connector/variables.tf",
-    ],
-    package_dir = "/opt/radix/timberland/terraform/es_kafka_connector",
-)
-
-pkg_tar(
-    name = "timberland-terraform-retool-pg-kafka-connector-module",
-    srcs = [
-        "//timberland/assets:terraform/retool_pg_kafka_connector/main.tf",
-        "//timberland/assets:terraform/retool_pg_kafka_connector/outputs.tf",
-        "//timberland/assets:terraform/retool_pg_kafka_connector/retool_pg_kafka_connector.tmpl",
-        "//timberland/assets:terraform/retool_pg_kafka_connector/variables.tf",
-    ],
-    package_dir = "/opt/radix/timberland/terraform/retool_pg_kafka_connector",
-)
-
-pkg_tar(
-    name = "timberland-terraform-yugabyte-kafka-connector-module",
-    srcs = [
-        "//timberland/assets:terraform/yugabyte_kafka_connector/main.tf",
-        "//timberland/assets:terraform/yugabyte_kafka_connector/outputs.tf",
-        "//timberland/assets:terraform/yugabyte_kafka_connector/variables.tf",
-        "//timberland/assets:terraform/yugabyte_kafka_connector/yugabyte_kafka_connector.tmpl",
-    ],
-    package_dir = "/opt/radix/timberland/terraform/yugabyte_kafka_connector",
 )
 
 pkg_tar(
@@ -452,6 +303,8 @@ pkg_tar(
     name = "timberland-full-tar",
     deps = [
         ":git-branch-file",
+        ":terraform-full-deploy",
+        ":terraform-update-config",
         ":timberland-consul",
         ":timberland-consul-config",
         ":timberland-devdrivers",
@@ -462,23 +315,6 @@ pkg_tar(
         ":timberland-nomad-config-elasticsearch",
         ":timberland-nomad-config-zookeeper",
         ":timberland-systemd-services",
-        ":timberland-terraform",
-        ":timberland-terraform-apprise-module",
-        ":timberland-terraform-elasticsearch-module",
-        ":timberland-terraform-elemental-module",
-        ":timberland-terraform-es-kafka-connector-module",
-        ":timberland-terraform-kafka-companions-module",
-        ":timberland-terraform-kafka-module",
-        ":timberland-terraform-main-module",
-        ":timberland-terraform-minio-module",
-        ":timberland-terraform-plugins",
-        ":timberland-terraform-retool-module",
-        ":timberland-terraform-retool-pg-kafka-connector-module",
-        ":timberland-terraform-runtime-module",
-        ":timberland-terraform-s3lts-module",
-        ":timberland-terraform-yugabyte-kafka-connector-module",
-        ":timberland-terraform-yugabyte-module",
-        ":timberland-terraform-zookeeper-module",
         ":timberland-vault",
     ],
 )
@@ -497,9 +333,14 @@ pkg_deb(
     maintainer = "Alex Hulbert",
     package = "radix-timberland",
     postinst = "//timberland/assets:debian/postinst.sh",
-    postrm = "//timberland/assets:debian/postrm.sh",
     prerm = "//timberland/assets:debian/prerm.sh",
     version = "0.1",
+)
+
+dynamic_rpm_spec(
+    name = "rpm_custom_spec",
+    base_spec = "//timberland/assets:redhat/rpm.spec",
+    tar_archive = ":timberland-full-tar",
 )
 
 pkg_rpm_with_branch(
@@ -507,7 +348,7 @@ pkg_rpm_with_branch(
     architecture = "amd64",
     data = [":timberland-full-tar"],
     release = "1",
-    spec_file = "//timberland/assets:redhat/rpm.spec",
+    spec_file = ":rpm_custom_spec",
 )
 
 sh_binary(
@@ -569,4 +410,303 @@ scala_test(
     #giving both caching and exclusivity
     #this tag should also be added for the normal bazel test to ignore
     deps = [":synthetic-integration-lib"],
+)
+
+pkg_tar(
+    name = "terraform-update-config",
+    srcs = [
+        "//timberland/assets:update/cloud_upload_config.sh",
+    ],
+    package_dir = "/opt/radix/timberland/terraform",
+)
+
+terraform_module(
+    name = "apprise-terraform",
+    file_dir = "//timberland/assets:terraform/apprise",
+    jobname = "apprise",
+    module_spec = [
+        'enable = contains(var.feature_flags, "apprise")',
+        'source = "/opt/radix/timberland/terraform/modules/apprise"',
+        "test = var.test",
+        "prefix = var.prefix",
+    ],
+)
+
+terraform_module(
+    name = "elasticsearch-terraform",
+    file_dir = "//timberland/assets:terraform/elasticsearch",
+    jobname = "elasticsearch",
+    module_spec = [
+        'enable = contains(var.feature_flags, "elasticsearch")',
+        'source = "/opt/radix/timberland/terraform/modules/elasticsearch"',
+        'dev = contains(var.feature_flags, "dev")',
+        "test = var.test",
+        "prefix = var.prefix",
+    ],
+)
+
+terraform_module(
+    name = "elemental-terraform",
+    file_dir = "//timberland/assets:terraform/elemental",
+    jobname = "elemental",
+    module_spec = [
+        'enable = contains(var.feature_flags, "elemental")',
+        'source = "/opt/radix/timberland/terraform/modules/elemental"',
+        'dev = contains(var.feature_flags, "dev")',
+        "test = var.test",
+        "prefix = var.prefix",
+    ],
+    deps = [":kafka_companions-terraform"],
+)
+
+terraform_module(
+    name = "es_kafka_connector-terraform",
+    file_dir = "//timberland/assets:terraform/es_kafka_connector",
+    jobname = "es_kafka_connector",
+    module_spec = [
+        'enable = contains(var.feature_flags, "es_kafka_connector")',
+        'source = "/opt/radix/timberland/terraform/modules/es_kafka_connector"',
+        "test = var.test",
+        "prefix = var.prefix",
+        "schema_registry_address = module.kafka_companions.schema_registry_health_result",
+        "elasticsearch_address = module.elasticsearch.elasticsearch_health_result",
+        "connect_address = module.kafka_companions.connect_health_result",
+    ],
+    deps = [
+        ":elasticsearch-terraform",
+        ":kafka_companions-terraform",
+    ],
+)
+
+terraform_module(
+    name = "kafka-terraform",
+    file_dir = "//timberland/assets:terraform/kafka",
+    jobname = "kafka",
+    module_spec = [
+        'enable = contains(var.feature_flags, "kafka")',
+        'source = "/opt/radix/timberland/terraform/modules/kafka"',
+        "test = var.test",
+        "prefix = var.prefix",
+        "quorum_size = var.kafka_quorum_size",
+        "interbroker_port = var.kafka_interbroker_port",
+        "zookeeper_address = module.zookeeper.zookeeper_health_result",
+    ],
+    deps = [":zookeeper-terraform"],
+)
+
+terraform_module(
+    name = "kafka_companions-terraform",
+    file_dir = "//timberland/assets:terraform/kafka_companions",
+    jobname = "kafka_companions",
+    module_spec = [
+        'enable = contains(var.feature_flags, "kafka_companions")',
+        'source = "/opt/radix/timberland/terraform/modules/kafka_companions"',
+        'dev = contains(var.feature_flags, "dev")',
+        "test = var.test",
+        "prefix = var.prefix",
+        "quorum_size = var.kafka_companions_quorum_size",
+        "interbroker_port = var.kafka_interbroker_port",
+        "kafka_address = module.kafka.kafka_health_result",
+    ],
+    deps = [":kafka-terraform"],
+)
+
+terraform_module(
+    name = "minio-terraform",
+    file_dir = "//timberland/assets:terraform/minio",
+    jobname = "minio",
+    module_spec = [
+        'enable = contains(var.feature_flags, "minio")',
+        'source = "/opt/radix/timberland/terraform/modules/minio"',
+        "prefix = var.prefix",
+        "test = var.test",
+        "kafka_address = module.kafka.kafka_health_result",
+        "have_upstream_creds = contains(var.defined_config_vars, \"minio.aws_access_key_id\") && contains(var.defined_config_vars, \"minio.aws_secret_access_key\")"
+    ],
+    deps = [":kafka-terraform"],
+)
+
+terraform_module(
+    name = "retool-terraform",
+    file_dir = "//timberland/assets:terraform/retool",
+    jobname = "retool",
+    module_spec = [
+        'enable = contains(var.feature_flags, "retool_postgres")',
+        'source = "/opt/radix/timberland/terraform/modules/retool"',
+        'dev = contains(var.feature_flags, "dev")',
+        "test = var.test",
+        "prefix = var.prefix",
+    ],
+)
+
+terraform_module(
+    name = "retool_pg_kafka_connector-terraform",
+    file_dir = "//timberland/assets:terraform/retool_pg_kafka_connector",
+    jobname = "retool_pg_kafka_connector",
+    module_spec = [
+        'enable = contains(var.feature_flags, "retool_pg_kafka_connector")',
+        'source = "/opt/radix/timberland/terraform/modules/retool_pg_kafka_connector"',
+        "test = var.test",
+        "prefix = var.prefix",
+        "schema_registry_address = module.kafka_companions.schema_registry_health_result",
+        "connect_address = module.kafka_companions.connect_health_result",
+        "postgres_address = module.retool.postgres_health_result",
+    ],
+    deps = [
+        ":kafka_companions-terraform",
+        ":retool-terraform",
+    ],
+)
+
+terraform_module(
+    name = "yugabyte-terraform",
+    file_dir = "//timberland/assets:terraform/yugabyte",
+    jobname = "yugabyte",
+    module_spec = [
+        'enable = contains(var.feature_flags, "yugabyte")',
+        'source = "/opt/radix/timberland/terraform/modules/yugabyte"',
+        'dev = contains(var.feature_flags, "dev")',
+        "prefix = var.prefix",
+        "test = var.test",
+        "quorum_size = var.yugabyte_quorum_size",
+    ],
+    deps = [],
+)
+
+terraform_module(
+    name = "yugabyte_kafka_connector-terraform",
+    file_dir = "//timberland/assets:terraform/yugabyte_kafka_connector",
+    jobname = "yugabyte_kafka_connector",
+    module_spec = [
+        'enable = contains(var.feature_flags, "yb_kafka_connector")',
+        'source = "/opt/radix/timberland/terraform/modules/yugabyte_kafka_connector"',
+        "test = var.test",
+        "prefix = var.prefix",
+        "schema_registry_address = module.kafka_companions.schema_registry_health_result",
+        "connect_address = module.kafka_companions.connect_health_result",
+        "yb_tserver_address = module.yugabyte.yb_tserver_health_result",
+    ],
+    deps = [
+        ":kafka_companions-terraform",
+        ":yugabyte-terraform",
+    ],
+)
+
+terraform_module(
+    name = "zookeeper-terraform",
+    file_dir = "//timberland/assets:terraform/zookeeper",
+    jobname = "zookeeper",
+    module_spec = [
+        'enable = contains(var.feature_flags, "zookeeper")',
+        'source = "/opt/radix/timberland/terraform/modules/zookeeper"',
+        'dev = contains(var.feature_flags, "dev")',
+        "test = var.test",
+        "prefix = var.prefix",
+        "quorum_size = var.zookeeper_quorum_size",
+    ],
+    deps = [],
+)
+
+terraform_module(
+    name = "s3lts-terraform",
+    file_dir = "//timberland/assets:terraform/s3lts",
+    jobname = "s3lts",
+    module_spec = [
+        'enable = contains(var.feature_flags, "s3lts")',
+        'source = "/opt/radix/timberland/terraform/modules/s3lts"',
+        "test = var.test",
+        "prefix = var.prefix",
+        "runtime_address = module.runtime.runtime_health_result",
+        "minio_address = module.minio.minio_health_result",
+        "schema_registry_address = module.kafka_companions.schema_registry_health_result"
+    ],
+    deps = [
+        ":kafka_companions-terraform",
+        ":minio-terraform",
+        ":runtime-terraform",
+    ],
+)
+
+terraform_module(
+    name = "runtime-terraform",
+    file_dir = "//timberland/assets:terraform/runtime",
+    jobname = "runtime",
+    module_spec = [
+        'enable = contains(var.feature_flags, "runtime")',
+        'source = "/opt/radix/timberland/terraform/modules/runtime"',
+        "test = var.test",
+        "prefix = var.prefix",
+    ],
+    deps = [
+        ":kafka-terraform",
+    ],
+)
+#
+#terraform_module(
+#    name = "main-terraform",
+#    file_dir = "//timberland/assets:terraform/main",
+#    jobname = "main",
+#)
+
+terraform_provider(
+    name = "terraform-consul",
+    source = "@terraform-provider-consul//file",
+    spec = """provider "consul" {
+  address = "http://${var.consul_address}:8500"
+  version = "~> 2.7"
+  token = var.acl_token
+}
+""",
+)
+
+terraform_provider(
+    name = "terraform-nomad",
+    source = "@terraform-provider-nomad//file",
+    spec = """provider "nomad" {
+   address = "http://${var.nomad_address}:4646"
+   version = "~> 1.4"
+   secret_id = var.acl_token
+}
+""",
+)
+
+terraform_provider(
+    name = "terraform-vault",
+    source = "@terraform-provider-vault//file",
+    spec = """provider "vault" {
+address = "http://${var.vault_address}:8200"
+version = "2.11.0"
+}
+""",
+)
+
+terraform_deployment(
+    name = "terraform-full-deploy",
+    module_dir = "/opt/radix/timberland/terraform",
+    plugin_sources = [
+        ":terraform-consul",
+        ":terraform-nomad",
+        ":terraform-vault",
+    ],
+    resources = [
+        ":apprise-terraform",
+        ":elasticsearch-terraform",
+        ":elemental-terraform",
+        ":es_kafka_connector-terraform",
+        ":kafka-terraform",
+        ":kafka_companions-terraform",
+        ":minio-terraform",
+        ":retool-terraform",
+        ":retool_pg_kafka_connector-terraform",
+        ":runtime-terraform",
+        ":s3lts-terraform",
+        ":yugabyte-terraform",
+        ":yugabyte_kafka_connector-terraform",
+        ":zookeeper-terraform",
+    ],
+    terraform_source = "@terraform",
+    toplevel_module_aux = [
+        "//timberland/assets:terraform/main/variables.tf",
+        "//timberland/assets:terraform/main/outputs.tf",
+    ],
 )

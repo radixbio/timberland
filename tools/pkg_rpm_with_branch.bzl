@@ -1,4 +1,4 @@
-load("//:tools/workspace_status.bzl", "workspace_status")
+load("//tools:workspace_status.bzl", "workspace_status")
 load("@rules_pkg//:rpm.bzl", "pkg_rpm")
 
 def pkg_rpm_with_branch(name, **kwargs):
@@ -17,11 +17,11 @@ def pkg_rpm_with_branch(name, **kwargs):
     workspace_status(
         name = workspace_status_name,
         variable = "STABLE_GIT_BRANCH",
-        transformation = "tr '-' '_'", # Replace dashes with underscores.
+        transformation = "tr '-' '_'",  # Replace dashes with underscores.
     )
 
     pkg_rpm(
         name = name,
         version_file = ":%s" % workspace_status_name,
-        **kwargs,
+        **kwargs
     )

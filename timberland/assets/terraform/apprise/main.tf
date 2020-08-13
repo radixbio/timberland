@@ -1,6 +1,6 @@
 resource "nomad_job" "apprise" {
   count = var.enable ? 1 : 0
-  jobspec = templatefile("/opt/radix/timberland/terraform/apprise/apprise.tmpl", {prefix = var.prefix, test = var.test})
+  jobspec = templatefile("/opt/radix/timberland/terraform/modules/apprise/apprise.tmpl", {prefix = var.prefix, test = var.test})
 }
 
 data "consul_service_health" "apprise_health" {

@@ -79,7 +79,7 @@ variable "nomad_address" {
 variable "vault_address" {
   description = "Dns address/resolved remote ip of nomad"
   type = string
-  default = "nomad.service.consul"
+  default = "vault.service.consul"
 }
 
 variable "acl_token" {

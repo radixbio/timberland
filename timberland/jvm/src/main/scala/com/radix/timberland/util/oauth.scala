@@ -35,13 +35,12 @@ object OAuthController {
           new GoogleOAuth[IO](config, blazeClient, blocker)
         val res = for {
           auth <- EitherT[IO, interp.OAuthError, interp.OAuthToken](interp.main)
-          creds <- EitherT.liftF[IO, interp.OAuthError, Credentials[IO]](
-            IO.delay(Credentials(auth.token, IO.pure(""))))
+          creds <- EitherT.liftF[IO, interp.OAuthError, Credentials[IO]](IO.delay(Credentials(auth.token, IO.pure(""))))
         } yield creds
         val T = Timer[IO]
 
         res.value.flatMap({
-          case Left(err) => T.sleep(1.second) *> IO(scribe.info(s"-----Credential error: ${err}")) *> creds
+          case Left(err)   => T.sleep(1.second) *> IO(scribe.info(s"-----Credential error: ${err}")) *> creds
           case Right(succ) => IO.pure(succ)
         })
       }

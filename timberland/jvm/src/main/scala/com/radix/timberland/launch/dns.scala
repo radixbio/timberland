@@ -8,7 +8,6 @@ import com.radix.timberland.util.Util
 import com.radix.timberland.util.Util.RootShell
 import oshi.software.os.linux.LinuxOperatingSystem
 
-
 object dns {
   trait DNS_method {
     def up(): IO[Unit]
@@ -62,7 +61,7 @@ object dns {
       }
       IO.unit
     }
-    def down(): IO[Unit] ={
+    def down(): IO[Unit] = {
       val config_text = os.read(ifcfg_file)
       os.write.over(ifcfg_file, config_text.replaceAll(ifcfg_line, ""))
       val result = os.proc(Seq("/usr/bin/sudo", "systemctl", "restart", "network")).call()
@@ -100,7 +99,7 @@ object dns {
   }
 
   case class Resolved() extends DNS_method {
-    private val resolved_file = os.root / "etc" / "systemd" / "resolved.conf"  // Different from /etc/resolv.conf !!
+    private val resolved_file = os.root / "etc" / "systemd" / "resolved.conf" // Different from /etc/resolv.conf !!
     private val resolved_line = "DNS=127.0.0.1" // Also requires "[Resolve]" to establish the config section
 
     private val dns_key = "DNS"
@@ -184,7 +183,7 @@ object dns {
         // There may also be other nameservers already set, in which case we want ours to be first.
         val new_lines = {
           first_nameserver_line >= 0 match {
-            case true => conf_lines.patch(first_nameserver_line, List(resolvconf_line), 0)
+            case true  => conf_lines.patch(first_nameserver_line, List(resolvconf_line), 0)
             case false => conf_lines :+ resolvconf_line
           }
         }
@@ -210,8 +209,6 @@ object dns {
       IO.unit
     }
   }
-
-
 
   case class NetworkManager() extends DNS_method {
     def up(): IO[Unit] = {

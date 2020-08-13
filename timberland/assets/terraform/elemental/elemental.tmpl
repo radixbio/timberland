@@ -7,8 +7,7 @@ job "${prefix}elemental-machines" {
     value = "linux"
   }
 
-  datacenters = [
-    "dc1"]
+  datacenters = ["dc1"]
 
   group "em" {
 
@@ -56,7 +55,6 @@ job "${prefix}elemental-machines" {
         "KAFKA_BOOTSTRAP_SERVERS" = "OUTSIDE://${prefix}kafka-daemons-kafka-kafka.service.consul:9092",
         "AVRO_SCHEMA_REGISTRY_URL" = "http://${prefix}kc-daemons-companions-schema-registry.service.consul:8081"
       }
-
       kill_timeout = "5s"
       kill_signal = "SIGINT"
       leader = false

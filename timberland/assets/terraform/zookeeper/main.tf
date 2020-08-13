@@ -1,6 +1,6 @@
 resource "nomad_job" "zookeeper" {
   count = var.enable ? 1 : 0
-  jobspec = templatefile("/opt/radix/timberland/terraform/zookeeper/zookeeper.tmpl", {dev = var.dev, prefix = var.prefix, test = var.test, quorum_size = var.quorum_size})
+  jobspec = templatefile("/opt/radix/timberland/terraform/modules/zookeeper/zookeeper.tmpl", {dev = var.dev, prefix = var.prefix, test = var.test, quorum_size = var.quorum_size})
 }
 
 data "consul_service_health" "zookeeper_health" {

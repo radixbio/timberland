@@ -37,12 +37,14 @@ import scala.io.StdIn
  * @param default      An optional value used when empty string is specified or when running non-interactively
  * @param terraformVar If specified, the value will be bound to a terraform variable with this name
  */
-case class FlagConfigEntry(key: String,
-                           isSensitive: Boolean,
-                           prompt: String,
-                           default: Option[String] = None,
-                           optional: Boolean = false,
-                           terraformVar: Option[String] = None)
+case class FlagConfigEntry(
+  key: String,
+  isSensitive: Boolean,
+  prompt: String,
+  default: Option[String] = None,
+  optional: Boolean = false,
+  terraformVar: Option[String] = None
+)
 
 /**
  * Response object containing data to be passed on to terraform
@@ -58,8 +60,11 @@ case class TerraformConfigVars(configVars: Map[String, String], definedVars: Ite
  * @param consulData A map from flag name to config key to config value, used for non-sensitive information
  * @param vaultData  A map from flag name to config key to config value, used for sensitive information
  */
-case class FlagConfigs(consulData: Map[String, Map[String, Option[String]]] = Map.empty,
-                       vaultData: Map[String, Map[String, Option[String]]] = Map.empty) {
+case class FlagConfigs(
+  consulData: Map[String, Map[String, Option[String]]] = Map.empty,
+  vaultData: Map[String, Map[String, Option[String]]] = Map.empty
+) {
+
   /**
    * Merges the consulData and vaultData parameters of two FlagConfigs
    *
@@ -73,8 +78,10 @@ case class FlagConfigs(consulData: Map[String, Map[String, Option[String]]] = Ma
   }
 
   // Helper method used by the above merge method
-  private def mergeDoubleMap(bottom: Map[String, Map[String, Option[String]]],
-                             top: Map[String, Map[String, Option[String]]]) = {
+  private def mergeDoubleMap(
+    bottom: Map[String, Map[String, Option[String]]],
+    top: Map[String, Map[String, Option[String]]]
+  ) = {
     val fullKeySet = bottom.keys.toSet ++ top.keys.toSet
     fullKeySet.map(key => key -> (bottom.getOrElse(key, Map.empty) ++ top.getOrElse(key, Map.empty))).toMap
   }
@@ -90,10 +97,11 @@ object flagConfig {
    * @return A map of terraform variables and a list of defined config parameters
    *         in the form flagName.configName (e.g. minio.aws_access_key_id)
    */
-  def updateFlagConfig(flagMap: Map[String, Boolean])(implicit serviceAddrs: ServiceAddrs = ServiceAddrs(),
-                                                      persistentDir: os.Path,
-                                                      tokens: Option[AuthTokens] = None
-                                                     ): IO[TerraformConfigVars] = {
+  def updateFlagConfig(flagMap: Map[String, Boolean])(
+    implicit serviceAddrs: ServiceAddrs = ServiceAddrs(),
+    persistentDir: os.Path,
+    tokens: Option[AuthTokens] = None
+  ): IO[TerraformConfigVars] = {
     val flagList = flagMap.filter(_._2).keys.toList
     for {
       partialFlagConfig <- readFlagConfig
@@ -109,9 +117,10 @@ object flagConfig {
   /**
    * Prompts for default flag configuration parameters and writes them to the local config file
    */
-  def promptForDefaultConfigs(implicit serviceAddrs: ServiceAddrs = ServiceAddrs(),
-                              persistentDir: os.Path
-                             ): IO[TerraformConfigVars] =
+  def promptForDefaultConfigs(
+    implicit serviceAddrs: ServiceAddrs = ServiceAddrs(),
+    persistentDir: os.Path
+  ): IO[TerraformConfigVars] =
     updateFlagConfig(featureFlags.defaultFlagMap)
 
   /**
@@ -136,8 +145,9 @@ object flagConfig {
    *
    * @param flagList The list of flags to execute hooks for
    */
-  private def executeHooks(flagList: List[String], configs: FlagConfigs)
-                          (implicit serviceAddrs: ServiceAddrs): IO[Unit] =
+  private def executeHooks(flagList: List[String], configs: FlagConfigs)(
+    implicit serviceAddrs: ServiceAddrs
+  ): IO[Unit] =
     flagList
       .map { flagName =>
         val consulCfg = configs.consulData.getOrElse(flagName, Map.empty)
@@ -146,7 +156,8 @@ object flagConfig {
           config.flagConfigHooks(flagName).map(f => f(consulCfg ++ vaultCfg, serviceAddrs)).parSequence
         } else IO.unit
       }
-      .sequence.map(_ => ())
+      .sequence
+      .map(_ => ())
 
   /**
    * Creates a list used by terraform to determine which optional config variables were left blank
@@ -169,16 +180,18 @@ object flagConfig {
    *                   data will only be read from the local config.json file
    * @return A flagConfig object containing the current accessible configuration
    */
-  def readFlagConfig(implicit serviceAddrs: ServiceAddrs,
-                     persistentDir: os.Path,
-                     authTokens: Option[AuthTokens]
-                    ): IO[FlagConfigs] = {
+  def readFlagConfig(
+    implicit serviceAddrs: ServiceAddrs,
+    persistentDir: os.Path,
+    authTokens: Option[AuthTokens]
+  ): IO[FlagConfigs] = {
     val topCfg = new LocalConfig().read()
     val bottomCfg = authTokens match {
-      case Some(tokens) => featureFlags.isConsulUp().flatMap {
-        case true => new RemoteConfig()(serviceAddrs, tokens).read()
-        case false => IO.pure(FlagConfigs())
-      }
+      case Some(tokens) =>
+        featureFlags.isConsulUp().flatMap {
+          case true  => new RemoteConfig()(serviceAddrs, tokens).read()
+          case false => IO.pure(FlagConfigs())
+        }
       case None => IO.pure(FlagConfigs())
     }
     (bottomCfg, topCfg).parMapN(_ ++ _)
@@ -190,10 +203,9 @@ object flagConfig {
    *
    * @param configs The config to write
    */
-  private def writeFlagConfig(configs: FlagConfigs)(implicit serviceAddrs: ServiceAddrs,
-                                                    persistentDir: os.Path,
-                                                    tokens: Option[AuthTokens]
-                                                   ): IO[Unit] =
+  private def writeFlagConfig(
+    configs: FlagConfigs
+  )(implicit serviceAddrs: ServiceAddrs, persistentDir: os.Path, tokens: Option[AuthTokens]): IO[Unit] =
     for {
       shouldWriteRemote <- if (tokens.isDefined) featureFlags.isConsulUp() else IO.pure(false)
       _ <- if (shouldWriteRemote) {
@@ -226,21 +238,26 @@ object flagConfig {
    * @param curFlagToConfigMap The current map of flags. Anything defined here will not be prompted
    * @return A map containing only the key/values that were prompted
    */
-  private def getMissingParams(flagList: List[String],
-                               sensitive: Boolean,
-                               curFlagToConfigMap: Map[String, Map[String, Option[String]]]
-                              ): IO[Map[String, Map[String, Option[String]]]] = {
-    flagList.filter(config.flagConfigParams.contains).map { flagName =>
-      val totalKeysForFlag = config.flagConfigParams(flagName).filter(_.isSensitive == sensitive).map(_.key)
-      val curKeysForFlag = curFlagToConfigMap.getOrElse(flagName, Map.empty).keys
-      val missingKeys = totalKeysForFlag.toSet -- curKeysForFlag.toSet
+  private def getMissingParams(
+    flagList: List[String],
+    sensitive: Boolean,
+    curFlagToConfigMap: Map[String, Map[String, Option[String]]]
+  ): IO[Map[String, Map[String, Option[String]]]] = {
+    flagList
+      .filter(config.flagConfigParams.contains)
+      .map { flagName =>
+        val totalKeysForFlag = config.flagConfigParams(flagName).filter(_.isSensitive == sensitive).map(_.key)
+        val curKeysForFlag = curFlagToConfigMap.getOrElse(flagName, Map.empty).keys
+        val missingKeys = totalKeysForFlag.toSet -- curKeysForFlag.toSet
 
-      val newConfigEntriesIO = missingKeys.toList.map { missingKey =>
-        val configEntry = config.flagConfigParams(flagName).find(_.key == missingKey).get
-        promptUser(configEntry).map(missingKey -> _)
-      }.sequence
-      newConfigEntriesIO.map(newConfigEntries => flagName -> newConfigEntries.toMap)
-    }.sequence.map(_.toMap)
+        val newConfigEntriesIO = missingKeys.toList.map { missingKey =>
+          val configEntry = config.flagConfigParams(flagName).find(_.key == missingKey).get
+          promptUser(configEntry).map(missingKey -> _)
+        }.sequence
+        newConfigEntriesIO.map(newConfigEntries => flagName -> newConfigEntries.toMap)
+      }
+      .sequence
+      .map(_.toMap)
   }
 
   /**
@@ -256,16 +273,21 @@ object flagConfig {
     for {
       _ <- IO(Console.print((if (entry.optional) "[Optional] " else "") + entry.prompt + "> "))
       userInput <- timeoutTo(IO(StdIn.readLine()), timeout, IO.pure(null))
-      maybeDefault <- IO { entry.default match {
-        case Some(value) => Some(value)
-        case None => None
-      }}
+      maybeDefault <- IO {
+        entry.default match {
+          case Some(value) => Some(value)
+          case None        => None
+        }
+      }
       maybeUserInput <- IO {
         userInput match {
-          case null | "" => if (entry.optional) maybeDefault else Some(entry.default.getOrElse {
-            Console.err.println("\nConfig option not specified with no available fallback value, quitting")
-            sys.exit(1)
-          })
+          case null | "" =>
+            if (entry.optional) maybeDefault
+            else
+              Some(entry.default.getOrElse {
+                Console.err.println("\nConfig option not specified with no available fallback value, quitting")
+                sys.exit(1)
+              })
           case response: String => Some(response)
         }
       }
@@ -278,10 +300,11 @@ class LocalConfig(implicit persistentDir: os.Path) {
   private implicit val cfgEncoder: Encoder[FlagConfigs] = deriveEncoder[FlagConfigs]
   private val flagConfigFile = persistentDir / "config.json"
 
-  def read(): IO[FlagConfigs] = for {
-    configFileExists <- IO(os.exists(flagConfigFile))
-    configFileText <- if (configFileExists) IO(os.read(flagConfigFile)) else IO.pure("")
-  } yield decode(configFileText).getOrElse(FlagConfigs())
+  def read(): IO[FlagConfigs] =
+    for {
+      configFileExists <- IO(os.exists(flagConfigFile))
+      configFileText <- if (configFileExists) IO(os.read(flagConfigFile)) else IO.pure("")
+    } yield decode(configFileText).getOrElse(FlagConfigs())
 
   def write(configs: FlagConfigs): IO[Unit] = {
     val cfgJsonStr = configs.asJson.toString
@@ -306,24 +329,29 @@ class OauthConfig {
 
   def handler(options: Map[String, Option[String]], addrs: ServiceAddrs): IO[Unit] =
     (options.get("GOOGLE_OAUTH_ID"), options.get("GOOGLE_OAUTH_SECRET")) match {
-      case (Some(Some(a: String)), Some(Some(b: String))) => for {
-        test <- writeConfigToVault(a, b, addrs)
-      } yield test
+      case (Some(Some(a: String)), Some(Some(b: String))) =>
+        for {
+          test <- writeConfigToVault(a, b, addrs)
+        } yield test
       case _ => IO()
     }
 
-  private def writeConfigToVault(OAUTH_ID: String, OAUTH_SECRET: String, serviceAddrs: ServiceAddrs): IO[String] = blaze.use { client =>
-    for {
-      vaultToken <- IO(new VaultUtils().findVaultToken())
-      vaultUri = Uri.fromString(s"http://${serviceAddrs.consulAddr}:8200").toOption.get
-      vaultSession = new Vault[IO](authToken = Some(vaultToken), baseUrl = vaultUri, blazeClient = client)
-      oauthConfigRequest = CreateSecretRequest(data = RegisterProvider("google", OAUTH_ID, OAUTH_SECRET).asJson, cas = None)
-      writeOauthConfig <- vaultSession.createOauthSecret("oauth2/google/config", oauthConfigRequest)
-    } yield writeOauthConfig match {
-      case Left(VaultErrorResponse(_@x)) => x.get(0).getOrElse("empty error resp")
-      case Right(()) => "ok json decode"
+  private def writeConfigToVault(OAUTH_ID: String, OAUTH_SECRET: String, serviceAddrs: ServiceAddrs): IO[String] =
+    blaze.use { client =>
+      for {
+        vaultToken <- IO(new VaultUtils().findVaultToken())
+        vaultUri = Uri.fromString(s"http://${serviceAddrs.consulAddr}:8200").toOption.get
+        vaultSession = new Vault[IO](authToken = Some(vaultToken), baseUrl = vaultUri, blazeClient = client)
+        oauthConfigRequest = CreateSecretRequest(
+          data = RegisterProvider("google", OAUTH_ID, OAUTH_SECRET).asJson,
+          cas = None
+        )
+        writeOauthConfig <- vaultSession.createOauthSecret("oauth2/google/config", oauthConfigRequest)
+      } yield writeOauthConfig match {
+        case Left(VaultErrorResponse(_ @x)) => x.get(0).getOrElse("empty error resp")
+        case Right(())                      => "ok json decode"
+      }
     }
-  }
 }
 
 class RemoteConfig(implicit serviceAddrs: ServiceAddrs, tokens: AuthTokens) {
@@ -338,7 +366,7 @@ class RemoteConfig(implicit serviceAddrs: ServiceAddrs, tokens: AuthTokens) {
     val getCfgOp = ConsulOp.kvGetJson[Map[String, Map[String, Option[String]]]]("flag-config", None, None)
     helm.run(interpreter, getCfgOp).map {
       case Right(QueryResponse(Some(flagConfig), _, _, _)) => flagConfig
-      case Right(QueryResponse(None, _, _, _)) => Map.empty
+      case Right(QueryResponse(None, _, _, _))             => Map.empty
       case Left(err) =>
         Console.err.println("Error connecting to consul\n" + err)
         sys.exit(1)
@@ -349,7 +377,7 @@ class RemoteConfig(implicit serviceAddrs: ServiceAddrs, tokens: AuthTokens) {
     val vaultUri = Uri.fromString(s"http://${serviceAddrs.consulAddr}:8200").toOption.get
     val vault = new Vault[IO](authToken = Some(tokens.vaultToken), baseUrl = vaultUri, blazeClient = client)
     vault.getSecret("flag-config").map {
-      case Right(KVGetResult(_, json)) => json.as[Map[String, Map[String, Option[String]]]].getOrElse(Map.empty)
+      case Right(KVGetResult(_, json))        => json.as[Map[String, Map[String, Option[String]]]].getOrElse(Map.empty)
       case Left(VaultErrorResponse(Vector())) => Map.empty
       case Left(err) =>
         Console.err.println("Error connecting to vault\n" + err)

@@ -5,6 +5,7 @@ import com.radix.timberland.launch.daemonutil
 import com.radix.timberland.radixdefs.ServiceAddrs
 
 case object config {
+
   /**
    * Config entries can be defined here, organized by flag name
    */
@@ -35,7 +36,7 @@ case object config {
         isSensitive = true,
         prompt = "Elemental Machines Password",
         optional = true
-      ),
+      )
     ),
     "google-oauth" -> List(
       FlagConfigEntry(
@@ -82,7 +83,6 @@ case object config {
       "google-oauth" -> List((new OauthConfig).handler),
       "docker-auth" -> List(daemonutil.handleRegistryAuth)
     )
-
 
   // The list of flags that are enabled by default
   val flagDefaults: List[String] = List("core", "dev", "tui", "docker-auth")

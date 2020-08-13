@@ -22,7 +22,10 @@ object Mock {
 
   class RuntimeNolaunch[F[_]](implicit F: Effect[F]) extends NetworkInfoExec[F] with RuntimeServicesAlg[F] {
     override def searchForPort(netinf: List[String], port: Int): F[Option[NonEmptyList[String]]] = F.liftIO {
-      val addrs = for (last <- 0 to 254; octets <- netinf) yield {
+      val addrs = for {
+        last <- 0 to 254
+        octets <- netinf
+      } yield {
         F.liftIO {
           IO.shift(bcs) *> IO {
             Try {
@@ -48,9 +51,11 @@ object Mock {
         .flatMap(res =>
           IO({
             scribe.debug(
-              s"search for port $port on network $netinf has resulted in the following hosts found: ${res.toString}")
+              s"search for port $port on network $netinf has resulted in the following hosts found: ${res.toString}"
+            )
             res
-          })) <* IO.shift
+          })
+        ) <* IO.shift
     }
 
     override def startConsul(bind_addr: String, consulSeedsO: Option[String], bootstrapExpect: Int): F[Unit] =
@@ -103,7 +108,6 @@ object Run {
 
   def putStrLn(str: String): IO[Unit] = IO(println(str))
 
-
   /**
    * This method actually initializes the runtime given a runtime algebra executor.
    * It parses and rewrites default nomad and consul configuration, discovers peers, and
@@ -117,11 +121,17 @@ object Run {
    * @tparam F the effect type
    * @return a started consul and nomad
    */
-  def initializeRuntimeProg[F[_]](consulwd: os.Path, nomadwd: os.Path, bind_addr: Option[String], consulSeedsO: Option[String], bootstrapExpect: Int)(
-    implicit H: RuntimeServicesAlg[F],
-    F: Effect[F]) = {
+  def initializeRuntimeProg[F[_]](
+    consulwd: os.Path,
+    nomadwd: os.Path,
+    bind_addr: Option[String],
+    consulSeedsO: Option[String],
+    bootstrapExpect: Int
+  )(implicit H: RuntimeServicesAlg[F], F: Effect[F]) = {
 
-    def socks(ifaces: List[String]): F[(Option[cats.data.NonEmptyList[String]], Option[cats.data.NonEmptyList[String]])] = {
+    def socks(
+      ifaces: List[String]
+    ): F[(Option[cats.data.NonEmptyList[String]], Option[cats.data.NonEmptyList[String]])] = {
       F.liftIO((F.toIO(H.searchForPort(ifaces, 8301)), F.toIO(H.searchForPort(ifaces, 6783))).parMapN {
         case (a, b) => (a, b)
       })
@@ -141,14 +151,14 @@ object Run {
       }
     } yield dummyStatus
 
-
     for {
       ifaces <- bind_addr match {
         case Some(bind) => F.pure(List(bind.split('.').dropRight(1).mkString(".") + "."))
         case None =>
           H.getNetworkInterfaces.map(
             _.filter(x => x.startsWith("192.") || x.startsWith("10."))
-              .map(_.split("\\.").toList.dropRight(1).mkString(".") + "."))
+              .map(_.split("\\.").toList.dropRight(1).mkString(".") + ".")
+          )
       }
       ipaddrswithcoresrvs <- socks(ifaces)
       weave = ipaddrswithcoresrvs._2
@@ -178,7 +188,7 @@ object Run {
       vaultSealStatus <- F.liftIO {
         (new VaultStarter).initializeAndUnsealAndSetupVault()
       }
-      vaultToken <- F.liftIO( IO((new VaultUtils).findVaultToken()))
+      vaultToken <- F.liftIO(IO((new VaultUtils).findVaultToken()))
       nomadRestartProc <- H.startNomad(finalBindAddr, bootstrapExpect, vaultToken)
       consulNomadToken <- F.liftIO(auth.setupNomadMasterToken(persistentDir, consulToken))
 
@@ -191,7 +201,10 @@ object Run {
 
   class RuntimeServicesExec[F[_]](implicit F: Effect[F]) extends NetworkInfoExec[F] with RuntimeServicesAlg[F] {
     override def searchForPort(netinf: List[String], port: Int): F[Option[NonEmptyList[String]]] = F.liftIO {
-      val addrs = for (last <- 0 to 254; octets <- netinf) yield {
+      val addrs = for {
+        last <- 0 to 254
+        octets <- netinf
+      } yield {
         F.liftIO {
           IO {
             Try {
@@ -221,8 +234,12 @@ object Run {
           case Some(seedString) =>
             seedString
               .split(',')
-              .map { host => s"-retry-join=$host" }
-              .foldLeft(baseArgs) { (currentArgs, arg) => currentArgs + ' ' + arg }
+              .map { host =>
+                s"-retry-join=$host"
+              }
+              .foldLeft(baseArgs) { (currentArgs, arg) =>
+                currentArgs + ' ' + arg
+              }
 
           case None => baseArgs
         }
@@ -237,7 +254,6 @@ object Run {
         os.proc("/usr/bin/sudo", "/bin/systemctl", "restart", "consul").call(stdout = os.Inherit, stderr = os.Inherit)
         LogTUI.event(ConsulSystemdUp)
       }
-
 
     override def startNomad(bind_addr: String, bootstrapExpect: Int, vaultToken: String): F[Unit] = {
 
@@ -282,33 +298,34 @@ object Run {
       }
     }
 
-
-
     override def stopConsul(): F[Unit] = {
-      F.delay{
+      F.delay {
         scribe.info("Stopping consul via systemd")
         os.proc("/usr/bin/sudo", "/bin/systemctl", "stop", "consul").call(stdout = os.Inherit, stderr = os.Inherit)
       }
     }
 
     override def stopNomad(): F[Unit] = {
-      F.delay{
+      F.delay {
         scribe.info("Stopping nomad via systemd")
         os.proc("/usr/bin/sudo", "/bin/systemctl", "stop", "nomad").call(stdout = os.Inherit, stderr = os.Inherit)
       }
     }
 
     override def stopVault(): F[Unit] = {
-      F.delay{
+      F.delay {
         scribe.info("Stopping vault via systemd")
         os.proc("/usr/bin/sudo", "/bin/systemctl", "stop", "vault").call(stdout = os.Inherit, stderr = os.Inherit)
       }
     }
 
     override def startWeave(hosts: List[String]): F[Unit] = F.delay {
-      os.proc("/usr/bin/docker", "plugin", "disable", "weaveworks/net-plugin:latest_release").call(check = false, cwd = os.pwd, stdout = os.Inherit, stderr = os.Inherit)
-      os.proc("/usr/bin/docker", "plugin", "set", "weaveworks/net-plugin:latest_release", "IPALLOC_RANGE=10.32.0.0/12").call(check = false, stdout = os.Inherit, stderr = os.Inherit)
-      os.proc("/usr/bin/docker", "plugin", "enable", "weaveworks/net-plugin:latest_release").call(stdout = os.Inherit, stderr = os.Inherit)
+      os.proc("/usr/bin/docker", "plugin", "disable", "weaveworks/net-plugin:latest_release")
+        .call(check = false, cwd = os.pwd, stdout = os.Inherit, stderr = os.Inherit)
+      os.proc("/usr/bin/docker", "plugin", "set", "weaveworks/net-plugin:latest_release", "IPALLOC_RANGE=10.32.0.0/12")
+        .call(check = false, stdout = os.Inherit, stderr = os.Inherit)
+      os.proc("/usr/bin/docker", "plugin", "enable", "weaveworks/net-plugin:latest_release")
+        .call(stdout = os.Inherit, stderr = os.Inherit)
       //      os.proc(s"/usr/local/bin/weave", "launch", hosts.mkString(" "), "--ipalloc-range", "10.48.0.0/12")
       //        .call(cwd = pwd, check = false, stdout = os.Inherit, stderr = os.Inherit)
       //      os.proc(s"/usr/local/bin/weave", "connect", hosts.mkString(" "))

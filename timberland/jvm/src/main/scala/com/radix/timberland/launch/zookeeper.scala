@@ -29,7 +29,7 @@ import os.Shellable
 import scala.collection.JavaConverters._
 
 package object zookeeper {
-  private [this] implicit val timer = IO.timer(global)
+  private[this] implicit val timer = IO.timer(global)
   sealed trait TemplateOps {
     def getTemplate(path: Path): IO[Set[String]] =
       IO(os.read(path).split('\n').filter(_.startsWith("server")).toSet).map(x => {
@@ -37,9 +37,9 @@ package object zookeeper {
         x
       })
   }
-  case object NoMinQuorum                                                                extends TemplateOps
-  case class MinQuorumFound(servers: Set[String])                                        extends TemplateOps
-  case class ZKStarted(servers: Set[String])                                             extends TemplateOps
+  case object NoMinQuorum extends TemplateOps
+  case class MinQuorumFound(servers: Set[String]) extends TemplateOps
+  case class ZKStarted(servers: Set[String]) extends TemplateOps
   case class ZKUpdated(existing: Set[String], toAdd: Set[String], toRemove: Set[String]) extends TemplateOps
 
   /**
@@ -49,7 +49,9 @@ package object zookeeper {
    * @return Either a failure to get the servers together to form a quorum, or a list of servers to create ZK with
    */
   private[this] def reconfigDynFile(
-                                     templatePath: Path, minQuorumSize: Int): IndexedStateT[IO, NoMinQuorum.type, Either[NoMinQuorum.type, MinQuorumFound], Unit] = {
+    templatePath: Path,
+    minQuorumSize: Int
+  ): IndexedStateT[IO, NoMinQuorum.type, Either[NoMinQuorum.type, MinQuorumFound], Unit] = {
     // TODO does querying consul directly work?
     // I couldn't get this to work when I was debugging something, turns out it was something lower in the stack
     // So this may still be viable
@@ -66,16 +68,16 @@ package object zookeeper {
     //    }
     //    } yield res
 
-
     for {
-      state                <- IndexedStateT.get[IO, NoMinQuorum.type]
+      state <- IndexedStateT.get[IO, NoMinQuorum.type]
       templatefilecontents <- IndexedStateT.liftF(state.getTemplate(templatePath))
       _ <- templatefilecontents match {
         case quorum if quorum.size >= minQuorumSize && !quorum.map(_.contains("nil")).reduce(_ || _) =>
           for {
             _ <- IndexedStateT.liftF(IO(scribe.debug(s"found zookeeper quorum, $quorum")))
             _ <- IndexedStateT.set[IO, NoMinQuorum.type, Either[NoMinQuorum.type, MinQuorumFound]](
-              Right(MinQuorumFound(quorum)))
+              Right(MinQuorumFound(quorum))
+            )
           } yield ()
         case _ =>
           for {
@@ -95,20 +97,23 @@ package object zookeeper {
    * @return a case class describing how to reconfigure zookeeper's servers
    */
   private[this] def zkreconfigDynFile(templatePath: Path): IndexedStateT[IO, ZKStarted, ZKUpdated, Unit] =
-  //TODO: Actually move to zookeeper 3.5+ to make this work.
+    //TODO: Actually move to zookeeper 3.5+ to make this work.
     for {
-      state    <- IndexedStateT.get[IO, ZKStarted]
+      state <- IndexedStateT.get[IO, ZKStarted]
       template <- IndexedStateT.liftF(state.getTemplate(templatePath))
-      _        <- IndexedStateT.liftF(IO(scribe.trace("getting current zookeeper configuration")))
+      _ <- IndexedStateT.liftF(IO(scribe.trace("getting current zookeeper configuration")))
       existing <- IndexedStateT.liftF(
         IO(
           new String(os.proc("zkCli.sh", "config").call().out.bytes)
             .split('\n')
             .filter(_.startsWith("server"))
-            .toSet))
+            .toSet
+        )
+      )
       _ <- IndexedStateT.liftF(IO(scribe.trace(s"got current zookeeper configuration $existing")))
       _ <- IndexedStateT.set[IO, ZKStarted, ZKUpdated](
-        ZKUpdated(existing, template.diff(existing), existing.diff(template)))
+        ZKUpdated(existing, template.diff(existing), existing.diff(template))
+      )
     } yield ()
 
   /**
@@ -116,7 +121,7 @@ package object zookeeper {
    * @return a reconfigured zookeeper with the additional nodes added and removed
    */
   private[this] def applyZKStateUpdate: IndexedStateT[IO, ZKUpdated, ZKStarted, Unit] =
-  //TODO: Actually move to zookeeper 3.5+ to make this work.
+    //TODO: Actually move to zookeeper 3.5+ to make this work.
     for {
       state <- IndexedStateT.get[IO, ZKUpdated]
       res <- IndexedStateT.liftF(for {
@@ -125,13 +130,17 @@ package object zookeeper {
             scribe.trace(s"dynamically reconfiguring zookeeper to add ${state.toAdd}")
             os.proc("zkCli.sh", "reconfig", "-add", os.Shellable(state.toAdd.toSeq)).call()
           }
-        } else { IO.unit }
+        } else {
+          IO.unit
+        }
         _ <- if (state.toRemove.nonEmpty) {
           IO {
             scribe.trace(s"dynamically reconfiguring zookeeper to remove ${state.toRemove}")
             os.proc("zkCli.sh", "reconfig", "-remove", os.Shellable(state.toRemove.toSeq)).call()
           }
-        } else { IO.unit }
+        } else {
+          IO.unit
+        }
       } yield ZKStarted(servers = state.existing.union(state.toAdd).diff(state.toRemove)))
       _ <- IndexedStateT.set[IO, ZKUpdated, ZKStarted](res)
     } yield ()
@@ -142,8 +151,9 @@ package object zookeeper {
    * @param zoodyncfg the path to the zookeeper dynamic configuration file
    * @return The state is now with zookeeper started
    */
-  private[this] def zookeeperQuorumStart(zoocfg: Path,
-                                         zoodyncfg: Path)(implicit N: LocalEthInfoAlg[IO]): IndexedStateT[IO, MinQuorumFound, ZKStarted, Unit] = {
+  private[this] def zookeeperQuorumStart(zoocfg: Path, zoodyncfg: Path)(
+    implicit N: LocalEthInfoAlg[IO]
+  ): IndexedStateT[IO, MinQuorumFound, ZKStarted, Unit] = {
     for {
       quorum <- IndexedStateT.get[IO, MinQuorumFound]
       _ <- IndexedStateT.liftF(IO {
@@ -156,7 +166,9 @@ package object zookeeper {
         //TODO replace this with a parser that errors if the template doesn't match
         //This is dependent on a consul-template being exactly as it is :(
 
-        val iface = N.getNetworkInterfaces.unsafeRunSync().toSet
+        val iface = N.getNetworkInterfaces
+          .unsafeRunSync()
+          .toSet
           //network interfaces that are also listed as ZK servers allow us to infer our iteration order and recover an ID
           .intersect(quorum.servers.map(_.split('=')).map(_.flatMap(_.split(':'))).map(_(1)))
           .head
@@ -190,21 +202,23 @@ package object zookeeper {
    * @param zoodynconf the path to the zookeeper dynamic configuration file
    * @return a started zookeeper
    */
-  def startZookeeper(templatePath: Path,
-                     zooconf: Path,
-                     zoodynconf: Path,
-                     minQuorumSize: Int): IndexedStateT[IO, NoMinQuorum.type, ZKStarted, Unit] = {
+  def startZookeeper(
+    templatePath: Path,
+    zooconf: Path,
+    zoodynconf: Path,
+    minQuorumSize: Int
+  ): IndexedStateT[IO, NoMinQuorum.type, ZKStarted, Unit] = {
     implicit val netinfo = new NetworkInfoExec[IO]
     for {
-      _     <- reconfigDynFile(templatePath, minQuorumSize)
+      _ <- reconfigDynFile(templatePath, minQuorumSize)
       state <- IndexedStateT.get[IO, Either[NoMinQuorum.type, MinQuorumFound]]
       _ <- state match {
         case Right(minquorum) =>
           for {
-            _       <- IndexedStateT.set[IO, Either[NoMinQuorum.type, MinQuorumFound], MinQuorumFound](minquorum)
-            _       <- zookeeperQuorumStart(zooconf, zoodynconf)
+            _ <- IndexedStateT.set[IO, Either[NoMinQuorum.type, MinQuorumFound], MinQuorumFound](minquorum)
+            _ <- zookeeperQuorumStart(zooconf, zoodynconf)
             started <- IndexedStateT.get[IO, ZKStarted]
-            _       <- IndexedStateT.set[IO, ZKStarted, ZKStarted](started)
+            _ <- IndexedStateT.set[IO, ZKStarted, ZKStarted](started)
           } yield ()
         case Left(noquorum) =>
           for {

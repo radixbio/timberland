@@ -1,6 +1,6 @@
 resource "nomad_job" "retool" {
   count = var.enable ? 1 : 0
-  jobspec = templatefile("/opt/radix/timberland/terraform/retool/retool.tmpl", {prefix = var.prefix, test = var.test, })
+  jobspec = templatefile("/opt/radix/timberland/terraform/modules/retool/retool.tmpl", {prefix = var.prefix, test = var.test, })
 }
 
 data "consul_service_health" "retool_health" {

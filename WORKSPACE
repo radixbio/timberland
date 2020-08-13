@@ -1,4 +1,4 @@
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file")
 load("@bazel_tools//tools/build_defs/repo:jvm.bzl", "jvm_maven_import_external")
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository", "new_git_repository")
 
@@ -45,10 +45,11 @@ bind(
     actual = "//3rdparty/jvm/org/scalactic:scalactic",
 )
 
-http_archive(
+git_repository(
     name = "rules_pkg",
-    sha256 = "4ba8f4ab0ff85f2484287ab06c0d871dcb31cc54d439457d28fd4ae14b18450a",
-    url = "https://github.com/bazelbuild/rules_pkg/releases/download/0.2.4/rules_pkg-0.2.4.tar.gz",
+    commit = "7636b7dc2e14bf198a6c21c01e33847f3863e572",
+    patch_cmds = ["mv pkg/* ."],
+    remote = "https://github.com/itdaniher/rules_pkg.git",
 )
 
 load("@rules_pkg//:deps.bzl", "rules_pkg_dependencies")
@@ -985,7 +986,7 @@ config_setting(
 )
 
 package(default_visibility = ["//visibility:public"])
-load("@//:tools/cmake_build.bzl", "cmake_tool")
+load("@//tools:cmake_build.bzl", "cmake_tool")
 cmake_tool(
     name = "cmaketool",
     cmake_srcs = "@cmake//:all",
@@ -1261,29 +1262,30 @@ http_archive(
 http_archive(
     name = "terraform",
     build_file_content = "exports_files([\"terraform\"])",
-    sha256 = "602d2529aafdaa0f605c06adb7c72cfb585d8aa19b3f4d8d189b42589e27bf11",
-    url = "https://releases.hashicorp.com/terraform/0.12.24/terraform_0.12.24_linux_amd64.zip",
+    sha256 = "cd867252689979ca33517b9e391fe39fceecf0b6df91450a6abb75833cbd2c7f",
+    url = "https://releases.hashicorp.com/terraform/0.13.0-beta1/terraform_0.13.0-beta1_linux_amd64.zip",
 )
 
-http_archive(
-    name = "terraform-provider-consul",
-    build_file_content = "exports_files([\"terraform-provider-consul_v2.7.0_x4\"])",
-    sha256 = "6cc007f02065258d2e7e9d04d196aa7c16731f11f5923e06d78488e14be2c8a5",
-    url = "https://releases.hashicorp.com/terraform-provider-consul/2.7.0/terraform-provider-consul_2.7.0_linux_amd64.zip",
-)
-
-http_archive(
+http_file(
     name = "terraform-provider-nomad",
-    build_file_content = "exports_files([\"terraform-provider-nomad_v1.4.8_x4\"])",
+    downloaded_file_path = "nomad/terraform-provider-nomad_1.4.8_linux_amd64.zip",
     sha256 = "122a87b8c09b12ab29641f198db2db13d8f559346996d6472ad5bb676de1002b",
-    url = "https://releases.hashicorp.com/terraform-provider-nomad/1.4.8/terraform-provider-nomad_1.4.8_linux_amd64.zip",
+    urls = ["https://releases.hashicorp.com/terraform-provider-nomad/1.4.8/terraform-provider-nomad_1.4.8_linux_amd64.zip"],
 )
 
-http_archive(
+http_file(
+    name = "terraform-provider-consul",
+    downloaded_file_path = "consul/terraform-provider-consul_2.7.0_linux_amd64.zip",
+    sha256 = "6cc007f02065258d2e7e9d04d196aa7c16731f11f5923e06d78488e14be2c8a5",
+    urls = ["https://releases.hashicorp.com/terraform-provider-consul/2.7.0/terraform-provider-consul_2.7.0_linux_amd64.zip"],
+)
+
+
+http_file(
     name = "terraform-provider-vault",
-    build_file_content = "exports_files([\"terraform-provider-vault_v2.11.0_x4\"])",
+    downloaded_file_path = "vault/terraform-provider-vault_2.11.0_linux_amd64.zip",
     sha256 = "01ecd700ad6887de8c0c88df265f5f2fa2601116348aef11a070d05250882a0c",
-    url = "https://releases.hashicorp.com/terraform-provider-vault/2.11.0/terraform-provider-vault_2.11.0_linux_amd64.zip",
+    urls = ["https://releases.hashicorp.com/terraform-provider-vault/2.11.0/terraform-provider-vault_2.11.0_linux_amd64.zip"],
 )
 
 http_archive(

@@ -1,6 +1,6 @@
 resource "nomad_job" "yugabyte" {
   count = var.enable? 1 : 0
-  jobspec = templatefile("/opt/radix/timberland/terraform/yugabyte/yugabyte.tmpl", {quorum_size = var.quorum_size, test = var.test, prefix = var.prefix, dev = var.dev})
+  jobspec = templatefile("/opt/radix/timberland/terraform/modules/yugabyte/yugabyte.tmpl", {quorum_size = var.quorum_size, test = var.test, prefix = var.prefix, dev = var.dev})
 }
 
 data "consul_service_health" "yb_master_health" {

@@ -17,7 +17,7 @@ import org.http4s.implicits._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.{FiniteDuration, _}
-import scala.concurrent.{TimeoutException, duration}
+import scala.concurrent.{duration, TimeoutException}
 
 sealed trait VaultStatus
 
@@ -33,8 +33,7 @@ sealed trait VaultSealStatus extends VaultStatus
 
 case object VaultSealed extends VaultSealStatus
 
-case class VaultUnsealed(key: String, root_token: String)
-  extends VaultSealStatus
+case class VaultUnsealed(key: String, root_token: String) extends VaultSealStatus
 
 case object VaultAlreadyUnsealed extends VaultSealStatus
 
@@ -45,7 +44,6 @@ case object VaultOauthPluginNotInstalled extends VaultOAuthStatus
 case object VaultOauthPluginInstalled extends VaultOAuthStatus
 
 case class RegisterProvider(provider: String, client_id: String, client_secret: String)
-
 
 class VaultUtils {
   implicit val contextShift: ContextShift[IO] = IO.contextShift(global)
@@ -76,51 +74,68 @@ class VaultUtils {
       case Some(token) => token
       case None => {
         val source = scala.io.Source.fromFile("/opt/radix/timberland/.vault-seal")
-        val lines = try source.mkString finally source.close()
+        val lines =
+          try source.mkString
+          finally source.close()
         lines
       }
     }
     return token
   }
 
-  def setupVault(): IO[Unit] = IO({
-    val vaultToken = findVaultToken()
-    os.proc("/opt/radix/timberland/vault/vault",
-      "write",
-      "-address=http://127.0.0.1:8200",
-      "/auth/token/roles/nomad-cluster",
-      "@/opt/radix/timberland/vault/nomad-cluster-role.json").call(
-      stdout = os.ProcessOutput(LogTUI.vault),
-      stderr = os.ProcessOutput(LogTUI.vault),
-      env = Map("VAULT_TOKEN" -> vaultToken))
-    os.proc("/opt/radix/timberland/vault/vault",
-      "secrets",
-      "enable",
-      "-address=http://127.0.0.1:8200",
-      "-path=secret",
-      "kv").call(
-      stdout = os.ProcessOutput(LogTUI.vault),
-      stderr = os.ProcessOutput(LogTUI.vault),
-      env = Map("VAULT_TOKEN" -> vaultToken))
-    List("nomad-server", "read-flag-config", "read-consul-ui", "remote-access").map(policy =>
-      os.proc("/opt/radix/timberland/vault/vault",
-        "policy",
-        "write",
-        "-address=http://127.0.0.1:8200",
-        s"${policy}",
-        s"/opt/radix/timberland/vault/${policy}-policy.hcl").call(
-        stdout = os.ProcessOutput(LogTUI.vault),
-        stderr = os.ProcessOutput(LogTUI.vault),
-        env = Map("VAULT_TOKEN" -> vaultToken))
-    )
-  })
+  def setupVault(): IO[Unit] =
+    IO({
+      val vaultToken = findVaultToken()
+      os.proc(
+          "/opt/radix/timberland/vault/vault",
+          "write",
+          "-address=http://127.0.0.1:8200",
+          "/auth/token/roles/nomad-cluster",
+          "@/opt/radix/timberland/vault/nomad-cluster-role.json"
+        )
+        .call(
+          stdout = os.ProcessOutput(LogTUI.vault),
+          stderr = os.ProcessOutput(LogTUI.vault),
+          env = Map("VAULT_TOKEN" -> vaultToken)
+        )
+      os.proc(
+          "/opt/radix/timberland/vault/vault",
+          "secrets",
+          "enable",
+          "-address=http://127.0.0.1:8200",
+          "-path=secret",
+          "kv"
+        )
+        .call(
+          stdout = os.ProcessOutput(LogTUI.vault),
+          stderr = os.ProcessOutput(LogTUI.vault),
+          env = Map("VAULT_TOKEN" -> vaultToken)
+        )
+      List("nomad-server", "read-flag-config", "read-consul-ui", "remote-access").map(policy =>
+        os.proc(
+            "/opt/radix/timberland/vault/vault",
+            "policy",
+            "write",
+            "-address=http://127.0.0.1:8200",
+            s"${policy}",
+            s"/opt/radix/timberland/vault/${policy}-policy.hcl"
+          )
+          .call(
+            stdout = os.ProcessOutput(LogTUI.vault),
+            stderr = os.ProcessOutput(LogTUI.vault),
+            env = Map("VAULT_TOKEN" -> vaultToken)
+          )
+      )
+    })
 
   def findVaultToken(): String = {
     val token = sys.env.get("VAULT_TOKEN") match {
       case Some(token) => token
       case None => {
         val source = scala.io.Source.fromFile("/opt/radix/timberland/.vault-token")
-        val lines = try source.mkString finally source.close()
+        val lines =
+          try source.mkString
+          finally source.close()
         lines
       }
     }
@@ -132,7 +147,6 @@ class VaultStarter {
   private[this] implicit val timer: Timer[IO] = IO.timer(global)
   private[this] implicit val cs: ContextShift[IO] = IO.contextShift(global)
 
-
   /** Wait for a DNS record to become available. Consul will not return a record for failing services.
    * This returns Unit because we do not care what the result is, only that there is at least one.
    *
@@ -140,17 +154,19 @@ class VaultStarter {
    * @param timeoutDuration How long to wait before throwing an exception
    */
   def waitForDNS(dnsName: String, timeoutDuration: FiniteDuration): IO[Unit] = {
-    def queryLoop(): IO[Unit] = for {
-      lookupResult <- IO(InetAddress.getAllByName(dnsName)).attempt
-      _ <- lookupResult match {
-        case Left(_: UnknownHostException) => IO.sleep(2.seconds) *> queryLoop
-        case Left(err: Throwable) => LogTUI.dns(ErrorDNS(dnsName)) *> IO.raiseError(err)
-        case Right(addresses: Array[InetAddress]) => addresses match {
-          case Array() => LogTUI.dns(EmptyDNS(dnsName)) *> IO.sleep(2.seconds) *> queryLoop
-          case _ => LogTUI.dns(ResolveDNS(dnsName))
+    def queryLoop(): IO[Unit] =
+      for {
+        lookupResult <- IO(InetAddress.getAllByName(dnsName)).attempt
+        _ <- lookupResult match {
+          case Left(_: UnknownHostException) => IO.sleep(2.seconds) *> queryLoop
+          case Left(err: Throwable)          => LogTUI.dns(ErrorDNS(dnsName)) *> IO.raiseError(err)
+          case Right(addresses: Array[InetAddress]) =>
+            addresses match {
+              case Array() => LogTUI.dns(EmptyDNS(dnsName)) *> IO.sleep(2.seconds) *> queryLoop
+              case _       => LogTUI.dns(ResolveDNS(dnsName))
+            }
         }
-      }
-    } yield ()
+      } yield ()
 
     LogTUI.dns(WaitForDNS(dnsName)) *> timeout(queryLoop, timeoutDuration) *> IO.unit
   }
@@ -186,11 +202,13 @@ class VaultStarter {
    * @tparam A The type of our result
    * @return Returns the result of fa if it completes within @after or returns fallback (all IO[A])
    */
-  def timeoutTo[A](fa: IO[A], after: FiniteDuration, fallback: IO[A])(implicit timer: Timer[IO],
-                                                                      cs: ContextShift[IO]): IO[A] = {
+  def timeoutTo[A](fa: IO[A], after: FiniteDuration, fallback: IO[A])(
+    implicit timer: Timer[IO],
+    cs: ContextShift[IO]
+  ): IO[A] = {
 
     IO.race(fa, timer.sleep(after)).flatMap {
-      case Left(a) => IO.pure(a)
+      case Left(a)  => IO.pure(a)
       case Right(_) => fallback
     }
   }
@@ -216,8 +234,7 @@ class VaultStarter {
    * @param vaultSession
    * @return IO[VaultInitStatus]
    */
-  def waitOnVaultInit(
-                       implicit vaultSession: VaultSession[IO]): IO[VaultInitStatus] = {
+  def waitOnVaultInit(implicit vaultSession: VaultSession[IO]): IO[VaultInitStatus] = {
     for {
       _ <- IO.sleep(1.second)
       initStatus <- checkVaultInitStatus
@@ -232,16 +249,15 @@ class VaultStarter {
                   IO.pure(VaultInitialized(status.keys(0), status.root_token))
               }
               case Left(status) => {
-                IO(
-                  scribe.trace(
-                    s"***** VAULT ERROR: ${status.printStackTrace()}")) *>
+                IO(scribe.trace(s"***** VAULT ERROR: ${status.printStackTrace()}")) *>
                   waitOnVaultInit
               }
             }
           } yield initStatus
         }
         case Right(true) => IO.pure(VaultAlreadyInitialized)
-        case Left(failure) => IO(scribe.trace(s"*****VAULT ERROR: ${failure.printStackTrace()}")) *> IO.pure(VaultNotInitalized)
+        case Left(failure) =>
+          IO(scribe.trace(s"*****VAULT ERROR: ${failure.printStackTrace()}")) *> IO.pure(VaultNotInitalized)
 
       }
     } yield vaultInitStatus
@@ -256,8 +272,7 @@ class VaultStarter {
    * @param vaultSession
    * @return IO[VaultSealStatus] representing an unsealed Vault or a sealed Vault
    */
-  def waitOnVaultUnseal(key: String, token: String)(
-    implicit vaultSession: VaultSession[IO]): IO[VaultSealStatus] = {
+  def waitOnVaultUnseal(key: String, token: String)(implicit vaultSession: VaultSession[IO]): IO[VaultSealStatus] = {
     for {
       _ <- IO.sleep(1.second)
       sealStatus <- checkVaultSealStatus
@@ -275,12 +290,11 @@ class VaultStarter {
                   case Right(unsealStatus) => {
                     unsealStatus.`sealed` match {
                       case false => IO.pure(VaultUnsealed(key, token))
-                      case true => IO.pure(VaultSealed)
+                      case true  => IO.pure(VaultSealed)
                     }
                   }
                   case Left(error) => {
-                    IO(scribe.trace(
-                      s"######### Unseal Error: ${error.printStackTrace()}")) *> IO
+                    IO(scribe.trace(s"######### Unseal Error: ${error.printStackTrace()}")) *> IO
                       .pure(VaultSealed)
                   }
                 }
@@ -292,9 +306,7 @@ class VaultStarter {
 
         }
         case Left(error) => {
-          IO(scribe.trace(s"###### Unseal Error: ${error.printStackTrace}")) *> waitOnVaultUnseal(
-            key,
-            token)
+          IO(scribe.trace(s"###### Unseal Error: ${error.printStackTrace}")) *> waitOnVaultUnseal(key, token)
         }
       }
     } yield vaultSealResult
@@ -313,13 +325,14 @@ class VaultStarter {
 
       implicit val vaultSession: VaultSession[IO] =
         new VaultSession[IO](authToken = Some(token), baseUrl = baseUrl, blazeClient = client)
-      // TODO: check registerPluginResult, enableEngineResult, writeOauthConfig before yielding VaultOauthPluginInstalled
+
       for {
         _ <- IO.sleep(2.seconds)
         // TODO: update this hash
         registerPluginRequest = RegisterPluginRequest(
           "af948c990a90ab6fe76f309a7ed32dc64a48e05a7145a843fe9d1fe45c138213",
-          "vault-plugin-secrets-oauthapp")
+          "vault-plugin-secrets-oauthapp"
+        )
         registerPluginResult <- vaultSession
           .registerPlugin(Secret(), "oauth2", registerPluginRequest)
 
@@ -329,7 +342,7 @@ class VaultStarter {
 
       } yield (registerPluginResult, enableEngineResult) match {
         case (Right(()), Right(())) => VaultOauthPluginInstalled
-        case _ => VaultOauthPluginNotInstalled
+        case _                      => VaultOauthPluginNotInstalled
       }
     })
   }
@@ -366,7 +379,7 @@ class VaultStarter {
                 case Right(status) =>
                   status.`sealed` match {
                     case false => IO.pure(VaultAlreadyUnsealed)
-                    case true => waitOnVaultUnseal(vaultSeal, vaultToken)
+                    case true  => waitOnVaultUnseal(vaultSeal, vaultToken)
                   }
                 case Left(error) => IO.pure(VaultSealed)
               }

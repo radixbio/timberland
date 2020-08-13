@@ -24,10 +24,7 @@ import scala.sys.process.Process
  * An abstract class that should act as the parent class for any integration tests. Note that any subclasses should
  * {@code override lazy val featureFlags = Map(...)} in order to bring up the appropriate services with Terraform.
  */
-abstract class TimberlandIntegration
-  extends AsyncFlatSpec
-    with Matchers
-    with BeforeAndAfterAll {
+abstract class TimberlandIntegration extends AsyncFlatSpec with Matchers with BeforeAndAfterAll {
 
   val ConsulPort = 8500
   val NomadPort = 4646
@@ -64,11 +61,14 @@ abstract class TimberlandIntegration
    */
   def getTokens(): AuthTokens = {
     val vaultToken = new VaultUtils().findVaultToken()
-    val getCommand = "/opt/radix/timberland/vault/vault kv get -address=http://vault.service.consul:8200 secret/consul-ui-token".split(" ")
+    val getCommand =
+      "/opt/radix/timberland/vault/vault kv get -address=http://vault.service.consul:8200 secret/consul-ui-token".split(
+        " "
+      )
     val consulNomadTokenProc = Process(getCommand, None, "VAULT_TOKEN" -> vaultToken)
     val consulNomadToken = consulNomadTokenProc.lineStream.find(_.contains("token")) match {
       case Some(line) => line.split("\\s+")(1)
-      case None => ""
+      case None       => ""
     }
     AuthTokens(consulNomadToken, vaultToken)
   }
@@ -93,11 +93,13 @@ abstract class TimberlandIntegration
   }
 
   val nomadR: Resource[IO, NomadOp ~> IO] = BlazeClientBuilder[IO](implicitly[ExecutionContext]).resource
-    .map(client => new Http4sNomadClient[IO](
-      baseUri = Uri.unsafeFromString("http://nomad.service.consul:4646"),
-      client = client,
-      accessToken = Some(tokens.consulNomadToken)
-    ))
+    .map(client =>
+      new Http4sNomadClient[IO](
+        baseUri = Uri.unsafeFromString("http://nomad.service.consul:4646"),
+        client = client,
+        accessToken = Some(tokens.consulNomadToken)
+      )
+    )
 
   override def beforeAll(): Unit = {
     super.beforeAll()
@@ -123,11 +125,13 @@ abstract class TimberlandIntegration
   }
 
   val consulR: Resource[IO, ConsulOp ~> IO] = BlazeClientBuilder[IO](implicitly[ExecutionContext]).resource
-    .map(client => new Http4sConsulClient[IO](
-      baseUri = Uri.unsafeFromString("http://consul.service.consul:8500"),
-      client = client,
-      accessToken = Some(tokens.consulNomadToken)
-    ))
+    .map(client =>
+      new Http4sConsulClient[IO](
+        baseUri = Uri.unsafeFromString("http://consul.service.consul:8500"),
+        client = client,
+        accessToken = Some(tokens.consulNomadToken)
+      )
+    )
 
   /**
    * Checks if the service is registered in consul and all its health checks are passing, so that we can use its DNS
@@ -138,22 +142,22 @@ abstract class TimberlandIntegration
    */
   def check(svcname: String): Boolean = {
     consulR
-      .use(
-        f =>
-          ConsulOp
-            .healthListChecksForService(svcname, None, None, None, None, None)
-            .foldMap(f)
-            .map(_.value.map(_.status match {
-              case HealthStatus.Passing => true
-              case x => {
-                println("status is " + x);
-                false
-              }
-            }) match {
-              case Nil => false
-              case head :: Nil => head
-              case head :: tl => head && tl.reduce(_ && _)
-            }))
+      .use(f =>
+        ConsulOp
+          .healthListChecksForService(svcname, None, None, None, None, None)
+          .foldMap(f)
+          .map(_.value.map(_.status match {
+            case HealthStatus.Passing => true
+            case x => {
+              println("status is " + x);
+              false
+            }
+          }) match {
+            case Nil         => false
+            case head :: Nil => head
+            case head :: tl  => head && tl.reduce(_ && _)
+          })
+      )
       .unsafeRunSync()
   }
 
