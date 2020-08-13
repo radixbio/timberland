@@ -191,6 +191,15 @@ object TerraformMagic {
 object CLIMagic {
   def ansi = new Ansi()
 
+  val consoleRows = {
+    val pathedTput = if (new java.io.File("/usr/bin/tput").exists()) "/usr/bin/tput" else "tput"
+    def consoleDim(s: String) = {
+      import sys.process._
+      Seq("sh", "-c", s"$pathedTput $s 2> /dev/tty").!!.trim.toInt
+    }
+    try consoleDim("lines") catch {case e => 50} // Accessing /dev/tty fails in CI, so arbitrary row count
+  }
+
   def _print(text: Ansi): IO[Unit] = IO(System.out.print(text))
 
   // For some reason ".render" moves down a line but not back to the leftmost column???
@@ -206,8 +215,8 @@ object CLIMagic {
   }
 
   def clearScreenSpace(): IO[Unit] = {
-    println("\n                                                          " * 50)
-    move(-50)
+    System.out.print("\n" * consoleRows)
+    _print(ansi.cursorUp(consoleRows))
   }
   def savePos(): IO[Unit] = {
     _print(ansi.saveCursorPosition())

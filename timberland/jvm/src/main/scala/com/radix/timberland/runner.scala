@@ -439,7 +439,7 @@ object runner {
                     } yield ()
 
                     val bootstrapIO = if (remoteAddress.isDefined) remoteBootstrap else localBootstrap
-                    val bootstrap = bootstrapIO.handleErrorWith(err => LogTUI.endTUI(Some(err))) *> LogTUI.endTUI()
+                    val bootstrap = bootstrapIO.handleErrorWith(err => LogTUI.endTUI(Some(err)) *> IO(throw err)) *> LogTUI.endTUI()
 
                     bootstrap.unsafeRunSync()
                     sys.exit(0)
