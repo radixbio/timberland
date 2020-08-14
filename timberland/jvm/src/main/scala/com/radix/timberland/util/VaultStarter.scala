@@ -15,6 +15,8 @@ import org.http4s.Uri
 import org.http4s.client.blaze.BlazeClientBuilder
 import org.http4s.implicits._
 
+import com.radix.timberland.util.RadPath
+
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.{FiniteDuration, _}
 import scala.concurrent.{duration, TimeoutException}
@@ -50,9 +52,9 @@ class VaultUtils {
 
   def storeVaultSealAndToken(key: String, token: String): IO[Unit] = IO {
     // if HOME isn't set, use /tmp (file still owed / readable only by root)
-    val prefix = "/opt/radix/timberland"
-    val tokenFile = new File(prefix + "/.vault-token")
-    val sealFile = new File(prefix + "/.vault-seal")
+    val prefix = (RadPath.runtime / "timberland")
+    val tokenFile = new File((prefix / ".vault-token").toString())
+    val sealFile = new File((prefix / ".vault-seal").toString())
     val tokenWriter = new PrintWriter(tokenFile)
     val sealWriter = new PrintWriter(sealFile)
     tokenWriter.write(token)
@@ -73,69 +75,55 @@ class VaultUtils {
     val token = sys.env.get("VAULT_SEAL") match {
       case Some(token) => token
       case None => {
-        val source = scala.io.Source.fromFile("/opt/radix/timberland/.vault-seal")
-        val lines =
-          try source.mkString
-          finally source.close()
+        val source = scala.io.Source.fromFile((RadPath.runtime / "timberland" / ".vault-seal").toString())
+        val lines = try source.mkString finally source.close()
         lines
       }
     }
     return token
   }
 
-  def setupVault(): IO[Unit] =
-    IO({
-      val vaultToken = findVaultToken()
-      os.proc(
-          "/opt/radix/timberland/vault/vault",
-          "write",
-          "-address=http://127.0.0.1:8200",
-          "/auth/token/roles/nomad-cluster",
-          "@/opt/radix/timberland/vault/nomad-cluster-role.json"
-        )
-        .call(
-          stdout = os.ProcessOutput(LogTUI.vault),
-          stderr = os.ProcessOutput(LogTUI.vault),
-          env = Map("VAULT_TOKEN" -> vaultToken)
-        )
-      os.proc(
-          "/opt/radix/timberland/vault/vault",
-          "secrets",
-          "enable",
-          "-address=http://127.0.0.1:8200",
-          "-path=secret",
-          "kv"
-        )
-        .call(
-          stdout = os.ProcessOutput(LogTUI.vault),
-          stderr = os.ProcessOutput(LogTUI.vault),
-          env = Map("VAULT_TOKEN" -> vaultToken)
-        )
-      List("nomad-server", "read-flag-config", "read-consul-ui", "remote-access").map(policy =>
-        os.proc(
-            "/opt/radix/timberland/vault/vault",
-            "policy",
-            "write",
-            "-address=http://127.0.0.1:8200",
-            s"${policy}",
-            s"/opt/radix/timberland/vault/${policy}-policy.hcl"
-          )
-          .call(
-            stdout = os.ProcessOutput(LogTUI.vault),
-            stderr = os.ProcessOutput(LogTUI.vault),
-            env = Map("VAULT_TOKEN" -> vaultToken)
-          )
-      )
-    })
+
+  def setupVault(): IO[Unit] = IO({
+    val vaultToken = findVaultToken()
+    os.proc(RadPath.runtime / "timberland" / "vault" / "vault",
+      "write",
+      "-address=http://127.0.0.1:8200",
+      "/auth/token/roles/nomad-cluster",
+      "@" + (RadPath.runtime / "timberland" / "vault" / "nomad-cluster-role.json")
+    ).call(
+      stdout = os.ProcessOutput(LogTUI.vault),
+      stderr = os.ProcessOutput(LogTUI.vault),
+      env = Map("VAULT_TOKEN" -> vaultToken))
+    os.proc(RadPath.runtime / "timberland" / "vault" / "vault",
+      "secrets",
+      "enable",
+      "-address=http://127.0.0.1:8200",
+      "-path=secret",
+      "kv").call(
+      stdout = os.ProcessOutput(LogTUI.vault),
+      stderr = os.ProcessOutput(LogTUI.vault),
+      env = Map("VAULT_TOKEN" -> vaultToken))
+    List("nomad-server", "read-flag-config", "read-consul-ui", "remote-access").map(policy =>
+      os.proc(RadPath.runtime / "timberland" / "vault" / "vault",
+        "policy",
+        "write",
+        "-address=http://127.0.0.1:8200",
+        s"${policy}",
+        RadPath.runtime / "timberland" / "vault" / s"${policy}-policy.hcl"
+      ).call(
+        stdout = os.ProcessOutput(LogTUI.vault),
+        stderr = os.ProcessOutput(LogTUI.vault),
+        env = Map("VAULT_TOKEN" -> vaultToken))
+    )
+  })
 
   def findVaultToken(): String = {
     val token = sys.env.get("VAULT_TOKEN") match {
       case Some(token) => token
       case None => {
-        val source = scala.io.Source.fromFile("/opt/radix/timberland/.vault-token")
-        val lines =
-          try source.mkString
-          finally source.close()
+        val source = scala.io.Source.fromFile((RadPath.runtime / "timberland" / ".vault-token").toString())
+        val lines = try source.mkString finally source.close()
         lines
       }
     }

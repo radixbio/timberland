@@ -9,6 +9,7 @@ import cats.effect.{ContextShift, IO, Resource, SyncIO, Timer}
 import cats.implicits._
 import java.io.{File, FileInputStream, FileOutputStream, IOException}
 import java.net.{InetAddress, NetworkInterface, ServerSocket}
+import oshi.SystemInfo
 
 object Util {
   def putStrLn(str: String): IO[Unit] = IO(scribe.info(str))
@@ -101,5 +102,24 @@ object Util {
     NetworkInterface
       .getByInetAddress(InetAddress.getByAddress("localhost", ip.split('.').map(_.toInt.toByte)))
       .getName
+  }
+}
+
+
+object RadPath {
+  val osname = new SystemInfo().getOperatingSystem().getFamily()
+
+  def runtime: os.Path = {
+    osname match {
+      case "Windows" => os.root / "Program Files" / "Radix" // "os.root" evaluates to "C:\" on windows machines
+      case _ => os.root / "opt" / "radix" // This should work on all non-windows machines, right?
+    }
+  }
+
+  def temp: os.Path = {
+    osname match {
+      case "Windows" => os.home / "AppData" / "Local" / "Temp" / "Radix" // When in Rome, etc.
+      case _ => os.root / "tmp" / "radix"
+    }
   }
 }

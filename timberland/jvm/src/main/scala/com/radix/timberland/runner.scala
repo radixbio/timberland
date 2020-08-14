@@ -9,7 +9,7 @@ import com.radix.timberland.flags.{RemoteConfig, _}
 import com.radix.timberland.launch.daemonutil
 import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.timberland.runtime._
-import com.radix.timberland.util.{LogTUI, LogTUIWriter, VaultStarter, VaultUtils}
+import com.radix.timberland.util.{LogTUI, LogTUIWriter, VaultStarter, VaultUtils, RadPath}
 import com.radix.utils.helm.http4s.vault.Vault
 import com.radix.timberland.util.{UpdateModules, VaultStarter}
 import io.circe.{Parser => _}
@@ -303,23 +303,21 @@ object runner {
       case _                                                                           => "arm"
     }
 
-    val persistentDirStr = "/opt/radix/timberland/" // TODO make configurable
-    implicit val persistentDirPath = Path(persistentDirStr)
 
-    val systemdDir = "/opt/radix/systemd/"
-    val appdatadir = new File(persistentDirStr)
-    val consul = new File(persistentDirStr + "/consul/consul")
-    val nomad = new File(persistentDirStr + "/nomad/nomad")
-    val vault = new File(persistentDirStr + "/vault/vault")
-    val nginx = new File(persistentDirStr + "/nginx/")
-    nginx.mkdirs
-    val minio = new File("/opt/radix/minio_data/")
-    minio.mkdirs
-    val minio_bucket = new File("/opt/radix/minio_data/userdata")
-    minio_bucket.mkdirs
-    nomad.getParentFile.mkdirs()
-    consul.getParentFile.mkdirs()
-    vault.getParentFile.mkdirs()
+    val persistentDir = RadPath.runtime / "timberland"
+
+    val consul = persistentDir / "consul" / "consul"
+    val nomad = persistentDir / "nomad" / "nomad"
+    val vault = persistentDir / "vault"/ "vault"
+    val nginx = persistentDir / "nginx"
+    os.makeDir.all(nginx)
+    val minio = persistentDir / "minio_data"
+    os.makeDir.all(minio)
+    val minio_bucket = minio / "userdata"
+    os.makeDir.all(minio_bucket)
+    os.makeDir.all(nomad / os.up)
+    os.makeDir.all(consul / os.up)
+    os.makeDir.all(vault / os.up)
 
     def cmdEval(cmd: RadixCMD): Unit = {
       cmd match {
@@ -342,17 +340,9 @@ object runner {
                   if (dummy) {
                     implicit val host = new Mock.RuntimeNolaunch[IO]
                     Right(
-                      println(
-                        Run
-                          .initializeRuntimeProg[IO](
-                            Path(consul.toPath.getParent),
-                            Path(nomad.toPath.getParent),
-                            bindIP,
-                            consulSeedsO,
-                            0
-                          )
-                          .unsafeRunSync
-                      )
+                      println(Run
+                        .initializeRuntimeProg[IO](consul / os.up, nomad / os.up, bindIP, consulSeedsO, 0)
+                        .unsafeRunSync)
                     )
                     System.exit(0)
                   } else {
@@ -381,11 +371,11 @@ object runner {
                     implicit val host = new Run.RuntimeServicesExec[IO]
                     val startServices = for {
                       _ <- IO(scribe.info("Launching daemons"))
-                      localFlags <- featureFlags.getLocalFlags(persistentDirPath)
+                      localFlags <- featureFlags.getLocalFlags(persistentDir)
                       // Starts LogTUI before `startLogTuiAndRunTerraform` is called
                       _ <- if (localFlags.getOrElse("tui", true)) LogTUI.startTUI() else IO.unit
-                      consulPath = Path(consul.toPath.getParent)
-                      nomadPath = Path(nomad.toPath.getParent)
+                      consulPath = consul / os.up
+                      nomadPath = nomad / os.up
                       bootstrapExpect = if (localFlags.getOrElse("dev", true)) 1 else 3
                       tokens <- Run
                         .initializeRuntimeProg[IO](consulPath, nomadPath, bindIP, consulSeedsO, bootstrapExpect)
@@ -416,17 +406,15 @@ object runner {
 
                     // Called when consul/nomad/vault are on localhost
                     val localBootstrap = for {
-                      hasBootstrapped <- IO(os.exists(persistentDirPath / ".bootstrap-complete"))
+                      hasBootstrapped <- IO(os.exists(persistentDir / ".bootstrap-complete"))
                       serviceAddrs = ServiceAddrs()
                       authTokens <- if (hasBootstrapped) {
                         auth.getAuthTokens(isRemote = false, serviceAddrs, username, password)
                       } else {
                         // daemonutil.containerRegistryLogin(containerRegistryUser, containerRegistryToken) *>
-                        flagConfig.promptForDefaultConfigs *> createWeaveNetwork *> startServices
+                        flagConfig.promptForDefaultConfigs(persistentDir = persistentDir) *> createWeaveNetwork *> startServices
                       }
-                      featureFlags <- featureFlags.updateFlags(persistentDirPath, Some(authTokens), confirm = true)(
-                        serviceAddrs
-                      )
+                      featureFlags <- featureFlags.updateFlags(persistentDir, Some(authTokens), confirm = true)(serviceAddrs)
                       _ <- startLogTuiAndRunTerraform(featureFlags, serviceAddrs, authTokens, waitForQuorum = true)
                     } yield ()
 
@@ -434,7 +422,7 @@ object runner {
                     val remoteBootstrap = for {
                       serviceAddrs <- daemonutil.getServiceIps()
                       authTokens <- auth.getAuthTokens(isRemote = true, serviceAddrs, username, password)
-                      featureFlags <- featureFlags.updateFlags(persistentDirPath, Some(authTokens))(serviceAddrs)
+                      featureFlags <- featureFlags.updateFlags(persistentDir, Some(authTokens))(serviceAddrs)
                       _ <- startLogTuiAndRunTerraform(featureFlags, serviceAddrs, authTokens, waitForQuorum = false)
                     } yield ()
 
@@ -464,7 +452,7 @@ object runner {
                       username,
                       password
                     )
-                    flagMap <- featureFlags.updateFlags(persistentDirPath, Some(authTokens))(serviceAddrs)
+                    flagMap <- featureFlags.updateFlags(persistentDir, Some(authTokens))(serviceAddrs)
                     _ <- daemonutil.runTerraform(flagMap)(serviceAddrs, authTokens) // calls updateFlagConfig
                     _ <- if (remoteAddress.isEmpty) daemonutil.waitForQuorum(flagMap) else IO.unit
                   } yield true
@@ -500,7 +488,7 @@ object runner {
                 serviceAddrs <- if (remoteAddress.isDefined) daemonutil.getServiceIps() else IO.pure(ServiceAddrs())
                 authTokens <- auth.getAuthTokens(isRemote = remoteAddress.isDefined, serviceAddrs, username, password)
                 flagMap <- featureFlags.updateFlags(
-                  persistentDirPath,
+                  persistentDir,
                   Some(authTokens),
                   flagsToSet,
                   confirm = remoteAddress.isDefined
@@ -510,12 +498,12 @@ object runner {
               } yield ()
 
               val noConsulProc = for {
-                flagMap <- featureFlags.updateFlags(persistentDirPath, None, flagsToSet)
-                _ <- flagConfig.updateFlagConfig(flagMap)
+                flagMap <- featureFlags.updateFlags(persistentDir, None, flagsToSet)
+                _ <- flagConfig.updateFlagConfig(flagMap)(persistentDir = persistentDir)
                 _ <- IO(scribe.warn("Could not connect to remote consul instance. Flags stored locally."))
               } yield ()
 
-              IO(os.exists(persistentDirPath / ".bootstrap-complete"))
+              IO(os.exists(persistentDir / ".bootstrap-complete"))
                 .flatMap {
                   case true  => consulExistsProc
                   case false => noConsulProc
@@ -530,13 +518,13 @@ object runner {
                 authTokens <- if (consulIsUp) {
                   auth.getAuthTokens(isRemote = remoteAddress.isDefined, serviceAddrs, username, password).map(Some(_))
                 } else IO.pure(None)
-                _ <- featureFlags.printFlagInfo(persistentDirPath, consulIsUp, serviceAddrs, authTokens)
+                _ <- featureFlags.printFlagInfo(persistentDir, consulIsUp, serviceAddrs, authTokens)
               } yield ()
               io.unsafeRunSync()
               sys.exit(0)
 
             case AddUser(name, policies) =>
-              if (!os.exists(persistentDirPath / ".bootstrap-complete")) {
+              if (!os.exists(persistentDir / ".bootstrap-complete")) {
                 Console.err.println("Please run timberland runtime start before adding a new user")
                 sys.exit(1)
               }

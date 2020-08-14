@@ -223,7 +223,7 @@ object Run {
 
     override def startConsul(bind_addr: String, consulSeedsO: Option[String], bootstrapExpect: Int): F[Unit] =
       F.delay {
-        val persistentDir = "/opt/radix/timberland"
+        val persistentDir = RadPath.runtime / "timberland"
         LogTUI.event(ConsulStarting)
         LogTUI.writeLog("spawning consul via systemd")
 
@@ -258,7 +258,7 @@ object Run {
     override def startNomad(bind_addr: String, bootstrapExpect: Int, vaultToken: String): F[Unit] = {
 
       F.delay {
-        val persistentDir = "/opt/radix/timberland"
+        val persistentDir = RadPath.runtime / "timberland"
         val args: String =
           s"""NOMAD_CMD_ARGS=-bind=$bind_addr -bootstrap-expect=$bootstrapExpect -config=$persistentDir/nomad/config
              |VAULT_TOKEN=$vaultToken
@@ -278,7 +278,7 @@ object Run {
     }
 
     def startVault(bind_addr: String): F[Unit] = {
-      val persistentDir = "/opt/radix/timberland"
+      val persistentDir = RadPath.runtime / "timberland"
       val args: String =
         s"""VAULT_CMD_ARGS=-address=http://${bind_addr}:8200 -config=$persistentDir/vault/vault_config.conf""".stripMargin
 

@@ -6,7 +6,7 @@ import java.net.{InetAddress, ServerSocket, UnknownHostException}
 import cats.effect.{ContextShift, IO, Resource, Timer}
 import cats.implicits._
 import com.radix.timberland.flags.flagConfig
-import com.radix.timberland.util.{LogTUI, ResolveDNS, TerraformMagic, VaultUtils, WaitForDNS}
+import com.radix.timberland.util.{LogTUI, ResolveDNS, TerraformMagic, VaultUtils, WaitForDNS, RadPath}
 import com.radix.utils.helm.http4s.Http4sNomadClient
 import com.radix.utils.helm.http4s.vault.{Vault => VaultSession}
 import com.radix.utils.helm.{NomadOp, NomadReadRaftConfigurationResponse}
@@ -38,6 +38,9 @@ package object daemonutil {
   private[this] implicit val timer: Timer[IO] = IO.timer(global)
   private[this] implicit val cs: ContextShift[IO] = IO.contextShift(global)
   private[this] implicit val blaze: Resource[IO, Client[IO]] = BlazeClientBuilder[IO](global).resource
+
+
+  val execDir = RadPath.runtime / "timberland" / "terraform"
 
   /**
    * A map from feature flag to a list of services associated with that flag
@@ -134,31 +137,27 @@ package object daemonutil {
     } yield ServiceAddrs(consulAddr, nomadAddr)
   }
 
-  //  def getTerraformWorkDir(is_integration: Boolean): File = {
-  //    if (is_integration) new File("/tmp/radix/terraform") else new File("/opt/radix/terraform")
-  //  }
-
   def updatePrefixFile(prefix: Option[String]): Unit = {
     prefix match {
       case Some(str) => {
-        val file = "/opt/radix/timberland/git-branch-workspace-status.txt"
-        val writer = new FileWriter(file)
-        try writer.write(str)
-        finally writer.close()
+        val file = RadPath.runtime / "timberland" / "git-branch-workspace-status.txt"
+        val writer = new FileWriter(file.toString())
+        try writer.write(str) finally writer.close()
       }
       case None => ()
     }
   }
 
+
   def readTerraformPlan(
-    execDir: String,
+    execDir: os.Path,
     workingDir: os.Path,
     variables: String
   ): IO[(TerraformMagic.TerraformPlan, Map[String, List[String]])] = {
     IO {
       val F = File.createTempFile("radix", ".plan")
-      val planCommand = Seq("bash", "-c", s"$execDir/terraform plan $variables -out=$F")
-      val showCommand = s"$execDir/terraform show -json $F".split(" ")
+      val planCommand = Seq("bash", "-c", s"${execDir / "terraform"} plan $variables -out=$F")
+      val showCommand = s"${execDir / "terraform"} show -json $F".split(" ")
       val planout = proc(planCommand).call(cwd = workingDir)
       val planshow = proc(showCommand).call(cwd = workingDir)
       parse(new String(planshow.out.bytes)) match {
@@ -254,29 +253,26 @@ package object daemonutil {
   }
 
   def getTerraformWorkDir(is_integration: Boolean): os.Path = {
-    if (is_integration) os.root / "tmp" / "radix" / "terraform" else os.root / "opt" / "radix" / "terraform"
+    if (is_integration) RadPath.temp / "terraform" else os.root / "opt" / "radix" / "terraform"
   }
 
   def getPrefix(integration: Boolean): String = {
-    val prefixPath = "/opt/radix/timberland/git-branch-workspace-status.txt"
-    val rawPrefix: String =
-      if (integration) "integration"
-      else {
-        sys.env.get("NOMAD_PREFIX") match {
-          case Some(prefix) => prefix
-          case None => {
-            new java.io.File(prefixPath).isFile match {
-              case true => {
-                val bufferedSource = Source.fromFile(prefixPath)
-                val result = bufferedSource.getLines().mkString
-                bufferedSource.close()
-                if (result.length > 0) result else ""
-              }
-              case false => ""
+    val rawPrefix : String = if (integration) "integration" else {
+      sys.env.get("NOMAD_PREFIX") match {
+        case Some(prefix) => prefix
+        case None => {
+          new java.io.File((RadPath.runtime / "timberland" / "git-branch-workspace-status.txt").toString()).isFile match {
+            case true => {
+              val bufferedSource = Source.fromFile((RadPath.runtime / "timberland" / "git-branch-workspace-status.txt").toString())
+              val result = bufferedSource.getLines().mkString
+              bufferedSource.close()
+              if (result.length > 0) result else ""
             }
+            case false => ""
           }
         }
       }
+    }
 
     val cutPrefix =
       if (rawPrefix.length > 0) rawPrefix.substring(0, Math.min(rawPrefix.length, 25)) + "-" else rawPrefix
@@ -286,8 +282,6 @@ package object daemonutil {
       cutPrefix.replaceAll("_", "-").replaceAll("[^a-zA-Z\\d-]", "")
     }
   }
-
-  val execDir = "/opt/radix/timberland/terraform"
 
   /** Start up the specified daemons (or all or a combination) based upon the passed parameters. Will immediately exit
    * after submitting the job to Nomad via Terraform.
@@ -303,11 +297,11 @@ package object daemonutil {
     tokens: AuthTokens
   ): IO[Int] = {
     val workingDir = getTerraformWorkDir(integrationTest)
-    val mkTmpDirCommand = Seq("bash", "-c", "rm -rf /tmp/radix && mkdir -p /tmp/radix/terraform")
+    val mkTmpDir = IO({os.remove.all(RadPath.temp) ; os.makeDir(RadPath.temp / "terraform")}) //Seq("bash", "-c", "rm -rf /tmp/radix && mkdir -p /tmp/radix/terraform")
 
     updatePrefixFile(prefix)
 
-    implicit val persistentDir: os.Path = os.Path("/opt/radix/timberland")
+    implicit val persistentDir: os.Path = RadPath.runtime / "timberland"
     implicit val tokensOption: Option[AuthTokens] = Some(tokens)
 
     val variables =
@@ -318,9 +312,6 @@ package object daemonutil {
         s"-var='nomad_address=${serviceAddrs.nomadAddr}' " +
         s"""-var='feature_flags=["${featureFlags.filter(_._2).keys.mkString("""","""")}"]' """
 
-    val mkTmpDir = for {
-      mkDirExitCode <- IO(Process(mkTmpDirCommand) !)
-    } yield mkDirExitCode
 
     val show: IO[(TerraformMagic.TerraformPlan, Map[String, List[String]])] =
       readTerraformPlan(execDir, workingDir, variables)
@@ -330,7 +321,7 @@ package object daemonutil {
       configEntriesStr = flagConfig.configVars.map(kv => s"-var='${kv._1}=${kv._2}'").mkString(" ")
       definedVarsStr = s"""-var='defined_config_vars=["${flagConfig.definedVars.mkString("""","""")}"]'"""
       configStr = s"$configEntriesStr $definedVarsStr "
-      applyCommand = Seq("bash", "-c", s"$execDir/terraform apply -no-color -auto-approve " + variables + configStr)
+      applyCommand = Seq("bash", "-c", s"${execDir / "terraform"} apply -no-color -auto-approve " + variables + configStr)
       applyExitCode <- IO(
         os.proc(applyCommand)
           .call(
@@ -367,16 +358,14 @@ package object daemonutil {
           s"-var='acl_token=${backendMasterToken.get}'"
         )
       else Seq.empty
-    val initAgainCommand = Seq(
-      s"$execDir/terraform",
-      "init",
-      "-plugin-dir",
-      s"$execDir/plugins",
+
+    val initAgainCommand= Seq(
+      s"${execDir / "terraform"}", "init",
+      "-plugin-dir", s"${execDir / "plugins"}",
       s"-backend=${backendMasterToken.isDefined}"
     ) ++ backendVars
-
-    val initFirstCommand = initAgainCommand ++ Seq("-from-module", s"$execDir/modules")
-
+    val initFirstCommand = initAgainCommand ++ Seq("-from-module", s"${execDir / "modules"}")
+    
     val workingDir = getTerraformWorkDir(integrationTest)
 
     for {
@@ -396,7 +385,7 @@ package object daemonutil {
 
   def stopTerraform(integrationTest: Boolean): IO[Int] = {
     val workingDir = getTerraformWorkDir(integrationTest)
-    val cmd = Seq("bash", "-c", s"$execDir/terraform destroy -auto-approve")
+    val cmd = Seq("bash", "-c", s"${execDir / "terraform"} destroy -auto-approve")
     println(s"Destroy command ${cmd.mkString(" ")}")
     val ret = os.proc(cmd).call(stdout = os.Inherit, stderr = os.Inherit, cwd = workingDir)
     IO(ret.exitCode)

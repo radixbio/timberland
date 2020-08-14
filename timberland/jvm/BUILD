@@ -49,6 +49,7 @@ timberland_core_srcs = [
     "src/main/scala/com/radix/timberland/runtime/install.scala",
     "src/main/scala/com/radix/timberland/runtime/services.scala",
     "src/main/scala/com/radix/timberland/util/VaultStarter.scala",
+    "src/main/scala/com/radix/timberland/util/util.scala",
     "src/main/scala/com/radix/timberland/util/LogTUI.scala",
 ]
 
