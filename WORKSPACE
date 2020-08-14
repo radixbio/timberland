@@ -25,11 +25,13 @@ http_archive(
 load(
     "@io_bazel_rules_scala//scala/scalafmt:scalafmt_repositories.bzl",
     "scalafmt_default_config",
-    "scalafmt_repositories"
+    "scalafmt_repositories",
 )
 
 scalafmt_repositories()
+
 scalafmt_default_config()
+
 bind(
     name = "io_bazel_rules_scala_dependency_scalap_scalap",
     actual = "//3rdparty/jvm/org/scala-lang:scalap",
@@ -110,8 +112,6 @@ http_archive(
     url = "https://github.com/protocolbuffers/protobuf/archive/v%s.tar.gz" % protobuf_version,
 )
 
-
-
 load(
     "@io_bazel_rules_scala//scala:scala_cross_version.bzl",
     "default_scala_major_version",
@@ -121,8 +121,6 @@ load(
     "@io_bazel_rules_scala//scala:scala_maven_import_external.bzl",
     "scala_maven_import_external",
 )
-
-
 load("//3rdparty:workspace.bzl", "maven_dependencies")
 
 maven_dependencies()
@@ -1247,9 +1245,9 @@ http_archive(
 http_archive(
     name = "vault-plugin-secrets-oauthapp",
     build_file_content = "exports_files([\"vault-plugin-secrets-oauthapp\"])",
+    patch_cmds = ["mv vault-plugin-secrets-oauthapp-v1.3.0-linux-amd64 vault-plugin-secrets-oauthapp"],
     sha256 = "5ed0f0df011ede9426fbe59c11ac9d16d0d769c5ed14878ddcf8b931c87fc119",
     url = "https://github.com/puppetlabs/vault-plugin-secrets-oauthapp/releases/download/v1.3.0/vault-plugin-secrets-oauthapp-v1.3.0-linux-amd64.tar.xz",
-    patch_cmds = ["mv vault-plugin-secrets-oauthapp-v1.3.0-linux-amd64 vault-plugin-secrets-oauthapp"]
 )
 
 http_archive(
@@ -1262,8 +1260,8 @@ http_archive(
 http_archive(
     name = "terraform",
     build_file_content = "exports_files([\"terraform\"])",
-    sha256 = "cd867252689979ca33517b9e391fe39fceecf0b6df91450a6abb75833cbd2c7f",
-    url = "https://releases.hashicorp.com/terraform/0.13.0-beta1/terraform_0.13.0-beta1_linux_amd64.zip",
+    sha256 = "9ed437560faf084c18716e289ea712c784a514bdd7f2796549c735d439dbe378",
+    url = "https://releases.hashicorp.com/terraform/0.13.0/terraform_0.13.0_linux_amd64.zip",
 )
 
 http_file(
@@ -1279,7 +1277,6 @@ http_file(
     sha256 = "6cc007f02065258d2e7e9d04d196aa7c16731f11f5923e06d78488e14be2c8a5",
     urls = ["https://releases.hashicorp.com/terraform-provider-consul/2.7.0/terraform-provider-consul_2.7.0_linux_amd64.zip"],
 )
-
 
 http_file(
     name = "terraform-provider-vault",
@@ -1343,4 +1340,3 @@ http_archive(
     build_file_content = "exports_files([\"metro/lib/webservices-tools.jar\"])",
     url = "https://maven.java.net/content/repositories/releases//org/glassfish/metro/metro-standalone/2.3.1/metro-standalone-2.3.1.zip",
 )
-

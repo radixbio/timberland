@@ -16,6 +16,9 @@ dependencies:
     akka-serial-core:
       lang: scala
       version: "4.2.0"
+    akka-serial-native:
+      lang: java
+      version: "4.2.0"
 
   co.fs2:
     fs2:

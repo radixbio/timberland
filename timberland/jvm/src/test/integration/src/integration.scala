@@ -46,7 +46,7 @@ abstract class TimberlandIntegration extends AsyncFlatSpec with Matchers with Be
     "core" -> true,
     "yugabyte" -> false,
     "vault" -> false,
-    "retool_postgres" -> false,
+    "retool" -> false,
     "elemental" -> false,
     "elasticsearch" -> false
   )
@@ -198,7 +198,7 @@ abstract class TimberlandIntegration extends AsyncFlatSpec with Matchers with Be
     assert(check(s"${prefix}minio-job-minio-group-nginx-minio"))
   }
 
-  if (resolvedFlags.getOrElse("retool_postgres", false)) it should "bring up retool/postgres" in {
+  if (resolvedFlags.getOrElse("retool", false)) it should "bring up retool/postgres" in {
     assert(check(s"${prefix}retool-retool-postgres"))
     assert(check(s"${prefix}retool-retool-retool-main"))
   }

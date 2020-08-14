@@ -9,7 +9,7 @@ import com.radix.timberland.flags.{RemoteConfig, _}
 import com.radix.timberland.launch.daemonutil
 import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.timberland.runtime._
-import com.radix.timberland.util.{LogTUI, LogTUIWriter, VaultStarter, VaultUtils, RadPath}
+import com.radix.timberland.util.{LogTUI, LogTUIWriter, VaultStarter, VaultUtils, RadPath, UpdateModules}
 import com.radix.utils.helm.http4s.vault.Vault
 import com.radix.timberland.util.{UpdateModules, VaultStarter}
 import io.circe.{Parser => _}

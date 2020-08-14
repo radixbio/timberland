@@ -35,32 +35,6 @@ exports_files([
     #    "terraform/apprise/outputs.tf",
     #    "terraform/apprise/variables.tf",
 
-    # RUNTIME MODULE
-    "terraform/runtime",
-    #    "terraform/runtime/runtime.tmpl",
-    #    "terraform/runtime/main.tf",
-    #    "terraform/runtime/outputs.tf",
-    #    "terraform/runtime/variables.tf",
-
-    # S3LTS MODULE
-    "terraform/s3lts",
-    #    "terraform/s3lts/s3lts.tmpl",
-    #    "terraform/s3lts/main.tf",
-    #    "terraform/s3lts/outputs.tf",
-    #    "terraform/s3lts/variables.tf",
-
-    # RUNTIME MODULE
-    "terraform/runtime/runtime.tmpl",
-    "terraform/runtime/main.tf",
-    "terraform/runtime/outputs.tf",
-    "terraform/runtime/variables.tf",
-
-    # S3LTS MODULE
-    "terraform/s3lts/s3lts.tmpl",
-    "terraform/s3lts/main.tf",
-    "terraform/s3lts/outputs.tf",
-    "terraform/s3lts/variables.tf",
-
     # ZOOKEEPER MODULE
     "terraform/zookeeper",
     #    "terraform/zookeeper/zookeeper.tmpl",
@@ -88,13 +62,6 @@ exports_files([
     #    "terraform/retool/main.tf",
     #    "terraform/retool/outputs.tf",
     #    "terraform/retool/variables.tf",
-
-    # ELEMENTAL MODULE
-    "terraform/elemental",
-    #    "terraform/elemental/elemental.tmpl",
-    #    "terraform/elemental/main.tf",
-    #    "terraform/elemental/outputs.tf",
-    #    "terraform/elemental/variables.tf",
 
     # ELASTICSEARCH MODULE
     "terraform/elasticsearch",

@@ -37,6 +37,11 @@ client {
     path = "/opt/radix/ybtserver_data"
     read_only = false
   }
+
+  host_volume "device_drivers" {
+    path = "/opt/radix/device_drivers"
+    read_only = false
+  }
 }
 
 plugin "raw_exec" {

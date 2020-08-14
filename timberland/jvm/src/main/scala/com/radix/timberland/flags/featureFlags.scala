@@ -46,8 +46,25 @@ object featureFlags {
       "minio",
       "retool_pg_kafka_connector",
       "kafka_companions",
-      "retool_postgres",
+      "retool",
       "zookeeper"
+    ),
+    "device_drivers" -> Set(
+      "ln2",
+      "quantstudio",
+      "opentrons",
+      "multitrons",
+      "hw_discovery",
+      "tf_exactive",
+    ),
+    "algs" -> Set(
+      "hmrpp_uservice",
+      "dbpmjss_uservice",
+      "gi_uservice",
+    ),
+    "utils" -> Set(
+      "prism",
+      "s3lts"
     )
   )
   // All flags that aren't tied to a specific module
@@ -245,7 +262,6 @@ object featureFlags {
     val supersetsWithAll = flagSupersets + ("all" -> validFlags)
     flagsToSet -- supersetsWithAll.keys ++ supersetsWithAll.toList.flatMap {
       case (supersetFlagName, flagSet) if flagsToSet contains supersetFlagName =>
-//        flagSet.map(_ -> flagsToSet(supersetFlagName))
         flagSet.map(flag => (flag, flagsToSet(supersetFlagName) && flagsToSet.getOrElse(flag, true)))
       case _ => Map.empty
     }.toMap

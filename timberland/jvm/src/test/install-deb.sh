@@ -14,19 +14,23 @@ docker network create --attachable -d weaveworks/net-plugin:2.6.0 weave  --ip-ra
 
 ./timberland runtime enable all
 ./timberland runtime disable elemental
+./timberland runtime disable algs
+./timberland runtime disable utils
+./timberland runtime disable device_drivers
 ./timberland runtime start
 
-EXIT_CODE=$?
-echo "Timberland test exit code: $EXIT_CODE"
+TIMBERLAND_EXIT_CODE=$?
+echo "Timberland exit code: $TIMBERLAND_EXIT_CODE"
 
 sleep 3
 
 /home/ubuntu/service_test.py | tee /tmp/service_test.log
 
-echo "Service test exit code: $?"
+TEST_EXIT_CODE=$?
+echo "Service test exit code: $TEST_EXIT_CODE"
 
 mkdir /home/ubuntu/nomad-logs
 
 rsync -av --relative /opt/radix/nomad/alloc/./*/alloc/logs/* /home/ubuntu/nomad-logs
 
-exit $EXIT_CODE
+exit $TEST_EXIT_CODE

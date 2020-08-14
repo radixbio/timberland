@@ -35,7 +35,7 @@ scala_library(
     ],
 )
 
-#TODO @sibblegp make this go away
+#TODO collapse the namespace, so "core_srcs" aren't from launch/, runtime/, util/...
 #it's shared dependencies that timberland the commandline tool
 #has with the in-container process
 timberland_core_srcs = [
@@ -182,7 +182,6 @@ pkg_tar(
     ],
     package_dir = "/opt/radix",
     strip_prefix = "/",
-    deps = ["//device_drivers/hw_discovery/jvm:disco-deploy"],
 )
 
 pkg_tar(
@@ -288,9 +287,10 @@ pkg_tar(
     srcs = [
         "//device_drivers/hw_discovery/jvm:hw-discovery-bin_deploy.jar",
         "//device_drivers/ln2/jvm:ln2-bin_deploy.jar",
+        "//device_drivers/multitrons/jvm:multitrons-bin_deploy.jar",
         "//device_drivers/opentrons/jvm:opentrons-bin_deploy.jar",
-        "//device_drivers/tf-exactive/jvm:tfexactive-bin",
-        "//device_drivers/tf-exactive/jvm:tfexactive-bin.jar",
+        "//device_drivers/quantstudio/jvm:quantstudio-bin_deploy.jar",
+        "//device_drivers/tf-exactive/jvm:tfexactive-bin_deploy.jar",
     ],
     package_dir = "/opt/radix/device_drivers/",
 )
@@ -447,20 +447,6 @@ terraform_module(
 )
 
 terraform_module(
-    name = "elemental-terraform",
-    file_dir = "//timberland/assets:terraform/elemental",
-    jobname = "elemental",
-    module_spec = [
-        'enable = contains(var.feature_flags, "elemental")',
-        'source = "/opt/radix/timberland/terraform/modules/elemental"',
-        'dev = contains(var.feature_flags, "dev")',
-        "test = var.test",
-        "prefix = var.prefix",
-    ],
-    deps = [":kafka_companions-terraform"],
-)
-
-terraform_module(
     name = "es_kafka_connector-terraform",
     file_dir = "//timberland/assets:terraform/es_kafka_connector",
     jobname = "es_kafka_connector",
@@ -469,9 +455,6 @@ terraform_module(
         'source = "/opt/radix/timberland/terraform/modules/es_kafka_connector"',
         "test = var.test",
         "prefix = var.prefix",
-        "schema_registry_address = module.kafka_companions.schema_registry_health_result",
-        "elasticsearch_address = module.elasticsearch.elasticsearch_health_result",
-        "connect_address = module.kafka_companions.connect_health_result",
     ],
     deps = [
         ":elasticsearch-terraform",
@@ -490,8 +473,8 @@ terraform_module(
         "prefix = var.prefix",
         "quorum_size = var.kafka_quorum_size",
         "interbroker_port = var.kafka_interbroker_port",
-        "zookeeper_address = module.zookeeper.zookeeper_health_result",
     ],
+    visibility = ["//visibility:public"],  # TODO set this for all terraform rules?  Or other scheme?
     deps = [":zookeeper-terraform"],
 )
 
@@ -507,8 +490,8 @@ terraform_module(
         "prefix = var.prefix",
         "quorum_size = var.kafka_companions_quorum_size",
         "interbroker_port = var.kafka_interbroker_port",
-        "kafka_address = module.kafka.kafka_health_result",
     ],
+    visibility = ["//visibility:public"],  # TODO set this for all terraform rules?  Or other scheme?
     deps = [":kafka-terraform"],
 )
 
@@ -521,9 +504,9 @@ terraform_module(
         'source = "/opt/radix/timberland/terraform/modules/minio"',
         "prefix = var.prefix",
         "test = var.test",
-        "kafka_address = module.kafka.kafka_health_result",
-        "have_upstream_creds = contains(var.defined_config_vars, \"minio.aws_access_key_id\") && contains(var.defined_config_vars, \"minio.aws_secret_access_key\")"
+        'have_upstream_creds = contains(var.defined_config_vars, "minio.aws_access_key_id") && contains(var.defined_config_vars, "minio.aws_secret_access_key")',
     ],
+    visibility = ["//visibility:public"],  # TODO set this for all terraform rules?  Or other scheme?
     deps = [":kafka-terraform"],
 )
 
@@ -532,7 +515,7 @@ terraform_module(
     file_dir = "//timberland/assets:terraform/retool",
     jobname = "retool",
     module_spec = [
-        'enable = contains(var.feature_flags, "retool_postgres")',
+        'enable = contains(var.feature_flags, "retool")',
         'source = "/opt/radix/timberland/terraform/modules/retool"',
         'dev = contains(var.feature_flags, "dev")',
         "test = var.test",
@@ -549,9 +532,6 @@ terraform_module(
         'source = "/opt/radix/timberland/terraform/modules/retool_pg_kafka_connector"',
         "test = var.test",
         "prefix = var.prefix",
-        "schema_registry_address = module.kafka_companions.schema_registry_health_result",
-        "connect_address = module.kafka_companions.connect_health_result",
-        "postgres_address = module.retool.postgres_health_result",
     ],
     deps = [
         ":kafka_companions-terraform",
@@ -583,9 +563,6 @@ terraform_module(
         'source = "/opt/radix/timberland/terraform/modules/yugabyte_kafka_connector"',
         "test = var.test",
         "prefix = var.prefix",
-        "schema_registry_address = module.kafka_companions.schema_registry_health_result",
-        "connect_address = module.kafka_companions.connect_health_result",
-        "yb_tserver_address = module.yugabyte.yb_tserver_health_result",
     ],
     deps = [
         ":kafka_companions-terraform",
@@ -607,47 +584,6 @@ terraform_module(
     ],
     deps = [],
 )
-
-terraform_module(
-    name = "s3lts-terraform",
-    file_dir = "//timberland/assets:terraform/s3lts",
-    jobname = "s3lts",
-    module_spec = [
-        'enable = contains(var.feature_flags, "s3lts")',
-        'source = "/opt/radix/timberland/terraform/modules/s3lts"',
-        "test = var.test",
-        "prefix = var.prefix",
-        "runtime_address = module.runtime.runtime_health_result",
-        "minio_address = module.minio.minio_health_result",
-        "schema_registry_address = module.kafka_companions.schema_registry_health_result"
-    ],
-    deps = [
-        ":kafka_companions-terraform",
-        ":minio-terraform",
-        ":runtime-terraform",
-    ],
-)
-
-terraform_module(
-    name = "runtime-terraform",
-    file_dir = "//timberland/assets:terraform/runtime",
-    jobname = "runtime",
-    module_spec = [
-        'enable = contains(var.feature_flags, "runtime")',
-        'source = "/opt/radix/timberland/terraform/modules/runtime"',
-        "test = var.test",
-        "prefix = var.prefix",
-    ],
-    deps = [
-        ":kafka-terraform",
-    ],
-)
-#
-#terraform_module(
-#    name = "main-terraform",
-#    file_dir = "//timberland/assets:terraform/main",
-#    jobname = "main",
-#)
 
 terraform_provider(
     name = "terraform-consul",
@@ -692,18 +628,28 @@ terraform_deployment(
     resources = [
         ":apprise-terraform",
         ":elasticsearch-terraform",
-        ":elemental-terraform",
         ":es_kafka_connector-terraform",
         ":kafka-terraform",
         ":kafka_companions-terraform",
         ":minio-terraform",
         ":retool-terraform",
         ":retool_pg_kafka_connector-terraform",
-        ":runtime-terraform",
-        ":s3lts-terraform",
         ":yugabyte-terraform",
         ":yugabyte_kafka_connector-terraform",
         ":zookeeper-terraform",
+        "//algs/dbpmjss-uservice/jvm:dbpmjss_uservice-terraform",
+        "//algs/hmrpp-uservice/jvm:hmrpp_uservice-terraform",
+        "//algs/subgraph-isomorphism-uservice/jvm:gi_uservice-terraform",
+        "//device_drivers/hw_discovery/jvm:hw_discovery-terraform",
+        "//device_drivers/ln2/jvm:ln2-terraform",
+        "//device_drivers/multitrons/jvm:multitrons-terraform",
+        "//device_drivers/opentrons/jvm:opentrons-terraform",
+        "//device_drivers/quantstudio/jvm:quantstudio-terraform",
+        "//device_drivers/tf-exactive/jvm:tf_exactive-terraform",
+        "//runtime/jvm:runtime-terraform",
+        "//sensors/elemental/jvm:elemental-terraform",
+        "//utils/prism-uservice/jvm:prism-terraform",
+        "//utils/s3lts:s3lts-terraform",
     ],
     terraform_source = "@terraform",
     toplevel_module_aux = [

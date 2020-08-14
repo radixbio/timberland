@@ -137,18 +137,6 @@ package object daemonutil {
     } yield ServiceAddrs(consulAddr, nomadAddr)
   }
 
-  def updatePrefixFile(prefix: Option[String]): Unit = {
-    prefix match {
-      case Some(str) => {
-        val file = RadPath.runtime / "timberland" / "git-branch-workspace-status.txt"
-        val writer = new FileWriter(file.toString())
-        try writer.write(str) finally writer.close()
-      }
-      case None => ()
-    }
-  }
-
-
   def readTerraformPlan(
     execDir: os.Path,
     workingDir: os.Path,
@@ -256,30 +244,32 @@ package object daemonutil {
     if (is_integration) RadPath.temp / "terraform" else os.root / "opt" / "radix" / "terraform"
   }
 
+  private val prefixFile = RadPath.runtime / "timberland" / "git-branch-workspace-status.txt"
+
+  def readPrefixFile: String = {
+    os.read(prefixFile).stripLineEnd
+  }
+
   def getPrefix(integration: Boolean): String = {
-    val rawPrefix : String = if (integration) "integration" else {
-      sys.env.get("NOMAD_PREFIX") match {
-        case Some(prefix) => prefix
-        case None => {
-          new java.io.File((RadPath.runtime / "timberland" / "git-branch-workspace-status.txt").toString()).isFile match {
-            case true => {
-              val bufferedSource = Source.fromFile((RadPath.runtime / "timberland" / "git-branch-workspace-status.txt").toString())
-              val result = bufferedSource.getLines().mkString
-              bufferedSource.close()
-              if (result.length > 0) result else ""
-            }
-            case false => ""
-          }
-        }
-      }
-    }
+    if (integration) "integration-" else sanitizePrefix(sys.env.getOrElse("NOMAD_PREFIX", readPrefixFile))
+  }
 
-    val cutPrefix =
-      if (rawPrefix.length > 0) rawPrefix.substring(0, Math.min(rawPrefix.length, 25)) + "-" else rawPrefix
-
-    if (cutPrefix.matches("[a-zA-Z\\d-]*")) cutPrefix
+  private def sanitizePrefix(rawPrefix: String): String = {
+    val cutPrefix = if (!rawPrefix.isEmpty) rawPrefix.substring(0, Math.min(rawPrefix.length, 25)) + "-" else rawPrefix
+    if(cutPrefix.matches("[a-zA-Z\\d-]*")) cutPrefix
     else {
       cutPrefix.replaceAll("_", "-").replaceAll("[^a-zA-Z\\d-]", "")
+    }
+  }
+
+  private def updatePrefixFile(prefix: Option[String]): Unit = {
+    prefix match {
+      case Some(str) => {
+        val sanitized = sanitizePrefix(str)
+        if(!str.equals(sanitized)) LogTUI.printAfter(s"The given prefix $str was invalid; used $sanitized instead.")
+        os.write.over(prefixFile, sanitized)
+      }
+      case None => ()
     }
   }
 
@@ -365,7 +355,7 @@ package object daemonutil {
       s"-backend=${backendMasterToken.isDefined}"
     ) ++ backendVars
     val initFirstCommand = initAgainCommand ++ Seq("-from-module", s"${execDir / "modules"}")
-    
+
     val workingDir = getTerraformWorkDir(integrationTest)
 
     for {

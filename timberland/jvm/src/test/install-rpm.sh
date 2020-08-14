@@ -12,17 +12,22 @@ cd /opt/radix/timberland/exec
 docker network create --attachable -d weaveworks/net-plugin:2.6.0 weave
 ./timberland runtime enable all
 ./timberland runtime disable elemental
+./timberland runtime disable algs
+./timberland runtime disable utils
+./timberland runtime disable device_drivers
 ./timberland runtime start
+
+TIMBERLAND_EXIT_CODE=$?
+echo "Timberland exit code: $TIMBERLAND_EXIT_CODE"
 
 sleep 3
 
 /home/centos/service_test.py | tee /tmp/service_test.log
 
-EXIT_CODE=$?
-
-echo "Service test exit code: $EXIT_CODE"
+TEST_EXIT_CODE=$?
+echo "Service test exit code: $TEST_EXIT_CODE"
 
 mkdir /home/centos/nomad-logs
 rsync -av --relative /opt/radix/nomad/alloc/./*/alloc/logs/* /home/centos/nomad-logs
 
-exit $EXIT_CODE
+exit $TEST_EXIT_CODE

@@ -21,8 +21,3 @@ variable "enable" {
   type = bool
   default = true
 }
-
-variable "kafka_address" {
-  type = list(string)
-  default = []
-}
