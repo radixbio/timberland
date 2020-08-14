@@ -20,7 +20,7 @@ Timberland is a launcher designed to run backing
 services for the Radix Runtime
 
 %prep
-tar -xvf {timberland-full-tar.tar}
+tar -xvf {timberland-full-tar.tar} --no-same-owner
 rm {timberland-full-tar.tar}
 
 %files
