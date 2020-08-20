@@ -9,7 +9,9 @@ def _ter_impl(ctx):
 
     job_tar = ctx.actions.declare_file("%s.tar" % jobname)
 
-    cmd = ("tar --format=gnu -cvhf %s -C %s %s" %
+    darwin = ctx.attr._macos_platform[platform_common.ConstraintValueInfo]
+    tool = "gtar" if ctx.target_platform_has_constraint(darwin) else "tar"
+    cmd = (tool + " --format=gnu -cvhf %s -C %s %s" %
            (job_tar.path, ctx.file.file_dir.dirname, ctx.file.file_dir.basename))
 
     print("Running: " + cmd)
@@ -41,6 +43,7 @@ terraform_module = rule(
         "file_dir": attr.label(allow_single_file = True),
         "deps": attr.label_list(default = []),
         "module_spec": attr.string_list(),
+        "_macos_platform": attr.label(default = Label("@platforms//os:macos")),
     },
 )
 
@@ -52,7 +55,9 @@ def _prov_impl(ctx):
 
     tarfile = ctx.actions.declare_file(ctx.file.source.path + ".tar")
 
-    tarcmd = ("tar --format=gnu -cvhf %s -C %s %s" %
+    darwin = ctx.attr._macos_platform[platform_common.ConstraintValueInfo]
+    tool = "gtar" if ctx.target_platform_has_constraint(darwin) else "tar"
+    tarcmd = (tool + " --format=gnu -cvhf %s -C %s %s" %
               (tarfile.path, ctx.file.source.dirname.strip(providername), providername))
     ctx.actions.run_shell(
         inputs = [ctx.file.source],
@@ -71,6 +76,7 @@ terraform_provider = rule(
         "source": attr.label(allow_single_file = True),
         "spec": attr.string(),
         "zipname": attr.string(),
+        "_macos_platform": attr.label(default = Label("@platforms//os:macos")),
     },
 )
 
