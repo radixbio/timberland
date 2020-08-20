@@ -43,11 +43,11 @@ import cats.effect.IO
 import helm.http4s._
 import org.http4s.Uri.uri
 import org.http4s.client.blaze.Http1Client
+import utils.tls.ConsulVaultSSLContext._
 
-val client = Http1Client[IO]().unsafeRunSync
-val baseUrl = uri("http://127.0.0.1:8500")
+val baseUrl = uri("https://127.0.0.1:8501")
 
-val interpreter = new Http4sConsulClient(baseUrl, client)
+val interpreter = new Http4sConsulClient(baseUrl)
 ```
 
 Now we can apply commands to our http4s client to get back IOs

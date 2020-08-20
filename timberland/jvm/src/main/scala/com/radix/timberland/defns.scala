@@ -80,13 +80,17 @@ package object radixdefs {
   trait RuntimeServicesAlg[F[_]] extends LocalEthInfoAlg[F] {
     def searchForPort(netinf: List[String], port: Int): F[Option[NonEmptyList[String]]]
     def startConsul(bind_addr: String, consulSeedsO: Option[String], bootstrapExpect: Int): F[Unit]
+    def startConsulTemplate(consulNomadToken: String, vaultToken: String): F[Unit]
     def startVault(bind_addr: String): F[Unit]
     def startNomad(bind_addr: String, bootstrapExpect: Int, vaultToken: String): F[Unit]
     def stopConsul(): F[Unit]
+    def stopConsulTemplate(): F[Unit]
     def stopNomad(): F[Unit]
     def stopVault(): F[Unit]
     def startWeave(hosts: List[String]): F[Unit]
   }
 
-  case class ServiceAddrs(consulAddr: String = "consul.service.consul", nomadAddr: String = "nomad.service.consul")
+  case class ServiceAddrs(consulAddr: String = "consul.service.consul",
+                          nomadAddr: String = "nomad.service.consul",
+                          vaultAddr: String = "vault.service.consul")
 }

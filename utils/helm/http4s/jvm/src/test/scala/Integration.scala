@@ -34,19 +34,15 @@ class IntegrationSpec extends FlatSpec with Checkers with BeforeAndAfterAll with
     )
 
   val baseUrl: Uri =
-    Uri.fromString(s"http://127.0.0.1:${ConsulPort}").toOption.get
+    Uri.fromString(s"http://127.0.0.1:$ConsulPort").toOption.get
 
   import scala.concurrent.ExecutionContext.Implicits.global
 
   implicit val cs: ContextShift[IO] = IO.contextShift(implicitly[ExecutionContext])
   val arb = Arbitrary(Gen.identifier suchThat (x => x.length > 1 && !x.contains("")))
 
-  val i =
-    BlazeClientBuilder[IO](implicitly[ExecutionContext]).resource
-      .map(new Http4sConsulClient[IO](baseUrl, _))
-      .allocated
-      .unsafeRunSync()
-      ._1
+  implicit val blaze = BlazeClientBuilder[IO](implicitly[ExecutionContext]).resource
+  val i = new Http4sConsulClient[IO](baseUrl)
   "consul" should "work" in check({ (k: String, v: Array[Byte]) =>
     val testprog = for {
       _ <- helm.run(i, ConsulOp.kvSet(k, v))

@@ -14,6 +14,7 @@ scala_library(
     exports = [
         "//shared/shared/shared/shared:shared-shared",
         "//utils/helm:helm-jvm",
+        "//utils/tls:consul-tls",
         "@third_party//3rdparty/jvm/com/github/oshi:oshi_core",
         "@third_party//3rdparty/jvm/com/github/xuwei_k:optparse_applicative",
         "@third_party//3rdparty/jvm/com/lihaoyi:ammonite_ops",
@@ -25,6 +26,7 @@ scala_library(
     deps = [
         "//shared/shared/shared/shared:shared-shared",
         "//utils/helm:helm-jvm",
+        "//utils/tls:consul-tls",
         "@third_party//3rdparty/jvm/com/github/oshi:oshi_core",
         "@third_party//3rdparty/jvm/com/github/xuwei_k:optparse_applicative",
         "@third_party//3rdparty/jvm/com/lihaoyi:ammonite_ops",
@@ -188,11 +190,11 @@ pkg_tar(
     name = "timberland-vault",
     srcs = [
         "//timberland/assets:systemd/vault.env.conf",
-        "//timberland/assets:vault/nomad-cluster-role.json",
-        "//timberland/assets:vault/nomad-server-policy.hcl",
         "//timberland/assets:vault/read-consul-ui-policy.hcl",
         "//timberland/assets:vault/read-flag-config-policy.hcl",
         "//timberland/assets:vault/remote-access-policy.hcl",
+        "//timberland/assets:vault/tls-cert-policy.hcl",
+        "//timberland/assets:vault/tls-cert-role.json",
         "//timberland/assets:vault/vault_config.conf",
         "@vault",
         "@vault-plugin-secrets-oauthapp",
@@ -223,9 +225,67 @@ pkg_tar(
 pkg_tar(
     name = "timberland-consul-config",
     srcs = [
-        "//timberland/assets:consul/consul.json",
+        "//timberland/assets:consul/consul-no-tls.json",
+        "//timberland/assets:consul/consul-tls.json",
     ],
     package_dir = "/opt/radix/timberland/consul/config",
+)
+
+pkg_tar(
+    name = "timberland-consul-template",
+    srcs = [
+        "//timberland/assets:consul-template/ca/cert.pem.tpl",
+        "//timberland/assets:consul-template/config.hcl",
+        "//timberland/assets:systemd/consul-template.env.conf",
+        "@consul-template",
+    ],
+    package_dir = "/opt/radix/timberland/consul-template",
+)
+
+pkg_tar(
+    name = "timberland-consul-template-ca",
+    srcs = [
+        "//timberland/assets:consul-template/ca/cert.pem.tpl",
+    ],
+    package_dir = "/opt/radix/timberland/consul-template/ca",
+)
+
+pkg_tar(
+    name = "timberland-consul-template-cli",
+    srcs = [
+        "//timberland/assets:consul-template/cli/cert.pem.tpl",
+        "//timberland/assets:consul-template/cli/key.pem.tpl",
+    ],
+    package_dir = "/opt/radix/timberland/consul-template/cli",
+)
+
+pkg_tar(
+    name = "timberland-consul-template-consul",
+    srcs = [
+        "//timberland/assets:consul-template/consul/cert.pem.tpl",
+        "//timberland/assets:consul-template/consul/key.pem.tpl",
+    ],
+    package_dir = "/opt/radix/timberland/consul-template/consul",
+)
+
+pkg_tar(
+    name = "timberland-consul-template-nomad",
+    srcs = [
+        "//timberland/assets:consul-template/nomad/cert.pem.tpl",
+        "//timberland/assets:consul-template/nomad/cli-cert.pem.tpl",
+        "//timberland/assets:consul-template/nomad/cli-key.pem.tpl",
+        "//timberland/assets:consul-template/nomad/key.pem.tpl",
+    ],
+    package_dir = "/opt/radix/timberland/consul-template/nomad",
+)
+
+pkg_tar(
+    name = "timberland-consul-template-vault",
+    srcs = [
+        "//timberland/assets:consul-template/vault/cert.pem.tpl",
+        "//timberland/assets:consul-template/vault/key.pem.tpl",
+    ],
+    package_dir = "/opt/radix/timberland/consul-template/vault",
 )
 
 pkg_tar(
@@ -267,6 +327,7 @@ pkg_tar(
     name = "timberland-systemd-services",
     srcs = [
         "//timberland/assets:systemd/consul.service",
+        "//timberland/assets:systemd/consul-template.service",
         "//timberland/assets:systemd/nomad.service",
         "//timberland/assets:systemd/vault.service",
     ],
@@ -308,6 +369,12 @@ pkg_tar(
         ":terraform-update-config",
         ":timberland-consul",
         ":timberland-consul-config",
+        ":timberland-consul-template",
+        ":timberland-consul-template-ca",
+        ":timberland-consul-template-cli",
+        ":timberland-consul-template-consul",
+        ":timberland-consul-template-nomad",
+        ":timberland-consul-template-vault",
         ":timberland-devdrivers",
         ":timberland-exec",
         ":timberland-networkd",
@@ -551,7 +618,6 @@ terraform_module(
         "test = var.test",
         "quorum_size = var.yugabyte_quorum_size",
     ],
-    deps = [],
 )
 
 terraform_module(
@@ -582,14 +648,16 @@ terraform_module(
         "prefix = var.prefix",
         "quorum_size = var.zookeeper_quorum_size",
     ],
-    deps = [],
 )
 
 terraform_provider(
     name = "terraform-consul",
     source = "@terraform-provider-consul//file",
     spec = """provider "consul" {
-  address = "http://${var.consul_address}:8500"
+  address = "https://${var.consul_address}:8501"
+  ca_file = var.tls_ca_file
+  cert_file = var.tls_cert_file
+  key_file = var.tls_key_file
   version = "~> 2.7"
   token = var.acl_token
 }
@@ -600,7 +668,10 @@ terraform_provider(
     name = "terraform-nomad",
     source = "@terraform-provider-nomad//file",
     spec = """provider "nomad" {
-   address = "http://${var.nomad_address}:4646"
+   address = "https://${var.nomad_address}:4646"
+   ca_file = var.tls_ca_file
+   cert_file = var.tls_nomad_cert_file
+   key_file = var.tls_nomad_key_file
    version = "~> 1.4"
    secret_id = var.acl_token
 }
@@ -611,8 +682,9 @@ terraform_provider(
     name = "terraform-vault",
     source = "@terraform-provider-vault//file",
     spec = """provider "vault" {
-address = "http://${var.vault_address}:8200"
-version = "2.11.0"
+    address = "https://${var.vault_address}:8200"
+    ca_cert_file = var.tls_ca_file
+    version = "2.11.0"
 }
 """,
 )

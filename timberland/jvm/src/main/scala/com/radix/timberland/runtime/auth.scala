@@ -13,10 +13,12 @@ import com.radix.utils.helm.vault.{CreateSecretRequest, KVGetResult, LoginRespon
 import org.http4s.client.dsl.io._
 import org.http4s.implicits._
 import org.http4s.Method._
+import org.http4s.{Header, Status}
 import org.http4s.{Header, Status, Uri}
 import org.http4s.client.blaze.BlazeClientBuilder
 import io.circe.syntax._
 import os.CommandResult
+import utils.tls.ConsulVaultSSLContext.blaze
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -43,10 +45,9 @@ object auth {
   }
 
   private def getRemoteAuthTokens(serviceAddrs: ServiceAddrs, username: String, password: String): IO[AuthTokens] = {
-    val blaze = BlazeClientBuilder[IO](global).resource
-    val vaultUri = Uri.fromString(s"http://${serviceAddrs.consulAddr}:8200").toOption.get
+    val vaultUri = Uri.fromString(s"https://${serviceAddrs.vaultAddr}:8200").toOption.get
     blaze.use { client =>
-      val unauthenticatedVault = new Vault[IO](authToken = None, baseUrl = vaultUri, blazeClient = client)
+      val unauthenticatedVault = new Vault[IO](authToken = None, baseUrl = vaultUri)
       for {
         vaultLoginResponse <- unauthenticatedVault.login(username, password)
         vaultToken = vaultLoginResponse match {
@@ -56,19 +57,18 @@ object auth {
           case Right(LoginResponse(token, _, _, _)) => token
         }
 
-        authenticatedVault = new Vault[IO](authToken = Some(vaultToken), baseUrl = vaultUri, blazeClient = client)
+        authenticatedVault = new Vault[IO](authToken = Some(vaultToken), baseUrl = vaultUri)
         consulNomadToken <- getConsulTokenFromVault(authenticatedVault)
       } yield AuthTokens(consulNomadToken, vaultToken)
     }
   }
 
   private def getLocalAuthTokens(): IO[AuthTokens] = {
-    val blaze = BlazeClientBuilder[IO](global).resource
-    val vaultUri = uri"http://127.0.0.1:8200"
+    val vaultUri = uri"https://127.0.0.1:8200"
     for {
       vaultToken <- IO(new VaultUtils().findVaultToken())
       consulNomadToken <- blaze.use { client =>
-        val vault = new Vault[IO](authToken = Some(vaultToken), baseUrl = vaultUri, blazeClient = client)
+        val vault = new Vault[IO](authToken = Some(vaultToken), baseUrl = vaultUri)
         getConsulTokenFromVault(vault)
       }
     } yield AuthTokens(consulNomadToken, vaultToken)
@@ -154,16 +154,20 @@ object auth {
   def setupNomadMasterToken(persistentDir: os.Path, consulToken: String) = {
     val nomad = persistentDir / "nomad" / "nomad"
     val consul = persistentDir / "consul" / "consul"
-    val addr = "http://nomad.service.consul:4646"
+    val certDir = persistentDir / os.up / "certs"
+    val tlsCa = certDir / "ca" / "cert.pem"
+    val tlsCert = certDir / "nomad" / "cli-cert.pem"
+    val tlsKey = certDir / "nomad" / "cli-key.pem"
+    val addr = "https://nomad.service.consul:4646"
     val masterPolicy = "00000000-0000-0000-0000-000000000001"
 
     for {
       nomadResolves <- daemonutil.waitForDNS("nomad.service.consul", 60.seconds)
       nomadUp <- daemonutil.waitForPortUp(4646, 60.seconds)
       _ <- IO.sleep(10.seconds)
-      _ <- IO.pure(scribe.info(s"nomad resolves: ${nomadResolves}, nomad listening on 4646: ${nomadUp}"))
+      _ <- IO.pure(scribe.info(s"nomad resolves: $nomadResolves, nomad listening on 4646: $nomadUp"))
 
-      bootstrapCmd = s"$nomad acl bootstrap -address=$addr"
+      bootstrapCmd = s"$nomad acl bootstrap -address=$addr -ca-cert=$tlsCa -client-cert=$tlsCert -client-key=$tlsKey"
       bootstrapCmdRes <- exec(bootstrapCmd)
       masterToken = parseToken(bootstrapCmdRes)
 
@@ -175,20 +179,21 @@ object auth {
     } yield masterToken
   }
 
-  def storeMasterTokenInVault(masterToken: String): IO[Unit] = {
+  def getMasterToken(persistentDir: os.Path): IO[String] = IO {
+    os.read(persistentDir / ".acl-token")
+  }
+
+  def storeMasterToken(persistentDir: os.Path, masterToken: String): IO[Unit] = {
     val vaultToken = (new VaultUtils).findVaultToken()
-    val vaultUri = uri"http://127.0.0.1:8200"
-    val blaze = BlazeClientBuilder[IO](global).resource
-    blaze.use { client =>
-      val vault = new Vault[IO](authToken = Some(vaultToken), baseUrl = vaultUri, blazeClient = client)
-      val payload = CreateSecretRequest(data = Map("token" -> masterToken).asJson, cas = None)
-      vault.createSecret("consul-ui-token", payload).map {
-        case Left(err) =>
-          Console.err.println("Error saving consul/nomad token to vault\n" + err)
-          sys.exit(1)
-        case Right(_) => ()
-      }
-    }
+    val vaultUri = uri"https://127.0.0.1:8200"
+    val vault = new Vault[IO](authToken = Some(vaultToken), baseUrl = vaultUri)
+    val payload = CreateSecretRequest(data = Map("token" -> masterToken).asJson, cas = None)
+    vault.createSecret("consul-ui-token", payload).map {
+      case Left(err) =>
+        Console.err.println("Error saving consul/nomad token to vault\n" + err)
+        sys.exit(1)
+      case Right(_) => ()
+    } *> IO(os.write.over(persistentDir / ".acl-token", masterToken, os.PermSet(400)))
   }
 
   def exec(command: String) = IO {
@@ -208,12 +213,10 @@ object auth {
   }
 
   def waitForConsul(consulToken: String): IO[Unit] = {
-    val request = GET(uri"http://127.0.0.1:8500/v1/agent/self", Header("X-Consul-Token", consulToken))
+    val request = GET(uri"https://127.0.0.1:8501/v1/agent/self", Header("X-Consul-Token", consulToken))
     def queryConsul: IO[Unit] = {
-      BlazeClientBuilder[IO](global).resource
-        .use { client =>
-          client.status(request).attempt
-        }
+      blaze
+        .use(_.status(request).attempt)
         .flatMap {
           case Right(Status(200)) => IO.unit
           case thing @ _          => IO.sleep(1 second) *> queryConsul

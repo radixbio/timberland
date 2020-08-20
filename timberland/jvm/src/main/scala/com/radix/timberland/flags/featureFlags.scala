@@ -15,7 +15,7 @@ import io.circe.parser.{decode, parse}
 import io.circe.syntax._
 import io.circe.{Decoder, Json}
 import org.http4s.Uri
-import org.http4s.client.blaze.BlazeClientBuilder
+import utils.tls.ConsulVaultSSLContext._
 
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext
@@ -112,18 +112,16 @@ object featureFlags {
   }
 
   def getConsulFlags(implicit serviceAddrs: ServiceAddrs, tokens: AuthTokens): IO[Map[String, Boolean]] = {
-    BlazeClientBuilder[IO](global).resource.use { client =>
-      val consulUri = Uri.fromString(s"http://${serviceAddrs.consulAddr}:8500").toOption.get
-      val interpreter = new Http4sConsulClient[IO](consulUri, client, Some(tokens.consulNomadToken))
-      val getFeaturesOp = ConsulOp.kvGetJson[Map[String, Boolean]]("features", None, None)
-      for {
-        features <- helm.run(interpreter, getFeaturesOp)
-      } yield features match {
-        case Right(QueryResponse(Some(consulFlagMap), _, _, _)) =>
-          defaultFlagMap ++ consulFlagMap
-        case _ =>
-          defaultFlagMap
-      }
+    val consulUri = Uri.fromString(s"https://${serviceAddrs.consulAddr}:8501").toOption.get
+    val interpreter = new Http4sConsulClient[IO](consulUri, Some(tokens.consulNomadToken))
+    val getFeaturesOp = ConsulOp.kvGetJson[Map[String, Boolean]]("features", None, None)
+    for {
+      features <- helm.run(interpreter, getFeaturesOp)
+    } yield features match {
+      case Right(QueryResponse(Some(consulFlagMap), _, _, _)) =>
+        defaultFlagMap ++ consulFlagMap
+      case _ =>
+        defaultFlagMap
     }
   }
 
@@ -135,15 +133,13 @@ object featureFlags {
   private def setConsulFlags(
     flags: Map[String, Boolean]
   )(implicit serviceAddrs: ServiceAddrs, tokens: AuthTokens): IO[Map[String, Boolean]] = {
-    BlazeClientBuilder[IO](global).resource.use { client =>
-      val consulUri = Uri.fromString(s"http://${serviceAddrs.consulAddr}:8500").toOption.get
-      val interpreter = new Http4sConsulClient[IO](consulUri, client, Some(tokens.consulNomadToken))
-      val setFeaturesOp = ConsulOp.kvSetJson("features", _: Map[String, Boolean])
-      for {
-        curFlags <- getConsulFlags
-        _ <- helm.run(interpreter, setFeaturesOp(curFlags ++ flags))
-      } yield curFlags ++ flags
-    }
+    val consulUri = Uri.fromString(s"https://${serviceAddrs.consulAddr}:8501").toOption.get
+    val interpreter = new Http4sConsulClient[IO](consulUri, Some(tokens.consulNomadToken))
+    val setFeaturesOp = ConsulOp.kvSetJson("features", _: Map[String, Boolean])
+    for {
+      curFlags <- getConsulFlags
+      _ <- helm.run(interpreter, setFeaturesOp(curFlags ++ flags))
+    } yield curFlags ++ flags
   }
 
   /**

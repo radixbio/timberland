@@ -44,6 +44,20 @@ job "${prefix}kafka-daemons" {
         port_map = {"kafka" = 9092}
         volumes = ["/opt/radix/timberland:/timberland"]
         cap_add = []
+        mounts = [
+          {
+            type = "bind"
+            target = "/ca.pem"
+            source = "/opt/radix/certs/ca/cert.pem"
+            readonly = true
+          },
+          {
+            type = "bind"
+            target = "/client-cert"
+            source = "/opt/radix/certs/cli"
+            readonly = true
+          }
+        ]
       }
 
       driver = "docker"
@@ -53,6 +67,9 @@ job "${prefix}kafka-daemons" {
         "KAFKA_BROKER_ID" = "$${NOMAD_ALLOC_INDEX}",
         "TOPIC_AUTO_CREATE" = "true",
         "KAFKA_INTER_BROKER_LISTENER_NAME" = "INSIDE",
+        "TLS_CA" = "/ca.pem",
+        "TLS_CERT" = "/client-cert/cert.pem",
+        "TLS_KEY" = "/client-cert/key.pem",
         ${ dev ? "\"KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR\" = \"1\"," : "" }
       }
       kill_timeout = "5s"

@@ -954,6 +954,13 @@ http_archive(
 )
 
 http_archive(
+    name = "consul-template",
+    build_file_content = "exports_files([\"consul-template\"])",
+    sha256 = "496da8d30242ab2804e17ef2fa41aeabd07fd90176986dff58bce1114638bb71",
+    url = "https://releases.hashicorp.com/consul-template/0.25.0/consul-template_0.25.0_linux_amd64.zip"
+)
+
+http_archive(
     name = "vault",
     build_file_content = "exports_files([\"vault\"])",
     sha256 = "f2bca89cbffb8710265eb03bc9452cc316b03338c411ba8453ffe7419390b8f1",

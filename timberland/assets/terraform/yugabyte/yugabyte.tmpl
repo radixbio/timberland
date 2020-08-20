@@ -53,9 +53,30 @@ job "${prefix}yugabyte" {
         }
         volumes = ["/opt/radix/timberland:/timberland"]
         cap_add = []
+        mounts = [
+          {
+            type = "bind"
+            target = "/ca.pem"
+            source = "/opt/radix/certs/ca/cert.pem"
+            readonly = true
+          },
+          {
+            type = "bind"
+            target = "/client-cert"
+            source = "/opt/radix/certs/cli"
+            readonly = true
+          }
+        ]
       }
 
       driver = "docker"
+
+      env {
+        "TLS_CA" = "/ca.pem",
+        "TLS_CERT" = "/client-cert/cert.pem",
+        "TLS_KEY" = "/client-cert/key.pem"
+      }
+
       kill_timeout = "5s"
       kill_signal = "SIGINT"
       leader = false
@@ -125,9 +146,30 @@ job "${prefix}yugabyte" {
         }
         volumes = ["/opt/radix/timberland:/timberland"]
         cap_add = []
+        mounts = [
+          {
+            type = "bind"
+            target = "/ca.pem"
+            source = "/opt/radix/certs/ca/cert.pem"
+            readonly = true
+          },
+          {
+            type = "bind"
+            target = "/client-cert"
+            source = "/opt/radix/certs/cli"
+            readonly = true
+          }
+        ]
       }
 
       driver = "docker"
+
+      env {
+        "TLS_CA" = "/ca.pem",
+        "TLS_CERT" = "/client-cert/cert.pem",
+        "TLS_KEY" = "/client-cert/key.pem"
+      }
+
       kill_timeout = "5s"
       kill_signal = "SIGINT"
       leader = false

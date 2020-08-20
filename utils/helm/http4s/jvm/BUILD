@@ -51,6 +51,7 @@ scala_test(
     resources = ["src/test/resources/logback-test.xml"],
     deps = [
         ":helm-http4s",
+	"//utils/tls:consul-tls",
         "@third_party//3rdparty/jvm/com/dimafeng:testcontainers_scala",
         "@third_party//3rdparty/jvm/org/scalacheck",
         "@third_party//3rdparty/jvm/org/scalatestplus:scalatestplus_scalacheck",

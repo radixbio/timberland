@@ -10,16 +10,18 @@ import com.radix.utils.helm.http4s.vault.{Vault => VaultSession}
 import com.radix.utils.helm.vault._
 import io.circe.generic.auto._
 import io.circe.syntax._
+import io.circe.parser._
 import org.http4s.implicits._
 import org.http4s.Uri
 import org.http4s.client.blaze.BlazeClientBuilder
 import org.http4s.implicits._
+import utils.tls.ConsulVaultSSLContext.blaze
 
 import com.radix.timberland.util.RadPath
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.{FiniteDuration, _}
-import scala.concurrent.{duration, TimeoutException}
+import scala.concurrent.{TimeoutException, duration}
 
 sealed trait VaultStatus
 
@@ -35,7 +37,8 @@ sealed trait VaultSealStatus extends VaultStatus
 
 case object VaultSealed extends VaultSealStatus
 
-case class VaultUnsealed(key: String, root_token: String) extends VaultSealStatus
+case class VaultUnsealed(key: String, root_token: String)
+  extends VaultSealStatus
 
 case object VaultAlreadyUnsealed extends VaultSealStatus
 
@@ -48,9 +51,7 @@ case object VaultOauthPluginInstalled extends VaultOAuthStatus
 case class RegisterProvider(provider: String, client_id: String, client_secret: String)
 
 class VaultUtils {
-  implicit val contextShift: ContextShift[IO] = IO.contextShift(global)
-
-  def storeVaultSealAndToken(key: String, token: String): IO[Unit] = IO {
+  def storeVaultTokenKey(key: String, token: String): String = {
     // if HOME isn't set, use /tmp (file still owed / readable only by root)
     val prefix = (RadPath.runtime / "timberland")
     val tokenFile = new File((prefix / ".vault-token").toString())
@@ -69,52 +70,198 @@ class VaultUtils {
     tokenFile.setReadable(false, true)
     tokenFile.setWritable(false, false)
     tokenFile.setExecutable(false, false)
+    token
   }
 
-  def findVaultSeal(): String = {
-    val token = sys.env.get("VAULT_SEAL") match {
+  def findVaultKey(): String = {
+    sys.env.get("VAULT_SEAL") match {
       case Some(token) => token
       case None => {
-        val source = scala.io.Source.fromFile((RadPath.runtime / "timberland" / ".vault-seal").toString())
+        val source = scala.io.Source.fromFile((RadPath.runtime / "timberland" / ".vault-seal").toString)
         val lines = try source.mkString finally source.close()
         lines
       }
     }
-    return token
   }
 
-
   def setupVault(): IO[Unit] = IO({
-    val vaultToken = findVaultToken()
-    os.proc(RadPath.runtime / "timberland" / "vault" / "vault",
+    println("setting up vault!")
+    val vaultAddr = "127.0.0.1" // Dhash says this is gonna potentially be something other than localhost soon
+    val env = Map(
+      "VAULT_TOKEN" -> findVaultToken(),
+      "VAULT_CACERT" -> (RadPath.runtime / "certs" / "ca" / "cert.pem").toString
+    )
+
+    val vaultPath = RadPath.runtime / "timberland" / "vault"
+    val vault = vaultPath / "vault"
+    os.proc(
+      vault,
       "write",
-      "-address=http://127.0.0.1:8200",
-      "/auth/token/roles/nomad-cluster",
-      "@" + (RadPath.runtime / "timberland" / "vault" / "nomad-cluster-role.json")
+      s"-address=https://$vaultAddr:8200",
+      "/auth/token/roles/tls-cert",
+      "@" + (vaultPath / "tls-cert-role.json").toString
     ).call(
       stdout = os.ProcessOutput(LogTUI.vault),
       stderr = os.ProcessOutput(LogTUI.vault),
-      env = Map("VAULT_TOKEN" -> vaultToken))
-    os.proc(RadPath.runtime / "timberland" / "vault" / "vault",
+      env = env
+    )
+
+    os.proc(
+      vault,
       "secrets",
       "enable",
-      "-address=http://127.0.0.1:8200",
+      s"-address=https://$vaultAddr:8200",
       "-path=secret",
-      "kv").call(
+      "kv"
+    ).call(
       stdout = os.ProcessOutput(LogTUI.vault),
       stderr = os.ProcessOutput(LogTUI.vault),
-      env = Map("VAULT_TOKEN" -> vaultToken))
-    List("nomad-server", "read-flag-config", "read-consul-ui", "remote-access").map(policy =>
-      os.proc(RadPath.runtime / "timberland" / "vault" / "vault",
+      env = env
+    )
+    os.proc(
+      vault,
+      "secrets",
+      "enable",
+      s"-address=https://$vaultAddr:8200",
+      "pki"
+    ).call(
+      stdout = os.ProcessOutput(LogTUI.vault),
+      stderr = os.ProcessOutput(LogTUI.vault),
+      env = env
+    )
+    os.proc(
+      vault,
+      "secrets",
+      "enable",
+      s"-address=https://$vaultAddr:8200",
+      "-path=pki_int",
+      "pki"
+    ).call(
+      stdout = os.ProcessOutput(LogTUI.vault),
+      stderr = os.ProcessOutput(LogTUI.vault),
+      env = env
+    )
+    os.proc(
+      vault,
+      "secrets",
+      "tune",
+      s"-address=https://$vaultAddr:8200",
+      "-max-lease-ttl=87600h",
+      "pki"
+    ).call(
+      stdout = os.ProcessOutput(LogTUI.vault),
+      stderr = os.ProcessOutput(LogTUI.vault),
+      env = env
+    )
+    os.proc(
+      vault,
+      "secrets",
+      "tune",
+      s"-address=https://$vaultAddr:8200",
+      "-max-lease-ttl=43800h",
+      "pki_int"
+    ).call(
+      stdout = os.ProcessOutput(LogTUI.vault),
+      stderr = os.ProcessOutput(LogTUI.vault),
+      env = env
+    )
+
+    os.proc(
+      vault,
+      "write",
+      s"-address=https://$vaultAddr:8200",
+      "-field=certificate",
+      "pki/root/generate/internal",
+      "common_name=\"nomad.service.consul\"",
+      "ttl=87600h"
+    ).call(
+      stdout = vaultPath / "CA.crt",
+      stderr = os.ProcessOutput(LogTUI.vault),
+      env = env
+    )
+    val mkcsr = os.proc(
+      vault,
+      "write",
+      s"-address=https://$vaultAddr:8200",
+      "-tls-skip-verify",
+      "-format=json",
+      "pki_int/intermediate/generate/internal",
+      "common_name=\"nomad.service.consul Intermediate Authority\"",
+      "ttl=43800h"
+    ).spawn(
+      stderr = os.ProcessOutput(LogTUI.vault),
+      env = env
+    )
+    val csr = parse(mkcsr.stdout.string) match {
+      case Left(x)  => throw(x)
+      case Right(j) => j.hcursor.downField("data").get[String]("csr") match {
+        case Left(x) => throw(x)
+        case Right(s) => s
+      }
+    }
+    os.write(vaultPath / "pki_intermediate.csr", csr)
+    val mkintcrt = os.proc(
+      vault,
+      "write",
+      s"-address=https://$vaultAddr:8200",
+      "-format=json",
+      "pki/root/sign-intermediate",
+      s"csr=@${vaultPath / "pki_intermediate.csr"}",
+      "format=pem_bundle",
+      "ttl=43800h"
+    ).spawn(
+      stderr = os.ProcessOutput(LogTUI.vault),
+      env = env
+    )
+    val intcrt = parse(mkintcrt.stdout.string) match {
+      case Left(x)  => throw(x)
+      case Right(j) => j.hcursor.downField("data").get[String]("certificate") match {
+        case Left(x) => throw(x)
+        case Right(s) => s
+      }
+    }
+    os.write(vaultPath / "intermediate.cert.pem", intcrt)
+
+    os.proc(
+      vault,
+      "write",
+      s"-address=https://$vaultAddr:8200",
+      "/pki_int/intermediate/set-signed",
+      s"certificate=@${vaultPath / "intermediate.cert.pem"}"
+    ).call(
+      stdout = os.ProcessOutput(LogTUI.vault),
+      stderr = os.ProcessOutput(LogTUI.vault),
+      env = env
+    )
+    os.proc(
+      vault,
+      "write",
+      s"-address=https://$vaultAddr:8200",
+      "/pki_int/roles/tls-cert",
+      "allowed_domains=service.consul,dc1.consul,global.nomad",
+      "allow_subdomains=true",
+      "max_ttl=86400s",
+      "require_cn=false",
+      "generate_lease=true"
+    ).call(
+      stdout = os.ProcessOutput(LogTUI.vault),
+      stderr = os.ProcessOutput(LogTUI.vault),
+      env = env
+    )
+
+    List("tls-cert", "remote-access", "read-flag-config", "read-consul-ui").map(policy =>
+      os.proc(
+        vault,
         "policy",
         "write",
-        "-address=http://127.0.0.1:8200",
-        s"${policy}",
-        RadPath.runtime / "timberland" / "vault" / s"${policy}-policy.hcl"
+        s"-address=https://$vaultAddr:8200",
+        policy,
+        (vaultPath / s"$policy-policy.hcl").toString
       ).call(
         stdout = os.ProcessOutput(LogTUI.vault),
         stderr = os.ProcessOutput(LogTUI.vault),
-        env = Map("VAULT_TOKEN" -> vaultToken))
+        env = env
+      )
     )
   })
 
@@ -190,10 +337,8 @@ class VaultStarter {
    * @tparam A The type of our result
    * @return Returns the result of fa if it completes within @after or returns fallback (all IO[A])
    */
-  def timeoutTo[A](fa: IO[A], after: FiniteDuration, fallback: IO[A])(
-    implicit timer: Timer[IO],
-    cs: ContextShift[IO]
-  ): IO[A] = {
+  def timeoutTo[A](fa: IO[A], after: FiniteDuration, fallback: IO[A])(implicit timer: Timer[IO],
+                                                                      cs: ContextShift[IO]): IO[A] = {
 
     IO.race(fa, timer.sleep(after)).flatMap {
       case Left(a)  => IO.pure(a)
@@ -244,8 +389,7 @@ class VaultStarter {
           } yield initStatus
         }
         case Right(true) => IO.pure(VaultAlreadyInitialized)
-        case Left(failure) =>
-          IO(scribe.trace(s"*****VAULT ERROR: ${failure.printStackTrace()}")) *> IO.pure(VaultNotInitalized)
+        case Left(failure) => IO(scribe.trace(s"*****VAULT ERROR: ${failure.printStackTrace()}")) *> IO.pure(VaultNotInitalized)
 
       }
     } yield vaultInitStatus
@@ -308,79 +452,120 @@ class VaultStarter {
    * @return IO[VaultOauthStatus]
    */
   def initializeGoogleOauthPlugin(token: String, baseUrl: Uri): IO[VaultOAuthStatus] = {
-    BlazeClientBuilder[IO](global).resource.use(implicit client => {
-      scribe.trace("Registering Google Plugin...")
+    scribe.trace("Registering Google Plugin...")
 
-      implicit val vaultSession: VaultSession[IO] =
-        new VaultSession[IO](authToken = Some(token), baseUrl = baseUrl, blazeClient = client)
+    val vaultSession = new VaultSession[IO](authToken = Some(token), baseUrl = baseUrl)
+    for {
+      _ <- IO.sleep(2.seconds)
 
-      for {
-        _ <- IO.sleep(2.seconds)
-        // TODO: update this hash
-        registerPluginRequest = RegisterPluginRequest(
-          "af948c990a90ab6fe76f309a7ed32dc64a48e05a7145a843fe9d1fe45c138213",
-          "vault-plugin-secrets-oauthapp"
-        )
-        registerPluginResult <- vaultSession
-          .registerPlugin(Secret(), "oauth2", registerPluginRequest)
+      registerPluginRequest = RegisterPluginRequest(
+        "aece93ff2302b7ee5f90eebfbe8fe8296f1ce18f084c09823dbb3d3f0050b107",
+        "vault-plugin-secrets-oauthapp")
+      registerPluginResult <- vaultSession
+        .registerPlugin(Secret(), "oauth2", registerPluginRequest)
 
-        enableEngineRequest = EnableSecretsEngine("oauth2")
-        enableEngineResult <- vaultSession
-          .enableSecretsEngine("oauth2/google", enableEngineRequest)
+      enableEngineRequest = EnableSecretsEngine("oauth2")
+      enableEngineResult <- vaultSession
+        .enableSecretsEngine("oauth2/google", enableEngineRequest)
 
-      } yield (registerPluginResult, enableEngineResult) match {
-        case (Right(()), Right(())) => VaultOauthPluginInstalled
-        case _                      => VaultOauthPluginNotInstalled
-      }
-    })
+      oauthConfigRequest = CreateSecretRequest(
+        data = RegisterProvider("google",
+          sys.env("GOOGLE_OAUTH_ID"),
+          sys.env("GOOGLE_OAUTH_SECRET")).asJson,
+        cas = None)
+      writeOauthConfig <- vaultSession
+        .createOauthSecret("oauth2/google/config", oauthConfigRequest)
+    } yield VaultOauthPluginInstalled
   }
 
-  def initializeAndUnsealAndSetupVault(): IO[VaultSealStatus] = {
-    val baseUrl = uri"http://127.0.0.1:8200"
-    BlazeClientBuilder[IO](global).resource.use(implicit client => {
-      scribe.trace("Checking Vault Status...")
-
-      scribe.trace(s"VAULT BASE URL: $baseUrl")
-
-      implicit val vaultSession: VaultSession[IO] =
-        new VaultSession[IO](baseUrl = baseUrl, blazeClient = client, authToken = None)
-      val vaultUtils = new VaultUtils
-      val result = for {
-        vaultInit <- waitOnVaultInit
-        _ <- IO(scribe.info(s"vault init: $vaultInit"))
-        finalState <- vaultInit match {
-          case VaultNotInitalized => IO.pure(VaultSealed)
-          case VaultInitialized(vaultSeal, rootToken) => {
-            for {
-              _ <- vaultUtils.storeVaultSealAndToken(vaultSeal, rootToken)
-              vaultResp <- waitOnVaultUnseal(vaultSeal, rootToken)
-              setupVault <- vaultUtils.setupVault()
-              oauthPlugin <- initializeGoogleOauthPlugin(rootToken, baseUrl)
-            } yield vaultResp
-          }
-          case VaultAlreadyInitialized => {
-            for {
-              vaultToken <- IO(vaultUtils.findVaultToken)
-              vaultSeal <- IO(vaultUtils.findVaultSeal)
-              sealStatus <- checkVaultSealStatus
-              seal <- sealStatus match {
-                case Right(status) =>
-                  status.`sealed` match {
-                    case false => IO.pure(VaultAlreadyUnsealed)
-                    case true  => waitOnVaultUnseal(vaultSeal, vaultToken)
-                  }
-                case Left(error) => IO.pure(VaultSealed)
-              }
-            } yield seal
-          }
+  def initializeAndUnsealVault(baseUrl: Uri, shouldBootstrapVault: Boolean): IO[VaultSealStatus] = {
+    val vaultUtils = new VaultUtils
+    def getResult(implicit vaultSession: VaultSession[IO]): IO[VaultSealStatus] = for {
+      _ <- IO(scribe.trace("Checking Vault Status..."))
+      _ <- IO(scribe.trace(s"VAULT BASE URL: $baseUrl"))
+      vaultInit <- waitOnVaultInit
+      _ <- IO(scribe.info(s"vault init: $vaultInit"))
+      finalState <- vaultInit match {
+        case VaultNotInitalized => IO.pure(VaultSealed)
+        case VaultInitialized(key, root_token) => {
+          for {
+            _ <- IO(vaultUtils.storeVaultTokenKey(key, root_token))
+            vaultResp <- waitOnVaultUnseal(key, root_token)
+            setupVault <- if (shouldBootstrapVault) vaultUtils.setupVault() else IO.unit
+          } yield vaultResp
         }
-      } yield finalState
-      result.attempt.flatMap {
+        case VaultAlreadyInitialized => {
+          for {
+            vaultToken <- IO(vaultUtils.findVaultToken)
+            vaultKey <- IO(vaultUtils.findVaultKey)
+            sealStatus <- checkVaultSealStatus
+            seal <- sealStatus match {
+              case Right(status) =>
+                status.`sealed` match {
+                  case false => IO.pure(VaultAlreadyUnsealed)
+                  case true => waitOnVaultUnseal(vaultKey, vaultToken)
+                }
+              case Left(error) => IO.pure(VaultSealed)
+            }
+          } yield seal
+        }
+      }
+    } yield finalState
+
+    for {
+      // If certs aren't being created for the first time, wait 15 seconds
+      _ <- if (!shouldBootstrapVault) IO.sleep(15.seconds) else IO.unit
+      vaultSession = new VaultSession[IO](authToken = None, baseUrl = baseUrl)
+      result <- getResult(vaultSession).attempt
+      status <- result match {
         case Left(a) =>
           a.printStackTrace()
-          timeout(initializeAndUnsealAndSetupVault(), 1.minutes)
+          timeout(initializeAndUnsealVault(baseUrl, shouldBootstrapVault), 1.minutes)
         case Right(finalState) => IO.pure(finalState)
       }
-    })
+    } yield status
+  }
+
+  /** *
+   * Initialize, unseal, and setup Vault in an idempotent manner, with error handling and logging.
+   *
+   * @return IO[String] - the Vault token.
+   */
+  def initializeAndUnsealAndSetupVault(shouldSetupVault: Boolean)(implicit serviceAddrs: ServiceAddrs = ServiceAddrs()): IO[String] = {
+    val vaultBaseUrl = uri"https://127.0.0.1:8200"
+    val starter = new VaultStarter()
+    val unseal = for {
+      vaultUnseal <- starter.initializeAndUnsealVault(vaultBaseUrl, shouldSetupVault)
+      checkVaultUnsealed <- waitForDNS("vault.service.consul", 15.seconds)
+      oauthId = sys.env.get("GOOGLE_OAUTH_ID")
+      oauthSecret = sys.env.get("GOOGLE_OAUTH_SECRET")
+      registerGoogleOAuthPlugin <- (vaultUnseal, oauthId, oauthSecret) match {
+        case (VaultUnsealed(key: String, token: String), Some(a), Some(b)) =>
+          starter.initializeGoogleOauthPlugin(token, vaultBaseUrl)
+        case (VaultUnsealed(key, token), _, _) =>
+          IO(scribe.info(
+            "GOOGLE_OAUTH_ID and/or GOOGLE_OAUTH_SECRET are not set. The Google oauth plugin will not be initialized.")) *> IO
+            .pure(VaultOauthPluginNotInstalled)
+        case (VaultSealed, _, _) =>
+          IO(scribe.info(s"Vault remains sealed. Please check your configuration.")) *> IO
+            .pure(VaultSealed)
+        case (VaultAlreadyUnsealed, _, _) => {
+          for {
+            _ <- IO.pure("Vault already unsealed")
+            unsealToken = sys.env.get("VAULT_TOKEN")
+            result <- unsealToken match {
+              case Some(token) =>
+                starter.initializeGoogleOauthPlugin(token, vaultBaseUrl)
+            }
+          } yield result
+        }
+      }
+      _ <- IO(scribe.info(s"Plugin Status: $registerGoogleOAuthPlugin"))
+      _ <- IO(scribe.info(s"VAULT STATUS: ${vaultUnseal}"))
+      vaultToken <- IO(vaultUnseal match {
+        case VaultUnsealed(key: String, token: String) => (new VaultUtils).storeVaultTokenKey(key, token)
+      })
+    } yield vaultToken
+    unseal
   }
 }

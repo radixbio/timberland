@@ -4,7 +4,7 @@ import java.net.ConnectException
 
 import cats.Applicative
 import cats.implicits._
-import cats.effect.ConcurrentEffect
+import cats.effect.{ConcurrentEffect, Resource}
 import io.circe.syntax._
 import org.http4s._
 import org.http4s.Method.{GET, POST, PUT}
@@ -15,7 +15,7 @@ import org.http4s.client.Client
 import com.radix.utils.helm.vault._
 import shapeless.the
 
-class Vault[F[_]: ConcurrentEffect](authToken: Option[String], baseUrl: Uri, blazeClient: Client[F]) extends VaultInterface[F] {
+class Vault[F[_]: ConcurrentEffect](authToken: Option[String], baseUrl: Uri)(implicit blazeResource: Resource[F, Client[F]]) extends VaultInterface[F] {
   val baseHeaders: Headers = authToken.map { tok =>
     Headers.of(Header("X-Vault-Token", tok))
   }.getOrElse(Headers.of())
@@ -41,9 +41,11 @@ class Vault[F[_]: ConcurrentEffect](authToken: Option[String], baseUrl: Uri, bla
   }
 
   private def submitRequest[R](req: Request[F])(implicit d: Decoder[R]): F[Either[VaultError, R]] =
-    blazeClient.expectOr[R](req)(errorResponseHandler)(jsonOf[F, R])
-      .attempt
-      .map(_.leftMap(errorHandler))
+    blazeResource.use { client =>
+      client.expectOr[R](req)(errorResponseHandler)(jsonOf[F, R])
+        .attempt
+        .map(_.leftMap(errorHandler))
+    }
 
   /** We're not expecting a response (we are expecting a 204 No Content). When I tried to decode to Unit I received
    * the following error at runtime:
@@ -54,14 +56,15 @@ class Vault[F[_]: ConcurrentEffect](authToken: Option[String], baseUrl: Uri, bla
    * by packaging the error response up and returning it to the caller. Currently it just returns a VaultErrorMalformedResponse.
    */
   private def submitRequestNoResponse(req: Request[F]): F[Either[VaultError, Unit]] =
-    blazeClient
-      .fetch(req) { response =>
-        if(response.status.code != 200 && response.status.code != 204) {
+    blazeResource.use { client =>
+      client.fetch(req) { response =>
+        if (response.status.code != 200 && response.status.code != 204) {
           errorResponseHandler(response).map { err => Left(errorHandler(err)) }
         } else {
           the[Applicative[F]].pure(Right(()))
         }
       }
+    }
 
   /** This is needed for plugin paths containing a slash. Without it, the
    * path will be transformed from, say, "foo/bar" to foo%2Fbar", which is

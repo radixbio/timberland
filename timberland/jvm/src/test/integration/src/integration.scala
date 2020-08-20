@@ -13,8 +13,10 @@ import com.radix.timberland.util.VaultUtils
 import com.radix.utils.helm.{ConsulOp, HealthStatus, NomadOp}
 import com.radix.utils.helm.http4s.{Http4sConsulClient, Http4sNomadClient}
 import org.http4s.Uri
+import org.http4s.client.Client
 import org.http4s.client.blaze.BlazeClientBuilder
 import org.scalatest._
+import utils.tls.ConsulVaultSSLContext._
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -26,7 +28,7 @@ import scala.sys.process.Process
  */
 abstract class TimberlandIntegration extends AsyncFlatSpec with Matchers with BeforeAndAfterAll {
 
-  val ConsulPort = 8500
+  val ConsulPort = 8501
   val NomadPort = 4646
   implicit val tokens: AuthTokens = getTokens()
 
@@ -35,6 +37,7 @@ abstract class TimberlandIntegration extends AsyncFlatSpec with Matchers with Be
 
   implicit val cs: ContextShift[IO] = IO.contextShift(implicitly[ExecutionContext])
   implicit val T: Timer[IO] = IO.timer(implicitly[ExecutionContext])
+  implicit val blaze: Resource[IO, Client[IO]] = BlazeClientBuilder[IO](implicitly[ExecutionContext]).resource
 
   val quorumsize = 1
 
@@ -53,6 +56,7 @@ abstract class TimberlandIntegration extends AsyncFlatSpec with Matchers with Be
 
   private lazy val resolvedFlags = resolveSupersetFlags(featureFlags)
 
+  // TODO(alex): This needs vault https certs
   /**
    * Get the master token for Consul/Nomad by querying Vault. This is needed for consulR and nomadR to communicate with
    * the Consul and Nomad HTTP APIs.
@@ -62,7 +66,7 @@ abstract class TimberlandIntegration extends AsyncFlatSpec with Matchers with Be
   def getTokens(): AuthTokens = {
     val vaultToken = new VaultUtils().findVaultToken()
     val getCommand =
-      "/opt/radix/timberland/vault/vault kv get -address=http://vault.service.consul:8200 secret/consul-ui-token".split(
+      "/opt/radix/timberland/vault/vault kv get -address=https://vault.service.consul:8200 secret/consul-ui-token".split(
         " "
       )
     val consulNomadTokenProc = Process(getCommand, None, "VAULT_TOKEN" -> vaultToken)
@@ -124,14 +128,8 @@ abstract class TimberlandIntegration extends AsyncFlatSpec with Matchers with Be
     }
   }
 
-  val consulR: Resource[IO, ConsulOp ~> IO] = BlazeClientBuilder[IO](implicitly[ExecutionContext]).resource
-    .map(client =>
-      new Http4sConsulClient[IO](
-        baseUri = Uri.unsafeFromString("http://consul.service.consul:8500"),
-        client = client,
-        accessToken = Some(tokens.consulNomadToken)
-      )
-    )
+  val interp: ConsulOp ~> IO =
+    new Http4sConsulClient[IO](Uri.unsafeFromString("http://consul.service.consul:8501"), Some(tokens.consulNomadToken))
 
   /**
    * Checks if the service is registered in consul and all its health checks are passing, so that we can use its DNS
@@ -141,23 +139,20 @@ abstract class TimberlandIntegration extends AsyncFlatSpec with Matchers with Be
    * @return Whether the service exists and has passing health checks.
    */
   def check(svcname: String): Boolean = {
-    consulR
-      .use(f =>
-        ConsulOp
-          .healthListChecksForService(svcname, None, None, None, None, None)
-          .foldMap(f)
-          .map(_.value.map(_.status match {
-            case HealthStatus.Passing => true
-            case x => {
-              println("status is " + x);
-              false
-            }
-          }) match {
-            case Nil         => false
-            case head :: Nil => head
-            case head :: tl  => head && tl.reduce(_ && _)
-          })
-      )
+    ConsulOp
+      .healthListChecksForService(svcname, None, None, None, None, None)
+      .foldMap(interp)
+      .map(_.value.map(_.status match {
+        case HealthStatus.Passing => true
+        case x => {
+          println("status is " + x);
+          false
+        }
+      }) match {
+        case Nil         => false
+        case head :: Nil => head
+        case head :: tl  => head && tl.reduce(_ && _)
+      })
       .unsafeRunSync()
   }
 

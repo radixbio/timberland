@@ -1,8 +1,9 @@
 package com.radix.utils.helm.http4s
 
 import java.util.UUID
+
 import cats.data.NonEmptyList
-import cats.effect.Effect
+import cats.effect.{Effect, Resource}
 import cats.implicits._
 import com.radix.utils.helm._
 //import journal.Logger
@@ -20,9 +21,9 @@ import io.circe.syntax._
 import org.http4s.circe._
 
 final class Http4sConsulClient[F[_]](val baseUri: Uri,
-                                     val client: Client[F],
                                      override val accessToken: Option[String] = util.getTokenFromEnvVars(),
-                                     override val credentials: Option[(String, String)] = None)(implicit F: Effect[F])
+                                     override val credentials: Option[(String, String)] = None)
+                                    (implicit F: Effect[F], blaze: Resource[F, Client[F]])
     extends ConsulInterface[F] {
 
   override val URL: String = baseUri.renderString
@@ -160,18 +161,20 @@ final class Http4sConsulClient[F[_]](val baseUri: Uri,
               .+??("separator", separator)
               .+??("index", index)
               .+??("wait", wait.map(Interval.toString)))))
-      response <- client.fetch[QueryResponse[List[KVGetResult]]](req) { response: Response[F] =>
-        response.status match {
-          case status @ (Status.Ok | Status.NotFound) =>
-            for {
-              headers <- extractConsulHeaders(response)
-              value <- if (status == Status.Ok) response.as[List[KVGetResult]]
-              else F.pure(List.empty)
-            } yield {
-              QueryResponse(value, headers.index, headers.knownLeader, headers.lastContact)
-            }
-          case _ =>
-            handleConsulErrorResponse(response).flatMap(F.raiseError)
+      response <- blaze.use { client =>
+        client.fetch[QueryResponse[List[KVGetResult]]](req) { response: Response[F] =>
+          response.status match {
+            case status@(Status.Ok | Status.NotFound) =>
+              for {
+                headers <- extractConsulHeaders(response)
+                value <- if (status == Status.Ok) response.as[List[KVGetResult]]
+                else F.pure(List.empty)
+              } yield {
+                QueryResponse(value, headers.index, headers.knownLeader, headers.lastContact)
+              }
+            case _ =>
+              handleConsulErrorResponse(response).flatMap(F.raiseError)
+          }
         }
       }
     } yield {
@@ -194,21 +197,23 @@ final class Http4sConsulClient[F[_]](val baseUri: Uri,
               .+?("raw")
               .+??("index", index)
               .+??("wait", wait.map(Interval.toString)))))
-      response <- client.fetch[QueryResponse[Option[Array[Byte]]]](req) { response: Response[F] =>
-        response.status match {
-          case status @ (Status.Ok | Status.NotFound) =>
-            for {
-              headers <- extractConsulHeaders(response)
-              value <- if (status == Status.Ok)
-                response.body.compile.toVector
-                  .map(_.toArray)
-                  .map(Some(_)) //to[Array].map(Some(_))
-              else F.pure(None)
-            } yield {
-              QueryResponse(value, headers.index, headers.knownLeader, headers.lastContact)
-            }
-          case _ =>
-            handleConsulErrorResponse(response).flatMap(F.raiseError)
+      response <- blaze.use { client =>
+        client.fetch[QueryResponse[Option[Array[Byte]]]](req) { response: Response[F] =>
+          response.status match {
+            case status@(Status.Ok | Status.NotFound) =>
+              for {
+                headers <- extractConsulHeaders(response)
+                value <- if (status == Status.Ok)
+                  response.body.compile.toVector
+                    .map(_.toArray)
+                    .map(Some(_)) //to[Array].map(Some(_))
+                else F.pure(None)
+              } yield {
+                QueryResponse(value, headers.index, headers.knownLeader, headers.lastContact)
+              }
+            case _ =>
+              handleConsulErrorResponse(response).flatMap(F.raiseError)
+          }
         }
       }
     } yield {
@@ -226,7 +231,7 @@ final class Http4sConsulClient[F[_]](val baseUri: Uri,
       req <- PUT(value, uri = baseUri / "v1" / "kv" / key)
         .map(addConsulToken _)
         .map(addCreds _)
-      response <- client.expectOr[String](req)(handleConsulErrorResponse)
+      response <- blaze.use { client => client.expectOr[String](req)(handleConsulErrorResponse) }
     } yield log.debug(s"setting consul key $key resulted in response $response")
   def kvSet(key: Key, last: KVGetResult, value: Array[Byte]): F[Boolean] =
     for {
@@ -235,7 +240,7 @@ final class Http4sConsulClient[F[_]](val baseUri: Uri,
       req <- PUT(value, uri = (baseUri / "v1" / "kv" / key).+?("cas", last.modifyIndex))
         .map(addConsulToken _)
         .map(addCreds _)
-      response <- client.expectOr[String](req)(handleConsulErrorResponse)
+      response <- blaze.use { client => client.expectOr[String](req)(handleConsulErrorResponse) }
     } yield {
       log.debug(s"setting consul key $key resulted in response $response")
       response.stripLineEnd.toBoolean
@@ -247,7 +252,7 @@ final class Http4sConsulClient[F[_]](val baseUri: Uri,
       req <- PUT(value, uri = (baseUri / "v1" / "kv" / key).+?("cas", modifyIndex))
         .map(addConsulToken _)
         .map(addCreds _)
-      response <- client.expectOr[String](req)(handleConsulErrorResponse)
+      response <- blaze.use { client => client.expectOr[String](req)(handleConsulErrorResponse) }
     } yield {
       log.debug(s"setting consul key $key resulted in response $response")
       response.stripLineEnd.toBoolean
@@ -259,7 +264,7 @@ final class Http4sConsulClient[F[_]](val baseUri: Uri,
       req <- PUT(value, uri = (baseUri / "v1" / "kv" / key).+?("acquire", session.toString))
         .map(addConsulToken _)
         .map(addCreds _)
-      response <- client.expectOr[String](req)(handleConsulErrorResponse)
+      response <- blaze.use { client => client.expectOr[String](req)(handleConsulErrorResponse) }
     } yield {
       log.debug(s"setting consul key $key resulted in response $response")
       response.stripLineEnd.toBoolean
@@ -273,7 +278,7 @@ final class Http4sConsulClient[F[_]](val baseUri: Uri,
 
     for {
       _ <- F.delay(log.debug(s"listing key consul with the prefix: $prefix"))
-      response <- client.expectOr[List[String]](req)(handleConsulErrorResponse)
+      response <- blaze.use { client => client.expectOr[List[String]](req)(handleConsulErrorResponse) }
     } yield {
       log.debug(s"listing of keys: $response")
       response.toSet
@@ -285,7 +290,7 @@ final class Http4sConsulClient[F[_]](val baseUri: Uri,
 
     for {
       _ <- F.delay(log.debug(s"deleting $key from the consul KV store"))
-      response <- client.expectOr[String](req)(handleConsulErrorResponse)
+      response <- blaze.use { client => client.expectOr[String](req)(handleConsulErrorResponse) }
     } yield log.debug(s"response from delete: $response")
   }
 
@@ -308,7 +313,9 @@ final class Http4sConsulClient[F[_]](val baseUri: Uri,
               .+??("node-meta", nodeMeta)
               .+??("index", index)
               .+??("wait", wait.map(Interval.toString)))))
-      response <- client.fetch[QueryResponse[List[HealthCheckResponse]]](req)(extractQueryResponse)
+      response <- blaze.use { client =>
+        client.fetch[QueryResponse[List[HealthCheckResponse]]](req)(extractQueryResponse)
+      }
     } yield {
       log.debug(s"health check response: $response")
       response
@@ -319,7 +326,9 @@ final class Http4sConsulClient[F[_]](val baseUri: Uri,
     for {
       _ <- F.delay(log.debug(s"fetching service info from catalog for service: $service"))
       req = addCreds(addConsulToken(Request(uri = (baseUri / "v1" / "catalog" / "service" / service))))
-      response <- client.expectOr[List[CatalogListNodesForServiceResponse]](req)(handleConsulErrorResponse)
+      response <- blaze.use { client =>
+        client.expectOr[List[CatalogListNodesForServiceResponse]](req)(handleConsulErrorResponse)
+      }
     } yield {
       log.debug(s"catalog service info response: $response")
       response
@@ -341,7 +350,9 @@ final class Http4sConsulClient[F[_]](val baseUri: Uri,
               .+??("dc", datacenter)
               .+??("index", index)
               .+??("wait", wait.map(Interval.toString)))))
-      response <- client.fetch[QueryResponse[List[HealthCheckResponse]]](req)(extractQueryResponse)
+      response <- blaze.use { client =>
+        client.fetch[QueryResponse[List[HealthCheckResponse]]](req)(extractQueryResponse)
+      }
     } yield {
       log.debug(s"health checks for node response: $response")
       response
@@ -367,7 +378,9 @@ final class Http4sConsulClient[F[_]](val baseUri: Uri,
               .+??("node-meta", nodeMeta)
               .+??("index", index)
               .+??("wait", wait.map(Interval.toString)))))
-      response <- client.fetch[QueryResponse[List[HealthCheckResponse]]](req)(extractQueryResponse)
+      response <- blaze.use { client =>
+        client.fetch[QueryResponse[List[HealthCheckResponse]]](req)(extractQueryResponse)
+      }
     } yield {
       log.debug(s"health checks in state response: $response")
       response
@@ -395,8 +408,9 @@ final class Http4sConsulClient[F[_]](val baseUri: Uri,
         .+??("index", index)
         .+??("wait", wait.map(Interval.toString)))))
 
-      response <- client
-        .fetch[QueryResponse[List[HealthNodesForServiceResponse]]](req)(extractQueryResponse)
+      response <- blaze.use { client =>
+        client.fetch[QueryResponse[List[HealthNodesForServiceResponse]]](req)(extractQueryResponse)
+      }
     } yield {
       log.debug(s"health nodes for service response: $response")
       response
@@ -437,7 +451,7 @@ final class Http4sConsulClient[F[_]](val baseUri: Uri,
       req <- PUT(json.toString, baseUri / "v1" / "agent" / "service" / "register")
         .map(addConsulToken _)
         .map(addCreds _)
-      response <- client.expectOr[String](req)(handleConsulErrorResponse)
+      response <- blaze.use { client => client.expectOr[String](req)(handleConsulErrorResponse) }
     } yield log.debug(s"registering service $service resulted in response $response")
   }
 
@@ -446,7 +460,7 @@ final class Http4sConsulClient[F[_]](val baseUri: Uri,
       addConsulToken(Request(Method.PUT, uri = (baseUri / "v1" / "agent" / "service" / "deregister" / id))))
     for {
       _ <- F.delay(log.debug(s"deregistering service with id $id"))
-      response <- client.expectOr[String](req)(handleConsulErrorResponse)
+      response <- blaze.use { client => client.expectOr[String](req)(handleConsulErrorResponse) }
     } yield log.debug(s"response from deregister: $response")
   }
 
@@ -454,7 +468,7 @@ final class Http4sConsulClient[F[_]](val baseUri: Uri,
     for {
       _ <- F.delay(log.debug(s"listing services registered with local agent"))
       req = addCreds(addConsulToken(Request(uri = (baseUri / "v1" / "agent" / "services"))))
-      services <- client.expectOr[Map[String, ServiceResponse]](req)(handleConsulErrorResponse)
+      services <- blaze.use { client => client.expectOr[Map[String, ServiceResponse]](req)(handleConsulErrorResponse) }
     } yield {
       log.debug(s"got services: $services")
       services
@@ -470,7 +484,7 @@ final class Http4sConsulClient[F[_]](val baseUri: Uri,
                   uri = (baseUri / "v1" / "agent" / "service" / "maintenance" / id)
                     .+?("enable", enable)
                     .+??("reason", reason))))
-      response <- client.expectOr[String](req)(handleConsulErrorResponse)
+      response <- blaze.use { client => client.expectOr[String](req)(handleConsulErrorResponse) }
     } yield log.debug(s"setting maintenance mode for service $id to $enable resulted in $response")
   }
 
@@ -510,7 +524,7 @@ final class Http4sConsulClient[F[_]](val baseUri: Uri,
         },
         uri = baseUri / "v1" / "session" / "create"
       ).map(addConsulToken _).map(addCreds _)
-      resp <- client.expectOr[SessionRegisterResult](req)(handleConsulErrorResponse)
+      resp <- blaze.use { client => client.expectOr[SessionRegisterResult](req)(handleConsulErrorResponse) }
     } yield {
       log.debug(s"setting consul service $name results in $resp")
       resp.id
@@ -533,7 +547,7 @@ final class Http4sConsulClient[F[_]](val baseUri: Uri,
                       ).dropNullValues.toString,
         baseUri / "v1" / "session" / "create"
       ).map(addConsulToken _).map(addCreds _)
-      resp <- client.expectOr[SessionRegisterResult](req)(handleConsulErrorResponse)
+      resp <- blaze.use { client => client.expectOr[SessionRegisterResult](req)(handleConsulErrorResponse) }
     } yield {
       log.debug(s"setting consul service $name results in $resp")
       resp.id
@@ -543,10 +557,11 @@ final class Http4sConsulClient[F[_]](val baseUri: Uri,
     for {
       _ <- F.delay(log.debug(s"Getting session info from $session"))
       req <- F.delay(addCreds(addConsulToken(Request(uri = baseUri / "v1" / "session" / "info"))))
-      resp <- client.expectOr[SessionResponse](req)(handleConsulErrorResponse)
+      resp <- blaze.use { client => client.expectOr[SessionResponse](req)(handleConsulErrorResponse) }
     } yield {
       log.debug(s"Session info for session $session resulted in response $resp")
       resp
     }
   }
 }
+

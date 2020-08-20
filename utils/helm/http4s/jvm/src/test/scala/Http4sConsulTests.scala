@@ -4,7 +4,7 @@ import com.radix.utils.helm
 import helm._
 import com.radix.utils.helm.http4s._
 import cats.~>
-import cats.effect.IO
+import cats.effect.{IO, Resource}
 import fs2.{Chunk, Stream}
 import org.http4s.{EntityBody, Header, Headers, Request, Response, Status, Uri}
 import org.http4s.client._
@@ -12,6 +12,7 @@ import org.scalactic.TypeCheckedTripleEquals
 import org.scalatest._
 import org.scalatest.matchers.{BeMatcher, MatchResult}
 import org.http4s.syntax.string.http4sStringSyntax
+
 import scala.reflect.ClassTag
 
 class Http4sConsulTests
@@ -405,11 +406,8 @@ trait ConsulClient[F[_]] {
 
 object Http4sConsulTests {
   def constantConsul(response: Response[IO]): ConsulOp ~> IO = {
-    val cslClient = new Http4sConsulClient(
-      Uri.uri("http://localhost:8500/v1/kv/v1"),
-      constantResponseClient(response),
-      None)
-    cslClient
+    implicit val blazeResource = constantResponseClient(response)
+    new Http4sConsulClient(Uri.uri("http://localhost:8500/v1/kv/v1"), accessToken = None)
   }
 
   def consulHeaders(index: Long,
@@ -431,9 +429,11 @@ object Http4sConsulTests {
     Response(status = status, body = responseBody, headers = headers)
   }
 
-  def constantResponseClient(response: Response[IO]): Client[IO] = {
+  def constantResponseClient(response: Response[IO]): Resource[IO, Client[IO]] = {
     import cats.effect.Resource
-    Client(_ => Resource.liftF(IO.pure(response)))
+    Resource.liftF[IO, Client[IO]] {
+      IO.pure(Client(_ => Resource.liftF(IO.pure(response))))
+    }
   }
 
   def body(s: String): EntityBody[IO] =

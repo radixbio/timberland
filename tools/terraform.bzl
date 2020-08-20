@@ -119,9 +119,12 @@ def terraform_deployment(
         name = name + "_maintf",
         terraform_spec = """terraform {
   backend "consul" {
-    address = "consul.service.consul:8500"
-    scheme  = "http"
-    path    = "terraform"
+    address   = "consul.service.consul:8501"
+    scheme    = "https"
+    ca_file   = "/opt/radix/certs/ca/cert.pem"
+    cert_file = "/opt/radix/certs/cli/cert.pem"
+    key_file  = "/opt/radix/certs/cli/key.pem"
+    path      = "terraform"
   }
 }""",
         providers = plugin_sources,

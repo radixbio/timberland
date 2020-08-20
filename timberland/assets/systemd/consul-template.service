@@ -1,0 +1,17 @@
+[Unit]
+Description="HashiCorp Consul-Template"
+Documentation=https://github.com/hashicorp/consul-template
+Requires=network-online.target
+After=network-online.target
+ConditionFileNotEmpty=/opt/radix/timberland/consul/config/consul.json
+
+[Service]
+ExecStart=/opt/radix/timberland/consul-template/consul-template $CONSUL_TEMPLATE_CMD_ARGS
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=process
+Restart=on-failure
+LimitNOFILE=65536
+EnvironmentFile=/opt/radix/timberland/consul-template/consul-template.env.conf
+
+[Install]
+WantedBy=multi-user.target

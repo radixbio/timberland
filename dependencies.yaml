@@ -322,6 +322,11 @@ dependencies:
       modules: [ "", "ooxml", "ooxml-schemas" ]
       version: "4.1.1"
 
+  org.bouncycastle:
+    bcpkix-jdk15on:
+      lang: java
+      version: "1.65"
+
   org.fusesource.jansi:
     jansi:
       lang: java

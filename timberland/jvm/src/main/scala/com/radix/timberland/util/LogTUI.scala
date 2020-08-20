@@ -295,7 +295,7 @@ object LogTUI {
           } else {
             println("Encountered Errors")
             println("Startup hit exception:")
-            println(error.get)
+            println(error.get.fillInStackTrace)
             sys.exit(1)
           }
           println("\n")

@@ -21,8 +21,7 @@ import io.circe.parser.decode
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder}
 import org.http4s.Uri
-import org.http4s.client.Client
-import org.http4s.client.blaze.BlazeClientBuilder
+import utils.tls.ConsulVaultSSLContext._
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -325,7 +324,6 @@ class LocalConfig(implicit persistentDir: os.Path) {
 
 class OauthConfig {
   private implicit val cs: ContextShift[IO] = IO.contextShift(global)
-  private implicit val blaze: Resource[IO, Client[IO]] = BlazeClientBuilder[IO](global).resource
 
   def handler(options: Map[String, Option[String]], addrs: ServiceAddrs): IO[Unit] =
     (options.get("GOOGLE_OAUTH_ID"), options.get("GOOGLE_OAUTH_SECRET")) match {
@@ -337,32 +335,28 @@ class OauthConfig {
     }
 
   private def writeConfigToVault(OAUTH_ID: String, OAUTH_SECRET: String, serviceAddrs: ServiceAddrs): IO[String] =
-    blaze.use { client =>
-      for {
-        vaultToken <- IO(new VaultUtils().findVaultToken())
-        vaultUri = Uri.fromString(s"http://${serviceAddrs.consulAddr}:8200").toOption.get
-        vaultSession = new Vault[IO](authToken = Some(vaultToken), baseUrl = vaultUri, blazeClient = client)
-        oauthConfigRequest = CreateSecretRequest(
-          data = RegisterProvider("google", OAUTH_ID, OAUTH_SECRET).asJson,
-          cas = None
-        )
-        writeOauthConfig <- vaultSession.createOauthSecret("oauth2/google/config", oauthConfigRequest)
-      } yield writeOauthConfig match {
-        case Left(VaultErrorResponse(_ @x)) => x.get(0).getOrElse("empty error resp")
-        case Right(())                      => "ok json decode"
-      }
+    for {
+      vaultToken <- IO(new VaultUtils().findVaultToken())
+      vaultUri = Uri.fromString(s"https://${serviceAddrs.vaultAddr}:8200").toOption.get
+      vaultSession = new Vault[IO](authToken = Some(vaultToken), baseUrl = vaultUri)
+      oauthConfigRequest = CreateSecretRequest(
+        data = RegisterProvider("google", OAUTH_ID, OAUTH_SECRET).asJson,
+        cas = None
+      )
+      writeOauthConfig <- vaultSession.createOauthSecret("oauth2/google/config", oauthConfigRequest)
+    } yield writeOauthConfig match {
+      case Left(VaultErrorResponse(_ @x)) => x.get(0).getOrElse("empty error resp")
+      case Right(())                      => "ok json decode"
     }
 }
 
 class RemoteConfig(implicit serviceAddrs: ServiceAddrs, tokens: AuthTokens) {
   private implicit val cs: ContextShift[IO] = IO.contextShift(global)
-  private implicit val blaze: Resource[IO, Client[IO]] = BlazeClientBuilder[IO](global).resource
 
   def read(): IO[FlagConfigs] = (readFromConsul(), readFromVault()).parMapN(FlagConfigs)
-
-  private def readFromConsul(): IO[Map[String, Map[String, Option[String]]]] = blaze.use { client =>
-    val consulUri = Uri.fromString(s"http://${serviceAddrs.consulAddr}:8500").toOption.get
-    val interpreter = new Http4sConsulClient[IO](consulUri, client, Some(tokens.consulNomadToken))
+  private def readFromConsul(): IO[Map[String, Map[String, Option[String]]]] = {
+    val consulUri = Uri.fromString(s"https://${serviceAddrs.consulAddr}:8501").toOption.get
+    val interpreter = new Http4sConsulClient[IO](consulUri, Some(tokens.consulNomadToken))
     val getCfgOp = ConsulOp.kvGetJson[Map[String, Map[String, Option[String]]]]("flag-config", None, None)
     helm.run(interpreter, getCfgOp).map {
       case Right(QueryResponse(Some(flagConfig), _, _, _)) => flagConfig
@@ -373,9 +367,9 @@ class RemoteConfig(implicit serviceAddrs: ServiceAddrs, tokens: AuthTokens) {
     }
   }
 
-  private def readFromVault(): IO[Map[String, Map[String, Option[String]]]] = blaze.use { client =>
-    val vaultUri = Uri.fromString(s"http://${serviceAddrs.consulAddr}:8200").toOption.get
-    val vault = new Vault[IO](authToken = Some(tokens.vaultToken), baseUrl = vaultUri, blazeClient = client)
+  private def readFromVault(): IO[Map[String, Map[String, Option[String]]]] = {
+    val vaultUri = Uri.fromString(s"https://${serviceAddrs.vaultAddr}:8200").toOption.get
+    val vault = new Vault[IO](authToken = Some(tokens.vaultToken), baseUrl = vaultUri)
     vault.getSecret("flag-config").map {
       case Right(KVGetResult(_, json))        => json.as[Map[String, Map[String, Option[String]]]].getOrElse(Map.empty)
       case Left(VaultErrorResponse(Vector())) => Map.empty
@@ -388,15 +382,15 @@ class RemoteConfig(implicit serviceAddrs: ServiceAddrs, tokens: AuthTokens) {
   def write(configs: FlagConfigs): IO[Unit] =
     (writeToConsul(configs), writeToVault(configs)).parMapN((_, _) => ())
 
-  private def writeToConsul(configs: FlagConfigs): IO[Unit] = blaze.use { client =>
-    val consulUri = Uri.fromString(s"http://${serviceAddrs.consulAddr}:8500").toOption.get
-    val interpreter = new Http4sConsulClient[IO](consulUri, client, Some(tokens.consulNomadToken))
+  private def writeToConsul(configs: FlagConfigs): IO[Unit] = {
+    val consulUri = Uri.fromString(s"https://${serviceAddrs.consulAddr}:8501").toOption.get
+    val interpreter = new Http4sConsulClient[IO](consulUri, Some(tokens.consulNomadToken))
     helm.run(interpreter, ConsulOp.kvSetJson("flag-config", configs.consulData))
   }
 
-  private def writeToVault(configs: FlagConfigs): IO[Unit] = blaze.use { client =>
-    val vaultUri = Uri.fromString(s"http://${serviceAddrs.consulAddr}:8200").toOption.get
-    val vault = new Vault[IO](authToken = Some(tokens.vaultToken), baseUrl = vaultUri, blazeClient = client)
+  private def writeToVault(configs: FlagConfigs): IO[Unit] = {
+    val vaultUri = Uri.fromString(s"https://${serviceAddrs.vaultAddr}:8200").toOption.get
+    val vault = new Vault[IO](authToken = Some(tokens.vaultToken), baseUrl = vaultUri)
     val secretReq = CreateSecretRequest(data = configs.vaultData.asJson, cas = None)
     if (configs.vaultData.nonEmpty) {
       vault.createSecret("flag-config", secretReq).map {

@@ -1,7 +1,7 @@
 package com.radix.timberland.runtime
 
 import cats.data._
-import cats.effect.{ContextShift, Effect, IO}
+import cats.effect.{ContextShift, Effect, IO, Timer}
 import cats.implicits._
 import java.io.FileWriter
 import java.net.{InetAddress, InetSocketAddress, Socket}
@@ -12,8 +12,11 @@ import java.util.concurrent.Executors
 import ammonite.ops.Path
 import com.radix.timberland.radixdefs._
 import com.radix.timberland.util._
+import utils.tls.ConsulVaultSSLContext
 
+import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.{Failure, Success, Try}
 
 object Mock {
@@ -63,6 +66,11 @@ object Mock {
         scribe.debug(s"would have started consul with systemd (bind_addr: $bind_addr)")
       }
 
+    override def startConsulTemplate(consulNomadToken: String, vaultToken: String): F[Unit] =
+      F.delay {
+        scribe.debug(s"would have started consul template with systemd (tokens: $consulNomadToken, $vaultToken)")
+      }
+
     override def startNomad(bind_addr: String, bootstrapExpect: Int, vaultToken: String): F[Unit] =
       F.delay {
         scribe.debug(s"would have started nomad with systemd (bind_addr: $bind_addr) (token: $vaultToken)")
@@ -75,6 +83,10 @@ object Mock {
 
     override def stopConsul(): F[Unit] = F.delay {
       scribe.debug(s"would have stopped consul with systemd")
+    }
+
+    override def stopConsulTemplate(): F[Unit] = F.delay {
+      scribe.debug(s"would have stopped consul-template with systemd")
     }
 
     override def stopNomad(): F[Unit] = F.delay {
@@ -126,8 +138,10 @@ object Run {
     nomadwd: os.Path,
     bind_addr: Option[String],
     consulSeedsO: Option[String],
-    bootstrapExpect: Int
+    bootstrapExpect: Int,
+    setupACL: Boolean
   )(implicit H: RuntimeServicesAlg[F], F: Effect[F]) = {
+    implicit val timer: Timer[IO] = IO.timer(global)
 
     def socks(
       ifaces: List[String]
@@ -179,25 +193,61 @@ object Run {
 
       consulToken = UUID.randomUUID().toString
       persistentDir = consulwd / os.up
-      _ <- F.liftIO(auth.writeTokenConfigs(persistentDir, consulToken))
+      _ <- F.liftIO {
+        if (setupACL) auth.writeTokenConfigs(persistentDir, consulToken) else IO.unit
+      }
 
       consulRestartProc <- H.startConsul(finalBindAddr, consulSeedsO, bootstrapExpect)
-      _ <- F.liftIO(auth.setupDefaultConsulToken(persistentDir, consulToken))
+      _ <- F.liftIO {
+        if (setupACL) auth.setupDefaultConsulToken(persistentDir, consulToken) else IO.unit
+      }
 
       vaultRestartProc <- H.startVault(finalBindAddr)
       vaultSealStatus <- F.liftIO {
-        (new VaultStarter).initializeAndUnsealAndSetupVault()
+        (new VaultStarter).initializeAndUnsealAndSetupVault(setupACL)
       }
       vaultToken <- F.liftIO(IO((new VaultUtils).findVaultToken()))
-      nomadRestartProc <- H.startNomad(finalBindAddr, bootstrapExpect, vaultToken)
-      consulNomadToken <- F.liftIO(auth.setupNomadMasterToken(persistentDir, consulToken))
 
-      _ <- F.liftIO(auth.storeMasterTokenInVault(consulNomadToken))
+      // Longer sleeps are necessary before and after starting consul-template if certs already existed previously
+      _ <- F.liftIO(if (!setupACL) IO.sleep(20.seconds) else IO.unit)
+      consulTemplateRestartProc <- H.startConsulTemplate(consulToken, vaultToken)
+      _ <- F.liftIO(IO.sleep {
+        if (setupACL) 5.seconds else 20.seconds
+      })
+
+      _ <- refreshConsulAndVault()
+
+      nomadRestartProc <- H.startNomad(finalBindAddr, bootstrapExpect, vaultToken)
+      consulNomadToken <- F.liftIO {
+        if (setupACL) {
+          auth.setupNomadMasterToken(persistentDir, consulToken)
+        } else {
+          auth.getMasterToken(persistentDir)
+        }
+      }
+
+      _ <- F.liftIO(auth.storeMasterToken(persistentDir, consulNomadToken))
       _ <- F.delay { os.write.over(persistentDir / ".bootstrap-complete", "\n") }
+
+      // If there are bad certs, nomad also needs 10 seconds to start working properly
+      _ <- F.liftIO {
+        if (!setupACL) IO.sleep(10.seconds) else IO.unit
+      }
 
       // _ <- F.liftIO(Run.putStrLn("started consul, nomad, and vault"))
     } yield AuthTokens(consulNomadToken, vaultToken)
   }
+
+  private def refreshConsulAndVault[F[_]]()(implicit F: Effect[F], timer: Timer[IO]) =
+    for {
+      consulPidRes <- F.delay(os.proc("/usr/bin/sudo", "/bin/systemctl", "show", "-p", "MainPID", "consul").call(stderr = os.Inherit))
+      consulPid = consulPidRes.out.lines().mkString.split("=").last
+      vaultPidRes <- F.delay(os.proc("/usr/bin/sudo", "/bin/systemctl", "show", "-p", "MainPID", "vault").call(stderr = os.Inherit))
+      vaultPid = vaultPidRes.out.lines().mkString.split("=").last
+      _ <- F.delay(os.proc("kill", "-HUP", consulPid, vaultPid).call(stderr = os.Inherit, stdout = os.Inherit))
+      _ <- F.liftIO(IO.sleep(5.seconds))
+      _ = ConsulVaultSSLContext.refreshCerts()
+    } yield ()
 
   class RuntimeServicesExec[F[_]](implicit F: Effect[F]) extends NetworkInfoExec[F] with RuntimeServicesAlg[F] {
     override def searchForPort(netinf: List[String], port: Int): F[Option[NonEmptyList[String]]] = F.liftIO {
@@ -250,10 +300,33 @@ object Run {
         writer.write(s"CONSUL_CMD_ARGS=$baseArgsWithSeeds")
         writer.close()
 
+        val consulConfigDir = RadPath.runtime / "timberland" / "consul" / "config"
+        os.copy.over(consulConfigDir / "consul-no-tls.json", consulConfigDir / "consul.json")
         Thread.sleep(10000)
+        makeTempCerts(persistentDir)
+        os.copy.over(consulConfigDir / "consul-tls.json", consulConfigDir / "consul.json")
         os.proc("/usr/bin/sudo", "/bin/systemctl", "restart", "consul").call(stdout = os.Inherit, stderr = os.Inherit)
         LogTUI.event(ConsulSystemdUp)
       }
+
+    override def startConsulTemplate(consulToken: String, vaultToken: String): F[Unit] = {
+      val persistentDir = os.Path("/opt/radix/timberland")
+      val envFilePath = persistentDir / "consul-template" / "consul-template.env.conf"
+      val envVars =
+        s"""CONSUL_TEMPLATE_CMD_ARGS=-config=$persistentDir/consul-template/config.hcl
+           |CONSUL_TOKEN=$consulToken
+           |VAULT_TOKEN=$vaultToken
+           |""".stripMargin
+      F.delay {
+        os.write.over(envFilePath, envVars)
+        os.proc(
+          "/usr/bin/sudo",
+          "/bin/systemctl",
+          "restart",
+          "consul-template"
+        ).call(stdout = os.Inherit, stderr = os.Inherit)
+      }
+    }
 
     override def startNomad(bind_addr: String, bootstrapExpect: Int, vaultToken: String): F[Unit] = {
 
@@ -280,7 +353,7 @@ object Run {
     def startVault(bind_addr: String): F[Unit] = {
       val persistentDir = RadPath.runtime / "timberland"
       val args: String =
-        s"""VAULT_CMD_ARGS=-address=http://${bind_addr}:8200 -config=$persistentDir/vault/vault_config.conf""".stripMargin
+        s"""VAULT_CMD_ARGS=-address=https://${bind_addr}:8200 -config=$persistentDir/vault/vault_config.conf""".stripMargin
 
       F.delay {
         LogTUI.event(VaultStarting)
@@ -298,12 +371,58 @@ object Run {
       }
     }
 
+    private def makeTempCerts(persistentDir: os.Path) = {
+      val consul = persistentDir / "consul" / "consul"
+      val certDir = os.root / "opt" / "radix" / "certs"
+      val consulCaCertPem = certDir / "ca" / "cert.pem"
+      val consulCaKeyPem = certDir / "ca" / "key.pem"
+      os.makeDir.all(certDir)
+      os.proc(consul, "tls", "ca", "create")
+        .call(stdout = os.Inherit, stderr = os.Inherit, cwd = certDir)
+
+      val consulServerCertPem = certDir / "consul" / "cert.pem"
+      val consulServerKeyPem = certDir / "consul" / "key.pem"
+      os.makeDir.all(certDir / "consul")
+      os.proc(consul, "tls", "cert", "create", "-server", "-additional-dnsname=consul.service.consul")
+        .call(stdout = os.Inherit, stderr = os.Inherit, cwd = certDir)
+      os.move.over(certDir / "dc1-server-consul-0.pem", consulServerCertPem)
+      os.move.over(certDir / "dc1-server-consul-0-key.pem", consulServerKeyPem)
+
+      val vaultClientCertPem = certDir / "vault" / "cert.pem"
+      val vaultClientKeyPem = certDir / "vault" / "key.pem"
+      os.makeDir.all(certDir / "vault")
+      os.proc(consul, "tls", "cert", "create", "-client", "-additional-dnsname=vault.service.consul")
+        .call(stdout = os.Inherit, stderr = os.Inherit, cwd = certDir)
+      os.move.over(certDir / "dc1-client-consul-0.pem", vaultClientCertPem)
+      os.move.over(certDir / "dc1-client-consul-0-key.pem", vaultClientKeyPem)
+
+      val cliCertPem = certDir / "cli" / "cert.pem"
+      val cliKeyPem = certDir / "cli" / "key.pem"
+      os.makeDir.all(certDir / "cli")
+      os.proc(consul, "tls", "cert", "create", "-cli")
+        .call(stdout = os.Inherit, stderr = os.Inherit, cwd = certDir)
+      os.move.over(certDir / "dc1-cli-consul-0.pem", cliCertPem)
+      os.move.over(certDir / "dc1-cli-consul-0-key.pem", cliKeyPem)
+
+      os.makeDir.all(certDir / "ca")
+      os.move.over(certDir / "consul-agent-ca.pem", consulCaCertPem)
+      os.move.over(certDir / "consul-agent-ca-key.pem", consulCaKeyPem)
+    }
+
+
+
     override def stopConsul(): F[Unit] = {
       F.delay {
         scribe.info("Stopping consul via systemd")
         os.proc("/usr/bin/sudo", "/bin/systemctl", "stop", "consul").call(stdout = os.Inherit, stderr = os.Inherit)
       }
     }
+
+    override def stopConsulTemplate(): F[Unit] =
+      F.delay {
+        scribe.info("Stopping consul template via systemd")
+        os.proc("/usr/bin/sudo", "/bin/systemctl", "stop", "consul-template").call(stdout = os.Inherit, stderr = os.Inherit)
+      }
 
     override def stopNomad(): F[Unit] = {
       F.delay {
@@ -338,6 +457,7 @@ object Run {
   def stopRuntimeProg[F[_]]()(implicit H: RuntimeServicesAlg[F], F: Effect[F]) = {
     for {
       stopConsulProc <- H.stopConsul()
+      stopConsulTemplateProc <- H.stopConsulTemplate()
       stopNomadProc <- H.stopNomad()
       stopVaultProc <- H.stopVault()
 //      _ <- F.liftIO(Run.putStrLn("stopped consul and nomad"))

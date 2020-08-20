@@ -87,3 +87,33 @@ variable "acl_token" {
   type = string
   default = ""
 }
+
+variable "tls_ca_file" {
+  description = "Path to the CA file used for TLS communication with vault, consul, and nomad"
+  type = string
+  default = ""
+}
+
+variable "tls_cert_file" {
+  description = "Path to the certificate file used for TLS communication with vault and consul"
+  type = string
+  default = ""
+}
+
+variable "tls_key_file" {
+  description = "Path to the key file used for TLS communication with vault and consul"
+  type = string
+  default = ""
+}
+
+variable "tls_nomad_cert_file" {
+  description = "Path to the certificate file used for TLS communication with nomad"
+  type = string
+  default = ""
+}
+
+variable "tls_nomad_key_file" {
+  description = "Path to the key file used for TLS communication with nomad"
+  type = string
+  default = ""
+}

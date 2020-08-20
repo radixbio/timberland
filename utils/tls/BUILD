@@ -1,0 +1,50 @@
+load(
+    "@io_bazel_rules_scala//scala:scala.bzl",
+    "scala_binary",
+    "scala_library",
+    "scala_macro_library",
+    "scala_repl",
+    "scala_test",
+)
+load("//tools:docker.bzl", "dockerize_scala")
+
+scala_library(
+    name = "consul-tls",
+    srcs = [
+        "ConsulVaultSSLContext.scala",
+        "SSLContextCreator.scala",
+    ],
+    visibility = ["//visibility:public"],
+    exports = [
+        "//shared/shared/shared/jvm:shared-jvm",
+        "//utils/helm:helm-jvm",
+        "@third_party//3rdparty/jvm/com/lihaoyi:os_lib",
+        "@third_party//3rdparty/jvm/com/typesafe/akka:akka_actor",
+        "@third_party//3rdparty/jvm/com/typesafe/akka:akka_actor_typed",
+        "@third_party//3rdparty/jvm/com/typesafe/akka:akka_remote",
+        "@third_party//3rdparty/jvm/com/typesafe/akka:akka_stream",
+        "@third_party//3rdparty/jvm/io/circe:circe_core",
+        "@third_party//3rdparty/jvm/io/circe:circe_fs2",
+        "@third_party//3rdparty/jvm/io/circe:circe_generic",
+        "@third_party//3rdparty/jvm/io/circe:circe_parser",
+        "@third_party//3rdparty/jvm/org/bouncycastle:bcpkix_jdk15on",
+        "@third_party//3rdparty/jvm/org/typelevel:cats_core",
+        "@third_party//3rdparty/jvm/org/typelevel:cats_effect",
+    ],
+    deps = [
+        "//shared/shared/shared/jvm:shared-jvm",
+        "//utils/helm:helm-jvm",
+        "@third_party//3rdparty/jvm/com/lihaoyi:os_lib",
+        "@third_party//3rdparty/jvm/com/typesafe/akka:akka_actor",
+        "@third_party//3rdparty/jvm/com/typesafe/akka:akka_actor_typed",
+        "@third_party//3rdparty/jvm/com/typesafe/akka:akka_remote",
+        "@third_party//3rdparty/jvm/com/typesafe/akka:akka_stream",
+        "@third_party//3rdparty/jvm/io/circe:circe_core",
+        "@third_party//3rdparty/jvm/io/circe:circe_fs2",
+        "@third_party//3rdparty/jvm/io/circe:circe_generic",
+        "@third_party//3rdparty/jvm/io/circe:circe_parser",
+        "@third_party//3rdparty/jvm/org/bouncycastle:bcpkix_jdk15on",
+        "@third_party//3rdparty/jvm/org/typelevel:cats_core",
+        "@third_party//3rdparty/jvm/org/typelevel:cats_effect",
+    ],
+)

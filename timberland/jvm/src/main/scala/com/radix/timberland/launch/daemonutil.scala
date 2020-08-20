@@ -27,6 +27,7 @@ import io.circe.{DecodingFailure, Json}
 import org.http4s.Uri
 import org.http4s.client.Client
 import os.{proc, ProcessOutput}
+import utils.tls.ConsulVaultSSLContext.blaze
 
 import scala.io.{Source, StdIn}
 
@@ -37,7 +38,6 @@ case object AllDaemonsStarted extends DaemonState
 package object daemonutil {
   private[this] implicit val timer: Timer[IO] = IO.timer(global)
   private[this] implicit val cs: ContextShift[IO] = IO.contextShift(global)
-  private[this] implicit val blaze: Resource[IO, Client[IO]] = BlazeClientBuilder[IO](global).resource
 
 
   val execDir = RadPath.runtime / "timberland" / "terraform"
@@ -131,10 +131,11 @@ package object daemonutil {
       }
     }
 
+    // TODO(alex): what to do if consulAddr != vaultAddr? since vault usually doesn't resolve
     for {
       consulAddr <- queryDns("consul.service.consul")
       nomadAddr <- queryDns("nomad.service.consul")
-    } yield ServiceAddrs(consulAddr, nomadAddr)
+    } yield ServiceAddrs(consulAddr, nomadAddr, consulAddr)
   }
 
   def readTerraformPlan(
@@ -143,8 +144,9 @@ package object daemonutil {
     variables: String
   ): IO[(TerraformMagic.TerraformPlan, Map[String, List[String]])] = {
     IO {
+      val tlsVarStr = terraformTLSVars.mkString(" ")
       val F = File.createTempFile("radix", ".plan")
-      val planCommand = Seq("bash", "-c", s"${execDir / "terraform"} plan $variables -out=$F")
+      val planCommand = Seq("bash", "-c", s"${execDir / "terraform"} plan $tlsVarStr $variables -out=$F")
       val showCommand = s"${execDir / "terraform"} show -json $F".split(" ")
       val planout = proc(planCommand).call(cwd = workingDir)
       val planshow = proc(showCommand).call(cwd = workingDir)
@@ -240,6 +242,18 @@ package object daemonutil {
       })
   }
 
+  def terraformTLSVars: Iterable[String] = {
+    val certDir: os.Path = RadPath.runtime / "certs"
+    val tlsVars = Map(
+      "tls_ca_file" -> sys.env.getOrElse("TLS_CA", (certDir / "ca" / "cert.pem").toString),
+      "tls_cert_file" -> sys.env.getOrElse("TLS_CERT", (certDir / "cli" / "cert.pem").toString),
+      "tls_key_file" -> sys.env.getOrElse("TLS_KEY", (certDir / "cli" / "key.pem").toString),
+      "tls_nomad_cert_file" -> sys.env.getOrElse("TLS_NOMAD_CERT", (certDir / "nomad" / "cli-cert.pem").toString),
+      "tls_nomad_key_file" -> sys.env.getOrElse("TLS_NOMAD_KEY", (certDir / "nomad" / "cli-key.pem").toString)
+    )
+    tlsVars.map(kv => s"-var='${kv._1}=${kv._2}'")
+  }
+
   def getTerraformWorkDir(is_integration: Boolean): os.Path = {
     if (is_integration) RadPath.temp / "terraform" else os.root / "opt" / "radix" / "terraform"
   }
@@ -300,6 +314,7 @@ package object daemonutil {
         s"-var='acl_token=${tokens.consulNomadToken}' " +
         s"-var='consul_address=${serviceAddrs.consulAddr}' " +
         s"-var='nomad_address=${serviceAddrs.nomadAddr}' " +
+        s"-var='vault_address=${serviceAddrs.vaultAddr}' " +
         s"""-var='feature_flags=["${featureFlags.filter(_._2).keys.mkString("""","""")}"]' """
 
 
@@ -308,9 +323,10 @@ package object daemonutil {
 
     val apply = for {
       flagConfig <- flagConfig.updateFlagConfig(featureFlags)
-      configEntriesStr = flagConfig.configVars.map(kv => s"-var='${kv._1}=${kv._2}'").mkString(" ")
+      flagConfigStr = flagConfig.configVars.map(kv => s"-var='${kv._1}=${kv._2}'").mkString(" ")
+      tlsConfigStr = terraformTLSVars.mkString(" ")
       definedVarsStr = s"""-var='defined_config_vars=["${flagConfig.definedVars.mkString("""","""")}"]'"""
-      configStr = s"$configEntriesStr $definedVarsStr "
+      configStr = s"$flagConfigStr $tlsConfigStr $definedVarsStr "
       applyCommand = Seq("bash", "-c", s"${execDir / "terraform"} apply -no-color -auto-approve " + variables + configStr)
       applyExitCode <- IO(
         os.proc(applyCommand)
@@ -343,10 +359,10 @@ package object daemonutil {
     val backendVars =
       if (backendMasterToken.isDefined)
         Seq(
-          s"-backend-config=address=${serviceAddrs.consulAddr}:8500",
+          s"-backend-config=address=${serviceAddrs.consulAddr}:8501",
           s"-backend-config=access_token=${backendMasterToken.get}",
           s"-var='acl_token=${backendMasterToken.get}'"
-        )
+        ) ++ terraformTLSVars
       else Seq.empty
 
     val initAgainCommand= Seq(

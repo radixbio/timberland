@@ -16,7 +16,7 @@ import io.circe.{Parser => _}
 import optparse_applicative._
 import optparse_applicative.types.Parser
 import org.http4s.implicits._
-import org.http4s.client.blaze.BlazeClientBuilder
+import utils.tls.ConsulVaultSSLContext._
 import scalaz.syntax.apply._
 
 import scala.concurrent.ExecutionContext.global
@@ -341,7 +341,7 @@ object runner {
                     implicit val host = new Mock.RuntimeNolaunch[IO]
                     Right(
                       println(Run
-                        .initializeRuntimeProg[IO](consul / os.up, nomad / os.up, bindIP, consulSeedsO, 0)
+                        .initializeRuntimeProg[IO](consul / os.up, nomad / os.up, bindIP, consulSeedsO, 0, false)
                         .unsafeRunSync)
                     )
                     System.exit(0)
@@ -369,7 +369,7 @@ object runner {
                     } yield ()
 
                     implicit val host = new Run.RuntimeServicesExec[IO]
-                    val startServices = for {
+                    def startServices(setupACL: Boolean) = for {
                       _ <- IO(scribe.info("Launching daemons"))
                       localFlags <- featureFlags.getLocalFlags(persistentDir)
                       // Starts LogTUI before `startLogTuiAndRunTerraform` is called
@@ -377,8 +377,9 @@ object runner {
                       consulPath = consul / os.up
                       nomadPath = nomad / os.up
                       bootstrapExpect = if (localFlags.getOrElse("dev", true)) 1 else 3
-                      tokens <- Run
-                        .initializeRuntimeProg[IO](consulPath, nomadPath, bindIP, consulSeedsO, bootstrapExpect)
+                      tokens <- Run.initializeRuntimeProg[IO](
+                        consulPath, nomadPath, bindIP, consulSeedsO, bootstrapExpect, setupACL
+                      )
                       _ <- daemonutil.waitForDNS("vault.service.consul", 10.seconds)
                     } yield tokens
 
@@ -407,12 +408,16 @@ object runner {
                     // Called when consul/nomad/vault are on localhost
                     val localBootstrap = for {
                       hasBootstrapped <- IO(os.exists(persistentDir / ".bootstrap-complete"))
+                      isConsulUp <- daemonutil.isPortUp(8501)
                       serviceAddrs = ServiceAddrs()
-                      authTokens <- if (hasBootstrapped) {
-                        auth.getAuthTokens(isRemote = false, serviceAddrs, username, password)
-                      } else {
-                        // daemonutil.containerRegistryLogin(containerRegistryUser, containerRegistryToken) *>
-                        flagConfig.promptForDefaultConfigs(persistentDir = persistentDir) *> createWeaveNetwork *> startServices
+                      authTokens <- (hasBootstrapped, isConsulUp) match {
+                        case (true, true) =>
+                          auth.getAuthTokens(isRemote = false, serviceAddrs, username, password)
+                        case (true, false) =>
+                          startServices(setupACL = false)
+                        case (false, _) =>
+                          flagConfig.promptForDefaultConfigs(persistentDir = persistentDir) *>
+                            createWeaveNetwork *> startServices(setupACL = true)
                       }
                       featureFlags <- featureFlags.updateFlags(persistentDir, Some(authTokens), confirm = true)(serviceAddrs)
                       _ <- startLogTuiAndRunTerraform(featureFlags, serviceAddrs, authTokens, waitForQuorum = true)
@@ -458,7 +463,7 @@ object runner {
                   } yield true
 
                   daemonutil
-                    .isPortUp(8500)
+                    .isPortUp(8501)
                     .flatMap {
                       case true  => UpdateModules.run(consulExistsProc, prefix = prefix)
                       case false => IO.unit
@@ -531,21 +536,18 @@ object runner {
               val policiesWithDefault = if (policies.nonEmpty) policies else List("remote-access")
               val vaultToken = (new VaultUtils).findVaultToken()
               implicit val contextShift: ContextShift[IO] = IO.contextShift(global)
-              BlazeClientBuilder[IO](global).resource
-                .use { client =>
-                  val vault = new Vault[IO](Some(vaultToken), uri"http://127.0.0.1:8200", client)
-                  for {
-                    password <- IO(System.console.readPassword("Password> ").mkString)
-                    _ <- vault.enableAuthMethod("userpass")
-                    res <- vault.createUser(name, password, policiesWithDefault)
-                  } yield res match {
-                    case Right(_) => ()
-                    case Left(err) =>
-                      println(err)
-                      sys.exit(1)
-                  }
-                }
-                .unsafeRunSync()
+              val vault = new Vault[IO](Some(vaultToken), uri"https://127.0.0.1:8200")
+              val proc = for {
+                password <- IO(System.console.readPassword("Password> ").mkString)
+                _ <- vault.enableAuthMethod("userpass")
+                res <- vault.createUser(name, password, policiesWithDefault)
+              } yield res match {
+                case Right(_) => ()
+                case Left(err) =>
+                  println(err)
+                  sys.exit(1)
+              }
+              proc.unsafeRunSync()
           }
         case oauth: Oauth =>
           oauth match {
