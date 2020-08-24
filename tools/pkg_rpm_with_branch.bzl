@@ -6,8 +6,8 @@ def pkg_rpm_with_branch(name, **kwargs):
     STABLE_GIT_BRANCH from the workspace status. See the documentation of the
     --workspace_status_command flag and the pkg_rpm rule for details.
 
-    Note that RPMs do not allow dashes in their version string and will be replaced
-    with underscores.
+    Note that RPMs do not allow dashes or pound signs in their version string and
+    will be replaced with underscores.
 
     All arguments passed to this rule get forwarded to pkg_rpm. Do not set the
     version_file attribute, as it is set explicitly inside this rule.
@@ -17,7 +17,7 @@ def pkg_rpm_with_branch(name, **kwargs):
     workspace_status(
         name = workspace_status_name,
         variable = "STABLE_GIT_BRANCH",
-        transformation = "tr '-' '_'",  # Replace dashes with underscores.
+        transformation = "tr '-' '_' | tr '#' '_'",  # Replace dashes and pound signs with underscores.
     )
 
     pkg_rpm(
