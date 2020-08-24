@@ -150,7 +150,9 @@ package object daemonutil {
       val showCommand = s"${execDir / "terraform"} show -json $F".split(" ")
       val planout = proc(planCommand).call(cwd = workingDir)
       val planshow = proc(showCommand).call(cwd = workingDir)
-      parse(new String(planshow.out.bytes)) match {
+
+      val shown = new String(planshow.out.bytes)
+      parse(shown) match {
         case Left(value)  => IO.raiseError(value)
         case Right(value) => IO.pure(value)
       }
@@ -165,9 +167,13 @@ package object daemonutil {
         import cats.syntax.either._
 
         type Err[A] = Either[DecodingFailure, A]
+        val resource_changes = x.hcursor.downField("resource_changes").as[Array[Json]] match {
+          case Left(fail) => Array.empty // Should only occur if no changes are being made?
+          case Right(data) => data
+        }
         val prog = for {
           //extract changed resources
-          resource_changes <- x.hcursor.downField("resource_changes").as[Array[Json]]
+//          resource_changes <- x.hcursor.downField("resource_changes").as[Array[Json]]
           addresses <- resource_changes.map(_.hcursor.downField("address").as[String]).toList.sequence
           //strip off the [0] to get the actual addresses
           withoutindex = addresses.map(TerraformMagic.stripindex)
