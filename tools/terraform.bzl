@@ -3,23 +3,32 @@ load("@rules_python//python:defs.bzl", "py_binary")
 
 NomadJobResource = provider(fields = ["jobname", "jobspec_file"])
 MainTFSpec = provider(fields = ["specs"])
+InstallStructure = provider(fields = ["files"])
 
-def _ter_impl(ctx):
+def pathjoin(a, b):  # Grah lack of even basic python libraries!
+    return a.rstrip("/") + "/" + b.lstrip("/")
+
+def encodeStructure(filestructure):
+    return "|".join(["%s*%s" % (targetpath, fileobj.path) for targetpath, fileobj in filestructure])
+
+def rerootStructure(filestructure, rootdir):
+    return [(pathjoin(rootdir, target_path), fileobj) for target_path, fileobj in filestructure]
+
+def _mod_impl(ctx):
     jobname = ctx.attr.jobname
 
-    job_tar = ctx.actions.declare_file("%s.tar" % jobname)
+    if ctx.file.nomad_template:
+        hashed_template = ctx.actions.declare_file(ctx.file.nomad_template.path)
+        ctx.actions.run(
+            executable = ctx.executable.mark_image_digests,
+            inputs = [ctx.file.nomad_template],
+            outputs = [hashed_template],
+            arguments = [ctx.file.nomad_template.path, hashed_template.path],
+        )
 
-    darwin = ctx.attr._macos_platform[platform_common.ConstraintValueInfo]
-    tool = "gtar" if ctx.target_platform_has_constraint(darwin) else "tar"
-    cmd = (tool + " --format=gnu -cvhf %s -C %s %s" %
-           (job_tar.path, ctx.file.file_dir.dirname, ctx.file.file_dir.basename))
-
-    print("Running: " + cmd)
-    ctx.actions.run_shell(
-        inputs = [ctx.file.file_dir],
-        outputs = [job_tar],
-        command = cmd,
-    )
+        files = [hashed_template] + ctx.files.terraform_files
+    else:
+        files = ctx.files.terraform_files
 
     mod_deps = [d[NomadJobResource].jobname for d in ctx.attr.deps]
     if mod_deps:
@@ -28,45 +37,43 @@ def _ter_impl(ctx):
         mod_dep_line = []
     mod_str = 'module "%s" {\n  %s\n}\n' % (jobname, "\n  ".join(mod_dep_line + ctx.attr.module_spec))
 
-    files = depset([job_tar], transitive = [x.files for x in ctx.attr.deps])
     specs = depset([mod_str], transitive = [d[MainTFSpec].specs for d in ctx.attr.deps])
+    structure = depset([(pathjoin("modules/%s" % jobname, x.basename), x) for x in files])
     return [
         NomadJobResource(jobname = jobname),
-        DefaultInfo(files = files),
         MainTFSpec(specs = specs),
+        InstallStructure(files = structure),
     ]
 
 terraform_module = rule(
-    _ter_impl,
+    _mod_impl,
     attrs = {
         "jobname": attr.string(),
-        "file_dir": attr.label(allow_single_file = True),
+        "nomad_template": attr.label(allow_single_file = True, default = None),
+        "terraform_files": attr.label_list(allow_files = True, default = []),
         "deps": attr.label_list(default = []),
         "module_spec": attr.string_list(),
+        "mark_image_digests": attr.label(
+            default = Label("//tools:mark_image_digests"),
+            cfg = "exec",
+            executable = True,
+            allow_files = True,
+        ),
         "_macos_platform": attr.label(default = Label("@platforms//os:macos")),
     },
 )
 
-# A complete hack to just (re-)zip the provider executable and then tar it so
-# that we can have it in the right directory later
 def _prov_impl(ctx):
     providername = ctx.attr.spec.split('provider "')[1].split('" ')[0]
-    print(providername)
 
-    tarfile = ctx.actions.declare_file(ctx.file.source.path + ".tar")
-
-    darwin = ctx.attr._macos_platform[platform_common.ConstraintValueInfo]
-    tool = "gtar" if ctx.target_platform_has_constraint(darwin) else "tar"
-    tarcmd = (tool + " --format=gnu -cvhf %s -C %s %s" %
-              (tarfile.path, ctx.file.source.dirname.strip(providername), providername))
-    ctx.actions.run_shell(
-        inputs = [ctx.file.source],
-        outputs = [tarfile],
-        command = tarcmd,
+    sourceWithPath = (
+        "/plugins/registry.terraform.io/hashicorp/%s/%s" % (providername, ctx.file.source.basename),
+        ctx.file.source,
     )
 
     return [
-        DefaultInfo(files = depset([tarfile])),
+        InstallStructure(files = depset([sourceWithPath])),
+        #        DefaultInfo(files = depset([tarfile])),
         MainTFSpec(specs = depset([ctx.attr.spec])),
     ]
 
@@ -89,6 +96,10 @@ def _render_impl(ctx):
     ctx.actions.write(ctx.outputs.maintf_file, maintf_text)
 
     return [
+        InstallStructure(files = depset([(
+            pathjoin("modules", ctx.outputs.maintf_file.basename),
+            ctx.outputs.maintf_file,
+        )])),
         DefaultInfo(files = depset([ctx.outputs.maintf_file])),
     ]
 
@@ -101,6 +112,50 @@ render_main_tf = rule(
         "maintf_file": attr.output(
             doc = "the main/main.tf file for this terraform deployment",
             mandatory = True,
+        ),
+    },
+)
+
+def _subdir_impl(ctx):
+    return [
+        InstallStructure(files = depset([(pathjoin(ctx.attr.dirname, x.basename), x) for x in ctx.files.files])),
+    ]
+
+Subdir = rule(
+    _subdir_impl,
+    attrs = {
+        "files": attr.label_list(allow_files = True),
+        "dirname": attr.string(),
+    },
+)
+
+def _ter_impl(ctx):
+    files = depset(transitive = [x[InstallStructure].files for x in ctx.attr.deps]).to_list()
+    located_files = rerootStructure(files, ctx.attr.module_dir)
+
+    tarfile = ctx.actions.declare_file(ctx.attr.name + ".tar")
+
+    ctx.actions.run(
+        executable = ctx.executable.build_structured_tar,
+        inputs = [x[1] for x in located_files],
+        outputs = [tarfile],
+        arguments = [tarfile.path, encodeStructure(located_files)],
+    )
+
+    return [
+        DefaultInfo(files = depset([tarfile])),
+    ]
+
+terraform_rule = rule(
+    _ter_impl,
+    attrs = {
+        "deps": attr.label_list(),
+        "module_dir": attr.string(),
+        "build_structured_tar": attr.label(
+            default = Label("//tools:build_structured_tar"),
+            cfg = "exec",
+            executable = True,
+            allow_files = True,
         ),
     },
 )
@@ -132,40 +187,26 @@ def terraform_deployment(
         maintf_file = "main.tf",
     )
 
-    pkg_tar(
-        name = name + "_maintf_tar",
-        srcs = [name + "_maintf"] + toplevel_module_aux,
-        package_dir = module_dir + "/modules",
+    Subdir(
+        name = name + "_toplevel_module_aux_files",
+        files = toplevel_module_aux,
+        dirname = "modules",
     )
 
-    pkg_tar(
-        name = name + "-terraform-exe",
-        srcs = [
-            terraform_source,
-        ],
-        package_dir = module_dir,
+    Subdir(
+        name = name + "_terraform_source_file",
+        files = [terraform_source],
+        dirname = "",
     )
 
-    pkg_tar(
-        name = name + "-terraform-plugins",
-        deps = plugin_sources,
-        package_dir = module_dir + "/plugins/registry.terraform.io/hashicorp",
-    )  # Package dir will have to change/be variable if we start using non-hashicorp providers
-
-    pkg_tar(
-        name = name + "-terraform-resources",
-        deps = resources,
-        package_dir = module_dir + "/modules",
-    )
-
-    pkg_tar(
+    terraform_rule(
         name = name,
-        deps = [
-            name + "_maintf_tar",
-            name + "-terraform-exe",
-            name + "-terraform-plugins",
-            name + "-terraform-resources",
+        deps = plugin_sources + resources + [
+            name + "_maintf",
+            name + "_toplevel_module_aux_files",
+            name + "_terraform_source_file",
         ],
+        module_dir = module_dir,
     )
 
 def _dyn_rpm_impl(ctx):
