@@ -168,7 +168,7 @@ package object daemonutil {
 
         type Err[A] = Either[DecodingFailure, A]
         val resource_changes = x.hcursor.downField("resource_changes").as[Array[Json]] match {
-          case Left(fail) => Array.empty // Should only occur if no changes are being made?
+          case Left(fail) => Array.empty[Json] // Should only occur if no changes are being made?
           case Right(data) => data
         }
         val prog = for {
