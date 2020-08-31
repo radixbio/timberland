@@ -1,26 +1,22 @@
 package com.radix.timberland.util
 
-import scala.io.StdIn
-import scala.concurrent.duration._
-import scala.concurrent.ExecutionContext.Implicits.global
-import ammonite.ops._
-import ammonite.ops.ImplicitWd._
-import cats.effect.{ContextShift, IO, Resource, SyncIO, Timer}
-import cats.implicits._
 import java.io.{File, FileInputStream, FileOutputStream, IOException}
 import java.net.{InetAddress, NetworkInterface, ServerSocket, UnknownHostException}
 
-import com.radix.timberland.launch.daemonutil
+import ammonite.ops._
+import cats.effect.{ContextShift, IO, Resource, Timer}
+import cats.implicits._
 import com.radix.utils.tls.ConsulVaultSSLContext.blaze
 import org.http4s.Header
 import org.http4s.Method._
-import oshi.SystemInfo
-import org.http4s.Uri
-import org.http4s.implicits._
 import org.http4s.client.dsl.io._
+import org.http4s.implicits._
+import oshi.SystemInfo
 
 import scala.collection.JavaConverters._
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.TimeoutException
+import scala.concurrent.duration._
 
 object Util {
   private[this] implicit val timer: Timer[IO] = IO.timer(global)
@@ -184,11 +180,11 @@ object Util {
   // needed because CommandResult can't be redirected and read, or even read multiple times...
   case class ProcOut(exitCode: Int, stdout: String, stderr: String)
 
-  def exec(command: String): IO[ProcOut] = IO {
+  def exec(command: String, cwd: Path = os.root): IO[ProcOut] = IO {
     scribe.info(s"Calling: $command")
     val res = os
       .proc(command.split(' ')) // dodgy assumption, but fine for most uses
-      .call(cwd = os.root, check = false, stdout = os.Pipe, stderr = os.Pipe)
+      .call(cwd = cwd, check = false, stdout = os.Pipe, stderr = os.Pipe)
     val stdout: String = res.out.text
     val stderr: String = res.err.text
     val output = ProcOut(res.exitCode, stdout, stderr)
@@ -230,7 +226,6 @@ object Util {
     } yield done
 
   object RootShell {
-    import cats.effect.Timer
     private implicit val timer = IO.timer(global)
     private var sudopw: Option[String] = None
     private def checkSudo: String = {

@@ -82,33 +82,16 @@ object Services {
       _ <- auth.storeMasterToken(consulNomadToken)
       _ <- IO(os.write.over(persistentDir / ".bootstrap-complete", "\n"))
       _ <- IO(os.remove(intermediateAclTokenFile))
-      // If there are bad certs, nomad also needs 10 seconds to start working properly
-//      _ <- if (!setupACL || hasPartiallyBootstrapped) IO.sleep(10.seconds) else IO.unit
       _ <- IO(scribe.info("started consul, nomad, and vault"))
     } yield AuthTokens(consulNomadToken, vaultToken)
 
   private def refreshConsulAndVault()(implicit timer: Timer[IO]) =
     for {
-      consulPidRes <- IO(
-        Util
-          .proc("/bin/systemctl", "show", "-p", "MainPID", "consul")
-          .call(stderr = os.ProcessOutput(LogTUI.writeLogFromStream))
-      )
-      consulPid = consulPidRes.out.lines().mkString.split("=").last
-      vaultPidRes <- IO(
-        Util
-          .proc("/bin/systemctl", "show", "-p", "MainPID", "vault")
-          .call(stderr = os.ProcessOutput(LogTUI.writeLogFromStream))
-      )
-      vaultPid = vaultPidRes.out.lines().mkString.split("=").last
-      _ <- IO(
-        Util
-          .proc("kill", "-HUP", consulPid, vaultPid)
-          .call(
-            stderr = os.ProcessOutput(LogTUI.writeLogFromStream),
-            stdout = os.ProcessOutput(LogTUI.writeLogFromStream)
-          )
-      )
+      consulPidRes <- Util.exec("/bin/systemctl show -p MainPID consul")
+      consulPid = consulPidRes.stdout.split("=").last.strip
+      vaultPidRes <- Util.exec("/bin/systemctl show -p MainPID vault")
+      vaultPid = vaultPidRes.stdout.split("=").last.strip
+      _ <- Util.exec(s"kill -HUP $consulPid $vaultPid")
       _ <- IO.sleep(5.seconds)
       _ = ConsulVaultSSLContext.refreshCerts()
     } yield ()
@@ -132,7 +115,6 @@ object Services {
 
   def startConsul(bind_addr: String, consulSeedsO: Option[String], bootstrapExpect: Int): IO[Unit] = {
     val persistentDir = RadPath.runtime / "timberland"
-    //TODO enable dev mode in such a way that it doesn't break schema-registry
     val baseArgs = s"-bind=$bind_addr -bootstrap-expect=$bootstrapExpect -config-dir=$persistentDir/consul/config"
 
     val baseArgsWithSeeds = consulSeedsO match {
@@ -161,13 +143,13 @@ object Services {
       _ <- Util.exec("systemctl restart consul")
       _ <- IO(Util.waitForPortUp(8500, 10.seconds))
       _ <- IO(Util.waitForDNS("consul.service.consul", 30.seconds))
-      _ <- IO(makeTempCerts(persistentDir))
+      _ <- makeTempCerts(persistentDir)
       _ <- IO(os.copy.over(consulConfigDir / "consul-tls.json", consulConfigDir / "consul.json"))
       _ <- Util.exec("systemctl restart consul")
       _ <- IO(LogTUI.event(ConsulSystemdUp))
       _ <- IO(Util.waitForPortUp(8501, 10.seconds))
       _ <- IO(Util.waitForDNS("consul.service.consul", 30.seconds))
-    } yield IO.unit
+    } yield ()
   }
 
   def startConsulTemplate(consulToken: String, vaultToken: String): IO[Unit] = {
@@ -178,68 +160,53 @@ object Services {
          |CONSUL_TOKEN=$consulToken
          |VAULT_TOKEN=$vaultToken
          |""".stripMargin
-    IO {
-      os.write.over(envFilePath, envVars)
-      Util
-        .proc(
-          "/bin/systemctl",
-          "restart",
-          "consul-template"
-        )
-        .call(
-          stdout = os.ProcessOutput(LogTUI.writeLogFromStream),
-          stderr = os.ProcessOutput(LogTUI.writeLogFromStream)
-        )
-    }
+    for {
+      _ <- IO(os.write.over(envFilePath, envVars))
+      _ <- Util.exec("/bin/systemctl restart consul-template")
+    } yield ()
   }
 
-  def startNomad(bind_addr: String, bootstrapExpect: Int, vaultToken: String): IO[Unit] = IO {
+  def startNomad(bind_addr: String, bootstrapExpect: Int, vaultToken: String): IO[Unit] = {
     val persistentDir = RadPath.runtime / "timberland"
     val args: String =
       s"""NOMAD_CMD_ARGS=-bind=$bind_addr -bootstrap-expect=$bootstrapExpect -config=$persistentDir/nomad/config
          |VAULT_TOKEN=$vaultToken
          |""".stripMargin
-    LogTUI.event(NomadStarting)
-    LogTUI.writeLog("spawning nomad via systemd")
-
-    val envFilePath = Paths.get(s"$persistentDir/nomad/nomad.env.conf") // TODO make configurable
-    val envFileHandle = envFilePath.toFile
-    val writer = new FileWriter(envFileHandle)
-    writer.write(args)
-    writer.close()
-
-    Util
-      .proc("/usr/bin/sudo", "/bin/systemctl", "restart", "nomad")
-      .call(stdout = os.ProcessOutput(LogTUI.writeLogFromStream), stderr = os.ProcessOutput(LogTUI.writeLogFromStream))
-    LogTUI.event(NomadSystemdUp)
+    for {
+      _ <- IO {
+        LogTUI.event(NomadStarting)
+        LogTUI.writeLog("spawning nomad via systemd")
+        val envFilePath = Paths.get(s"$persistentDir/nomad/nomad.env.conf") // TODO make configurable
+        val envFileHandle = envFilePath.toFile
+        val writer = new FileWriter(envFileHandle)
+        writer.write(args)
+        writer.close()
+      }
+      procOut <- Util.exec("/bin/systemctl restart nomad")
+      _ <- IO(LogTUI.event(NomadSystemdUp))
+    } yield ()
   }
 
   def startVault(bind_addr: String): IO[Unit] = {
     val persistentDir = RadPath.runtime / "timberland"
     val args: String =
       s"""VAULT_CMD_ARGS=-address=https://${bind_addr}:8200 -config=$persistentDir/vault/vault_config.conf""".stripMargin
+    for {
+      _ <- IO {
+        LogTUI.event(VaultStarting)
+        LogTUI.writeLog("spawning vault via systemd")
 
-    IO {
-      LogTUI.event(VaultStarting)
-      LogTUI.writeLog("spawning vault via systemd")
+        val envFilePath = Paths.get(s"$persistentDir/vault/vault.env.conf")
+        val envFileHandle = envFilePath.toFile
+        val writer = new FileWriter(envFileHandle)
+        writer.write(args)
+        writer.close()
+      }
+      restartProc <- Util.exec("/bin/systemctl restart vault")
+      _ <- Util.waitForPortUp(8200, 30.seconds)
+      _ <- IO(LogTUI.event(VaultSystemdUp))
+    } yield ()
 
-      val envFilePath = Paths.get(s"$persistentDir/vault/vault.env.conf")
-      val envFileHandle = envFilePath.toFile
-      val writer = new FileWriter(envFileHandle)
-      writer.write(args)
-      writer.close()
-
-      Util
-        .proc("/bin/systemctl", "restart", "vault")
-        .call(
-          stdout = os.ProcessOutput(LogTUI.writeLogFromStream),
-          stderr = os.ProcessOutput(LogTUI.writeLogFromStream)
-        )
-      for {
-        _ <- Util.waitForPortUp(8200, 30.seconds)
-      } yield IO.unit
-      LogTUI.event(VaultSystemdUp)
-    }
   }
 
   private def makeOrGetIntermediateToken: IO[String] = IO {
@@ -253,117 +220,78 @@ object Services {
     }
   }
 
-  private def makeTempCerts(persistentDir: os.Path) = {
+  private def makeTempCerts(persistentDir: os.Path): IO[Unit] = {
     val consul = persistentDir / "consul" / "consul"
     val certDir = os.root / "opt" / "radix" / "certs"
     val consulCaCertPem = certDir / "ca" / "cert.pem"
     val consulCaKeyPem = certDir / "ca" / "key.pem"
-    os.makeDir.all(certDir)
-    Util
-      .proc(consul, "tls", "ca", "create")
-      .call(
-        stdout = os.ProcessOutput(LogTUI.writeLogFromStream),
-        stderr = os.ProcessOutput(LogTUI.writeLogFromStream),
-        cwd = certDir
-      )
-
     val consulServerCertPem = certDir / "consul" / "cert.pem"
     val consulServerKeyPem = certDir / "consul" / "key.pem"
-    os.makeDir.all(certDir / "consul")
-    Util
-      .proc(consul, "tls", "cert", "create", "-server", "-additional-dnsname=consul.service.consul")
-      .call(
-        stdout = os.ProcessOutput(LogTUI.writeLogFromStream),
-        stderr = os.ProcessOutput(LogTUI.writeLogFromStream),
-        cwd = certDir
-      )
-    os.move.over(certDir / "dc1-server-consul-0.pem", consulServerCertPem)
-    os.move.over(certDir / "dc1-server-consul-0-key.pem", consulServerKeyPem)
-
     val vaultClientCertPem = certDir / "vault" / "cert.pem"
     val vaultClientKeyPem = certDir / "vault" / "key.pem"
-    os.makeDir.all(certDir / "vault")
-    Util
-      .proc(consul, "tls", "cert", "create", "-client", "-additional-dnsname=vault.service.consul")
-      .call(
-        stdout = os.ProcessOutput(LogTUI.writeLogFromStream),
-        stderr = os.ProcessOutput(LogTUI.writeLogFromStream),
-        cwd = certDir
-      )
-    os.move.over(certDir / "dc1-client-consul-0.pem", vaultClientCertPem)
-    os.move.over(certDir / "dc1-client-consul-0-key.pem", vaultClientKeyPem)
-
     val cliCertPem = certDir / "cli" / "cert.pem"
     val cliKeyPem = certDir / "cli" / "key.pem"
-    os.makeDir.all(certDir / "cli")
-    Util
-      .proc(consul, "tls", "cert", "create", "-cli")
-      .call(
-        stdout = os.ProcessOutput(LogTUI.writeLogFromStream),
-        stderr = os.ProcessOutput(LogTUI.writeLogFromStream),
-        cwd = certDir
-      )
-    os.move.over(certDir / "dc1-cli-consul-0.pem", cliCertPem)
-    os.move.over(certDir / "dc1-cli-consul-0-key.pem", cliKeyPem)
-
-    os.makeDir.all(certDir / "ca")
-    os.move.over(certDir / "consul-agent-ca.pem", consulCaCertPem)
-    os.move.over(certDir / "consul-agent-ca-key.pem", consulCaKeyPem)
+    for {
+      _ <- IO(os.makeDir.all(certDir))
+      _ <- Util.exec(s"$consul tls ca create", cwd = certDir)
+      _ <- IO(os.makeDir.all(certDir / "consul"))
+      _ <- Util.exec(s"$consul tls cert create -server -additional-dnsname=consul.service.consul", certDir)
+      _ <- IO {
+        os.move.over(certDir / "dc1-server-consul-0.pem", consulServerCertPem)
+        os.move.over(certDir / "dc1-server-consul-0-key.pem", consulServerKeyPem)
+      }
+      _ <- IO(os.makeDir.all(certDir / "vault"))
+      _ <- Util.exec(s"$consul tls cert create -client -additional-dnsname=vault.service.consul", certDir)
+      _ <- IO {
+        os.move.over(certDir / "dc1-client-consul-0.pem", vaultClientCertPem)
+        os.move.over(certDir / "dc1-client-consul-0-key.pem", vaultClientKeyPem)
+      }
+      _ <- IO(os.makeDir.all(certDir / "cli"))
+      _ <- Util.exec(s"$consul tls cert create -cli", certDir)
+      _ <- IO {
+        os.move.over(certDir / "dc1-cli-consul-0.pem", cliCertPem)
+        os.move.over(certDir / "dc1-cli-consul-0-key.pem", cliKeyPem)
+        os.makeDir.all(certDir / "ca")
+        os.move.over(certDir / "consul-agent-ca.pem", consulCaCertPem)
+        os.move.over(certDir / "consul-agent-ca-key.pem", consulCaKeyPem)
+      }
+    } yield ()
   }
 
   def stopConsul(): IO[Unit] = IO {
     scribe.info("Stopping consul via systemd")
-    Util
-      .proc("/usr/bin/sudo", "/bin/systemctl", "stop", "consul")
-      .call(stdout = os.ProcessOutput(LogTUI.writeLogFromStream), stderr = os.ProcessOutput(LogTUI.writeLogFromStream))
+    for {
+      stopProc <- Util.exec("/bin/systemctl stop consul")
+    } yield stopProc
   }
 
   def stopConsulTemplate(): IO[Unit] = IO {
     scribe.info("Stopping consul template via systemd")
-    Util
-      .proc("/usr/bin/sudo", "/bin/systemctl", "stop", "consul-template")
-      .call(stdout = os.ProcessOutput(LogTUI.writeLogFromStream), stderr = os.ProcessOutput(LogTUI.writeLogFromStream))
+    for {
+      stopProc <- Util.exec("/bin/systemctl stop consul-template")
+    } yield stopProc
   }
 
   def stopNomad(): IO[Unit] = IO {
     scribe.info("Stopping nomad via systemd")
-    Util
-      .proc("/usr/bin/sudo", "/bin/systemctl", "stop", "nomad")
-      .call(stdout = os.ProcessOutput(LogTUI.writeLogFromStream), stderr = os.ProcessOutput(LogTUI.writeLogFromStream))
+    for {
+      stopProc <- Util.exec("/bin/systemctl stop nomad")
+    } yield stopProc
   }
 
   def stopVault(): IO[Unit] = IO {
     scribe.info("Stopping vault via systemd")
-    Util
-      .proc("/usr/bin/sudo", "/bin/systemctl", "stop", "vault")
-      .call(stdout = os.ProcessOutput(LogTUI.writeLogFromStream), stderr = os.ProcessOutput(LogTUI.writeLogFromStream))
+    for {
+      stopProc <- Util.exec("/bin/systemctl stop vault")
+    } yield stopProc
   }
 
-  def startWeave(hosts: List[String]): IO[Unit] = IO {
-    Util
-      .proc("/usr/bin/docker", "plugin", "disable", "weaveworks/net-plugin:latest_release")
-      .call(
-        check = false,
-        cwd = os.pwd,
-        stdout = os.ProcessOutput(LogTUI.writeLogFromStream),
-        stderr = os.ProcessOutput(LogTUI.writeLogFromStream)
-      )
-    Util
-      .proc("/usr/bin/docker", "plugin", "set", "weaveworks/net-plugin:latest_release", "IPALLOC_RANGE=10.32.0.0/12")
-      .call(
-        check = false,
-        stdout = os.ProcessOutput(LogTUI.writeLogFromStream),
-        stderr = os.ProcessOutput(LogTUI.writeLogFromStream)
-      )
-    Util
-      .proc("/usr/bin/docker", "plugin", "enable", "weaveworks/net-plugin:latest_release")
-      .call(stdout = os.ProcessOutput(LogTUI.writeLogFromStream), stderr = os.ProcessOutput(LogTUI.writeLogFromStream))
-    //      proc(s"/usr/local/bin/weave", "launch", hosts.mkString(" "), "--ipalloc-range", "10.48.0.0/12")
-    //        .call(cwd = pwd, check = false, stdout = os.ProcessOutput(LogTUI.writeLogFromStream), stderr = os.ProcessOutput(LogTUI.writeLogFromStream))
-    //      proc(s"/usr/local/bin/weave", "connect", hosts.mkString(" "))
-    //        .call(check = false, stdout = os.ProcessOutput(LogTUI.writeLogFromStream), stderr = os.ProcessOutput(LogTUI.writeLogFromStream))
-    ()
-  }
+  def startWeave(hosts: List[String]): IO[Unit] =
+    for {
+      disableProc <- Util.exec("/usr/bin/docker plugin disable weaveworks/net-plugin:latest_release")
+      setProc <- Util.exec("/usr/bin/docker plugin set weaveworks/net-plugin:latest_release IPALLOC_RANGE=10.32.0.0/12")
+      enableProc <- Util.exec("/usr/bin/docker plugin disable weaveworks/net-plugin:latest_release")
+    } yield ()
 
   def stopServices(): IO[Unit] = stopConsul() *> stopConsulTemplate() *> stopNomad() *> stopVault()
 

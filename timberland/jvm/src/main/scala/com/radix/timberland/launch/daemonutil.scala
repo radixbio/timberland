@@ -95,15 +95,9 @@ package object daemonutil {
       case (None, _) => scribe.warn("No user/id provided for container registry, not logging in"); IO(-1)
       case (_, None) => scribe.warn("No password/token provided for container registry, not logging in"); IO(-1)
       case (Some(user), Some(token)) =>
-        IO {
-          Util
-            .proc(Seq("docker", "login", regAddress, "-u", user, "-p", token))
-            .call(
-              stdout = os.ProcessOutput(LogTUI.writeLogFromStream),
-              stderr = os.ProcessOutput(LogTUI.writeLogFromStream)
-            )
-            .exitCode
-        }
+        for {
+          procOut <- Util.exec(s"docker login $regAddress -u $user -p $token")
+        } yield procOut.exitCode
     }
   }
 
