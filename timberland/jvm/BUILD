@@ -64,7 +64,7 @@ scala_library(
     name = "timberland-core-lib",
     srcs = timberland_core_srcs,
     resources = glob([
-        "src/main/resources/application.conf",
+        "src/main/resources/reference.conf",
     ]),
     visibility = ["//visibility:public"],
     exports = [":timberland-dependencies"],
