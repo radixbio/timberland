@@ -610,7 +610,7 @@ terraform_module(
     name = "retool-terraform",
     jobname = "retool",
     module_spec = [
-        'enable = contains(var.feature_flags, "retool_postgres")',
+        'enable = contains(var.feature_flags, "retool")',
         'source = "/opt/radix/timberland/terraform/modules/retool"',
         'dev = contains(var.feature_flags, "dev")',
         "test = var.test",

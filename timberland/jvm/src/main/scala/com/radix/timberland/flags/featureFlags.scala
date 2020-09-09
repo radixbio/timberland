@@ -42,10 +42,10 @@ object featureFlags {
     "core" -> Set(
       "apprise",
       "kafka",
-      "minio",
-      "retool_pg_kafka_connector",
       "kafka_companions",
-      "retool_postgres",
+      "minio",
+      "retool",
+      "retool_pg_kafka_connector",
       "zookeeper"
     ),
     "device_drivers" -> Set(
@@ -71,7 +71,7 @@ object featureFlags {
       "retool_pg_kafka_connector"
     ),
     "retool" -> Set(
-      "retool_postgres",
+      "retool",
       "retool_pg_kafka_connector"
     )
   )
