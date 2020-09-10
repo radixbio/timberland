@@ -23,16 +23,16 @@ trait NomadInterface[F[_]] extends (NomadOp ~> F) {
   def apply[A](op: NomadOp[A]): F[A]
 
   def nomadCreateJobFromHCL(
-      job: JobShim,
-      enforceIndex: Boolean = false,
-      jobModifyIndex: Int = 0,
-      policyOverride: Boolean = false
+    job: JobShim,
+    enforceIndex: Boolean = false,
+    jobModifyIndex: Int = 0,
+    policyOverride: Boolean = false
   ): F[QueryResponse[List[NomadCreateJobResponse]]]
 
   def nomadListJobs(
-      prefix: String = "",
-      index: Option[Long] = None,
-      wait: Option[Interval] = None
+    prefix: String = "",
+    index: Option[Long] = None,
+    wait: Option[Interval] = None
   ): F[List[NomadListJobsResponse]]
 
   def nomadStopJob(job: String, purge: Boolean = true): F[NomadStopJobResponse]
@@ -44,7 +44,7 @@ trait NomadInterface[F[_]] extends (NomadOp ~> F) {
 
 /** A nice place to store the Nomad response headers so we can pass them around */
 case class NomadHeaders(
-    index: Long,
-    lastContact: Long,
-    knownLeader: Boolean
+  index: Long,
+  lastContact: Long,
+  knownLeader: Boolean
 )

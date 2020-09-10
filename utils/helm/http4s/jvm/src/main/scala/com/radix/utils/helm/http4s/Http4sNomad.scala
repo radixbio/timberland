@@ -24,11 +24,11 @@ import org.http4s.circe._
 import org.http4s.client.Client
 
 final class Http4sNomadClient[F[_]](
-    val baseUri: Uri,
-    val client: Client[F],
-    override val accessToken: Option[String] = util.getTokenFromEnvVars(),
-    override val credentials: Option[(String, String)] = None)(
-    implicit F: Effect[F])
+  val baseUri: Uri,
+  val client: Client[F],
+  override val accessToken: Option[String] = util.getTokenFromEnvVars(),
+  override val credentials: Option[(String, String)] = None
+)(implicit F: Effect[F])
     extends NomadInterface[F] {
 
   override val URL: String = baseUri.renderString
@@ -36,36 +36,35 @@ final class Http4sNomadClient[F[_]](
   private[this] val dsl = new Http4sClientDsl[F] {}
   import dsl._
 
-  private implicit val nomadCreateJobResponseDecoder
-    : EntityDecoder[F, NomadCreateJobResponse] =
+  private implicit val nomadCreateJobResponseDecoder: EntityDecoder[F, NomadCreateJobResponse] =
     jsonOf[F, NomadCreateJobResponse]
 
-  private implicit val listNomadListJobsDecoder
-    : EntityDecoder[F, List[NomadListJobsResponse]] =
+  private implicit val listNomadListJobsDecoder: EntityDecoder[F, List[NomadListJobsResponse]] =
     jsonOf[F, List[NomadListJobsResponse]]
 
-  private implicit val nomadReadRaftConfigurationDecoder: EntityDecoder[F, NomadReadRaftConfigurationResponse] = jsonOf[F, NomadReadRaftConfigurationResponse]
+  private implicit val nomadReadRaftConfigurationDecoder: EntityDecoder[F, NomadReadRaftConfigurationResponse] =
+    jsonOf[F, NomadReadRaftConfigurationResponse]
 
-  private implicit val nomadStopJobResponseDecoder: EntityDecoder[F, NomadStopJobResponse] = jsonOf[F, NomadStopJobResponse]
+  private implicit val nomadStopJobResponseDecoder: EntityDecoder[F, NomadStopJobResponse] =
+    jsonOf[F, NomadStopJobResponse]
 
-  private implicit val nomadListAllocationsResponseDecoder: EntityDecoder[F, NomadListAllocationsResponse] = jsonOf[F, NomadListAllocationsResponse]
+  private implicit val nomadListAllocationsResponseDecoder: EntityDecoder[F, NomadListAllocationsResponse] =
+    jsonOf[F, NomadListAllocationsResponse]
 
-  private implicit val nomadAllocationResponseDecoder: EntityDecoder[F, NomadAllocationResponse] = jsonOf[F, NomadAllocationResponse]
+  private implicit val nomadAllocationResponseDecoder: EntityDecoder[F, NomadAllocationResponse] =
+    jsonOf[F, NomadAllocationResponse]
 
   private val log = IzLogger()
 
   def apply[A](op: NomadOp[A]): F[A] = op match {
-    case NomadOp.NomadCreateJobFromHCL(hcl,
-                                       enforceIndex,
-                                       jobModifyIndex,
-                                       policyOverride) =>
+    case NomadOp.NomadCreateJobFromHCL(hcl, enforceIndex, jobModifyIndex, policyOverride) =>
       nomadCreateJobFromHCL(hcl, enforceIndex, jobModifyIndex, policyOverride): F[A]
 
     case NomadOp.NomadListJobs(prefix, index, wait) =>
       nomadListJobs(prefix, index, wait)
     case NomadOp.NomadReadRaftConfiguration(maxWait) => nomadCReadRaftConfiguration((maxWait))
-    case NomadOp.NomadStopJob(job, purge) => nomadStopJob(job, purge)
-    case NomadOp.NomadListAllocations() => nomadListAllocations()
+    case NomadOp.NomadStopJob(job, purge)            => nomadStopJob(job, purge)
+    case NomadOp.NomadListAllocations()              => nomadListAllocations()
   }
 
   private def addNomadToken(req: Request[F]): Request[F] =
@@ -109,8 +108,7 @@ final class Http4sNomadClient[F[_]](
       _ <- F.delay(log.debug(s"parsing nomad HCL create job command ${job.name}"))
       // Convert the JobShim object to a string.
       hcl = implicitly[HCLAble[JobShim]].show(job)
-      body = Json.obj("JobHCL" -> hcl.asJson,
-        "Canonicalize" -> canonicalize.asJson)
+      body = Json.obj("JobHCL" -> hcl.asJson, "Canonicalize" -> canonicalize.asJson)
       parseUri = baseUri / "v1" / "jobs" / "parse"
 
       req = POST(body, parseUri)
@@ -118,8 +116,7 @@ final class Http4sNomadClient[F[_]](
         .map(addCreds _)
       response <- client.expectOr[String](req)(handleNomadErrorResponse)
     } yield {
-      log.debug(
-        s"nomad parse request for create job ${job.name} (hcl $hcl) resulted in response $response")
+      log.debug(s"nomad parse request for create job ${job.name} (hcl $hcl) resulted in response $response")
       response
     }
 
@@ -157,11 +154,11 @@ final class Http4sNomadClient[F[_]](
    */
 
   def nomadCreateJobFromHCL(
-                             job: JobShim,
-                             enforceIndex: Boolean = false,
-                             jobModifyIndex: Int = 0,
-                             policyOverride: Boolean = false
-                           ): F[QueryResponse[List[NomadCreateJobResponse]]] = {
+    job: JobShim,
+    enforceIndex: Boolean = false,
+    jobModifyIndex: Int = 0,
+    policyOverride: Boolean = false
+  ): F[QueryResponse[List[NomadCreateJobResponse]]] = {
 
     for {
       _ <- F.delay(log.debug(s"parsing nomad job: ${job.name}"))
@@ -175,21 +172,17 @@ final class Http4sNomadClient[F[_]](
         .map(addNomadToken _)
         .map(addCreds _)
 
-      response <- client.expectOr[NomadCreateJobResponse](req)(
-        handleNomadErrorResponse)
+      response <- client.expectOr[NomadCreateJobResponse](req)(handleNomadErrorResponse)
     } yield {
       log.debug(s"nomad response for create job ${job.name} was $response")
-      QueryResponse(List(response),
-        response.index,
-        response.knownLeader,
-        response.lastContact)
+      QueryResponse(List(response), response.index, response.knownLeader, response.lastContact)
     }
   }
 
   def nomadListJobs(
-      prefix: String = "",
-      index: Option[Long] = None,
-      wait: Option[Interval] = None
+    prefix: String = "",
+    index: Option[Long] = None,
+    wait: Option[Interval] = None
   ): F[List[NomadListJobsResponse]] = {
     for {
       _ <- F.delay(log.debug(s"listing nomad jobs: $prefix"))
@@ -204,8 +197,7 @@ final class Http4sNomadClient[F[_]](
         .map(addNomadToken _)
         .map(addCreds _)
 
-      response <- client.expectOr[List[NomadListJobsResponse]](req)(
-        handleNomadErrorResponse)
+      response <- client.expectOr[List[NomadListJobsResponse]](req)(handleNomadErrorResponse)
 
     } yield {
       log.debug(s"nomad response for list jobs $prefix was $response")
@@ -218,10 +210,10 @@ final class Http4sNomadClient[F[_]](
     for {
       _ <- F.delay(log.debug("Reading Nomad Raft Configuration"))
 
-      raftConfigUri = (baseUri / "v1" / "operator" / "raft" / "configuration").+??("wait", maxWait.map(Interval.toString))
+      raftConfigUri = (baseUri / "v1" / "operator" / "raft" / "configuration")
+        .+??("wait", maxWait.map(Interval.toString))
 
-      req =
-      Method.GET (raftConfigUri).map(addNomadToken _).map(addCreds _)
+      req = Method.GET(raftConfigUri).map(addNomadToken _).map(addCreds _)
 
       response <- client.expectOr[NomadReadRaftConfigurationResponse](req)(handleNomadErrorResponse)
       _ <- F.delay(log.debug(s"****************response: $response"))
@@ -234,7 +226,7 @@ final class Http4sNomadClient[F[_]](
   def nomadStopJob(job: String, purge: Boolean = true): F[NomadStopJobResponse] = {
     for {
       _ <- F.delay(log.debug(s"Stopping Nomad Job ${job}"))
-      deleteUri = (baseUri / "v1" / "job" / job ).+?("purge", purge.toString)
+      deleteUri = (baseUri / "v1" / "job" / job).+?("purge", purge.toString)
       req = Method.DELETE(deleteUri).map(addNomadToken _).map(addCreds _)
 
       response <- client.expectOr[NomadStopJobResponse](req)(handleNomadErrorResponse)

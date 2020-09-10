@@ -8,8 +8,7 @@ object util {
         val consulHttpToken = System.getProperty("CONSUL_HTTP_TOKEN") //To allow for runtime overrides for develloping
         if (consulHttpToken == null) {
           sys.env.get("NOMAD_TOKEN")
-        }
-        else {
+        } else {
           Some(consulHttpToken)
         }
       case _ => consulHttpToken

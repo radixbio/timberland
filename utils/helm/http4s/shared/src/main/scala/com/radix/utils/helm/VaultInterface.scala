@@ -24,9 +24,11 @@ trait VaultInterface[F[_]] {
   def authCodeUrl(pluginPath: String, req: AuthCodeUrlRequest): F[Either[VaultError, AuthCodeUrlResponse]]
 
   // https://github.com/puppetlabs/vault-plugin-secrets-oauthapp#put-write-2
-  def updateCredential(pluginPath: String,
-                       credentialName: String,
-                       req: UpdateCredentialRequest): F[Either[VaultError, Unit]]
+  def updateCredential(
+    pluginPath: String,
+    credentialName: String,
+    req: UpdateCredentialRequest
+  ): F[Either[VaultError, Unit]]
   // https://github.com/puppetlabs/vault-plugin-secrets-oauthapp#get-read-1
   def getCredential(pluginPath: String, credentialName: String): F[Either[VaultError, CredentialResponse]]
 
