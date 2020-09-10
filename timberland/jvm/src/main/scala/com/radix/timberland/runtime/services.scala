@@ -30,20 +30,22 @@ object Services {
    *
    * @param consulwd  what's the working directory where we can find the consul configuration and executable binary
    * @param nomadwd   what's the working directory where we can find the nomad configuration and executable binary
-   * @param bind_addr are we binding to a specific host IP?
+   * @param bindAddr are we binding to a specific host IP?
    * @return a started consul and nomad
    */
   def startServices(
     consulwd: os.Path,
     nomadwd: os.Path,
-    bind_addr: Option[String],
+    bindAddr: Option[String],
     consulSeedsO: Option[String],
     bootstrapExpect: Int,
-    setupACL: Boolean
+    setupACL: Boolean,
+    clientMode: Boolean
   ): IO[AuthTokens] =
     for {
+      // find local IP for default route
       finalBindAddr <- IO {
-        bind_addr match {
+        bindAddr match {
           case Some(ip) => ip
           case None => {
             val sock = new java.net.DatagramSocket()
@@ -53,45 +55,66 @@ object Services {
         }
       }
       certDir = os.root / "opt" / "radix" / "certs"
-      consulCaCertPemBak = certDir / "ca" / "cert.pem.bak"
+      consulCliCertPemBak = certDir / "cli" / "cert.pem.bak"
       intermediateAclTokenFile = RadPath.runtime / "timberland" / ".intermediate-acl-token"
       hasPartiallyBootstrapped <- IO(os.exists(intermediateAclTokenFile))
       consulToken <- makeOrGetIntermediateToken
       persistentDir = consulwd / os.up
       _ <- if (setupACL) auth.writeTokenConfigs(persistentDir, consulToken) else IO.unit
       _ <- IO {
-        if (os.exists(consulCaCertPemBak)) {
-          os.remove(consulCaCertPemBak)
+        if (os.exists(consulCliCertPemBak)) {
+          os.remove(consulCliCertPemBak)
         }
       }
-      _ <- startConsul(finalBindAddr, consulSeedsO, bootstrapExpect)
+      _ <- startConsul(finalBindAddr, consulSeedsO, bootstrapExpect, clientMode)
       _ <- if (setupACL) auth.setupDefaultConsulToken(persistentDir, consulToken) else IO.unit
-      _ <- startVault(finalBindAddr)
-      _ <- (new VaultStarter).initializeAndUnsealAndSetupVault(setupACL)
+      _ <- if (!clientMode) for {
+        _ <- startVault(finalBindAddr)
+        _ <- (new VaultStarter).initializeAndUnsealAndSetupVault(setupACL)
+        _ <- Util.waitForSystemdString("consul", "Synced service: service=vault:", 30.seconds)
+      } yield ()
+      else IO.unit
       vaultToken <- IO((new VaultUtils).findVaultToken())
-      _ <- Util.waitForSystemdString("consul", "Synced service: service=vault:", 30.seconds)
       _ <- startConsulTemplate(consulToken, vaultToken) // wait for consulCaCertPemBak
-      _ <- Util.waitForPathToExist(consulCaCertPemBak, 30.seconds)
-      _ <- refreshConsulAndVault()
-      _ <- startNomad(finalBindAddr, bootstrapExpect, vaultToken)
-      consulNomadToken <- if (setupACL) {
+      _ <- Util.waitForPathToExist(consulCliCertPemBak, 30.seconds)
+      _ <- if (clientMode)
+        IO(
+          os.copy.over(
+            RadPath.runtime / "timberland" / "consul" / "consul-client-tls.json",
+            RadPath.runtime / "timberland" / "consul" / "config" / "consul.json"
+          )
+        )
+      else IO.unit
+      _ <- refreshConsul()
+      _ <- if (!clientMode) refreshVault() else IO.unit
+      _ <- startNomad(finalBindAddr, bootstrapExpect, vaultToken, clientMode)
+      consulNomadToken <- if (setupACL & !clientMode) {
         auth.setupNomadMasterToken(persistentDir, consulToken)
-      } else {
+      } else if (setupACL & clientMode)
+        IO(consulToken)
+      else {
         auth.getMasterToken
       }
-      _ <- auth.storeMasterToken(consulNomadToken)
+      _ <- if (!clientMode) auth.storeMasterToken(consulNomadToken) else IO.unit
       _ <- IO(os.write.over(persistentDir / ".bootstrap-complete", "\n"))
-      _ <- IO(os.remove(intermediateAclTokenFile))
-      _ <- IO(scribe.info("started consul, nomad, and vault"))
+      _ <- IO(if (os.exists(intermediateAclTokenFile)) os.remove(intermediateAclTokenFile) else ())
+      _ <- IO(scribe.info("started services"))
     } yield AuthTokens(consulNomadToken, vaultToken)
 
-  private def refreshConsulAndVault()(implicit timer: Timer[IO]) =
+  private def refreshConsul()(implicit timer: Timer[IO]) =
     for {
       consulPidRes <- Util.exec("/bin/systemctl show -p MainPID consul")
       consulPid = consulPidRes.stdout.split("=").last.strip
+      _ <- Util.exec(s"kill -HUP $consulPid")
+      _ <- IO.sleep(5.seconds)
+      _ = ConsulVaultSSLContext.refreshCerts()
+    } yield ()
+
+  private def refreshVault()(implicit timer: Timer[IO]) =
+    for {
       vaultPidRes <- Util.exec("/bin/systemctl show -p MainPID vault")
       vaultPid = vaultPidRes.stdout.split("=").last.strip
-      _ <- Util.exec(s"kill -HUP $consulPid $vaultPid")
+      _ <- Util.exec(s"kill -HUP $vaultPid")
       _ <- IO.sleep(5.seconds)
       _ = ConsulVaultSSLContext.refreshCerts()
     } yield ()
@@ -113,9 +136,14 @@ object Services {
     IO.shift(bcs) *> addrs.toList.parSequence.map(_.flatten).map(NonEmptyList.fromList) <* IO.shift
   }
 
-  def startConsul(bind_addr: String, consulSeedsO: Option[String], bootstrapExpect: Int): IO[Unit] = {
+  def startConsul(
+    bindAddr: String,
+    consulSeedsO: Option[String],
+    bootstrapExpect: Int,
+    client: Boolean = false
+  ): IO[Unit] = {
     val persistentDir = RadPath.runtime / "timberland"
-    val baseArgs = s"-bind=$bind_addr -bootstrap-expect=$bootstrapExpect -config-dir=$persistentDir/consul/config"
+    val baseArgs = s"-bind=$bindAddr -config-dir=$persistentDir/consul/config"
 
     val baseArgsWithSeeds = consulSeedsO match {
       case Some(seedString) =>
@@ -130,26 +158,42 @@ object Services {
 
       case None => baseArgs
     }
+    val baseArgsWithSeedsAndServer = client match {
+      case false => s"$baseArgsWithSeeds -bootstrap-expect=$bootstrapExpect -server"
+      case true  => baseArgsWithSeeds
+    }
 
     val envFilePath = Paths.get(s"$persistentDir/consul/consul.env.conf") // TODO make configurable
     val envFileHandle = envFilePath.toFile
     val writer = new FileWriter(envFileHandle)
-    writer.write(s"CONSUL_CMD_ARGS=$baseArgsWithSeeds")
+    writer.write(s"CONSUL_CMD_ARGS=$baseArgsWithSeedsAndServer")
     writer.close()
     val consulConfigDir = RadPath.runtime / "timberland" / "consul" / "config"
-    for {
-      _ <- IO(LogTUI.event(ConsulStarting))
-      _ <- IO(os.copy.over(consulConfigDir / "consul-no-tls.json", consulConfigDir / "consul.json"))
-      _ <- Util.exec("systemctl restart consul")
-      _ <- IO(Util.waitForPortUp(8500, 10.seconds))
-      _ <- IO(Util.waitForDNS("consul.service.consul", 30.seconds))
-      _ <- makeTempCerts(persistentDir)
-      _ <- IO(os.copy.over(consulConfigDir / "consul-tls.json", consulConfigDir / "consul.json"))
-      _ <- Util.exec("systemctl restart consul")
-      _ <- IO(LogTUI.event(ConsulSystemdUp))
-      _ <- IO(Util.waitForPortUp(8501, 10.seconds))
-      _ <- IO(Util.waitForDNS("consul.service.consul", 30.seconds))
-    } yield ()
+    val consulDir = RadPath.runtime / "timberland" / "consul"
+    client match {
+      case false =>
+        for {
+          _ <- IO(LogTUI.event(ConsulStarting))
+          _ <- IO(os.copy.over(consulDir / "consul-server-bootstrap.json", consulConfigDir / "consul.json"))
+          _ <- Util.exec("systemctl restart consul")
+          _ <- Util.waitForPortUp(8500, 10.seconds)
+          _ <- makeTempCerts(persistentDir)
+          _ <- IO(os.copy.over(consulDir / "consul-server.json", consulConfigDir / "consul.json"))
+          _ <- Util.exec("systemctl restart consul")
+          _ <- IO(LogTUI.event(ConsulSystemdUp))
+          _ <- Util.waitForPortUp(8501, 10.seconds)
+        } yield ()
+      case true =>
+        for {
+          _ <- IO(LogTUI.event(ConsulStarting))
+          _ <- IO(os.copy.over(consulDir / "consul-client.json", consulConfigDir / "consul.json"))
+          _ <- Util.exec("systemctl restart consul")
+          _ <- Util.waitForPortUp(8500, 10.seconds)
+          _ <- Util.waitForPortUp(8501, 10.seconds)
+          _ <- makeTempCerts(persistentDir)
+          _ <- IO(LogTUI.event(ConsulSystemdUp))
+        } yield ()
+    }
   }
 
   def startConsulTemplate(consulToken: String, vaultToken: String): IO[Unit] = {
@@ -166,17 +210,21 @@ object Services {
     } yield ()
   }
 
-  def startNomad(bind_addr: String, bootstrapExpect: Int, vaultToken: String): IO[Unit] = {
+  def startNomad(bindAddr: String, bootstrapExpect: Int, vaultToken: String, client: Boolean = false): IO[Unit] = {
     val persistentDir = RadPath.runtime / "timberland"
+    val serverArgs = client match {
+      case false => s"-bootstrap-expect=$bootstrapExpect -server"
+      case true  => "-consul-client-auto-join"
+    }
     val args: String =
-      s"""NOMAD_CMD_ARGS=-bind=$bind_addr -bootstrap-expect=$bootstrapExpect -config=$persistentDir/nomad/config
+      s"""NOMAD_CMD_ARGS=$serverArgs -bind=$bindAddr -config=$persistentDir/nomad/config
          |VAULT_TOKEN=$vaultToken
          |""".stripMargin
     for {
       _ <- IO {
         LogTUI.event(NomadStarting)
         LogTUI.writeLog("spawning nomad via systemd")
-        val envFilePath = Paths.get(s"$persistentDir/nomad/nomad.env.conf") // TODO make configurable
+        val envFilePath = Paths.get(s"$persistentDir/nomad/nomad.env.conf")
         val envFileHandle = envFilePath.toFile
         val writer = new FileWriter(envFileHandle)
         writer.write(args)
@@ -187,10 +235,10 @@ object Services {
     } yield ()
   }
 
-  def startVault(bind_addr: String): IO[Unit] = {
+  def startVault(bindAddr: String): IO[Unit] = {
     val persistentDir = RadPath.runtime / "timberland"
     val args: String =
-      s"""VAULT_CMD_ARGS=-address=https://${bind_addr}:8200 -config=$persistentDir/vault/vault_config.conf""".stripMargin
+      s"""VAULT_CMD_ARGS=-address=https://${bindAddr}:8200 -config=$persistentDir/vault/vault_config.conf""".stripMargin
     for {
       _ <- IO {
         LogTUI.event(VaultStarting)

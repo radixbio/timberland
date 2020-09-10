@@ -22,9 +22,13 @@ object ConsulVaultSSLContext {
   }
 
   private var blazeOption: Option[Resource[IO, Client[IO]]] = None
-  def refreshCerts(): Unit = {
-    val ca = getCA.unsafeRunSync()
-    val certAndKey = getCertAndKey.unsafeRunSync()
+  def refreshCerts(
+    caPem: Option[String] = None,
+    certPem: Option[String] = None,
+    keyPem: Option[String] = None
+  ): Unit = {
+    val ca = getCA(caPem).unsafeRunSync()
+    val certAndKey = getCertAndKey(certPem, keyPem).unsafeRunSync()
     val sslContext = SSLContextCreator.getSslContext(certAndKey, ca)
     val newBlaze = BlazeClientBuilder[IO](global)
       .withCheckEndpointAuthentication(false)
@@ -34,18 +38,18 @@ object ConsulVaultSSLContext {
     blazeOption = Some(newBlaze)
   }
 
-  private def getCA: IO[Array[RootCert]] =
+  private def getCA(caPem: Option[String]): IO[Array[RootCert]] =
     for {
-      caCertPem <- IO(os.read(caPath))
+      caCertPem <- caPem.map(IO.pure).getOrElse(IO(os.read(caPath)))
     } yield {
       val cert = SSLContextCreator.certFromPemString(caCertPem)
       Array(RootCert("Vault CA", cert))
     }
 
-  private def getCertAndKey: IO[LeafCert] =
+  private def getCertAndKey(certPem: Option[String], keyPem: Option[String]): IO[LeafCert] =
     for {
-      certPem <- IO(os.read(certPath))
-      keyPem <- IO(os.read(keyPath))
+      certPem <- certPem.map(IO.pure).getOrElse(IO(os.read(certPath)))
+      keyPem <- keyPem.map(IO.pure).getOrElse(IO(os.read(keyPath)))
     } yield {
       val cert = SSLContextCreator.certFromPemString(certPem)
       val key = SSLContextCreator.keyFromPemString(keyPem)

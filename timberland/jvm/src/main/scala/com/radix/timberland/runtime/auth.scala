@@ -2,7 +2,6 @@ package com.radix.timberland.runtime
 
 import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
-import com.radix.timberland.launch.daemonutil
 import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.timberland.util.{LogTUI, RadPath, Util, VaultUtils}
 import com.radix.utils.helm.http4s.vault.Vault
@@ -37,22 +36,28 @@ object auth {
   }
 
   private def getRemoteAuthTokens(serviceAddrs: ServiceAddrs, username: String, password: String): IO[AuthTokens] = {
+    import com.radix.utils.tls.TrustEveryoneSSLContext.insecureBlaze
+    implicit val blaze = insecureBlaze
     val vaultUri = Uri.fromString(s"https://${serviceAddrs.vaultAddr}:8200").toOption.get
-    blaze.use { client =>
-      val unauthenticatedVault = new Vault[IO](authToken = None, baseUrl = vaultUri)
-      for {
-        vaultLoginResponse <- unauthenticatedVault.login(username, password)
-        vaultToken = vaultLoginResponse match {
-          case Left(err) =>
-            scribe.error("Error logging into vault with the specified credentials\n" + err)
-            sys.exit(1)
-          case Right(LoginResponse(token, _, _, _)) => token
-        }
+    scribe.info(s"connecting to Vault with provided u/p at $vaultUri")
 
-        authenticatedVault = new Vault[IO](authToken = Some(vaultToken), baseUrl = vaultUri)
-        consulNomadToken <- getConsulTokenFromVault(authenticatedVault)
-      } yield AuthTokens(consulNomadToken, vaultToken)
-    }
+    val unauthenticatedVault = new Vault[IO](authToken = None, baseUrl = vaultUri)(IO.ioConcurrentEffect, insecureBlaze)
+    for {
+      vaultLoginResponse <- unauthenticatedVault.login(username, password)
+      vaultToken = vaultLoginResponse match {
+        case Left(err) =>
+          scribe.error("Error logging into vault with the specified credentials\n" + err)
+          sys.exit(1)
+        case Right(LoginResponse(token, _, _, _)) => token
+      }
+
+      authenticatedVault = new Vault[IO](authToken = Some(vaultToken), baseUrl = vaultUri)(
+        IO.ioConcurrentEffect,
+        insecureBlaze
+      )
+      consulNomadToken <- getConsulTokenFromVault(authenticatedVault)
+    } yield AuthTokens(consulNomadToken, vaultToken)
+
   }
 
   private def getLocalAuthTokens(): IO[AuthTokens] = {
@@ -123,7 +128,7 @@ object auth {
     val defaultTokenCmd =
       s"$consul acl token create -token=$consulToken -description='Default-allow-DNS.' -policy-name=default-policy"
     for {
-      _ <- Util.waitForConsul(consulToken, 60.seconds)
+      _ <- Util.waitForConsul(consulToken, 60.seconds, address = "http://127.0.0.1:8500")
       defaultPolicyCmdRes <- Util.exec(defaultPolicyCmd)
       checkDefaultPolicyRes <- if (defaultPolicyCmdRes.exitCode == 0) IO.pure(true)
       else if ((defaultPolicyCmdRes.exitCode != 0) && (defaultPolicyCmdRes.stderr
@@ -186,6 +191,14 @@ object auth {
 
   def getMasterToken: IO[String] = IO {
     os.read(RadPath.runtime / "timberland" / ".acl-token")
+  }
+
+  def storeIntermediateToken(token: String) = IO {
+    val intermediateAclTokenFile = RadPath.runtime / "timberland" / ".intermediate-acl-token"
+    if (os.exists(intermediateAclTokenFile)) os.write.over(intermediateAclTokenFile, token, os.PermSet(400))
+    else
+      os.write(intermediateAclTokenFile, token, os.PermSet(400))
+    ()
   }
 
   def storeMasterToken(masterToken: String): IO[Unit] = {

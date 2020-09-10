@@ -1,11 +1,3 @@
-load(
-    "@io_bazel_rules_scala//scala:scala.bzl",
-    "scala_binary",
-    "scala_library",
-    "scala_macro_library",
-    "scala_repl",
-    "scala_test",
-)
 load("//tools:docker.bzl", "dockerize_scala")
 
 scala_library(
@@ -13,6 +5,7 @@ scala_library(
     srcs = [
         "ConsulVaultSSLContext.scala",
         "SSLContextCreator.scala",
+        "TrustEveryoneSSLContext.scala",
     ],
     visibility = ["//visibility:public"],
     exports = [

@@ -8,11 +8,6 @@ vault {
   key_file    = "/opt/radix/certs/cli/key.pem"
 }
 
-server {
-  enabled          = true
-  bootstrap_expect = 3
-}
-
 client {
   enabled         = true
   network_speed   = 1000

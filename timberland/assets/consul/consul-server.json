@@ -1,0 +1,37 @@
+{
+  "bind_addr" : "",
+  "datacenter" : "dc1",
+  "data_dir" : "/opt/radix/consul",
+  "ui" : true,
+  "client_addr": "",
+  "addresses": {
+    "http": "0.0.0.0",
+    "https": "0.0.0.0",
+    "dns": "127.0.0.1 {{if GetAllInterfaces | include \"name\" \"srv0\"}}{{GetAllInterfaces | include \"name\" \"srv0\" | limit 1 | attr \"address\"}}{{else}}{{GetPrivateIP}}{{end}}",
+    "grpc": "0.0.0.0"
+  },
+  "advertise_addr": "{{if GetAllInterfaces | include \"name\" \"srv0\"}}{{GetAllInterfaces | include \"name\" \"srv0\" | limit 1 | attr \"address\"}}{{else}}{{GetPrivateIP}}{{end}}",
+  "connect": {
+    "enabled": true
+  },
+  "ports": {
+    "dns": 53,
+    "https": 8501,
+    "grpc": 8502
+  },
+  "recursors": ["8.8.8.8"],
+  "acl": {
+    "enabled": true,
+    "default_policy": "deny",
+    "enable_token_persistence": true
+  },
+  "verify_incoming": false,
+  "verify_outgoing": true,
+  "verify_server_hostname": true,
+  "ca_file": "/opt/radix/certs/ca/cert.pem",
+  "cert_file": "/opt/radix/certs/consul/cert.pem",
+  "key_file": "/opt/radix/certs/consul/key.pem",
+  "auto_encrypt": {
+    "allow_tls": true
+  }
+}

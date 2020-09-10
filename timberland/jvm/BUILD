@@ -223,10 +223,12 @@ pkg_tar(
 pkg_tar(
     name = "timberland-consul-config",
     srcs = [
-        "//timberland/assets:consul/consul-no-tls.json",
-        "//timberland/assets:consul/consul-tls.json",
+        "//timberland/assets:consul/consul-server-bootstrap.json",
+        "//timberland/assets:consul/consul-server.json",
+        "//timberland/assets:consul/consul-client.json",
+        "//timberland/assets:consul/consul-client-tls.json",
     ],
-    package_dir = "/opt/radix/timberland/consul/config",
+    package_dir = "/opt/radix/timberland/consul",
 )
 
 pkg_tar(

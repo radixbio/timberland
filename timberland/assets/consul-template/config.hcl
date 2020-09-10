@@ -2,7 +2,7 @@
 consul {
   ssl {
     enabled = true
-    verify = true
+    verify = false
     ca_cert = "/opt/radix/certs/ca/cert.pem"
     cert = "/opt/radix/certs/cli/cert.pem"
     key  = "/opt/radix/certs/cli/key.pem"
@@ -13,6 +13,7 @@ vault {
   address = "https://vault.service.consul:8200"
   ssl {
     enabled = true
+    verify = false
     ca_cert = "/opt/radix/certs/ca/cert.pem"
     cert = "/opt/radix/certs/vault/cert.pem"
     key  = "/opt/radix/certs/vault/key.pem"

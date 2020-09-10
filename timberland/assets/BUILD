@@ -1,6 +1,8 @@
 exports_files([
-    "consul/consul-no-tls.json",
-    "consul/consul-tls.json",
+    "consul/consul-server-bootstrap.json",
+    "consul/consul-server.json",
+    "consul/consul-client.json",
+    "consul/consul-client-tls.json",
     "consul/default-policy.hcl",
     "debian/postinst.sh",
     "debian/prerm.sh",

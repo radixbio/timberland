@@ -119,12 +119,22 @@ object Util {
     timeout(queryProg, timeoutDuration)
   }
 
-  def waitForConsul(consulToken: String, timeoutDuration: FiniteDuration): IO[Unit] = {
+  def waitForConsul(
+    consulToken: String,
+    timeoutDuration: FiniteDuration,
+    address: String = "https://consul.service.consul:8501"
+  ): IO[Unit] = {
+    import com.radix.utils.tls.TrustEveryoneSSLContext.insecureBlaze
     scribe.info(s"waiting for Consul (@ 8501) to be leader, a max of $timeoutDuration.")
-    val request = GET(uri"https://127.0.0.1:8501/v1/status/leader", Header("X-Consul-Token", consulToken))
+    val pollUrl = s"$address/v1/status/leader"
+    import org.http4s.Uri
+    val request = GET(
+      Uri.fromString(pollUrl).getOrElse(uri"https://127.0.0.1:8501/v1/status/leader"),
+      Header("X-Consul-Token", consulToken)
+    )
     // there's a few hundred milliseconds between when consul has a leader and when the single-leader node syncs ACLs... add a silly 2 second sleep after leader to soak up this tiny race
     def queryConsul: IO[Unit] = {
-      blaze
+      insecureBlaze
         .use(_.expect[String](request))
         .flatMap({
           case "\"\""    => IO.sleep(1 second) *> queryConsul
@@ -154,7 +164,7 @@ object Util {
   def waitForSystemdString(serviceName: String, stringToFind: String, timeoutDuration: FiniteDuration): IO[Unit] = {
     def queryLoop(): IO[Boolean] =
       for {
-        journalctlLog <- exec(s"sudo journalctl -xe -u $serviceName")
+        journalctlLog <- exec(s"journalctl -e -n 20 -u $serviceName")
         lookupResult <- IO(journalctlLog.stdout.contains(stringToFind))
         _ <- lookupResult match {
           case false => IO.sleep(2.seconds) *> queryLoop

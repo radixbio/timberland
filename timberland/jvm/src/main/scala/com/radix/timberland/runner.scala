@@ -71,7 +71,7 @@ object runner {
             case local: Local =>
               local match {
                 case Nuke => Right(Unit)
-                case cmd @ Start(loglevel, bindIP, consulSeedsO, remoteAddress, prefix, username, password) => {
+                case cmd @ Start(loglevel, bindIP, consulSeedsO, remoteAddress, prefix, username, password, client) => {
                   scribe.Logger.root
                     .clearHandlers()
                     .clearModifiers()
@@ -119,7 +119,8 @@ object runner {
                         bindIP,
                         consulSeedsO,
                         bootstrapExpect,
-                        setupACL
+                        setupACL,
+                        client
                       )
                       _ <- Util.waitForDNS("vault.service.consul", 10.seconds)
                     } yield tokens
@@ -148,22 +149,47 @@ object runner {
 
                   // Called when consul/nomad/vault are on localhost
                   val localBootstrap = for {
+                    _ <- IO(
+                      if (!os.exists(persistentDir / "consul" / "config"))
+                        os.makeDir(persistentDir / "consul" / "config")
+                      else ()
+                    )
                     hasBootstrapped <- IO(os.exists(persistentDir / ".bootstrap-complete"))
                     isConsulUp <- Util.isPortUp(8501)
-                    serviceAddrs = ServiceAddrs()
-                    authTokens <- (hasBootstrapped, isConsulUp) match {
-                      case (true, true) =>
-                        auth.getAuthTokens(isRemote = false, serviceAddrs, username, password)
-                      case (true, false) =>
+                    defaultServiceAddrs = ServiceAddrs()
+                    authTokens <- (hasBootstrapped, isConsulUp, client) match {
+                      case (true, true, false) =>
+                        auth.getAuthTokens(isRemote = false, defaultServiceAddrs, username, password)
+                      case (true, false, false) =>
                         startServices(setupACL = false)
-                      case (false, _) =>
+                      case (false, _, false) =>
                         flagConfig.promptForDefaultConfigs(persistentDir = persistentDir) *>
                           createWeaveNetwork *> startServices(setupACL = true)
+                      case (false, _, true) =>
+                        for {
+                          serviceAddrs <- IO(consulSeedsO match {
+                            case Some(otherConsul) => ServiceAddrs(otherConsul, otherConsul, otherConsul)
+                            case None              => defaultServiceAddrs
+                          })
+                          authTokens <- auth.getAuthTokens(isRemote = true, serviceAddrs, username, password)
+                          storeIntermediateToken <- auth.storeIntermediateToken(authTokens.consulNomadToken)
+                          storeTokens <- auth.writeTokenConfigs(persistentDir, authTokens.consulNomadToken)
+                          storeVaultToken <- IO((new VaultUtils).storeVaultTokenKey("", authTokens.vaultToken))
+                          stillAuthTokens <- startServices(setupACL = true)
+                        } yield authTokens
                     }
-                    featureFlags <- featureFlags.updateFlags(persistentDir, Some(authTokens), confirm = true)(
-                      serviceAddrs
-                    )
-                    _ <- startLogTuiAndRunTerraform(featureFlags, serviceAddrs, authTokens, waitForQuorum = true)
+                    featureFlags <- if (!client) for {
+                      featureFlags <- featureFlags.updateFlags(persistentDir, Some(authTokens), confirm = true)(
+                        defaultServiceAddrs
+                      )
+                      _ <- startLogTuiAndRunTerraform(
+                        featureFlags,
+                        defaultServiceAddrs,
+                        authTokens,
+                        waitForQuorum = true
+                      )
+                    } yield featureFlags
+                    else IO.unit
                   } yield ()
 
                   // Called when consul/vault/nomad are not on localhost
