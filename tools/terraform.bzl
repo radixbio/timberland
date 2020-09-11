@@ -195,7 +195,7 @@ def terraform_deployment(
 
     Subdir(
         name = name + "_terraform_source_file",
-        files = [terraform_source],
+        files = terraform_source,
         dirname = "",
     )
 

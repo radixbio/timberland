@@ -3,7 +3,7 @@ set -exu
 
 docker swarm init
 
-until dpkg -i radix-timberland_0.1_amd64.deb
+until dpkg -i radix-timberland_0.1_all.deb
 do
   echo "waiting for dpkg..."
   sleep 2

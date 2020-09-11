@@ -19,11 +19,11 @@ fi
 
 if [ "$CI_EC2_OS_FLAVOR" == "centos" ];
 then
-  PACKAGE_LOCATION="./timberland/jvm/timberland-rpm-amd64.rpm"
+  PACKAGE_LOCATION="./timberland/jvm/timberland-rpm-all.rpm"
   INSTALLATION_SCRIPT="./timberland/jvm/src/test/install-rpm.sh"
   AWS_INSTANCE_SSH_USER=centos
 else
-  PACKAGE_LOCATION="./timberland/jvm/radix-timberland_0.1_amd64.deb"
+  PACKAGE_LOCATION="./timberland/jvm/radix-timberland_0.1_all.deb"
   INSTALLATION_SCRIPT="./timberland/jvm/src/test/install-deb.sh"
   AWS_INSTANCE_SSH_USER=ubuntu
 fi

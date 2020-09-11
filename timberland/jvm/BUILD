@@ -4,9 +4,30 @@ load("@io_bazel_rules_docker//container:container.bzl", "container_image", "cont
 load("//tools:pkg_rpm_with_branch.bzl", "pkg_rpm_with_branch")
 load("//tools:terraform.bzl", "dynamic_rpm_spec", "terraform_deployment", "terraform_module", "terraform_provider")
 load("//tools:write_git_branch_to_file.bzl", "write_git_branch_to_file")
+load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
 
 package(
     default_visibility = ["//visibility:public"],
+)
+
+string_flag(
+    name = "runtime_target",
+    build_setting_default = "amd64",  # Currently works via default in all select()s
+)
+
+config_setting(
+    name = "aarch64",
+    flag_values = {":runtime_target": "aarch64"},
+)
+
+config_setting(
+    name = "windows",
+    flag_values = {":runtime_target": "windows"},
+)
+
+config_setting(
+    name = "amd64",
+    flag_values = {":runtime_target": "amd64"},
 )
 
 scala_library(
@@ -187,16 +208,23 @@ pkg_tar(
 pkg_tar(
     name = "timberland-vault",
     srcs = [
-        "//timberland/assets:systemd/vault.env.conf",
-        "//timberland/assets:vault/read-consul-ui-policy.hcl",
-        "//timberland/assets:vault/read-flag-config-policy.hcl",
-        "//timberland/assets:vault/remote-access-policy.hcl",
-        "//timberland/assets:vault/tls-cert-policy.hcl",
-        "//timberland/assets:vault/tls-cert-role.json",
-        "//timberland/assets:vault/vault_config.conf",
-        "@vault",
-        "@vault-plugin-secrets-oauthapp",
-    ],
+               "//timberland/assets:systemd/vault.env.conf",
+               "//timberland/assets:vault/read-consul-ui-policy.hcl",
+               "//timberland/assets:vault/read-flag-config-policy.hcl",
+               "//timberland/assets:vault/remote-access-policy.hcl",
+               "//timberland/assets:vault/tls-cert-policy.hcl",
+               "//timberland/assets:vault/tls-cert-role.json",
+               "//timberland/assets:vault/vault_config.conf",
+           ] + select({
+               "aarch64": ["@vault_arm//:vault"],
+               "windows": ["@vault_win//:vault.exe"],
+               "//conditions:default": ["@vault"],
+           }) +
+           select({
+               "aarch64": ["@vault-plugin-secrets-oauthapp_arm//:vault-plugin-secrets-oauthapp"],
+               "windows": ["@vault-plugin-secrets-oauthapp_win//:vault-plugin-secrets-oauthapp.exe"],
+               "//conditions:default": ["@vault-plugin-secrets-oauthapp"],
+           }),
     package_dir = "/opt/radix/timberland/vault",
 )
 
@@ -215,8 +243,11 @@ pkg_tar(
     srcs = [
         "//timberland/assets:consul/default-policy.hcl",
         "//timberland/assets:systemd/consul.env.conf",
-        "@consul",
-    ],
+    ] + select({
+        "aarch64": ["@consul_arm//:consul"],
+        "windows": ["@consul_win//:consul.exe"],
+        "//conditions:default": ["@consul"],
+    }),
     package_dir = "/opt/radix/timberland/consul",
 )
 
@@ -237,8 +268,11 @@ pkg_tar(
         "//timberland/assets:consul-template/ca/cert.pem.tpl",
         "//timberland/assets:consul-template/config.hcl",
         "//timberland/assets:systemd/consul-template.env.conf",
-        "@consul-template",
-    ],
+    ] + select({
+        "aarch64": ["@consul-template_arm//:consul-template"],
+        "windows": ["@consul-template_win//:consul-template.exe"],
+        "//conditions:default": ["@consul-template"],
+    }),
     package_dir = "/opt/radix/timberland/consul-template",
 )
 
@@ -292,8 +326,11 @@ pkg_tar(
     name = "timberland-nomad",
     srcs = [
         "//timberland/assets:systemd/nomad.env.conf",
-        "@nomad",
-    ],
+    ] + select({
+        "aarch64": ["@nomad_arm//:nomad"],
+        "windows": ["@nomad_win//:nomad.exe"],
+        "//conditions:default": ["@nomad"],
+    }),
     package_dir = "/opt/radix/timberland/nomad",
 )
 
@@ -391,7 +428,7 @@ pkg_tar(
 
 pkg_deb(
     name = "timberland-deb",
-    architecture = "amd64",
+    architecture = "all",
     data = ":timberland-full-tar",
     depends = [
         "docker.io | docker-ce",
@@ -415,7 +452,7 @@ dynamic_rpm_spec(
 
 pkg_rpm_with_branch(
     name = "timberland-rpm",
-    architecture = "amd64",
+    architecture = "all",
     data = [":timberland-full-tar"],
     release = "1",
     spec_file = ":rpm_custom_spec",
@@ -433,8 +470,8 @@ sh_binary(
         "src/test/install-deb.sh",
         "src/test/install-rpm.sh",
         "src/test/service_test.py",
-        ":radix-timberland_0.1_amd64.deb",
-        ":timberland-rpm-amd64.rpm",
+        ":radix-timberland_0.1_all.deb",
+        ":timberland-rpm-all.rpm",
     ],
     #tags = ["no-sandbox"],
 )
@@ -450,8 +487,8 @@ sh_test(
         "src/test/install-deb.sh",
         "src/test/install-rpm.sh",
         "src/test/service_test.py",
-        ":radix-timberland_0.1_amd64.deb",
-        ":timberland-rpm-amd64.rpm",
+        ":radix-timberland_0.1_all.deb",
+        ":timberland-rpm-all.rpm",
     ],
     tags = ["no-sandbox"],
 )
@@ -710,7 +747,11 @@ terraform_module(
 
 terraform_provider(
     name = "terraform-consul",
-    source = "@terraform-provider-consul//file",
+    source = select({
+        "aarch64": "@terraform-provider-consul_arm//file",
+        "windows": "@terraform-provider-consul_win//file",
+        "//conditions:default": "@terraform-provider-consul//file",
+    }),
     spec = """provider "consul" {
   address = "https://${var.consul_address}:8501"
   ca_file = var.tls_ca_file
@@ -724,7 +765,12 @@ terraform_provider(
 
 terraform_provider(
     name = "terraform-nomad",
-    source = "@terraform-provider-nomad//file",
+    #    source = "@terraform-provider-nomad//file",
+    source = select({
+        "aarch64": "@terraform-provider-nomad_arm//file",
+        "windows": "@terraform-provider-nomad_win//file",
+        "//conditions:default": "@terraform-provider-nomad//file",
+    }),
     spec = """provider "nomad" {
    address = "https://${var.nomad_address}:4646"
    ca_file = var.tls_ca_file
@@ -738,7 +784,12 @@ terraform_provider(
 
 terraform_provider(
     name = "terraform-vault",
-    source = "@terraform-provider-vault//file",
+    #    source = "@terraform-provider-vault//file",
+    source = select({
+        "aarch64": "@terraform-provider-vault_arm//file",
+        "windows": "@terraform-provider-vault_win//file",
+        "//conditions:default": "@terraform-provider-vault//file",
+    }),
     spec = """provider "vault" {
     address = "https://${var.vault_address}:8200"
     ca_cert_file = var.tls_ca_file
@@ -781,7 +832,11 @@ terraform_deployment(
         "//utils/prism-uservice/jvm:prism-terraform",
         "//utils/s3lts:s3lts-terraform",
     ],
-    terraform_source = "@terraform",
+    terraform_source = select({
+        "aarch64": ["@terraform_arm//:terraform"],
+        "windows": ["@terraform_win//:terraform.exe"],
+        "//conditions:default": ["@terraform"],
+    }),
     toplevel_module_aux = [
         "//timberland/assets:terraform/main/variables.tf",
         "//timberland/assets:terraform/main/outputs.tf",

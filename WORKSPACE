@@ -2,14 +2,13 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file"
 load("@bazel_tools//tools/build_defs/repo:jvm.bzl", "jvm_maven_import_external")
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository", "new_git_repository")
 
-# bazel-skylib 0.8.0 released 2019.03.20 (https://github.com/bazelbuild/bazel-skylib/releases/tag/0.8.0)
-skylib_version = "0.8.0"
+skylib_version = "1.0.3"
 
 http_archive(
     name = "bazel_skylib",
-    sha256 = "2ef429f5d7ce7111263289644d233707dba35e39696377ebab8b0bc701f7818e",
+    sha256 = "1c531376ac7e5a180e0237938a2536de0c54d93f5c278634818e0efc952dd56c",
     type = "tar.gz",
-    url = "https://github.com/bazelbuild/bazel-skylib/releases/download/{}/bazel-skylib.{}.tar.gz".format(skylib_version, skylib_version),
+    url = "https://github.com/bazelbuild/bazel-skylib/releases/download/{}/bazel-skylib-{}.tar.gz".format(skylib_version, skylib_version),
 )
 
 rules_scala_version = "eabb1d28fb288fb5b15857260f87818dda5a97c8"  # update this as needed
@@ -44,10 +43,10 @@ cc_import(
 )
     """,
     patch_cmds = [
-                 "install_name_tool -change libz3.dylib @loader_path/libz3.dylib z3-4.8.7-x64-osx-10.14.6/bin/libz3java.dylib"
-                 ],
+        "install_name_tool -change libz3.dylib @loader_path/libz3.dylib z3-4.8.7-x64-osx-10.14.6/bin/libz3java.dylib",
+    ],
     sha256 = "49fa41210ff572ae56476befafbeb4a82bbf921f843daf73ef5451f7bcd6d2c5",
-    url = "https://github.com/Z3Prover/z3/releases/download/z3-4.8.7/z3-4.8.7-x64-osx-10.14.6.zip"
+    url = "https://github.com/Z3Prover/z3/releases/download/z3-4.8.7/z3-4.8.7-x64-osx-10.14.6.zip",
 )
 
 http_archive(
@@ -957,7 +956,7 @@ http_archive(
     name = "consul-template",
     build_file_content = "exports_files([\"consul-template\"])",
     sha256 = "496da8d30242ab2804e17ef2fa41aeabd07fd90176986dff58bce1114638bb71",
-    url = "https://releases.hashicorp.com/consul-template/0.25.0/consul-template_0.25.0_linux_amd64.zip"
+    url = "https://releases.hashicorp.com/consul-template/0.25.0/consul-template_0.25.0_linux_amd64.zip",
 )
 
 http_archive(
@@ -1064,4 +1063,136 @@ http_archive(
     name = "jaxws",
     build_file_content = "exports_files([\"metro/lib/webservices-tools.jar\"])",
     url = "https://maven.java.net/content/repositories/releases//org/glassfish/metro/metro-standalone/2.3.1/metro-standalone-2.3.1.zip",
+)
+
+### AArch64 binaries
+
+http_archive(
+    name = "consul_arm",
+    build_file_content = "exports_files([\"consul\"])",
+    sha256 = "fcfabff53fdef2a8fe5cc7f37b215cd33fcdafd4f3d3e400ddeccdb9c35bf3d5",
+    url = "https://releases.hashicorp.com/consul/1.7.2/consul_1.7.2_linux_arm64.zip",
+)
+
+http_archive(
+    name = "consul-template_arm",
+    build_file_content = "exports_files([\"consul-template\"])",
+    sha256 = "f89ad4df1beb2b8317e3f9cf3b65b0eddb69d5576736a6b5cb520eee3a206121",
+    url = "https://releases.hashicorp.com/consul-template/0.25.0/consul-template_0.25.0_linux_arm64.zip",
+)
+
+http_archive(
+    name = "vault_arm",
+    build_file_content = "exports_files([\"vault\"])",
+    sha256 = "bb198bd161479fe0eee649bc6dd2aa82735009bd4f8c341e0676f9112e2376f7",
+    url = "https://releases.hashicorp.com/vault/1.4.2/vault_1.4.2_linux_arm64.zip",
+)
+
+http_archive(
+    name = "vault-plugin-secrets-oauthapp_arm",
+    build_file_content = "exports_files([\"vault-plugin-secrets-oauthapp\"])",
+    patch_cmds = ["mv vault-plugin-secrets-oauthapp-v1.3.0-linux-arm64 vault-plugin-secrets-oauthapp"],
+    sha256 = "d3d2bb70972d5279a11b6f873d47a65f6221f1ff4637e88644f627ce9c05dd8f",
+    url = "https://github.com/puppetlabs/vault-plugin-secrets-oauthapp/releases/download/v1.3.0/vault-plugin-secrets-oauthapp-v1.3.0-linux-arm64.tar.xz",
+)
+
+http_archive(
+    name = "nomad_arm",
+    build_file_content = "exports_files([\"nomad\"])",
+    sha256 = "89c8995d45a2124e593a304ddde5287ffa4961c31c31ac430f2834b9832a8d73",
+    url = "https://releases.hashicorp.com/nomad/0.12.1/nomad_0.12.1_linux_arm64.zip",
+)
+
+http_archive(
+    name = "terraform_arm",
+    build_file_content = "exports_files([\"terraform\"])",
+    sha256 = "92a317950e7a308533db8a4a1b33fe7cdba07f3eb33d81bb7def6a2555bcfe62",
+    url = "https://releases.hashicorp.com/terraform/0.13.0/terraform_0.13.0_linux_arm.zip",
+)
+
+http_file(
+    name = "terraform-provider-nomad_arm",
+    downloaded_file_path = "nomad/terraform-provider-nomad_1.4.8_linux_arm.zip",
+    sha256 = "3c6c009eaf83c3be9298e3799fea68b4c21fc7fb6077849f8e91865ece03cc93",
+    urls = ["https://releases.hashicorp.com/terraform-provider-nomad/1.4.8/terraform-provider-nomad_1.4.8_linux_arm.zip"],
+)
+
+http_file(
+    name = "terraform-provider-consul_arm",
+    downloaded_file_path = "consul/terraform-provider-consul_2.7.0_linux_arm.zip",
+    sha256 = "23d356b293e209c3cefe42f8408468a3f808efa8f826096a0a7423f8b7d500bc",
+    urls = ["https://releases.hashicorp.com/terraform-provider-consul/2.7.0/terraform-provider-consul_2.7.0_linux_arm.zip"],
+)
+
+http_file(
+    name = "terraform-provider-vault_arm",
+    downloaded_file_path = "vault/terraform-provider-vault_2.11.0_linux_arm.zip",
+    sha256 = "36bb7ccf11cd4aa8f37626116a4c10820f95ca78773b5c74d8c8e51f50a75a0d",
+    urls = ["https://releases.hashicorp.com/terraform-provider-vault/2.11.0/terraform-provider-vault_2.11.0_linux_arm.zip"],
+)
+
+### Windows binaries
+
+http_archive(
+    name = "consul_win",
+    build_file_content = "exports_files([\"consul.exe\"])",
+    sha256 = "e9b9355f77f80b2c0940888cb0d27c44a5879c31e379ef21ffcfd36c91d202c1",
+    url = "https://releases.hashicorp.com/consul/1.7.2/consul_1.7.2_windows_amd64.zip",
+)
+
+http_archive(
+    name = "consul-template_win",
+    build_file_content = "exports_files([\"consul-template.exe\"])",
+    sha256 = "f8626fbe74718d407df78cfbf07392966ef58a32aa41b7a0717eafb4145592ef",
+    url = "https://releases.hashicorp.com/consul-template/0.25.0/consul-template_0.25.0_windows_amd64.zip",
+)
+
+http_archive(
+    name = "vault_win",
+    build_file_content = "exports_files([\"vault.exe\"])",
+    sha256 = "1e191abe5e8c8fc8682b087a1b5aada23d856a2a6310979efdc49fd595bbbd55",
+    url = "https://releases.hashicorp.com/vault/1.4.2/vault_1.4.2_windows_amd64.zip",
+)
+
+http_archive(
+    name = "vault-plugin-secrets-oauthapp_win",
+    build_file_content = "exports_files([\"vault-plugin-secrets-oauthapp.exe\"])",
+    patch_cmds = ["mv vault-plugin-secrets-oauthapp-v1.3.0-windows-amd64.exe vault-plugin-secrets-oauthapp.exe"],
+    sha256 = "2301d04913dc861f7e0375ae63782ecdf63438c25c4c1616e7e906121c557780",
+    url = "https://github.com/puppetlabs/vault-plugin-secrets-oauthapp/releases/download/v1.3.0/vault-plugin-secrets-oauthapp-v1.3.0-windows-amd64.zip",
+)
+
+http_archive(
+    name = "nomad_win",
+    build_file_content = "exports_files([\"nomad.exe\"])",
+    sha256 = "597e41e39ca7eb39ef98e90ad9f39e513e97c1d5e8693c66c8cad32e852f77dc",
+    url = "https://releases.hashicorp.com/nomad/0.12.1/nomad_0.12.1_windows_amd64.zip",
+)
+
+http_archive(
+    name = "terraform_win",
+    build_file_content = "exports_files([\"terraform.exe\"])",
+    sha256 = "8af85914d8804c521152167749ca680d7d51447127deb2c7853835b6c62aa9ed",
+    url = "https://releases.hashicorp.com/terraform/0.13.0/terraform_0.13.0_windows_amd64.zip",
+)
+
+http_file(
+    name = "terraform-provider-nomad_win",
+    downloaded_file_path = "nomad/terraform-provider-nomad_1.4.8_linux_win.zip",
+    sha256 = "8e5c6515c5a3f5ee46466e8f5159587b31cbb4eb12d313267e87e04e519fe60d",
+    urls = ["https://releases.hashicorp.com/terraform-provider-nomad/1.4.8/terraform-provider-nomad_1.4.8_windows_amd64.zip"],
+)
+
+http_file(
+    name = "terraform-provider-consul_win",
+    downloaded_file_path = "consul/terraform-provider-consul_2.7.0_linux_win.zip",
+    sha256 = "f9cf8674af1d0687f317a29219523f3a7d4223272fe969670ea2d4f60b3cc16f",
+    urls = ["https://releases.hashicorp.com/terraform-provider-consul/2.7.0/terraform-provider-consul_2.7.0_windows_amd64.zip"],
+)
+
+http_file(
+    name = "terraform-provider-vault_win",
+    downloaded_file_path = "vault/terraform-provider-vault_2.11.0_linux_win.zip",
+    sha256 = "46d875dcbfcba1442cb286ca1522d10f456b80de0a9456db19025acc5baf9e68",
+    urls = ["https://releases.hashicorp.com/terraform-provider-vault/2.11.0/terraform-provider-vault_2.11.0_windows_amd64.zip"],
 )
