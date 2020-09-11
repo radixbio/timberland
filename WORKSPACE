@@ -948,22 +948,22 @@ container_pull(
 http_archive(
     name = "consul",
     build_file_content = "exports_files([\"consul\"])",
-    sha256 = "5ab689cad175c08a226a5c41d16392bc7dd30ceaaf90788411542a756773e698",
-    url = "https://releases.hashicorp.com/consul/1.7.2/consul_1.7.2_linux_amd64.zip",
+    sha256 = "0d74525ee101254f1cca436356e8aee51247d460b56fc2b4f7faef8a6853141f",
+    url = "https://releases.hashicorp.com/consul/1.8.4/consul_1.8.4_linux_amd64.zip",
 )
 
 http_archive(
     name = "consul-template",
     build_file_content = "exports_files([\"consul-template\"])",
-    sha256 = "496da8d30242ab2804e17ef2fa41aeabd07fd90176986dff58bce1114638bb71",
-    url = "https://releases.hashicorp.com/consul-template/0.25.0/consul-template_0.25.0_linux_amd64.zip",
+    sha256 = "58356ec125c85b9705dc7734ed4be8491bb4152d8a816fd0807aed5fbb128a7b",
+    url = "https://releases.hashicorp.com/consul-template/0.25.1/consul-template_0.25.1_linux_amd64.zip",
 )
 
 http_archive(
     name = "vault",
     build_file_content = "exports_files([\"vault\"])",
-    sha256 = "f2bca89cbffb8710265eb03bc9452cc316b03338c411ba8453ffe7419390b8f1",
-    url = "https://releases.hashicorp.com/vault/1.4.2/vault_1.4.2_linux_amd64.zip",
+    sha256 = "1ec61ff4d0b7ed774ba6f71829596afd8c8bf1d72c97305f4692001cef8910b2",
+    url = "https://releases.hashicorp.com/vault/1.5.3/vault_1.5.3_linux_amd64.zip",
 )
 
 http_archive(
@@ -977,15 +977,15 @@ http_archive(
 http_archive(
     name = "nomad",
     build_file_content = "exports_files([\"nomad\"])",
-    sha256 = "b9a266340306f5e8ccbc41b1076250296abb626f7f233c79b70e000e531da509",
-    url = "https://releases.hashicorp.com/nomad/0.12.1/nomad_0.12.1_linux_amd64.zip",
+    sha256 = "926e19b6d9ff54729f9b156eb1839cd7bcba56956617d6b00600b8ce90a4d970",
+    url = "https://releases.hashicorp.com/nomad/0.12.4/nomad_0.12.4_linux_amd64.zip",
 )
 
 http_archive(
     name = "terraform",
     build_file_content = "exports_files([\"terraform\"])",
-    sha256 = "9ed437560faf084c18716e289ea712c784a514bdd7f2796549c735d439dbe378",
-    url = "https://releases.hashicorp.com/terraform/0.13.0/terraform_0.13.0_linux_amd64.zip",
+    sha256 = "6c1c6440c5cb199e85926aea65773450564f501fddcd7876f453ba95b45ba746",
+    url = "https://releases.hashicorp.com/terraform/0.13.2/terraform_0.13.2_linux_amd64.zip",
 )
 
 http_file(
@@ -1070,22 +1070,22 @@ http_archive(
 http_archive(
     name = "consul_arm",
     build_file_content = "exports_files([\"consul\"])",
-    sha256 = "fcfabff53fdef2a8fe5cc7f37b215cd33fcdafd4f3d3e400ddeccdb9c35bf3d5",
-    url = "https://releases.hashicorp.com/consul/1.7.2/consul_1.7.2_linux_arm64.zip",
+    sha256 = "e0a6ef017ba04ec8654991ebac0654a2a142d8a15ace259be8397e05da078b82",
+    url = "https://releases.hashicorp.com/consul/1.8.4/consul_1.8.4_linux_arm64.zip",
 )
 
 http_archive(
     name = "consul-template_arm",
     build_file_content = "exports_files([\"consul-template\"])",
-    sha256 = "f89ad4df1beb2b8317e3f9cf3b65b0eddb69d5576736a6b5cb520eee3a206121",
-    url = "https://releases.hashicorp.com/consul-template/0.25.0/consul-template_0.25.0_linux_arm64.zip",
+    sha256 = "d27041303b64695f29fd8ce7d26768eeaaaa51c6187c6dc37ee4d79c449501ba",
+    url = "https://releases.hashicorp.com/consul-template/0.25.1/consul-template_0.25.1_linux_arm64.zip",
 )
 
 http_archive(
     name = "vault_arm",
     build_file_content = "exports_files([\"vault\"])",
-    sha256 = "bb198bd161479fe0eee649bc6dd2aa82735009bd4f8c341e0676f9112e2376f7",
-    url = "https://releases.hashicorp.com/vault/1.4.2/vault_1.4.2_linux_arm64.zip",
+    sha256 = "930008f42efff14bb399eca37f4b8c56a21e2143fecc62f8d13fc9e4199f3bee",
+    url = "https://releases.hashicorp.com/vault/1.5.3/vault_1.5.3_linux_arm64.zip",
 )
 
 http_archive(
@@ -1099,15 +1099,15 @@ http_archive(
 http_archive(
     name = "nomad_arm",
     build_file_content = "exports_files([\"nomad\"])",
-    sha256 = "89c8995d45a2124e593a304ddde5287ffa4961c31c31ac430f2834b9832a8d73",
-    url = "https://releases.hashicorp.com/nomad/0.12.1/nomad_0.12.1_linux_arm64.zip",
+    sha256 = "0bad6b0b1569a732ff05045aa3d582f664396abd29565a7467fc6360d0fd0e0e",
+    url = "https://releases.hashicorp.com/nomad/0.12.4/nomad_0.12.4_linux_arm64.zip",
 )
 
 http_archive(
     name = "terraform_arm",
     build_file_content = "exports_files([\"terraform\"])",
-    sha256 = "92a317950e7a308533db8a4a1b33fe7cdba07f3eb33d81bb7def6a2555bcfe62",
-    url = "https://releases.hashicorp.com/terraform/0.13.0/terraform_0.13.0_linux_arm.zip",
+    sha256 = "5383a0a8dc716fafefc30f08c4c6b73e06c28ba8c2a396fe7ae2d1cb9787c95c",
+    url = "https://releases.hashicorp.com/terraform/0.13.2/terraform_0.13.2_linux_arm.zip",
 )
 
 http_file(
@@ -1136,22 +1136,22 @@ http_file(
 http_archive(
     name = "consul_win",
     build_file_content = "exports_files([\"consul.exe\"])",
-    sha256 = "e9b9355f77f80b2c0940888cb0d27c44a5879c31e379ef21ffcfd36c91d202c1",
-    url = "https://releases.hashicorp.com/consul/1.7.2/consul_1.7.2_windows_amd64.zip",
+    sha256 = "7ebcc73f2a225b3c880ae0d7e38b7a441f5aad715f8ab16eccc71818be3e9df8",
+    url = "https://releases.hashicorp.com/consul/1.8.4/consul_1.8.4_windows_amd64.zip",
 )
 
 http_archive(
     name = "consul-template_win",
     build_file_content = "exports_files([\"consul-template.exe\"])",
-    sha256 = "f8626fbe74718d407df78cfbf07392966ef58a32aa41b7a0717eafb4145592ef",
-    url = "https://releases.hashicorp.com/consul-template/0.25.0/consul-template_0.25.0_windows_amd64.zip",
+    sha256 = "be521a2588ba7f1be1493a65b82f24ee032e562dfc0bf52081c039cc359afa54",
+    url = "https://releases.hashicorp.com/consul-template/0.25.1/consul-template_0.25.1_windows_amd64.zip",
 )
 
 http_archive(
     name = "vault_win",
     build_file_content = "exports_files([\"vault.exe\"])",
-    sha256 = "1e191abe5e8c8fc8682b087a1b5aada23d856a2a6310979efdc49fd595bbbd55",
-    url = "https://releases.hashicorp.com/vault/1.4.2/vault_1.4.2_windows_amd64.zip",
+    sha256 = "26ff508fe605f2163998714256900d4722ba8023d43d12f4085154866e7f8b76",
+    url = "https://releases.hashicorp.com/vault/1.5.3/vault_1.5.3_windows_amd64.zip",
 )
 
 http_archive(
@@ -1165,15 +1165,15 @@ http_archive(
 http_archive(
     name = "nomad_win",
     build_file_content = "exports_files([\"nomad.exe\"])",
-    sha256 = "597e41e39ca7eb39ef98e90ad9f39e513e97c1d5e8693c66c8cad32e852f77dc",
-    url = "https://releases.hashicorp.com/nomad/0.12.1/nomad_0.12.1_windows_amd64.zip",
+    sha256 = "8e3bb16eaed653307dd8a1c112e724f9ee9b7e8edf89c8ff9fc737eabd8bf1e4",
+    url = "https://releases.hashicorp.com/nomad/0.12.4/nomad_0.12.4_windows_amd64.zip",
 )
 
 http_archive(
     name = "terraform_win",
     build_file_content = "exports_files([\"terraform.exe\"])",
-    sha256 = "8af85914d8804c521152167749ca680d7d51447127deb2c7853835b6c62aa9ed",
-    url = "https://releases.hashicorp.com/terraform/0.13.0/terraform_0.13.0_windows_amd64.zip",
+    sha256 = "56582718c6694c00e27f6c14ef2684059798961d19e389ab24d9ded0c7d898a1",
+    url = "https://releases.hashicorp.com/terraform/0.13.2/terraform_0.13.2_windows_amd64.zip",
 )
 
 http_file(
