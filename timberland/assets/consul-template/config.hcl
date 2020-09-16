@@ -1,4 +1,3 @@
-
 consul {
   ssl {
     enabled = true
@@ -34,6 +33,7 @@ template {
   error_on_missing_key = true
   perms = 0600
   backup = true
+  command = "killall -SIGHUP nomad"
 }
 
 template {
@@ -42,6 +42,7 @@ template {
   error_on_missing_key = true
   perms = 0600
   backup = true
+  command = "killall -SIGHUP nomad"
 }
 
 template {
@@ -50,6 +51,7 @@ template {
   error_on_missing_key = true
   perms = 0600
   backup = true
+  command = "killall -SIGHUP consul"
 }
 
 template {
@@ -58,6 +60,7 @@ template {
   error_on_missing_key = true
   perms = 0600
   backup = true
+  command = "killall -SIGHUP consul"
 }
 
 template {
@@ -66,6 +69,7 @@ template {
   error_on_missing_key = true
   perms = 0600
   backup = true
+  command = "killall -SIGHUP nomad"
 }
 
 template {
@@ -74,14 +78,17 @@ template {
   error_on_missing_key = true
   perms = 0600
   backup = true
+  command = "killall -SIGHUP nomad"
 }
 
+// vault isn't always present, don't error if it's not running
 template {
   source = "/opt/radix/timberland/consul-template/vault/cert.pem.tpl"
   destination = "/opt/radix/certs/vault/cert.pem"
   error_on_missing_key = true
   perms = 0600
   backup = true
+  command = "killall -SIGHUP vault || true"
 }
 
 template {
@@ -90,6 +97,7 @@ template {
   error_on_missing_key = true
   perms = 0600
   backup = true
+  command = "killall -SIGHUP vault || true"
 }
 
 template {

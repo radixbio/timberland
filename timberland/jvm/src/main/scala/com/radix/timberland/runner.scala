@@ -71,7 +71,16 @@ object runner {
             case local: Local =>
               local match {
                 case Nuke => Right(Unit)
-                case cmd @ Start(loglevel, bindIP, consulSeedsO, remoteAddress, prefix, username, password, client) => {
+                case cmd @ Start(
+                      loglevel,
+                      bindIP,
+                      leaderNode,
+                      remoteAddress,
+                      prefix,
+                      username,
+                      password,
+                      clientJoin
+                    ) => {
                   scribe.Logger.root
                     .clearHandlers()
                     .clearModifiers()
@@ -109,7 +118,9 @@ object runner {
                       _ <- IO(scribe.info("Launching daemons"))
                       localFlags <- featureFlags.getLocalFlags(persistentDir)
                       // Starts LogTUI before `startLogTuiAndRunTerraform` is called
-                      _ <- if (localFlags.getOrElse("tui", true)) LogTUI.startTUI() else IO.unit
+                      _ <- if (localFlags.getOrElse("tui", true) & System.getProperty("os.arch") == "amd64")
+                        LogTUI.startTUI()
+                      else IO.unit
                       consulPath = consul / os.up
                       nomadPath = nomad / os.up
                       bootstrapExpect = if (localFlags.getOrElse("dev", true)) 1 else 3
@@ -117,12 +128,12 @@ object runner {
                         consulPath,
                         nomadPath,
                         bindIP,
-                        consulSeedsO,
+                        leaderNode,
                         bootstrapExpect,
                         setupACL,
-                        client
+                        clientJoin
                       )
-                      _ <- Util.waitForDNS("vault.service.consul", 10.seconds)
+                      _ <- Util.waitForDNS("vault.service.consul", 30.seconds)
                     } yield tokens
 
                   def startLogTuiAndRunTerraform(
@@ -157,7 +168,9 @@ object runner {
                     hasBootstrapped <- IO(os.exists(persistentDir / ".bootstrap-complete"))
                     isConsulUp <- Util.isPortUp(8501)
                     defaultServiceAddrs = ServiceAddrs()
-                    authTokens <- (hasBootstrapped, isConsulUp, client) match {
+                    serverJoin = (leaderNode.isDefined && !clientJoin)
+                    remoteJoin = clientJoin | serverJoin
+                    authTokens <- (hasBootstrapped, isConsulUp, remoteJoin) match {
                       case (true, true, false) =>
                         auth.getAuthTokens(isRemote = false, defaultServiceAddrs, username, password)
                       case (true, false, false) =>
@@ -167,7 +180,8 @@ object runner {
                           createWeaveNetwork *> startServices(setupACL = true)
                       case (false, _, true) =>
                         for {
-                          serviceAddrs <- IO(consulSeedsO match {
+                          // TODO: double check ServiceAddrs = otherConsul is fair
+                          serviceAddrs <- IO(leaderNode match {
                             case Some(otherConsul) => ServiceAddrs(otherConsul, otherConsul, otherConsul)
                             case None              => defaultServiceAddrs
                           })
@@ -177,8 +191,20 @@ object runner {
                           storeVaultToken <- IO((new VaultUtils).storeVaultTokenKey("", authTokens.vaultToken))
                           stillAuthTokens <- startServices(setupACL = true)
                         } yield authTokens
+                      case (true, true, true) =>
+                        for {
+                          // TODO: double check ServiceAddrs = otherConsul is fair
+                          serviceAddrs <- IO(leaderNode match {
+                            case Some(otherConsul) => ServiceAddrs(otherConsul, otherConsul, otherConsul)
+                            case None              => defaultServiceAddrs
+                          })
+                          authTokens <- auth.getAuthTokens(isRemote = true, serviceAddrs, username, password)
+                          storeTokens <- auth.writeTokenConfigs(persistentDir, authTokens.consulNomadToken)
+                          storeVaultToken <- IO((new VaultUtils).storeVaultTokenKey("", authTokens.vaultToken))
+                        } yield authTokens
                     }
-                    featureFlags <- if (!client) for {
+                    // flags already written to consul by leader (first node)
+                    featureFlags <- if (!remoteJoin) for {
                       featureFlags <- featureFlags.updateFlags(persistentDir, Some(authTokens), confirm = true)(
                         defaultServiceAddrs
                       )
@@ -199,7 +225,6 @@ object runner {
                     featureFlags <- featureFlags.updateFlags(persistentDir, Some(authTokens))(serviceAddrs)
                     _ <- startLogTuiAndRunTerraform(featureFlags, serviceAddrs, authTokens, waitForQuorum = false)
                   } yield ()
-
                   val bootstrapIO = if (remoteAddress.isDefined) remoteBootstrap else localBootstrap
                   val bootstrap = bootstrapIO.handleErrorWith(err => LogTUI.endTUI(Some(err)) *> IO(throw err)) *> LogTUI
                     .endTUI()
@@ -312,7 +337,7 @@ object runner {
               } yield res match {
                 case Right(_) => ()
                 case Left(err) =>
-                  println(err)
+                  scribe.error(s"$err")
                   sys.exit(1)
               }
               proc.unsafeRunSync()

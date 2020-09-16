@@ -282,7 +282,7 @@ object LogTUI {
   def endTUI(error: Option[Throwable] = None): IO[Unit] =
     for {
       wasActive <- IO(isActive)
-      _ <- IO(writeLog("shutting down TUI"))
+      _ <- if (wasActive) IO(writeLog("shutting down TUI")) else IO.unit
       _ <- IO { isActive = false }
       _ <- if (error.isEmpty) IO.sleep(2.seconds) else IO.unit
       _ <- IO {
@@ -300,7 +300,7 @@ object LogTUI {
             sys.exit(1)
           }
           println("\n")
-        }
+        } else denouement.foreach(println)
       }
     } yield ()
 

@@ -235,57 +235,6 @@ object Util {
       done <- IO { to }
     } yield done
 
-  object RootShell {
-    private implicit val timer = IO.timer(global)
-    private var sudopw: Option[String] = None
-    private def checkSudo: String = {
-      if (sudopw.isEmpty) {
-        import sys.process._
-        Seq("/bin/sh", "-c", "stty -echo < /dev/tty").!
-        try { // there's not much that can go wrong here but we REALLY don't want to leave echo
-          // off on the user's shell if something does break
-          sudopw = Some(readLine("please enter your sudo password: "))
-          println
-        } finally {
-          Seq("/bin/sh", "-c", "stty echo < /dev/tty").!
-        }
-      }
-      sudopw.get // TODO(lily) this should never fail; can I guarantee that statically?
-    }
-    final case class RootShell(proc: os.SubProcess) {
-      def read(file: os.Path): IO[String] = IO(os.read(file))
-      def overwrite(in: String, file: os.Path): IO[Unit] = exec(s"/bin/echo '$in' > '$file'") *> exec("/bin/sync")
-      def append(in: String, file: os.Path): IO[Unit] = exec(s"/bin/echo '$in' >> '$file'") *> exec("/bin/sync")
-      def move(from: os.Path, to: os.Path): IO[Unit] = exec(s"/bin/mv $from $to") *> exec("/bin/sync")
-      def remove(path: os.Path): IO[Unit] = exec(s"/bin/rm $path") *> exec("/bin/sync")
-      def copy(from: os.Path, to: os.Path): IO[Unit] = exec(s"/bin/cp $from $to") *> exec("/bin/sync")
-      def exec(in: String): IO[Unit] =
-        IO {
-          scribe.debug(s"root shell is executing $in")
-          proc.stdin.writeLine(in)
-        } *> IO.sleep(1.second)
-    }
-    private def aquire: IO[RootShell] =
-      IO({
-        checkSudo
-        try {
-          os.proc(Seq("/usr/bin/sudo", "-Sp", "", "su")).call(stdin = s"${sudopw.get}\n")
-        } catch {
-          case exn: os.SubprocessException => ()
-        }
-        RootShell(os.proc(Seq("/usr/bin/sudo", "-Sp", "", "su")).spawn())
-      })
-    private def release: RootShell => IO[Unit] = { rootshell =>
-      IO {
-        val sp = rootshell.proc
-        sp.stdin.close()
-        sp.close()
-        sp.destroy()
-      }
-    }
-    val resource: Resource[IO, RootShell] = Resource.make(aquire)(release)
-  }
-
   def getDefaultGateway: String = {
     val sock = new java.net.DatagramSocket()
     sock.connect(InetAddress.getByName("8.8.8.8"), 10002)

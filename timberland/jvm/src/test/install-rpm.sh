@@ -6,6 +6,7 @@ docker plugin disable weaveworks/net-plugin:2.6.0
 docker plugin set weaveworks/net-plugin:2.6.0 IPALLOC_RANGE=10.32.0.0/12
 docker plugin enable weaveworks/net-plugin:2.6.0
 
+yum install -y psmisc
 yum install -y ./timberland-rpm-all.rpm
 
 cd /opt/radix/timberland/exec

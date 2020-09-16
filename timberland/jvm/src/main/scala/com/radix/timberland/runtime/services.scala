@@ -37,10 +37,10 @@ object Services {
     consulwd: os.Path,
     nomadwd: os.Path,
     bindAddr: Option[String],
-    consulSeedsO: Option[String],
+    leaderNodeO: Option[String],
     bootstrapExpect: Int,
     setupACL: Boolean,
-    clientMode: Boolean
+    clientJoin: Boolean
   ): IO[AuthTokens] =
     for {
       // find local IP for default route
@@ -60,15 +60,17 @@ object Services {
       hasPartiallyBootstrapped <- IO(os.exists(intermediateAclTokenFile))
       consulToken <- makeOrGetIntermediateToken
       persistentDir = consulwd / os.up
+      serverJoin = (leaderNodeO.isDefined && !clientJoin)
+      remoteJoin = clientJoin | serverJoin
       _ <- if (setupACL) auth.writeTokenConfigs(persistentDir, consulToken) else IO.unit
       _ <- IO {
         if (os.exists(consulCliCertPemBak)) {
           os.remove(consulCliCertPemBak)
         }
       }
-      _ <- startConsul(finalBindAddr, consulSeedsO, bootstrapExpect, clientMode)
+      _ <- startConsul(finalBindAddr, leaderNodeO, bootstrapExpect, clientJoin)
       _ <- if (setupACL) auth.setupDefaultConsulToken(persistentDir, consulToken) else IO.unit
-      _ <- if (!clientMode) for {
+      _ <- if (!remoteJoin) for {
         _ <- startVault(finalBindAddr)
         _ <- (new VaultStarter).initializeAndUnsealAndSetupVault(setupACL)
         _ <- Util.waitForSystemdString("consul", "Synced service: service=vault:", 30.seconds)
@@ -77,7 +79,7 @@ object Services {
       vaultToken <- IO((new VaultUtils).findVaultToken())
       _ <- startConsulTemplate(consulToken, vaultToken) // wait for consulCaCertPemBak
       _ <- Util.waitForPathToExist(consulCliCertPemBak, 30.seconds)
-      _ <- if (clientMode)
+      _ <- if (remoteJoin)
         IO(
           os.copy.over(
             RadPath.runtime / "timberland" / "consul" / "consul-client-tls.json",
@@ -86,16 +88,24 @@ object Services {
         )
       else IO.unit
       _ <- refreshConsul()
-      _ <- if (!clientMode) refreshVault() else IO.unit
-      _ <- startNomad(finalBindAddr, bootstrapExpect, vaultToken, clientMode)
-      consulNomadToken <- if (setupACL & !clientMode) {
+      _ <- if (!remoteJoin) refreshVault() else IO.unit
+      _ <- startNomad(finalBindAddr, leaderNodeO, bootstrapExpect, vaultToken, clientJoin)
+      consulNomadToken <- if (setupACL & !remoteJoin) {
         auth.setupNomadMasterToken(persistentDir, consulToken)
-      } else if (setupACL & clientMode)
+      } else if (setupACL & remoteJoin)
         IO(consulToken)
       else {
         auth.getMasterToken
       }
-      _ <- if (!clientMode) auth.storeMasterToken(consulNomadToken) else IO.unit
+      _ <- if (!remoteJoin) auth.storeMasterToken(consulNomadToken) else IO.unit
+      _ <- if (serverJoin) { // add -server to consul invocation
+        val consulEnvFilePath = RadPath.runtime / "timberland" / "consul" / "consul.env.conf"
+        for {
+          consulArgStr <- IO(os.read(consulEnvFilePath))
+          _ <- IO(os.write.over(consulEnvFilePath, s"$consulArgStr -server"))
+          _ <- Util.exec("systemctl restart consul")
+        } yield ()
+      } else IO.unit
       _ <- IO(os.write.over(persistentDir / ".bootstrap-complete", "\n"))
       _ <- IO(if (os.exists(intermediateAclTokenFile)) os.remove(intermediateAclTokenFile) else ())
       _ <- IO(scribe.info("started services"))
@@ -138,14 +148,16 @@ object Services {
 
   def startConsul(
     bindAddr: String,
-    consulSeedsO: Option[String],
+    leaderNodeO: Option[String],
     bootstrapExpect: Int,
-    client: Boolean = false
+    clientJoin: Boolean = false
   ): IO[Unit] = {
     val persistentDir = RadPath.runtime / "timberland"
     val baseArgs = s"-bind=$bindAddr -config-dir=$persistentDir/consul/config"
+    val serverJoin = (leaderNodeO.isDefined && !clientJoin)
+    val remoteJoin = clientJoin | serverJoin
 
-    val baseArgsWithSeeds = consulSeedsO match {
+    val baseArgsWithSeeds = leaderNodeO match {
       case Some(seedString) =>
         seedString
           .split(',')
@@ -158,19 +170,16 @@ object Services {
 
       case None => baseArgs
     }
-    val baseArgsWithSeedsAndServer = client match {
+    val baseArgsWithSeedsAndServer = remoteJoin match {
       case false => s"$baseArgsWithSeeds -bootstrap-expect=$bootstrapExpect -server"
       case true  => baseArgsWithSeeds
     }
-
+    val consulArgStr = s"CONSUL_CMD_ARGS=$baseArgsWithSeedsAndServer"
     val envFilePath = Paths.get(s"$persistentDir/consul/consul.env.conf") // TODO make configurable
-    val envFileHandle = envFilePath.toFile
-    val writer = new FileWriter(envFileHandle)
-    writer.write(s"CONSUL_CMD_ARGS=$baseArgsWithSeedsAndServer")
-    writer.close()
+    os.write.over(os.Path(envFilePath), consulArgStr)
     val consulConfigDir = RadPath.runtime / "timberland" / "consul" / "config"
     val consulDir = RadPath.runtime / "timberland" / "consul"
-    client match {
+    remoteJoin match {
       case false =>
         for {
           _ <- IO(LogTUI.event(ConsulStarting))
@@ -210,25 +219,43 @@ object Services {
     } yield ()
   }
 
-  def startNomad(bindAddr: String, bootstrapExpect: Int, vaultToken: String, client: Boolean = false): IO[Unit] = {
+//  def startNomad(bindAddr: String, bootstrapExpect: Int, vaultToken: String, remoteJoin: Boolean = false): IO[Unit] = {
+  def startNomad(
+    bindAddr: String,
+    leaderNodeO: Option[String],
+    bootstrapExpect: Int,
+    vaultToken: String,
+    clientJoin: Boolean = false
+  ): IO[Unit] = {
     val persistentDir = RadPath.runtime / "timberland"
-    val serverArgs = client match {
-      case false => s"-bootstrap-expect=$bootstrapExpect -server"
-      case true  => "-consul-client-auto-join"
+    val serverJoin = leaderNodeO.isDefined
+    val baseArgs = (clientJoin, serverJoin) match {
+      case (false, false) => s"-bootstrap-expect=$bootstrapExpect -server"
+      case (true, _)      => "-consul-client-auto-join"
+      case (false, true)  => s"-server"
+    }
+    val baseArgsWithSeeds = leaderNodeO match {
+      case Some(seedString) =>
+        seedString
+          .split(',')
+          .map { host =>
+            s"-retry-join=$host"
+          }
+          .foldLeft(baseArgs) { (currentArgs, arg) =>
+            currentArgs + ' ' + arg
+          }
+
+      case None => baseArgs
     }
     val args: String =
-      s"""NOMAD_CMD_ARGS=$serverArgs -bind=$bindAddr -config=$persistentDir/nomad/config
+      s"""NOMAD_CMD_ARGS=$baseArgsWithSeeds -bind=$bindAddr -config=$persistentDir/nomad/config
          |VAULT_TOKEN=$vaultToken
          |""".stripMargin
     for {
       _ <- IO {
         LogTUI.event(NomadStarting)
         LogTUI.writeLog("spawning nomad via systemd")
-        val envFilePath = Paths.get(s"$persistentDir/nomad/nomad.env.conf")
-        val envFileHandle = envFilePath.toFile
-        val writer = new FileWriter(envFileHandle)
-        writer.write(args)
-        writer.close()
+        os.write.over(persistentDir / "nomad" / "nomad.env.conf", args)
       }
       procOut <- Util.exec("/bin/systemctl restart nomad")
       _ <- IO(LogTUI.event(NomadSystemdUp))
@@ -243,12 +270,7 @@ object Services {
       _ <- IO {
         LogTUI.event(VaultStarting)
         LogTUI.writeLog("spawning vault via systemd")
-
-        val envFilePath = Paths.get(s"$persistentDir/vault/vault.env.conf")
-        val envFileHandle = envFilePath.toFile
-        val writer = new FileWriter(envFileHandle)
-        writer.write(args)
-        writer.close()
+        os.write.over(persistentDir / "vault" / "vault.env.conf", args)
       }
       restartProc <- Util.exec("/bin/systemctl restart vault")
       _ <- Util.waitForPortUp(8200, 30.seconds)

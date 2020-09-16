@@ -15,7 +15,7 @@ sealed trait Local extends Runtime
 case class Start(
   loglevel: scribe.Level = scribe.Level.Debug,
   bindIP: Option[String] = None,
-  consulSeeds: Option[String] = None,
+  leaderNode: Option[String] = None,
   remoteAddress: Option[String] = None,
   prefix: Option[String] = None,
   username: Option[String] = None,
@@ -146,13 +146,13 @@ object cli {
 
           optional(
             strOption(
-              metavar("SEEDS"),
-              long("consul-seeds"),
+              metavar("LEADER"),
+              long("leader-node"),
               helpDoc(
                 Some(
                   Doc.append(
-                    Doc.append(Doc.text("Comma separated list of seed nodes for consul"), Doc.linebreak),
-                    Doc.text("(maps to retry_join in consul.json)")
+                    Doc.append(Doc.text("Leader node for Consul and Nomad."), Doc.linebreak),
+                    Doc.text("(maps to retry_join in nomad/consul)")
                   )
                 )
               )
@@ -160,7 +160,7 @@ object cli {
           ).map(seeds => {
             exist: Start =>
               seeds match {
-                case list @ Some(_) => exist.copy(consulSeeds = list)
+                case list @ Some(_) => exist.copy(leaderNode = list)
                 case None           => exist
               }
           }) <*>

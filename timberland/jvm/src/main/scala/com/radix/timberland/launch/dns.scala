@@ -4,8 +4,6 @@ import java.nio.file.Path
 
 import cats.effect.{IO, Resource}
 import cats.implicits._
-import com.radix.timberland.util.Util
-import com.radix.timberland.util.Util.RootShell
 import oshi.software.os.linux.LinuxOperatingSystem
 
 object dns {
