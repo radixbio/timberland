@@ -288,7 +288,7 @@ package object daemonutil {
     tokens: AuthTokens
   ): IO[Int] = {
     val workingDir = getTerraformWorkDir(integrationTest)
-    val mkTmpDir = IO({ os.remove.all(RadPath.temp); os.makeDir(RadPath.temp / "terraform") }) //Seq("bash", "-c", "rm -rf /tmp/radix && mkdir -p /tmp/radix/terraform")
+    val mkTmpDir = IO({ os.remove.all(RadPath.temp); os.makeDir.all(RadPath.temp / "terraform") }) //Seq("bash", "-c", "rm -rf /tmp/radix && mkdir -p /tmp/radix/terraform")
 
     updatePrefixFile(prefix)
 

@@ -831,6 +831,7 @@ terraform_deployment(
         "//sensors/elemental/jvm:elemental-terraform",
         "//utils/prism-uservice/jvm:prism-terraform",
         "//utils/s3lts:s3lts-terraform",
+        "//vm/jvm:vm-terraform",
     ],
     terraform_source = select({
         "aarch64": ["@terraform_arm//:terraform"],

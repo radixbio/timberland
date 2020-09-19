@@ -37,7 +37,6 @@ abstract class TimberlandIntegration extends AsyncFlatSpec with Matchers with Be
 
   implicit val cs: ContextShift[IO] = IO.contextShift(implicitly[ExecutionContext])
   implicit val T: Timer[IO] = IO.timer(implicitly[ExecutionContext])
-  implicit val blaze: Resource[IO, Client[IO]] = BlazeClientBuilder[IO](implicitly[ExecutionContext]).resource
 
   val quorumsize = 1
 
@@ -70,9 +69,9 @@ abstract class TimberlandIntegration extends AsyncFlatSpec with Matchers with Be
         .split(
           " "
         )
-    val consulNomadTokenProc = Process(getCommand, None, "VAULT_TOKEN" -> vaultToken)
+    val consulNomadTokenProc = Process(getCommand, None, "VAULT_TOKEN" -> vaultToken, "VAULT_SKIP_VERIFY" -> "true")
     val consulNomadToken = consulNomadTokenProc.lineStream.find(_.contains("token")) match {
-      case Some(line) => line.split("\\s+")(1)
+      case Some(line) => line.split("\\s+")(1).drop(10).dropRight(1)
       case None       => ""
     }
     AuthTokens(consulNomadToken, vaultToken)
@@ -110,12 +109,11 @@ abstract class TimberlandIntegration extends AsyncFlatSpec with Matchers with Be
     super.beforeAll()
     //NOTE: change this None to Some(scribe.LogLevel.Debug) if you want more info as to why your test is failing
     scribe.Logger.root.clearHandlers().clearModifiers().withHandler(minimumLevel = None).replace()
-
     // Make sure Consul and Nomad are up before using terraform
     val res = Util.waitForDNS("consul.service.consul", 1.minutes) *>
       Util.waitForDNS("nomad.service.consul", 1.minutes) *>
       daemonutil.runTerraform(resolvedFlags, integrationTest = true, None) *> IO(println(resolvedFlags)) *>
-      daemonutil.waitForQuorum(resolvedFlags)
+      daemonutil.waitForQuorum(resolvedFlags, integrationTest = true)
     res.unsafeRunSync()
   }
 
@@ -130,7 +128,7 @@ abstract class TimberlandIntegration extends AsyncFlatSpec with Matchers with Be
   }
 
   val interp: ConsulOp ~> IO =
-    new Http4sConsulClient[IO](Uri.unsafeFromString("http://consul.service.consul:8501"), Some(tokens.consulNomadToken))
+    new Http4sConsulClient[IO](Uri.unsafeFromString("https://consul.service.consul:8501"), Some(tokens.consulNomadToken))
 
   /**
    * Checks if the service is registered in consul and all its health checks are passing, so that we can use its DNS
@@ -157,7 +155,7 @@ abstract class TimberlandIntegration extends AsyncFlatSpec with Matchers with Be
       .unsafeRunSync()
   }
 
-  private val prefix = "integration-"
+  val prefix = "integration-"
 
   "timberland" should "bring up backing runtimesystem containers" in {
     assert(check("nomad"))
