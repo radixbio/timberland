@@ -19,10 +19,6 @@ Requires: docker-ce
 Timberland is a launcher designed to run backing
 services for the Radix Runtime
 
-%prep
-tar -xvf {timberland-full-tar.tar} --no-same-owner
-rm {timberland-full-tar.tar}
-
 %files
 ###AUTOFILLED###
 
@@ -40,7 +36,7 @@ mkdir -p /opt/radix/ybtserver_data
 # The following seems to be needed to allow Docker containers to access the Internet.
 # Note: This is not automatically removed from /etc/sysctl.conf upon package removal.
 echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
-sysctl sysctl net.ipv4.ip_forward=1
+sysctl net.ipv4.ip_forward=1
 
 %preun
 if [ -f /opt/radix/timberland/exec/timberland ]; then

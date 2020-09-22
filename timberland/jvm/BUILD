@@ -5,6 +5,7 @@ load("//tools:pkg_rpm_with_branch.bzl", "pkg_rpm_with_branch")
 load("//tools:terraform.bzl", "dynamic_rpm_spec", "terraform_deployment", "terraform_module", "terraform_provider")
 load("//tools:write_git_branch_to_file.bzl", "write_git_branch_to_file")
 load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
+load("//tools:rpm.bzl", "rpm_package")
 
 package(
     default_visibility = ["//visibility:public"],
@@ -254,10 +255,10 @@ pkg_tar(
 pkg_tar(
     name = "timberland-consul-config",
     srcs = [
-        "//timberland/assets:consul/consul-server-bootstrap.json",
-        "//timberland/assets:consul/consul-server.json",
         "//timberland/assets:consul/consul-client.json",
         "//timberland/assets:consul/consul-client-tls.json",
+        "//timberland/assets:consul/consul-server.json",
+        "//timberland/assets:consul/consul-server-bootstrap.json",
     ],
     package_dir = "/opt/radix/timberland/consul",
 )
@@ -444,18 +445,11 @@ pkg_deb(
     version = "0.1",
 )
 
-dynamic_rpm_spec(
-    name = "rpm_custom_spec",
-    base_spec = "//timberland/assets:redhat/rpm.spec",
-    tar_archive = ":timberland-full-tar",
-)
-
-pkg_rpm_with_branch(
+rpm_package(
     name = "timberland-rpm",
-    architecture = "all",
-    data = [":timberland-full-tar"],
-    release = "1",
-    spec_file = ":rpm_custom_spec",
+    data = ":timberland-full-tar",
+    rpm_file = "timberland-rpm-all.rpm",
+    spec_template = "//timberland/assets:redhat/rpm.spec",
 )
 
 sh_binary(

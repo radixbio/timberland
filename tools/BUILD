@@ -19,3 +19,9 @@ py_binary(
     srcs = ["build_structured_tar.py"],
     deps = [],
 )
+
+py_binary(
+    name = "make_rpm_package",
+    srcs = ["make_rpm_package.py"],
+    deps = [],
+)

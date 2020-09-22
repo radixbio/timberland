@@ -33,7 +33,7 @@ template {
   error_on_missing_key = true
   perms = 0600
   backup = true
-  command = "killall -SIGHUP nomad"
+  command = "systemctl reload nomad"
 }
 
 template {
@@ -42,7 +42,7 @@ template {
   error_on_missing_key = true
   perms = 0600
   backup = true
-  command = "killall -SIGHUP nomad"
+  command = "systemctl reload nomad"
 }
 
 template {
@@ -69,7 +69,7 @@ template {
   error_on_missing_key = true
   perms = 0600
   backup = true
-  command = "killall -SIGHUP nomad"
+  command = "systemctl reload nomad"
 }
 
 template {
@@ -78,7 +78,7 @@ template {
   error_on_missing_key = true
   perms = 0600
   backup = true
-  command = "killall -SIGHUP nomad"
+  command = "systemctl reload nomad"
 }
 
 // vault isn't always present, don't error if it's not running
