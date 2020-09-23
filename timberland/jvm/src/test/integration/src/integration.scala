@@ -128,7 +128,10 @@ abstract class TimberlandIntegration extends AsyncFlatSpec with Matchers with Be
   }
 
   val interp: ConsulOp ~> IO =
-    new Http4sConsulClient[IO](Uri.unsafeFromString("https://consul.service.consul:8501"), Some(tokens.consulNomadToken))
+    new Http4sConsulClient[IO](
+      Uri.unsafeFromString("https://consul.service.consul:8501"),
+      Some(tokens.consulNomadToken)
+    )
 
   /**
    * Checks if the service is registered in consul and all its health checks are passing, so that we can use its DNS

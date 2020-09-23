@@ -4,6 +4,7 @@ load("@io_bazel_rules_docker//container:container.bzl", "container_image", "cont
 load("//tools:pkg_rpm_with_branch.bzl", "pkg_rpm_with_branch")
 load("//tools:terraform.bzl", "dynamic_rpm_spec", "terraform_deployment", "terraform_module", "terraform_provider")
 load("//tools:write_git_branch_to_file.bzl", "write_git_branch_to_file")
+load("//tools:windows.bzl", "pkg_msi")
 load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
 load("//tools:rpm.bzl", "rpm_package")
 
@@ -425,6 +426,17 @@ pkg_tar(
         ":timberland-systemd-services",
         ":timberland-vault",
     ],
+)
+
+pkg_msi(
+    name = "timberland-windows",
+    data = ":timberland-full-tar",
+    data_base_dir = "./opt/radix",
+    description = "Radix_Timberland_deployment",
+    manufacturer = "Radix_Labs",
+    package = "radix-timberland",
+    package_guid = "{eabaa8a7-e277-46ed-8602-4e4212afa5ec}",
+    version = "0.1",
 )
 
 pkg_deb(

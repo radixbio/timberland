@@ -21,6 +21,12 @@ py_binary(
 )
 
 py_binary(
+    name = "convert_tar_to_msi",
+    srcs = ["convert_tar_to_msi.py"],
+    deps = [],
+)
+
+py_binary(
     name = "make_rpm_package",
     srcs = ["make_rpm_package.py"],
     deps = [],
