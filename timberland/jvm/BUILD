@@ -156,6 +156,8 @@ scala_library(
         ":timberland-update-lib",
         "//utils/helm:helm-jvm",
         "//utils/sheets/jvm/src/main/scala/com/radix/util/sheets:sheets-interps",  #TODO remove this
+        "@third_party//3rdparty/jvm/com/profesorfalken:jPowerShell",
+        "@third_party//3rdparty/jvm/com/github/tototoshi:scala_csv"
     ],
 )
 
@@ -269,6 +271,7 @@ pkg_tar(
     srcs = [
         "//timberland/assets:consul-template/ca/cert.pem.tpl",
         "//timberland/assets:consul-template/config.hcl",
+        "//timberland/assets:consul-template/config-windows.hcl",
         "//timberland/assets:systemd/consul-template.env.conf",
     ] + select({
         "aarch64": ["@consul-template_arm//:consul-template"],
@@ -330,7 +333,8 @@ pkg_tar(
         "//timberland/assets:systemd/nomad.env.conf",
     ] + select({
         "aarch64": ["@nomad_arm//:nomad"],
-        "windows": ["@nomad_win//:nomad.exe"],
+        "windows": ["@nomad_win//:nomad.exe",
+        "//timberland/assets:nomad/nomad-windows.hcl"],
         "//conditions:default": ["@nomad"],
     }),
     package_dir = "/opt/radix/timberland/nomad",

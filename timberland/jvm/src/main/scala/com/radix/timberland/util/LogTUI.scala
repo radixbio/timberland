@@ -1,35 +1,22 @@
 package com.radix.timberland.util
 
-import java.io.PrintStream
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.Executors
-import java.util.concurrent.atomic.AtomicBoolean
 
-import cats.effect.IO
-import scribe.LogRecord
-import scribe.output.LogOutput
-
-import scala.collection.mutable
-import scribe.writer.{FileWriter, Writer}
-import scribe.Logger
-import scribe.writer.file.LogPath
-import cats.effect.Concurrent
-import cats.effect.concurrent.{MVar, Semaphore}
-
-import scala.concurrent.{Await, ExecutionContext, Future}
-import cats.effect._
-import cats.effect.implicits._
-
-import scala.concurrent.duration._
+import cats.effect.{IO, _}
+import cats.effect.concurrent.MVar
 import cats.implicits._
 import com.radix.timberland.util.LogTUI.Printer.PrestartState
-import com.radix.timberland.util.TerraformMagic.{DestroyComplete, DestroyStart, TerraformPlan}
-import concurrent._
-import org.fusesource.jansi._
-import org.fusesource.jansi.Ansi
+import com.radix.timberland.util.TerraformMagic.TerraformPlan
+import org.fusesource.jansi.{Ansi, _}
 import org.fusesource.jansi.internal.CLibrary.{isatty, STDOUT_FILENO}
+import scribe.LogRecord
+import scribe.output.LogOutput
+import scribe.writer.Writer
 
+import scala.collection.mutable
 import scala.concurrent.ExecutionContext
+import scala.concurrent.duration._
 
 case class LogTUIWriter() extends Writer {
   override def write[M](record: LogRecord[M], output: LogOutput): Unit = {
@@ -261,7 +248,7 @@ object LogTUI {
     MVar.empty[IO, (TerraformMagic.TerraformPlan, Map[String, List[String]])].unsafeRunSync()
   private val denouement = mutable.Queue.empty[String]
 
-  val log_path = os.root / "opt" / "radix" / "timberland.log" // Make settable/timestamped?
+  val log_path = RadPath.runtime / "timberland.log"
 
   /** *
    * Turns on the LogTUI display.

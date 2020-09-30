@@ -15,6 +15,7 @@ import io.circe.{Parser => _}
 import optparse_applicative._
 import org.http4s.implicits._
 import com.radix.utils.tls.ConsulVaultSSLContext._
+import jdk.jshell.spi.ExecutionControl.NotImplementedException
 import scalaz.syntax.apply._
 
 import scala.concurrent.ExecutionContext.global
@@ -41,8 +42,9 @@ object runner {
 
   def main(args: Array[String]): Unit = {
     val osname = System.getProperty("os.name") match {
-      case mac if mac.toLowerCase.contains("mac")       => "darwin"
-      case linux if linux.toLowerCase.contains("linux") => "linux"
+      case mac if mac.toLowerCase.contains("mac")             => "darwin"
+      case linux if linux.toLowerCase.contains("linux")       => "linux"
+      case windows if windows.toLowerCase.contains("windows") => "windows"
     }
     val arch = System.getProperty("os.arch") match {
       case x86 if x86.toLowerCase.contains("amd64") || x86.toLowerCase.contains("x86") => "amd64"
@@ -91,7 +93,7 @@ object runner {
                   import ammonite.ops._
                   System.setProperty("dns.server", remoteAddress.getOrElse("127.0.0.1"))
 
-                  val createWeaveNetwork = for {
+                  val createWeaveNetwork = if (osname != "windows") for {
                     _ <- IO(scribe.info("Creating weave network"))
                     _ <- IO(os.proc("/usr/bin/sudo /sbin/sysctl -w vm.max_map_count=262144".split(' ')).spawn())
                     pluginList <- IO(
@@ -112,13 +114,18 @@ object runner {
                         IO.pure(scribe.info("Weave plugin not installed. Skipping creation of weave network."))
                     }
                   } yield ()
+                  else IO.unit
 
                   def startServices(setupACL: Boolean) =
                     for {
                       _ <- IO(scribe.info("Launching daemons"))
                       localFlags <- featureFlags.getLocalFlags(persistentDir)
                       // Starts LogTUI before `startLogTuiAndRunTerraform` is called
-                      _ <- if (localFlags.getOrElse("tui", true) & System.getProperty("os.arch") == "amd64")
+                      // only logtui on linux amd64
+                      _ <- if (localFlags.getOrElse("tui", true) & System.getProperty("os.arch") == "amd64" & System
+                                 .getProperty("os.name")
+                                 .toLowerCase
+                                 .contains("linux"))
                         LogTUI.startTUI()
                       else IO.unit
                       consulPath = consul / os.up
@@ -170,6 +177,11 @@ object runner {
                     defaultServiceAddrs = ServiceAddrs()
                     serverJoin = (leaderNode.isDefined && !clientJoin)
                     remoteJoin = clientJoin | serverJoin
+                    windowsCheck = if (osname == "windows" & !remoteJoin)
+                      throw new UnsupportedOperationException(
+                        "Windows only supports joining, you must pass a leader node."
+                      )
+                    else ()
                     authTokens <- (hasBootstrapped, isConsulUp, remoteJoin) match {
                       case (true, true, false) =>
                         auth.getAuthTokens(isRemote = false, defaultServiceAddrs, username, password)
@@ -276,6 +288,7 @@ object runner {
                 case DNSDown => launch.dns.down()
               }
               dns_set.unsafeRunSync()
+              sys.exit(0)
             }
 
             case FlagSet(flagNames, enable, remoteAddress, username, password) =>

@@ -238,8 +238,15 @@ object featureFlags {
    */
   private def getValidFlags(persistentDir: os.Path): IO[Set[String]] = {
     val moduleFile = persistentDir / os.up / "terraform" / ".terraform" / "modules" / "modules.json"
+
     for {
       _ <- daemonutil.initTerraform(false, None)
+      _ <- IO {
+        if (!os.exists(moduleFile)) {
+          // bail iff tform init failed
+          return IO.pure(Set[String]())
+        }
+      }
       modulesText <- IO(os.read(moduleFile))
     } yield {
       val modulesJson = parse(modulesText).getOrElse(Json.Null)

@@ -319,14 +319,16 @@ package object daemonutil {
         s"${execDir / "terraform"} apply -no-color -auto-approve " + variables + configStr
       )
       applyExitCode <- IO(
-        Util
-          .proc(applyCommand)
-          .call(
-            cwd = workingDir,
-            stdout = os.ProcessOutput(LogTUI.tfapply),
-            stderr = os.ProcessOutput(LogTUI.stdErrs("terraform-apply"))
-          )
-          .exitCode
+        if (!System.getProperty("os.name").toLowerCase.contains("windows"))
+          Util
+            .proc(applyCommand)
+            .call(
+              cwd = workingDir,
+              stdout = os.ProcessOutput(LogTUI.tfapply),
+              stderr = os.ProcessOutput(LogTUI.stdErrs("terraform-apply"))
+            )
+            .exitCode
+        else 0
       )
     } yield applyExitCode
 
@@ -368,17 +370,18 @@ package object daemonutil {
     val workingDir = getTerraformWorkDir(integrationTest)
 
     for {
-      alreadyInitialized <- IO(os.list(workingDir).nonEmpty)
+      alreadyInitialized <- IO(if (os.exists(workingDir)) os.list(workingDir).nonEmpty else false)
       initCommand = if (alreadyInitialized) initAgainCommand else initFirstCommand
       _ <- IO(
-        Util
-          .proc(initCommand)
-          .call(
-            cwd = workingDir,
-            stdout = os.ProcessOutput(LogTUI.init),
-            stderr = os.ProcessOutput(LogTUI.stdErrs("terraform-init")),
-            check = false
-          )
+        if (!System.getProperty("os.name").toLowerCase.contains("windows"))
+          Util
+            .proc(initCommand)
+            .call(
+              cwd = workingDir,
+              stdout = os.ProcessOutput(LogTUI.init),
+              stderr = os.ProcessOutput(LogTUI.stdErrs("terraform-init")),
+              check = false
+            )
       )
     } yield ()
   }
