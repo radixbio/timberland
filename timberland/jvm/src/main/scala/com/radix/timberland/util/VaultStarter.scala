@@ -48,12 +48,8 @@ class VaultUtils {
   def storeVaultTokenKey(key: String, token: String): String = {
     // if HOME isn't set, use /tmp (file still owed / readable only by root)
     val prefix = (RadPath.runtime / "timberland")
-    val tokenPath = prefix / ".vault-token"
-    val sealPath = prefix / ".vault-seal"
-    val tokenFile = new File(tokenPath.toString())
-    val sealFile = new File(sealPath.toString())
-    if (os.exists(tokenPath)) tokenFile.setWritable(true)
-    if (os.exists(sealPath)) sealFile.setWritable(true)
+    val tokenFile = new File((prefix / ".vault-token").toString())
+    val sealFile = new File((prefix / ".vault-seal").toString())
     val tokenWriter = new PrintWriter(tokenFile)
     val sealWriter = new PrintWriter(sealFile)
     tokenWriter.write(token)

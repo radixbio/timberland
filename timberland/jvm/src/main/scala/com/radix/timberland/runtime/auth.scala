@@ -129,7 +129,6 @@ object auth {
       s"$consul acl token create -token=$consulToken -description='Default-allow-DNS.' -policy-name=default-policy"
     for {
       _ <- Util.waitForConsul(consulToken, 60.seconds, address = "http://127.0.0.1:8500")
-      _ <- IO.sleep(30.seconds)
       defaultPolicyCmdRes <- Util.exec(defaultPolicyCmd)
       checkDefaultPolicyRes <- if (defaultPolicyCmdRes.exitCode == 0) IO.pure(true)
       else if ((defaultPolicyCmdRes.exitCode != 0) && (defaultPolicyCmdRes.stderr
@@ -193,26 +192,12 @@ object auth {
   def getMasterToken: IO[String] = IO {
     os.read(RadPath.runtime / "timberland" / ".acl-token")
   }
-  import java.io.File
 
   def storeIntermediateToken(token: String) = IO {
     val intermediateAclTokenFile = RadPath.runtime / "timberland" / ".intermediate-acl-token"
-    if (os.exists(intermediateAclTokenFile)) {
-      // permset doesn't work on windows, so set permissions manually
-      // ...maybe a race here?
-
-      val intermediateFile = new File(intermediateAclTokenFile.toString())
-      intermediateFile.setWritable(true, true)
-      os.write.over(intermediateAclTokenFile, token)
-      intermediateFile.setReadable(false, true)
-      intermediateFile.setWritable(false, true)
-    } else {
-      os.write(intermediateAclTokenFile, token)
-      val intermediateFile = new File(intermediateAclTokenFile.toString())
-      intermediateFile.setReadable(false, true)
-      intermediateFile.setWritable(false, true)
-    }
-
+    if (os.exists(intermediateAclTokenFile)) os.write.over(intermediateAclTokenFile, token, os.PermSet(400))
+    else
+      os.write(intermediateAclTokenFile, token, os.PermSet(400))
     ()
   }
 

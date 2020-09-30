@@ -198,7 +198,7 @@ object Util {
   def execArr(command: Seq[String], cwd: Path = os.root, env: Map[String, String] = Map.empty): IO[ProcOut] = IO {
     scribe.info(s"Calling: $command")
     val res = os
-      .proc(command)
+      .proc(command) // dodgy assumption, but fine for most uses
       .call(cwd = cwd, env = env, check = false, stdout = os.Pipe, stderr = os.Pipe)
     val stdout: String = res.out.text
     val stderr: String = res.err.text
@@ -264,9 +264,8 @@ object RadPath {
 
   def runtime: os.Path = {
     osname match {
-      case "Windows" =>
-        os.root / "opt" / "radix" // "os.root" evaluates to "C:\" on windows machines (using C:\opt\radix for now..)
-      case _ => os.root / "opt" / "radix" // This should work on all non-windows machines, right?
+      case "Windows" => os.root / "Program Files" / "Radix" // "os.root" evaluates to "C:\" on windows machines
+      case _         => os.root / "opt" / "radix" // This should work on all non-windows machines, right?
     }
   }
 
@@ -276,6 +275,4 @@ object RadPath {
       case _         => os.root / "tmp" / "radix"
     }
   }
-
-  val persistentDir: os.Path = runtime / "timberland"
 }
