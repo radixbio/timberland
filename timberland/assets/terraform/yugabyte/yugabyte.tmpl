@@ -39,7 +39,7 @@ job "${prefix}yugabyte" {
       }
 
       config {
-        image = "yugabytedb/yugabyte:latest"
+        image = "yugabytedb/yugabyte@sha256:2f76d0a84d7166d57f3a54fd42b6734bcd36e0777efdb61cf368db1100fc417d"
         args = ["/timberland/exec/timberland-launcher_deploy.jar","launch","yugabyte-master"${ dev ? ",\"--dev\"" : ""}, "--prefix", "${prefix}"]
         auth_soft_fail = false
         command = "-jar"
@@ -129,7 +129,7 @@ job "${prefix}yugabyte" {
       }
 
       config {
-        image = "yugabytedb/yugabyte:latest"
+        image = "yugabytedb/yugabyte@sha256:2f76d0a84d7166d57f3a54fd42b6734bcd36e0777efdb61cf368db1100fc417d"
         args = ["/timberland/exec/timberland-launcher_deploy.jar","launch","yugabyte-tserver"${dev ? ",\"--dev\"" : ""}, "--prefix", "${prefix}"]
         auth_soft_fail = false
         command = "-jar"
