@@ -9,8 +9,8 @@ py_binary(
 )
 
 py_binary(
-    name = "mark_image_digests",
-    srcs = ["mark_image_digests.py"],
+    name = "annotate_images",
+    srcs = ["annotate_images.py"],
     deps = [],
 )
 

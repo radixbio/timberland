@@ -21,9 +21,9 @@ def _mod_impl(ctx):
         hashed_template = ctx.actions.declare_file(ctx.file.nomad_template.path)
         ctx.actions.run(
             executable = ctx.executable.mark_image_digests,
-            inputs = [ctx.file.nomad_template],
+            inputs = [ctx.file.nomad_template, ctx.file._dot_git_dir],
             outputs = [hashed_template],
-            arguments = [ctx.file.nomad_template.path, hashed_template.path],
+            arguments = [ctx.file.nomad_template.path, hashed_template.path, ctx.file._dot_git_dir.path],
         )
 
         files = [hashed_template] + ctx.files.terraform_files
@@ -54,10 +54,14 @@ terraform_module = rule(
         "deps": attr.label_list(default = []),
         "module_spec": attr.string_list(),
         "mark_image_digests": attr.label(
-            default = Label("//tools:mark_image_digests"),
+            default = Label("//tools:annotate_images"),
             cfg = "exec",
             executable = True,
             allow_files = True,
+        ),
+        "_dot_git_dir": attr.label(
+            default = Label("@//:dot-git-dir"),
+            allow_single_file = True,
         ),
         "_macos_platform": attr.label(default = Label("@platforms//os:macos")),
     },
