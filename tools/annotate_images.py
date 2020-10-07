@@ -61,6 +61,8 @@ def annotate_images(templatefile, outputfile, dot_git_dir):
     else:
         branch_name = branch_name.replace('ref: refs/heads/', '')
 
+    branch_name = branch_name.replace('/', '-') # Formatting to match workspace-status.sh
+
     if not branch_name:
         print("%s: Failed to find valid branch name in build repo, using 'master' (.git/HEAD contains '%s')" %
          (os.path.basename(templatefile), branch_name))
