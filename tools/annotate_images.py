@@ -1,9 +1,14 @@
+#!/usr/bin/env python3
+
 import os
 import sys
 import re
 import subprocess
 
-imagename_pat = r'image = "([^"]*)"'
+# Named groups could be helpful at some point in the future?
+ternary_imagename_pat = r'\${\s*remote_img\s*\?\s*"(?P<remote_img>[^"]*)"\s*:\s*"(?P<local_img>[^"]*)"\s*}'
+single_imagename_pat = r'(?P<img>[^"]*)'
+imagename_pat = r'image\s*=\s*"(?:{0}|{1})"'.format(ternary_imagename_pat, single_imagename_pat)
 
 
 def get_digest(imagename, image_available):
@@ -23,7 +28,10 @@ def get_digest(imagename, image_available):
 
     if "\n" in digest_output:
         digstr = digest_output.split('\n')[1].split()[2]
-        return "@".join([shortname, digstr])
+        if digstr and "<none>" not in digstr:
+          return "@".join([shortname, digstr])
+        else:
+          return ""
     else:
         return ""
 
@@ -37,7 +45,8 @@ def annotate_images(templatefile, outputfile, dot_git_dir):
     if not os.environ.get("CI_EC2_INSTANCE_SIZE"):
         images = get_available_images()
         text = open(templatefile).read()
-        imagenames = re.findall(imagename_pat, text)
+        imagenames = [item for sublist in re.findall(imagename_pat, text) for item in sublist if item]
+        print("imagenames", imagenames)
         for imagename in imagenames:
             if 'radix-labs' not in imagename:
                 image_local = imagename.split(':')[0] in images
@@ -66,9 +75,15 @@ def annotate_images(templatefile, outputfile, dot_git_dir):
     if not branch_name:
         print("%s: Failed to find valid branch name in build repo, using 'master' (.git/HEAD contains '%s')" %
          (os.path.basename(templatefile), branch_name))
-        text = text.replace('{CURRENT_BRANCH}"', 'master"\t#Branch "master" chosen due to failure to get current branch name during build.')
-    else:
 
+        newline_indices = [m.end()-2 for m in re.finditer(r"{CURRENT_BRANCH}.*\n", text)]
+
+        text = text.replace('{CURRENT_BRANCH}"', 'master"')
+
+        for index in newline_indices:
+          # need to insert on a newline so it doesn't get inserted in the middle of a ternary statement
+          text = text[:index] + "#Branch 'master' chosen due to failure to get current branch name during build.\n" + text[index:]
+    else:
         text = text.replace("{CURRENT_BRANCH}", branch_name)
 
     with open(outputfile, 'w') as out:

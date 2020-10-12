@@ -85,5 +85,5 @@ case object config {
     )
 
   // The list of flags that are enabled by default
-  val flagDefaults: List[String] = List("core", "dev", "tui", "docker-auth")
+  val flagDefaults: List[String] = List("core", "dev", "tui", "docker-auth", "remote_images")
 }
