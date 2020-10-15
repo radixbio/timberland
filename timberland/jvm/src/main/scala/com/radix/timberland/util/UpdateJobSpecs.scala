@@ -1,30 +1,21 @@
 package com.radix.timberland.util
 
-import java.net.URL
-
-import com.radix.timberland.launch.daemonutil
 import cats.effect.{ContextShift, IO}
-import io.circe._
 import io.circe.syntax._
 import io.circe.parser.parse
-import org.http4s.Method.{GET, POST}
-import org.http4s.circe._
+import org.http4s.Method.GET
 import org.http4s.client.Client
-import org.http4s.{EntityEncoder, Header, Headers, Request, Uri}
+import org.http4s.{Header, Headers, Request, Uri}
 import org.http4s.client.blaze.BlazeClientBuilder
 import org.http4s.util.CaseInsensitiveString
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-
-import com.radix.timberland.radixdefs.ServiceAddrs
 import org.apache.commons.compress.utils.IOUtils
 
 import sys.process._
 import java.net.URL
 import java.io.{BufferedInputStream, File, FileInputStream, FileOutputStream}
 
-import org.apache.commons.compress.archivers.{ArchiveInputStream, ArchiveStreamFactory}
-import org.apache.commons.compress.archivers.tar._
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 
@@ -32,12 +23,13 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 import scala.math.Ordering.Implicits._
 
-object UpdateModules {
+object TemplateFiles {
   val config_file = os.root / "opt" / "radix" / "timberland" / "terraform" / "cloud_upload_config.sh"
   val version_file = os.root / "opt" / "radix" / "timberland" / "terraform" / "config_version"
   val module_dir = os.root / "opt" / "radix" / "timberland" / "terraform" / "modules"
-  val foo = module_dir.toString()
+}
 
+object UpdateModules {
   case class CloudModule(orgname: String, modname: String, provider: String, api_token: String)
 
   val ORGNAME = "ORG_NAME=\"(.*)\"".r.unanchored
@@ -46,7 +38,7 @@ object UpdateModules {
   val API_TOKEN = "API_TOKEN=\"(.*)\"".r.unanchored
 
   def parseConfig(prefix: Option[String]): CloudModule = {
-    val lines = os.read(config_file).split('\n')
+    val lines = os.read(TemplateFiles.config_file).split('\n')
 
     def _parse(info: CloudModule, line: String): CloudModule = {
       line match {
@@ -65,15 +57,16 @@ object UpdateModules {
   }
 
   def versionUpToDate(remote_version_string: String): Boolean = {
-    if (!os.exists(version_file)) {
+    if (!os.exists(TemplateFiles.version_file)) {
       false
     } else {
-      val local_version_string = os.read(version_file).stripMargin
+      val local_version_string = os.read(TemplateFiles.version_file).stripMargin
 
       val threeLayerVersion = "([0-9]*)\\.([0-9]*)\\.([0-9]*)".r
       val local_version = local_version_string match {
         case threeLayerVersion(major, minor, build) => (major.toInt, minor.toInt, build.toInt)
-        case _                                      => throw new RuntimeException(s"Invalid version string in $version_file: $local_version_string")
+        case _ =>
+          throw new RuntimeException(s"Invalid version string in ${TemplateFiles.version_file}: $local_version_string")
       }
       val remote_version = remote_version_string match {
         case threeLayerVersion(major, minor, build) => (major.toInt, minor.toInt, build.toInt)
@@ -96,8 +89,6 @@ object UpdateModules {
       uri = Uri.fromString(target_url).toOption.get,
       headers = Headers.of(auth_header)
     )
-
-//    println(s"getLatestVersion $queryReqest")
 
     client
       .expect[String](queryReqest)
@@ -132,14 +123,14 @@ object UpdateModules {
   def swap_module(tarfile: String, backup_dir: os.Path): IO[Boolean] =
     IO({
       println(s"Saving prior terraform templates to ${backup_dir.toString()}")
-      os.move(module_dir, backup_dir)
-      os.makeDir(module_dir)
+      os.move(TemplateFiles.module_dir, backup_dir)
+      os.makeDir(TemplateFiles.module_dir)
 
       def _extFileFromTar(tar: TarArchiveInputStream): Unit = {
         val entry = tar.getNextEntry()
         if (entry == null) println("tar.gz extraction complete.")
         else {
-          val out = new File(module_dir.toString(), entry.getName)
+          val out = new File(TemplateFiles.module_dir.toString(), entry.getName)
           if (entry.isDirectory) {
             print(s"Unpacking subdir ${out.getAbsolutePath}")
             val ret = out.mkdirs()
@@ -169,8 +160,8 @@ object UpdateModules {
   def walkback(module_backup: os.Path): IO[Unit] =
     IO({
       scribe.warn(s"Restoring terraform config from ${module_backup}")
-      os.remove(module_dir)
-      os.move(module_backup, module_dir)
+      os.remove(TemplateFiles.module_dir)
+      os.move(module_backup, TemplateFiles.module_dir)
       println("Errors occurred during update.  Terraform has been restored to previous configuration.")
     })
 
@@ -196,7 +187,7 @@ object UpdateModules {
             swap_successful <- swap_module(tar_file.toString(), module_backup)
             ter_successful <- terraformTask
             _ <- if (downloaded && swap_successful && ter_successful)
-              IO(os.write.over(version_file, version))
+              IO(os.write.over(TemplateFiles.version_file, version))
             else
               walkback(module_backup)
             _ <- IO(os.remove(tar_file))
@@ -208,11 +199,3 @@ object UpdateModules {
     update
   }
 }
-
-//object Test {
-//  def main(args: Array[String]): Unit = {
-//    UpdateModules.run(Map.empty).unsafeRunSync()
-////    UpdateModules.unTar("/home/radix/temp/baz/foobar.tar", "/home/radix/temp/baz")
-////    UpdateModules.swap_module("/home/radix/Downloads/provider_dl_via_firefox.tar", os.root / "home" / "radix" / "temp" / "baz")
-//  }
-//}

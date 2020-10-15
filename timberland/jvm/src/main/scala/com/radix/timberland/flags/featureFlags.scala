@@ -35,7 +35,8 @@ object featureFlags {
   private val flagFile = os.rel / "terraform" / "flags.json"
 
   // A list of flags which don't have any relation to modules
-  private val specialFlags = Set("dev", "google-oauth", "docker-auth", "tui", "remote_images")
+  private val specialFlags =
+    Set("dev", "google-oauth", "docker-auth", "tui", "remote_images", "custom_tag")
 
   // A map from flag name to a list of module names
   private val flagSupersets = Map(

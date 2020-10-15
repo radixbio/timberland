@@ -74,6 +74,7 @@ timberland_core_srcs = [
     "src/main/scala/com/radix/timberland/util/VaultStarter.scala",
     "src/main/scala/com/radix/timberland/util/LogTUI.scala",
     "src/main/scala/com/radix/timberland/util/util.scala",
+    "src/main/scala/com/radix/timberland/util/UpdateJobSpecs.scala",
 ]
 
 timberland_launcher_srcs = [
@@ -98,11 +99,11 @@ scala_library(
 
 scala_library(
     name = "timberland-update-lib",
-    srcs = ["src/main/scala/com/radix/timberland/util/UpdateModules.scala"],
+    srcs = ["src/main/scala/com/radix/timberland/util/UpdateJobSpecs.scala",
+
+    "src/main/scala/com/radix/timberland/defns.scala",],
     exports = [
-        ":timberland-core-lib",
         ":timberland-dependencies",
-        ":timberland-launcher-lib",
         "@third_party//3rdparty/jvm/io/circe:circe_core",
         "@third_party//3rdparty/jvm/io/circe:circe_derivation",
         "@third_party//3rdparty/jvm/io/circe:circe_generic_extras",
@@ -111,9 +112,7 @@ scala_library(
         "@third_party//3rdparty/jvm/org/http4s:http4s_core",
     ],
     deps = [
-        ":timberland-core-lib",
         ":timberland-dependencies",
-        ":timberland-launcher-lib",
         "@third_party//3rdparty/jvm/io/circe:circe_core",
         "@third_party//3rdparty/jvm/io/circe:circe_derivation",
         "@third_party//3rdparty/jvm/io/circe:circe_generic_extras",
@@ -121,12 +120,6 @@ scala_library(
         "@third_party//3rdparty/jvm/org/apache/commons:commons_compress",
         "@third_party//3rdparty/jvm/org/http4s:http4s_core",
     ],
-)
-
-scala_binary(
-    name = "timberland-update-test",
-    main_class = "com.radix.timberland.util.Test",  # TODO for testing only, remove
-    deps = [":timberland-update-lib"],
 )
 
 scala_library(

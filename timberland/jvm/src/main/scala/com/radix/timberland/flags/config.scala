@@ -74,6 +74,16 @@ case object config {
         optional = true,
         default = Some("registry.gitlab.com")
       )
+    ),
+    "custom_tag" -> List(
+      FlagConfigEntry(
+        key = "TAG",
+        isSensitive = false,
+        prompt = "Branch/tag of images to retrieve from Radix repository",
+        optional = true,
+        default = None,
+        terraformVar = Some("custom_tag")
+      )
     )
   )
 

@@ -117,3 +117,9 @@ variable "tls_nomad_key_file" {
   type = string
   default = ""
 }
+
+variable "custom_tag" {
+  description = "Branch name / tag to use when retrieving images from the Gitlab repository"
+  type = string
+  default = "nonspecified"
+}
