@@ -70,6 +70,10 @@ final class Http4sConsulClient[F[_]](
       healthChecksInState(state, datacenter, near, nodeMeta, index, wait)
     case ConsulOp.HealthListNodesForService(service, datacenter, near, nodeMeta, tag, passingOnly, index, wait) =>
       healthNodesForService(service, datacenter, near, nodeMeta, tag, passingOnly, index, wait)
+    case ConsulOp.AddHealthCheckForService(serviceId, hostname, healthCheckId) =>
+      addHealthCheckForService(serviceId, hostname, healthCheckId)
+    case ConsulOp.DeregisterHealthCheck(checkId) =>
+      deregisterHealthCheck(checkId)
     case ConsulOp.AgentRegisterService(service, id, tags, address, port, enableTagOverride, check, checks) =>
       agentRegisterService(service, id, tags, address, port, enableTagOverride, check, checks)
     case ConsulOp.AgentDeregisterService(service) =>
@@ -80,8 +84,8 @@ final class Http4sConsulClient[F[_]](
     case ConsulOp
           .SessionCreate(name, datacenter, lockDelay, node, checks, behavior) =>
       sessionCreate(name, datacenter, lockDelay, node, checks, behavior)
-    case ConsulOp.CatalogListNodesForService(service) =>
-      catalogListNodesForService(service)
+    case ConsulOp.CatalogListNodesForService(service, tag) =>
+      catalogListNodesForService(service, tag)
   }
 
   private def addConsulToken(req: Request[F]): Request[F] =
@@ -347,10 +351,19 @@ final class Http4sConsulClient[F[_]](
     }
   }
 
-  def catalogListNodesForService(service: String): F[List[CatalogListNodesForServiceResponse]] = {
+  def catalogListNodesForService(
+    service: String,
+    tag: Option[String] = None
+  ): F[List[CatalogListNodesForServiceResponse]] = {
     for {
       _ <- F.delay(log.debug(s"fetching service info from catalog for service: $service"))
-      req = addCreds(addConsulToken(Request(uri = (baseUri / "v1" / "catalog" / "service" / service))))
+      req = addCreds(
+        addConsulToken(
+          Request(uri = (baseUri / "v1" / "catalog" / "service" / service)
+            .+??("tag", tag)
+          )
+        )
+      )
       response <- blaze.use { client =>
         client.expectOr[List[CatalogListNodesForServiceResponse]](req)(handleConsulErrorResponse)
       }
@@ -450,6 +463,59 @@ final class Http4sConsulClient[F[_]](
     } yield {
       log.debug(s"health nodes for service response: $response")
       response
+    }
+  }
+
+  /**
+   * Creates JSON payload to add health check to a service
+   * @param id the id of the new health check, must be unique
+   * @param hostname hostname of the http server that accepts health checks
+   * @param serviceId the id of the service to add health check to, this is service instance id (not just service name)
+   * @return json payload to add health check
+   */
+  private def addCheckPayload(id: String, hostname: String, serviceId: String): String = {
+    String.format(
+      s"""
+         |{
+         |  "ID": "${id}",
+         |  "ServiceID": "${serviceId}",
+         |  "Name": "Multitron Health Check",
+         |  "HTTP": "${hostname}",
+         |  "Status": "passing",
+         |  "FailuresBeforeCritical": 3,
+         |  "Method": "GET",
+         |  "Interval": "30s",
+         |  "Timeout": "5s",
+         |  "TLSSkipVerify": true
+         |}""".stripMargin
+    )
+  }
+
+  def addHealthCheckForService(
+    serviceId: String,
+    hostname: String,
+    healthCheckId: String
+  ): F[Unit] = {
+    for {
+      _ <- F.delay(log.debug(s"registering a health check for ${serviceId}"))
+      req <- PUT(addCheckPayload(healthCheckId, hostname, serviceId), baseUri / "v1" / "agent" / "check" / "register")
+        .map(addConsulToken)
+        .map(addCreds)
+      response <- blaze.use(client => client.expectOr[String](req)(handleConsulErrorResponse))
+    } yield {
+      log.debug("")
+    }
+  }
+
+  def deregisterHealthCheck(checkId: String): F[Unit] = {
+    for {
+      _ <- F.delay(log.debug(s"registering a health check for ${checkId}"))
+      req <- PUT("", baseUri / "v1" / "agent" / "check" / "deregister" / checkId)
+        .map(addConsulToken)
+        .map(addCreds)
+      response <- blaze.use(client => client.expectOr[String](req)(handleConsulErrorResponse))
+    } yield {
+      log.debug("")
     }
   }
 

@@ -156,8 +156,8 @@ scala_library(
         ":timberland-update-lib",
         "//utils/helm:helm-jvm",
         "//utils/sheets/jvm/src/main/scala/com/radix/util/sheets:sheets-interps",  #TODO remove this
+        "@third_party//3rdparty/jvm/com/github/tototoshi:scala_csv",
         "@third_party//3rdparty/jvm/com/profesorfalken:jPowerShell",
-        "@third_party//3rdparty/jvm/com/github/tototoshi:scala_csv"
     ],
 )
 
@@ -333,8 +333,10 @@ pkg_tar(
         "//timberland/assets:systemd/nomad.env.conf",
     ] + select({
         "aarch64": ["@nomad_arm//:nomad"],
-        "windows": ["@nomad_win//:nomad.exe",
-        "//timberland/assets:nomad/nomad-windows.hcl"],
+        "windows": [
+            "@nomad_win//:nomad.exe",
+            "//timberland/assets:nomad/nomad-windows.hcl",
+        ],
         "//conditions:default": ["@nomad"],
     }),
     package_dir = "/opt/radix/timberland/nomad",
