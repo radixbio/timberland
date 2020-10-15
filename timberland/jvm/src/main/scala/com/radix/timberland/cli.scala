@@ -20,7 +20,7 @@ case class Start(
   prefix: Option[String] = None,
   username: Option[String] = None,
   password: Option[String] = None,
-  clientMode: Boolean = false
+  serverMode: Boolean = false
 ) extends Local
 
 case object Stop extends Local
@@ -189,14 +189,13 @@ object cli {
 
           optional(
             switch(
-//              metavar("CLIENT"),
-              long("client-mode"),
-              help("Specify whether Nomad/Consul/Vault should operate in Client mode.")
+              long("server-mode"),
+              help("Specify whether Nomad/Consul/Vault should operate in Server mode.")
             )
-          ).map(clientMode => {
+          ).map(serverMode => {
             exist: Start =>
-              clientMode match {
-                case Some(_ @value) => exist.copy(clientMode = value)
+              serverMode match {
+                case Some(_ @value) => exist.copy(serverMode = value)
                 case None           => exist
               }
           }) <*>

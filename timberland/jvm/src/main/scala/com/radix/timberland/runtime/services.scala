@@ -111,6 +111,7 @@ class LinuxServiceControl extends ServiceControl {
 }
 
 class WindowsServiceControl extends ServiceControl {
+  implicit val timer: Timer[IO] = IO.timer(global)
   override def configureConsul(parameters: String): IO[Unit] =
     Util.execArr(
       "sc.exe create consul binpath="
@@ -120,7 +121,7 @@ class WindowsServiceControl extends ServiceControl {
         "sc.exe config consul"
           .split(
             " "
-          ) :+ "DisplayName=" :+ "Consul for Radix Timberland" :+ "binPath=" :+ s"${(RadPath.persistentDir / "consul" / "consul.exe").toString} agent $parameters"
+          ) :+ "DisplayName=" :+ "Consul for Radix Timberland" :+ "binPath=" :+ s"""\"${(RadPath.persistentDir / "consul" / "consul.exe").toString} agent $parameters -log-file ${(RadPath.persistentDir / "consul" / "consul.log").toString}\""""
       ) *> IO.unit
 
   override def appendParametersConsul(parameters: String): IO[Unit] =
@@ -151,7 +152,8 @@ class WindowsServiceControl extends ServiceControl {
 
   def startConsul(): IO[Util.ProcOut] = Util.exec("sc.exe start consul")
 
-  override def startConsulTemplate(): IO[Util.ProcOut] = Util.exec("sc.exe start consul-template")
+  override def startConsulTemplate(): IO[Util.ProcOut] =
+    Util.exec("sc.exe start consul-template") *> refreshConsul *> restartNomad
 
   override def refreshConsul()(implicit timer: Timer[IO]): IO[Util.ProcOut] =
     for {
@@ -215,7 +217,7 @@ object Services {
     leaderNodeO: Option[String],
     bootstrapExpect: Int,
     setupACL: Boolean,
-    clientJoin: Boolean
+    serverJoin: Boolean
   ): IO[AuthTokens] =
     for {
       // find local IP for default route
@@ -242,7 +244,7 @@ object Services {
       hasPartiallyBootstrapped <- IO(os.exists(intermediateAclTokenFile))
       consulToken <- makeOrGetIntermediateToken
       persistentDir = consulwd / os.up
-      serverJoin = (leaderNodeO.isDefined && !clientJoin)
+      clientJoin = (leaderNodeO.isDefined && !serverJoin)
       remoteJoin = clientJoin | serverJoin
       _ <- if (setupACL) auth.writeTokenConfigs(persistentDir, consulToken) else IO.unit
       _ <- IO {
@@ -272,7 +274,7 @@ object Services {
       else IO.unit
       _ <- serviceController.refreshConsul()
       _ <- if (!remoteJoin) serviceController.refreshVault() else IO.unit
-      _ <- setupNomad(finalBindAddr, leaderNodeO, bootstrapExpect, vaultToken, clientJoin)
+      _ <- setupNomad(finalBindAddr, leaderNodeO, bootstrapExpect, vaultToken, serverJoin)
       consulNomadToken <- if (setupACL & !remoteJoin) {
         auth.setupNomadMasterToken(persistentDir, consulToken)
       } else if (setupACL & remoteJoin)
@@ -313,11 +315,12 @@ object Services {
     bindAddr: String,
     leaderNodeO: Option[String],
     bootstrapExpect: Int,
-    clientJoin: Boolean = false
+    serverJoin: Boolean = false
   ): IO[Unit] = {
     val persistentDir = RadPath.runtime / "timberland"
-    val baseArgs = s"-bind=$bindAddr -config-dir=${(persistentDir / "consul" / "config").toString}"
-    val serverJoin = leaderNodeO.isDefined && !clientJoin
+    val baseArgs =
+      s"""-bind=$bindAddr -advertise=$bindAddr -client=\\\"127.0.0.1 $bindAddr\\\" -config-dir=${(persistentDir / "consul" / "config").toString}"""
+    val clientJoin = leaderNodeO.isDefined && !serverJoin
     val remoteJoin = clientJoin | serverJoin
 
     val baseArgsWithSeeds = leaderNodeO match {
@@ -373,10 +376,9 @@ object Services {
     leaderNodeO: Option[String],
     bootstrapExpect: Int,
     vaultToken: String,
-    clientJoin: Boolean = false
+    serverJoin: Boolean = false
   ): IO[Unit] = {
-    val persistentDir = RadPath.runtime / "timberland"
-    val serverJoin = leaderNodeO.isDefined
+    val clientJoin = leaderNodeO.isDefined & !serverJoin
     val baseArgs = (clientJoin, serverJoin) match {
       case (false, false) => s"-bootstrap-expect=$bootstrapExpect -server"
       case (true, _)      => "-consul-client-auto-join"

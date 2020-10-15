@@ -81,7 +81,7 @@ object runner {
                       prefix,
                       username,
                       password,
-                      clientJoin
+                      serverJoin
                     ) => {
                   scribe.Logger.root
                     .clearHandlers()
@@ -138,7 +138,7 @@ object runner {
                         leaderNode,
                         bootstrapExpect,
                         setupACL,
-                        clientJoin
+                        serverJoin
                       )
                       _ <- Util.waitForDNS("vault.service.consul", 30.seconds)
                     } yield tokens
@@ -175,7 +175,7 @@ object runner {
                     hasBootstrapped <- IO(os.exists(persistentDir / ".bootstrap-complete"))
                     isConsulUp <- Util.isPortUp(8501)
                     defaultServiceAddrs = ServiceAddrs()
-                    serverJoin = (leaderNode.isDefined && !clientJoin)
+                    clientJoin = (leaderNode.isDefined && !serverJoin)
                     remoteJoin = clientJoin | serverJoin
                     windowsCheck = if (osname == "windows" & !remoteJoin)
                       throw new UnsupportedOperationException(

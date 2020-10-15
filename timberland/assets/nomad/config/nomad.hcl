@@ -86,7 +86,3 @@ tls {
   verify_server_hostname = true
   verify_https_client    = false
 }
-
-advertise {
-  http = "{{if GetAllInterfaces | include \"name\" \"srv0\"}}{{GetAllInterfaces | include \"name\" \"srv0\" | limit 1 | attr \"address\"}}{{else}}{{GetPrivateIP}}{{end}}"
-}
