@@ -1,6 +1,6 @@
 package com.radix.timberland.util
 
-import java.io.{File, FileInputStream, FileOutputStream, IOException}
+import java.io.{File, FileInputStream, FileNotFoundException, FileOutputStream, IOException}
 import java.net.{InetAddress, NetworkInterface, ServerSocket, UnknownHostException}
 
 import ammonite.ops._
@@ -11,7 +11,6 @@ import org.http4s.Header
 import org.http4s.Method._
 import org.http4s.client.dsl.io._
 import org.http4s.implicits._
-import oshi.SystemInfo
 
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -260,22 +259,35 @@ object Util {
 }
 
 object RadPath {
-  val osname = new SystemInfo().getOperatingSystem().getFamily()
 
-  def runtime: os.Path = {
-    osname match {
-      case "Windows" =>
-        os.root / "opt" / "radix" // "os.root" evaluates to "C:\" on windows machines (using C:\opt\radix for now..)
-      case _ => os.root / "opt" / "radix" // This should work on all non-windows machines, right?
-    }
+  val osname = System.getProperty("os.name") match {
+    case mac if mac.toLowerCase.contains("mac")             => "darwin"
+    case linux if linux.toLowerCase.contains("linux")       => "linux"
+    case windows if windows.toLowerCase.contains("windows") => "windows"
   }
+  // "os.root" evaluates to "C:\" on windows machines, "/" on *nix
+  // we use C:\opt\radix\ for installing timberland at this point.
+  // this can be a match statement again if necessary
+  def runtime: os.Path = os.root / "opt" / "radix"
 
   def temp: os.Path = {
     osname match {
-      case "Windows" => os.home / "AppData" / "Local" / "Temp" / "Radix" // When in Rome, etc.
+      case "windows" => os.home / "AppData" / "Local" / "Temp" / "Radix" // When in Rome, etc.
       case _         => os.root / "tmp" / "radix"
     }
   }
-
+  val fileExtension = osname match {
+    case "windows" => ".exe"
+    case _         => ""
+  }
   val persistentDir: os.Path = runtime / "timberland"
+  val nomadExec: os.Path = persistentDir / "nomad" / s"nomad$fileExtension"
+  val consulExec: os.Path = persistentDir / "consul" / s"consul$fileExtension"
+  val consulTemplateExec: os.Path = persistentDir / "consul-template" / s"consul-template$fileExtension"
+  if (!os.exists(consulExec)) {
+    throw new FileNotFoundException(s"Could not find ${consulExec.toString()}")
+  }
+  if (!os.exists(nomadExec)) {
+    throw new FileNotFoundException(s"Could not find ${nomadExec.toString()}")
+  }
 }

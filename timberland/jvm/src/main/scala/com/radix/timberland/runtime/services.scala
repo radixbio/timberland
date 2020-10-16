@@ -211,8 +211,6 @@ object Services {
    * @return a started consul and nomad
    */
   def startServices(
-    consulwd: os.Path,
-    nomadwd: os.Path,
     bindAddr: Option[String],
     leaderNodeO: Option[String],
     bootstrapExpect: Int,
@@ -243,17 +241,16 @@ object Services {
       intermediateAclTokenFile = RadPath.runtime / "timberland" / ".intermediate-acl-token"
       hasPartiallyBootstrapped <- IO(os.exists(intermediateAclTokenFile))
       consulToken <- makeOrGetIntermediateToken
-      persistentDir = consulwd / os.up
       clientJoin = (leaderNodeO.isDefined && !serverJoin)
       remoteJoin = clientJoin | serverJoin
-      _ <- if (setupACL) auth.writeTokenConfigs(persistentDir, consulToken) else IO.unit
+      _ <- if (setupACL) auth.writeTokenConfigs(RadPath.persistentDir, consulToken) else IO.unit
       _ <- IO {
         consulTemplateReplacementCerts.foreach { certBakPath =>
           if (os.exists(certBakPath)) os.remove(certBakPath)
         }
       }
       _ <- setupConsul(finalBindAddr, leaderNodeO, bootstrapExpect, clientJoin)
-      _ <- if (setupACL) auth.setupDefaultConsulToken(persistentDir, consulToken) else IO.unit
+      _ <- if (setupACL) auth.setupDefaultConsulToken(RadPath.persistentDir, consulToken) else IO.unit
       _ <- if (!remoteJoin) for {
         _ <- startVault(finalBindAddr)
         _ <- (new VaultStarter).initializeAndUnsealAndSetupVault(setupACL)
@@ -276,7 +273,7 @@ object Services {
       _ <- if (!remoteJoin) serviceController.refreshVault() else IO.unit
       _ <- setupNomad(finalBindAddr, leaderNodeO, bootstrapExpect, vaultToken, serverJoin)
       consulNomadToken <- if (setupACL & !remoteJoin) {
-        auth.setupNomadMasterToken(persistentDir, consulToken)
+        auth.setupNomadMasterToken(RadPath.persistentDir, consulToken)
       } else if (setupACL & remoteJoin)
         IO(consulToken)
       else {
@@ -285,7 +282,7 @@ object Services {
       _ <- if (!remoteJoin) auth.storeMasterToken(consulNomadToken) else IO.unit
       _ <- if (serverJoin) serviceController.appendParametersConsul("-server") // add -server to consul invocation
       else IO.unit
-      _ <- IO(os.write.over(persistentDir / ".bootstrap-complete", "\n"))
+      _ <- IO(os.write.over(RadPath.persistentDir / ".bootstrap-complete", "\n"))
       _ <- IO(if (os.exists(intermediateAclTokenFile)) {
         val intermediateFile = new File(intermediateAclTokenFile.toString())
         intermediateFile.setWritable(true, true)
@@ -317,9 +314,8 @@ object Services {
     bootstrapExpect: Int,
     serverJoin: Boolean = false
   ): IO[Unit] = {
-    val persistentDir = RadPath.runtime / "timberland"
     val baseArgs =
-      s"""-bind=$bindAddr -advertise=$bindAddr -client=\\\"127.0.0.1 $bindAddr\\\" -config-dir=${(persistentDir / "consul" / "config").toString}"""
+      s"""-bind=$bindAddr -advertise=$bindAddr -client=\\\"127.0.0.1 $bindAddr\\\" -config-dir=${(RadPath.persistentDir / "consul" / "config").toString}"""
     val clientJoin = leaderNodeO.isDefined && !serverJoin
     val remoteJoin = clientJoin | serverJoin
 
@@ -350,7 +346,7 @@ object Services {
           _ <- IO(os.copy.over(consulDir / "consul-server-bootstrap.json", consulConfigDir / "consul.json"))
           _ <- serviceController.restartConsul()
           _ <- Util.waitForPortUp(8500, 10.seconds)
-          _ <- makeTempCerts(persistentDir)
+          _ <- makeTempCerts(RadPath.persistentDir)
           _ <- IO(os.copy.over(consulDir / "consul-server.json", consulConfigDir / "consul.json"))
           _ <- serviceController.restartConsul()
           _ <- IO(LogTUI.event(ConsulSystemdUp))
@@ -364,7 +360,7 @@ object Services {
           _ <- serviceController.restartConsul()
           _ <- Util.waitForPortUp(8500, 10.seconds)
           _ <- Util.waitForPortUp(8501, 10.seconds)
-          _ <- makeTempCerts(persistentDir)
+          _ <- makeTempCerts(RadPath.persistentDir)
           _ <- IO(LogTUI.event(ConsulSystemdUp))
         } yield ()
     }
@@ -406,14 +402,13 @@ object Services {
   }
 
   def startVault(bindAddr: String): IO[Unit] = {
-    val persistentDir = RadPath.runtime / "timberland"
     val args: String =
-      s"""VAULT_CMD_ARGS=-address=https://${bindAddr}:8200 -config=$persistentDir/vault/vault_config.conf""".stripMargin
+      s"""VAULT_CMD_ARGS=-address=https://${bindAddr}:8200 -config=${RadPath.persistentDir}/vault/vault_config.conf""".stripMargin
     for {
       _ <- IO {
         LogTUI.event(VaultStarting)
         LogTUI.writeLog("spawning vault via systemd")
-        os.write.over(persistentDir / "vault" / "vault.env.conf", args)
+        os.write.over(RadPath.persistentDir / "vault" / "vault.env.conf", args)
       }
       restartProc <- serviceController.restartVault()
       _ <- Util.waitForPortUp(8200, 30.seconds)

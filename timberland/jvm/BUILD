@@ -37,7 +37,6 @@ scala_library(
     exports = [
         "//shared/shared/shared/shared:shared-shared",
         "//utils/helm:helm-jvm",
-        "@third_party//3rdparty/jvm/com/github/oshi:oshi_core",
         "@third_party//3rdparty/jvm/com/github/xuwei_k:optparse_applicative",
         "@third_party//3rdparty/jvm/com/lihaoyi:ammonite_ops",
         "@third_party//3rdparty/jvm/com/outr:scribe",
@@ -48,7 +47,6 @@ scala_library(
     deps = [
         "//shared/shared/shared/shared:shared-shared",
         "//utils/helm:helm-jvm",
-        "@third_party//3rdparty/jvm/com/github/oshi:oshi_core",
         "@third_party//3rdparty/jvm/com/github/xuwei_k:optparse_applicative",
         "@third_party//3rdparty/jvm/com/lihaoyi:ammonite_ops",
         "@third_party//3rdparty/jvm/com/outr:scribe",

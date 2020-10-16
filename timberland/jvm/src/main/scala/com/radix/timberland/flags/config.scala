@@ -3,6 +3,7 @@ package com.radix.timberland.flags
 import cats.effect.IO
 import com.radix.timberland.launch.daemonutil
 import com.radix.timberland.radixdefs.ServiceAddrs
+import com.radix.timberland.util.RadPath
 
 case object config {
 
@@ -91,9 +92,24 @@ case object config {
   val flagConfigHooks: Map[String, List[(Map[String, Option[String]], ServiceAddrs) => IO[Unit]]] =
     Map(
       "google-oauth" -> List((new OauthConfig).handler),
-      "docker-auth" -> List(daemonutil.handleRegistryAuth)
+      "docker-auth" -> List(daemonutil.handleRegistryAuth),
+      "minio" -> List((_, _) =>
+        for {
+          _ <- IO.pure()
+          minioFolders = List(
+            RadPath.persistentDir / "nginx",
+            RadPath.persistentDir / "minio_data",
+            RadPath.persistentDir / "minio_data" / "userdata"
+          )
+          _ <- IO(minioFolders.map(path => os.makeDir.all(path)))
+        } yield ()
+      ),
+      "ensure-supported" -> List((_, _) => daemonutil.ensureSupported())
     )
 
-  // The list of flags that are enabled by default
-  val flagDefaults: List[String] = List("core", "dev", "tui", "docker-auth", "remote_images")
+  // The list of flags that are enabled by default - "tui" only enabled by default on linux/amd64
+  val flagDefaults
+    : List[String] = (List("ensure-supported", "core", "dev", "docker-auth", "remote_images") ++ (if (daemonutil.osname == "linux" & daemonutil.arch == "amd64")
+                                                                                                    List("tui")
+                                                                                                  else List()))
 }

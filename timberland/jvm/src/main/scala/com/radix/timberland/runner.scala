@@ -15,7 +15,6 @@ import io.circe.{Parser => _}
 import optparse_applicative._
 import org.http4s.implicits._
 import com.radix.utils.tls.ConsulVaultSSLContext._
-import jdk.jshell.spi.ExecutionControl.NotImplementedException
 import scalaz.syntax.apply._
 
 import scala.concurrent.ExecutionContext.global
@@ -41,30 +40,6 @@ object runner {
   }
 
   def main(args: Array[String]): Unit = {
-    val osname = System.getProperty("os.name") match {
-      case mac if mac.toLowerCase.contains("mac")             => "darwin"
-      case linux if linux.toLowerCase.contains("linux")       => "linux"
-      case windows if windows.toLowerCase.contains("windows") => "windows"
-    }
-    val arch = System.getProperty("os.arch") match {
-      case x86 if x86.toLowerCase.contains("amd64") || x86.toLowerCase.contains("x86") => "amd64"
-      case _                                                                           => "arm"
-    }
-
-    val persistentDir = RadPath.runtime / "timberland"
-
-    val consul = persistentDir / "consul" / "consul"
-    val nomad = persistentDir / "nomad" / "nomad"
-    val vault = persistentDir / "vault" / "vault"
-    val nginx = persistentDir / "nginx"
-    os.makeDir.all(nginx)
-    val minio = persistentDir / "minio_data"
-    os.makeDir.all(minio)
-    val minio_bucket = minio / "userdata"
-    os.makeDir.all(minio_bucket)
-    os.makeDir.all(nomad / os.up)
-    os.makeDir.all(consul / os.up)
-    os.makeDir.all(vault / os.up)
 
     def cmdEval(cmd: RadixCMD): Unit = {
       cmd match {
@@ -93,7 +68,7 @@ object runner {
                   import ammonite.ops._
                   System.setProperty("dns.server", remoteAddress.getOrElse("127.0.0.1"))
 
-                  val createWeaveNetwork = if (osname != "windows") for {
+                  val createWeaveNetwork = if (daemonutil.osname != "windows") for {
                     _ <- IO(scribe.info("Creating weave network"))
                     _ <- IO(os.proc("/usr/bin/sudo /sbin/sysctl -w vm.max_map_count=262144".split(' ')).spawn())
                     pluginList <- IO(
@@ -119,30 +94,15 @@ object runner {
                   def startServices(setupACL: Boolean) =
                     for {
                       _ <- IO(scribe.info("Launching daemons"))
-                      localFlags <- featureFlags.getLocalFlags(persistentDir)
+                      localFlags <- featureFlags.getLocalFlags(RadPath.persistentDir)
                       // Starts LogTUI before `startLogTuiAndRunTerraform` is called
-                      // only logtui on linux amd64
-                      _ <- if (localFlags.getOrElse("tui", true) & System.getProperty("os.arch") == "amd64" & System
-                                 .getProperty("os.name")
-                                 .toLowerCase
-                                 .contains("linux"))
-                        LogTUI.startTUI()
-                      else IO.unit
-                      consulPath = consul / os.up
-                      nomadPath = nomad / os.up
+                      _ <- if (localFlags.getOrElse("tui", true)) LogTUI.startTUI() else IO.unit
                       bootstrapExpect = if (localFlags.getOrElse("dev", true)) 1 else 3
-                      tokens <- Services.startServices(
-                        consulPath,
-                        nomadPath,
-                        bindIP,
-                        leaderNode,
-                        bootstrapExpect,
-                        setupACL,
-                        serverJoin
-                      )
+                      tokens <- Services.startServices(bindIP, leaderNode, bootstrapExpect, setupACL, serverJoin)
                       _ <- Util.waitForDNS("vault.service.consul", 30.seconds)
                     } yield tokens
 
+                  // only run on leader node, or with a remote address as a target
                   def startLogTuiAndRunTerraform(
                     featureFlags: Map[String, Boolean],
                     serviceAddrs: ServiceAddrs,
@@ -168,16 +128,16 @@ object runner {
                   // Called when consul/nomad/vault are on localhost
                   val localBootstrap = for {
                     _ <- IO(
-                      if (!os.exists(persistentDir / "consul" / "config"))
-                        os.makeDir(persistentDir / "consul" / "config")
+                      if (!os.exists(RadPath.consulExec / os.up / "config"))
+                        os.makeDir(RadPath.consulExec / os.up / "config")
                       else ()
                     )
-                    hasBootstrapped <- IO(os.exists(persistentDir / ".bootstrap-complete"))
+                    hasBootstrapped <- IO(os.exists(RadPath.persistentDir / ".bootstrap-complete"))
                     isConsulUp <- Util.isPortUp(8501)
                     defaultServiceAddrs = ServiceAddrs()
                     clientJoin = (leaderNode.isDefined && !serverJoin)
                     remoteJoin = clientJoin | serverJoin
-                    windowsCheck = if (osname == "windows" & !remoteJoin)
+                    windowsCheck = if (daemonutil.osname == "windows" & !remoteJoin)
                       throw new UnsupportedOperationException(
                         "Windows only supports joining, you must pass a leader node."
                       )
@@ -188,7 +148,7 @@ object runner {
                       case (true, false, false) =>
                         startServices(setupACL = false)
                       case (false, _, false) =>
-                        flagConfig.promptForDefaultConfigs(persistentDir = persistentDir) *>
+                        flagConfig.promptForDefaultConfigs(persistentDir = RadPath.persistentDir) *>
                           createWeaveNetwork *> startServices(setupACL = true)
                       case (false, _, true) =>
                         for {
@@ -199,7 +159,7 @@ object runner {
                           })
                           authTokens <- auth.getAuthTokens(isRemote = true, serviceAddrs, username, password)
                           storeIntermediateToken <- auth.storeIntermediateToken(authTokens.consulNomadToken)
-                          storeTokens <- auth.writeTokenConfigs(persistentDir, authTokens.consulNomadToken)
+                          storeTokens <- auth.writeTokenConfigs(RadPath.persistentDir, authTokens.consulNomadToken)
                           storeVaultToken <- IO((new VaultUtils).storeVaultTokenKey("", authTokens.vaultToken))
                           stillAuthTokens <- startServices(setupACL = true)
                         } yield authTokens
@@ -211,13 +171,13 @@ object runner {
                             case None              => defaultServiceAddrs
                           })
                           authTokens <- auth.getAuthTokens(isRemote = true, serviceAddrs, username, password)
-                          storeTokens <- auth.writeTokenConfigs(persistentDir, authTokens.consulNomadToken)
+                          storeTokens <- auth.writeTokenConfigs(RadPath.persistentDir, authTokens.consulNomadToken)
                           storeVaultToken <- IO((new VaultUtils).storeVaultTokenKey("", authTokens.vaultToken))
                         } yield authTokens
                     }
                     // flags already written to consul by leader (first node)
                     featureFlags <- if (!remoteJoin) for {
-                      featureFlags <- featureFlags.updateFlags(persistentDir, Some(authTokens), confirm = true)(
+                      featureFlags <- featureFlags.updateFlags(RadPath.persistentDir, Some(authTokens), confirm = true)(
                         defaultServiceAddrs
                       )
                       _ <- startLogTuiAndRunTerraform(
@@ -234,7 +194,7 @@ object runner {
                   val remoteBootstrap = for {
                     serviceAddrs <- daemonutil.getServiceIps()
                     authTokens <- auth.getAuthTokens(isRemote = true, serviceAddrs, username, password)
-                    featureFlags <- featureFlags.updateFlags(persistentDir, Some(authTokens))(serviceAddrs)
+                    featureFlags <- featureFlags.updateFlags(RadPath.persistentDir, Some(authTokens))(serviceAddrs)
                     _ <- startLogTuiAndRunTerraform(featureFlags, serviceAddrs, authTokens, waitForQuorum = false)
                   } yield ()
                   val bootstrapIO = if (remoteAddress.isDefined) remoteBootstrap else localBootstrap
@@ -262,7 +222,7 @@ object runner {
                       username,
                       password
                     )
-                    flagMap <- featureFlags.updateFlags(persistentDir, Some(authTokens))(serviceAddrs)
+                    flagMap <- featureFlags.updateFlags(RadPath.persistentDir, Some(authTokens))(serviceAddrs)
                     _ <- daemonutil.runTerraform(flagMap)(serviceAddrs, authTokens) // calls updateFlagConfig
                     _ <- if (remoteAddress.isEmpty) daemonutil.waitForQuorum(flagMap) else IO.unit
                   } yield true
@@ -299,7 +259,7 @@ object runner {
                 serviceAddrs <- if (remoteAddress.isDefined) daemonutil.getServiceIps() else IO.pure(ServiceAddrs())
                 authTokens <- auth.getAuthTokens(isRemote = remoteAddress.isDefined, serviceAddrs, username, password)
                 flagMap <- featureFlags.updateFlags(
-                  persistentDir,
+                  RadPath.persistentDir,
                   Some(authTokens),
                   flagsToSet,
                   confirm = remoteAddress.isDefined
@@ -309,12 +269,12 @@ object runner {
               } yield ()
 
               val noConsulProc = for {
-                flagMap <- featureFlags.updateFlags(persistentDir, None, flagsToSet)
-                _ <- flagConfig.updateFlagConfig(flagMap)(persistentDir = persistentDir)
+                flagMap <- featureFlags.updateFlags(RadPath.persistentDir, None, flagsToSet)
+                _ <- flagConfig.updateFlagConfig(flagMap)(persistentDir = RadPath.persistentDir)
                 _ <- IO(scribe.warn("Could not connect to remote consul instance. Flags stored locally."))
               } yield ()
 
-              IO(os.exists(persistentDir / ".bootstrap-complete"))
+              IO(os.exists(RadPath.persistentDir / ".bootstrap-complete"))
                 .flatMap {
                   case true  => consulExistsProc
                   case false => noConsulProc
@@ -329,13 +289,13 @@ object runner {
                 authTokens <- if (consulIsUp) {
                   auth.getAuthTokens(isRemote = remoteAddress.isDefined, serviceAddrs, username, password).map(Some(_))
                 } else IO.pure(None)
-                _ <- featureFlags.printFlagInfo(persistentDir, consulIsUp, serviceAddrs, authTokens)
+                _ <- featureFlags.printFlagInfo(RadPath.persistentDir, consulIsUp, serviceAddrs, authTokens)
               } yield ()
               io.unsafeRunSync()
               sys.exit(0)
 
             case AddUser(name, policies) =>
-              if (!os.exists(persistentDir / ".bootstrap-complete")) {
+              if (!os.exists(RadPath.persistentDir / ".bootstrap-complete")) {
                 Console.err.println("Please run timberland runtime start before adding a new user")
                 sys.exit(1)
               }
