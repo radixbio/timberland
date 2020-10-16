@@ -206,12 +206,15 @@ pkg_tar(
     name = "timberland-vault",
     srcs = [
                "//timberland/assets:systemd/vault.env.conf",
+               "//timberland/assets:vault/read-certs-policy.hcl",
                "//timberland/assets:vault/read-consul-ui-policy.hcl",
                "//timberland/assets:vault/read-flag-config-policy.hcl",
                "//timberland/assets:vault/remote-access-policy.hcl",
                "//timberland/assets:vault/tls-cert-policy.hcl",
                "//timberland/assets:vault/tls-cert-role.json",
                "//timberland/assets:vault/vault_config.conf",
+               #               "@vault",
+               #               "@vault-plugin-secrets-oauthapp",
            ] + select({
                "aarch64": ["@vault_arm//:vault"],
                "windows": ["@vault_win//:vault.exe"],

@@ -29,6 +29,7 @@ exports_files([
     "vault/nomad-cluster-role.json",
     "vault/nomad-server-policy.hcl",
     "vault/read-consul-ui-policy.hcl",
+    "vault/read-certs-policy.hcl",
     "vault/read-flag-config-policy.hcl",
     "vault/remote-access-policy.hcl",
     "vault/vault_config.conf",

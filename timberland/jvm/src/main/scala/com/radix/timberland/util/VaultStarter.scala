@@ -274,7 +274,7 @@ class VaultUtils {
           env = env
         )
 
-      List("tls-cert", "remote-access", "read-flag-config", "read-consul-ui").map(policy =>
+      List("tls-cert", "remote-access", "read-flag-config", "read-consul-ui", "read-certs").map(policy =>
         Util
           .proc(
             vault,
