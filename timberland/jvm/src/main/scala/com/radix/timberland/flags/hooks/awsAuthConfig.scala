@@ -18,7 +18,7 @@ object awsAuthConfig extends FlagHook {
   val configFile = RadPath.runtime / "terraform" / ".aws-creds"
 
   override def run(options: Map[String, Option[String]], addrs: ServiceAddrs): IO[Unit] =
-    makeMinioDirs *> writeAuthConfig(options, addrs)
+    writeAuthConfig(options, addrs)
 
   private def writeAuthConfig(options: Map[String, Option[String]], addrs: ServiceAddrs): IO[Unit] =
     (options.get("aws_access_key_id").flatten, options.get("aws_secret_access_key").flatten) match {
@@ -35,12 +35,4 @@ object awsAuthConfig extends FlagHook {
       case _ => IO.unit
     }
 
-  private def makeMinioDirs: IO[Unit] = {
-    val minioFolders = List(
-      RadPath.persistentDir / "nginx",
-      RadPath.persistentDir / "minio_data",
-      RadPath.persistentDir / "minio_data" / "userdata"
-    )
-    IO(minioFolders.map(path => os.makeDir.all(path)))
-  }
 }

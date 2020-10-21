@@ -43,6 +43,11 @@ scala_library(
         "@third_party//3rdparty/jvm/dnsjava",
         "@third_party//3rdparty/jvm/org/fusesource/jansi",
         "@third_party//3rdparty/jvm/org/scala_lang/modules:scala_parser_combinators",
+        "@third_party//3rdparty/jvm/io/circe:circe_core",
+        "@third_party//3rdparty/jvm/io/circe:circe_derivation",
+        "@third_party//3rdparty/jvm/io/circe:circe_generic_extras",
+        "@third_party//3rdparty/jvm/io/circe:circe_literal",
+        "@third_party//3rdparty/jvm/io/circe:circe_optics",
     ],
     deps = [
         "//shared/shared/shared/shared:shared-shared",
@@ -53,6 +58,10 @@ scala_library(
         "@third_party//3rdparty/jvm/org/fusesource/jansi",
         "@third_party//3rdparty/jvm/org/scala_lang/modules:scala_parser_combinators",
         "@third_party//3rdparty/jvm/org/slf4j:slf4j_nop",
+        "@third_party//3rdparty/jvm/io/circe:circe_core",
+        "@third_party//3rdparty/jvm/io/circe:circe_derivation",
+        "@third_party//3rdparty/jvm/io/circe:circe_generic_extras",
+        "@third_party//3rdparty/jvm/io/circe:circe_optics",
     ],
 )
 
@@ -108,19 +117,11 @@ scala_library(
     ],
     exports = [
         ":timberland-dependencies",
-        "@third_party//3rdparty/jvm/io/circe:circe_core",
-        "@third_party//3rdparty/jvm/io/circe:circe_derivation",
-        "@third_party//3rdparty/jvm/io/circe:circe_generic_extras",
-        "@third_party//3rdparty/jvm/io/circe:circe_literal",
         "@third_party//3rdparty/jvm/org/apache/commons:commons_compress",
         "@third_party//3rdparty/jvm/org/http4s:http4s_core",
     ],
     deps = [
         ":timberland-dependencies",
-        "@third_party//3rdparty/jvm/io/circe:circe_core",
-        "@third_party//3rdparty/jvm/io/circe:circe_derivation",
-        "@third_party//3rdparty/jvm/io/circe:circe_generic_extras",
-        "@third_party//3rdparty/jvm/io/circe:circe_literal",
         "@third_party//3rdparty/jvm/org/apache/commons:commons_compress",
         "@third_party//3rdparty/jvm/org/http4s:http4s_core",
     ],

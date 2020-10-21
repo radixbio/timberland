@@ -1,6 +1,6 @@
 package com.radix.timberland.flags
 
-import com.radix.timberland.flags.hooks.{FlagHook, awsAuthConfig, dockerAuthConfig, ensureSupported, oauthConfig}
+import com.radix.timberland.flags.hooks.{awsAuthConfig, dockerAuthConfig, ensureSupported, oauthConfig, FlagHook}
 import cats.effect.IO
 import com.radix.timberland.launch.daemonutil
 import com.radix.timberland.radixdefs.ServiceAddrs
@@ -104,7 +104,7 @@ case object config {
       "google-oauth" -> oauthConfig,
       "docker-auth" -> dockerAuthConfig,
       "minio" -> awsAuthConfig,
-      "ensure-supported" -> ensureSupported,
+      "ensure-supported" -> ensureSupported
     )
 
   // The list of flags that are enabled by default - "tui" only enabled by default on linux/amd64

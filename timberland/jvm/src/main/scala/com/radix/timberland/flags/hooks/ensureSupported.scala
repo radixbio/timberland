@@ -26,20 +26,18 @@ object ensureSupported extends FlagHook {
     } else {
       IO.unit
     },
-
     // ensure 64b
     if (!List("amd64", "x86", "aarch64").contains(arch)) {
       IO.raiseError(new RuntimeException("aarch64 and amd64 are the only supported CPU architectures."))
     } else {
       IO.unit
     },
-
     // ensure win10
     if (osname.contains("windows") && !System.getProperty("os.name").endsWith("10")) {
       IO.raiseError(new RuntimeException("Windows 10 is the only supported Windows version."))
     } else {
       IO.unit
-    },
+    }
   )
 
   override def run(options: Map[String, Option[String]], addrs: ServiceAddrs): IO[Unit] = checks.sequence.map(_ => ())

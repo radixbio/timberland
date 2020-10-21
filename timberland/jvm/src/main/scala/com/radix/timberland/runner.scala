@@ -68,6 +68,8 @@ object runner {
 
                   import ammonite.ops._
                   System.setProperty("dns.server", remoteAddress.getOrElse("127.0.0.1"))
+                  // disable DNS cache
+                  System.setProperty("networkaddress.cache.ttl", "0")
 
                   val createWeaveNetwork = if (ensureSupported.osname != "windows") for {
                     _ <- IO(scribe.info("Creating weave network"))
