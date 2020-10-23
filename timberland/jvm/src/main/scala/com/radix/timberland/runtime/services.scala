@@ -125,7 +125,7 @@ class WindowsServiceControl extends ServiceControl {
         "sc.exe config consul"
           .split(
             " "
-          ) :+ "DisplayName=" :+ "Consul for Radix Timberland" :+ "binPath=" :+ s"""\"${(RadPath.persistentDir / "consul" / "consul.exe").toString} agent $parameters -log-file ${(RadPath.persistentDir / "consul" / "consul.log").toString}\""""
+          ) :+ "DisplayName=" :+ "Radix: Consul for Timberland" :+ "binPath=" :+ s"""\"${(RadPath.persistentDir / "consul" / "consul.exe").toString} agent $parameters -log-file ${(RadPath.persistentDir / "consul" / "consul.log").toString}\""""
       ) *> IO.unit
 
   override def appendParametersConsul(parameters: String): IO[Unit] =
@@ -146,24 +146,30 @@ class WindowsServiceControl extends ServiceControl {
         "sc.exe config consul-template"
           .split(
             " "
-          ) :+ "DisplayName=" :+ "Consul-Template for Radix Timberland" :+ "binPath=" :+ s"${(RadPath.persistentDir / "consul-template" / "consul-template.exe").toString} -config=${(RadPath.persistentDir / "consul-template" / "config-windows.hcl")
+          ) :+ "DisplayName=" :+ "Radix: Consul-Template for Timberland" :+ "binPath=" :+ s"${(RadPath.persistentDir / "consul-template" / "consul-template.exe").toString} -config=${(RadPath.persistentDir / "consul-template" / "config-windows.hcl")
           .toString()} -vault-token=$vaultToken -consul-token=$consulToken"
       ) *> IO.unit
 
   override def restartConsul(): IO[Util.ProcOut] = stopConsul *> startConsul
 
-  override def stopConsul(): IO[Util.ProcOut] = Util.exec("sc.exe stop consul")
+  override def stopConsul(): IO[Util.ProcOut] = Util.exec("sc.exe stop consul") *> flushDNS
 
-  def startConsul(): IO[Util.ProcOut] = Util.exec("sc.exe start consul")
+  def startConsul(): IO[Util.ProcOut] = flushDNS *> Util.exec("sc.exe start consul")
 
   override def startConsulTemplate(): IO[Util.ProcOut] =
-    Util.exec("sc.exe start consul-template") *> refreshConsul *> restartNomad
+    flushDNS *>
+      Util.exec("sc.exe start consul-template") *> refreshConsul
+
+  def flushDNS(): IO[Util.ProcOut] = Util.exec("ipconfig.exe /flushdns")
 
   override def refreshConsul()(implicit timer: Timer[IO]): IO[Util.ProcOut] =
     for {
       _ <- stopConsul()
+      _ <- IO.sleep(5.seconds)
+      _ <- flushDNS
       procOut <- startConsul()
       _ <- IO.sleep(5.seconds)
+      _ <- flushDNS
       _ <- IO(ConsulVaultSSLContext.refreshCerts())
     } yield procOut
 
@@ -182,7 +188,7 @@ class WindowsServiceControl extends ServiceControl {
         "sc.exe config nomad"
           .split(
             " "
-          ) :+ "DisplayName=" :+ "Nomad for Radix Timberland" :+ "binPath=" :+ s"${(RadPath.persistentDir / "nomad" / "nomad.exe").toString} agent $parameters  -config=${(RadPath.persistentDir / "nomad" / "config").toString} -vault-token=$vaultToken -consul-token=$consulToken"
+          ) :+ "DisplayName=" :+ "Radix: Nomad for Timberland" :+ "binPath=" :+ s"${(RadPath.persistentDir / "nomad" / "nomad.exe").toString} agent $parameters  -config=${(RadPath.persistentDir / "nomad" / "config").toString} -vault-token=$vaultToken -consul-token=$consulToken"
       ) *> IO.unit
   override def stopNomad(): IO[Util.ProcOut] = Util.exec("sc.exe stop nomad")
 
