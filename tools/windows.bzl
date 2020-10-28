@@ -15,9 +15,9 @@ def _msi_impl(ctx):
     # There's also an .exe file made, which is discarded, I guess?
     ctx.actions.run(
         executable = ctx.executable.convert_tar_to_msi,
-        inputs = [ctx.file.data],
+        inputs = [ctx.file.data, ctx.file.post_install_script],
         outputs = [spec_file, msi_file],
-        arguments = [ctx.file.data.path, spec_file.path, msi_file.path, info_string],
+        arguments = [ctx.file.data.path, spec_file.path, msi_file.path, info_string, ctx.file.post_install_script.path],
     )
 
     return [
@@ -34,6 +34,7 @@ pkg_msi = rule(
         "package_guid": attr.string(),  # GUID used to fingerprint package, should stay the same across versions!
         "data_base_dir": attr.string(),
         "data": attr.label(allow_single_file = True),
+        "post_install_script": attr.label(allow_single_file = True),
         "convert_tar_to_msi": attr.label(
             default = Label("//tools:convert_tar_to_msi"),
             cfg = "exec",

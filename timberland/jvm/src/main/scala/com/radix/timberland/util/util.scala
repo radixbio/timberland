@@ -256,6 +256,28 @@ object Util {
       .map(_.getHostAddress)
       .distinct
   }
+
+  def addWindowsFirewallRules(): IO[Unit] = {
+    def addFirewallRule(name: String, action: String = "allow", protocol: String = "TCP", port: Int): IO[Unit] = {
+      val inCmdStr =
+        s"netsh advfirewall firewall add rule name=$name-In dir=in action=$action protocol=$protocol localport=$port"
+      val outCmdStr =
+        s"netsh advfirewall firewall add rule name=$name-Out dir=out action=$action protocol=$protocol localport=$port"
+      Util.exec(inCmdStr) *> Util.exec(outCmdStr) *> IO.unit
+    }
+
+    for {
+      _ <- addFirewallRule("Consul_HTTP", port = 8500)
+      _ <- addFirewallRule("Consul_HTTPS", port = 8501)
+      _ <- addFirewallRule("Consul_GRPC", port = 8502)
+      _ <- addFirewallRule("Consul_RPC", port = 8300)
+      _ <- addFirewallRule("Consul_LAN_Serf_TCP", port = 8301)
+      _ <- addFirewallRule("Consul_LAN_Serf_UDP", protocol = "UDP", port = 8301)
+      _ <- addFirewallRule("Vault_HTTP", port = 8200)
+      _ <- addFirewallRule("Nomad_HTTP", port = 4646)
+      _ <- addFirewallRule("Nomad_RCP", port = 4747)
+    } yield ()
+  }
 }
 
 object RadPath {

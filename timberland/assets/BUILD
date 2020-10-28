@@ -53,6 +53,9 @@ exports_files([
     "terraform/main/variables.tf",
     "terraform/main/outputs.tf",
 
+    # WINDOWS
+    "windows/postinst.bat",
+
     # AWS KEYS MODULE
     "terraform/aws_keys/main.tf",
     "terraform/aws_keys/outputs.tf",

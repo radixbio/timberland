@@ -200,7 +200,9 @@ object runner {
                     featureFlags <- featureFlags.updateFlags(RadPath.persistentDir, Some(authTokens))(serviceAddrs)
                     _ <- startLogTuiAndRunTerraform(featureFlags, serviceAddrs, authTokens, waitForQuorum = false)
                   } yield ()
-                  val bootstrapIO = if (remoteAddress.isDefined) remoteBootstrap else localBootstrap
+                  val handleFirewall =
+                    if (ensureSupported.osname == "windows") Util.addWindowsFirewallRules() else IO.unit
+                  val bootstrapIO = handleFirewall *> (if (remoteAddress.isDefined) remoteBootstrap else localBootstrap)
                   val bootstrap = bootstrapIO.handleErrorWith(err => LogTUI.endTUI(Some(err)) *> IO(throw err)) *> LogTUI
                     .endTUI()
 

@@ -41,13 +41,13 @@ scala_library(
         "@third_party//3rdparty/jvm/com/lihaoyi:ammonite_ops",
         "@third_party//3rdparty/jvm/com/outr:scribe",
         "@third_party//3rdparty/jvm/dnsjava",
-        "@third_party//3rdparty/jvm/org/fusesource/jansi",
-        "@third_party//3rdparty/jvm/org/scala_lang/modules:scala_parser_combinators",
         "@third_party//3rdparty/jvm/io/circe:circe_core",
         "@third_party//3rdparty/jvm/io/circe:circe_derivation",
         "@third_party//3rdparty/jvm/io/circe:circe_generic_extras",
         "@third_party//3rdparty/jvm/io/circe:circe_literal",
         "@third_party//3rdparty/jvm/io/circe:circe_optics",
+        "@third_party//3rdparty/jvm/org/fusesource/jansi",
+        "@third_party//3rdparty/jvm/org/scala_lang/modules:scala_parser_combinators",
     ],
     deps = [
         "//shared/shared/shared/shared:shared-shared",
@@ -55,13 +55,13 @@ scala_library(
         "@third_party//3rdparty/jvm/com/github/xuwei_k:optparse_applicative",
         "@third_party//3rdparty/jvm/com/lihaoyi:ammonite_ops",
         "@third_party//3rdparty/jvm/com/outr:scribe",
-        "@third_party//3rdparty/jvm/org/fusesource/jansi",
-        "@third_party//3rdparty/jvm/org/scala_lang/modules:scala_parser_combinators",
-        "@third_party//3rdparty/jvm/org/slf4j:slf4j_nop",
         "@third_party//3rdparty/jvm/io/circe:circe_core",
         "@third_party//3rdparty/jvm/io/circe:circe_derivation",
         "@third_party//3rdparty/jvm/io/circe:circe_generic_extras",
         "@third_party//3rdparty/jvm/io/circe:circe_optics",
+        "@third_party//3rdparty/jvm/org/fusesource/jansi",
+        "@third_party//3rdparty/jvm/org/scala_lang/modules:scala_parser_combinators",
+        "@third_party//3rdparty/jvm/org/slf4j:slf4j_nop",
     ],
 )
 
@@ -444,6 +444,7 @@ pkg_msi(
     manufacturer = "Radix_Labs",
     package = "radix-timberland",
     package_guid = "{eabaa8a7-e277-46ed-8602-4e4212afa5ec}",
+    post_install_script = "//timberland/assets:windows/postinst.bat",
     version = "0.1",
 )
 
