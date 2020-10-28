@@ -6,6 +6,9 @@ import cats.data.NonEmptyList
 import cats.effect.{Effect, Resource}
 import cats.implicits._
 import com.radix.utils.helm._
+
+import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.duration._
 //import journal.Logger
 import logstage._
 import org.http4s.Method.PUT
@@ -70,10 +73,10 @@ final class Http4sConsulClient[F[_]](
       healthChecksInState(state, datacenter, near, nodeMeta, index, wait)
     case ConsulOp.HealthListNodesForService(service, datacenter, near, nodeMeta, tag, passingOnly, index, wait) =>
       healthNodesForService(service, datacenter, near, nodeMeta, tag, passingOnly, index, wait)
-    case ConsulOp.AddHealthCheckForService(serviceId, hostname, healthCheckId) =>
-      addHealthCheckForService(serviceId, hostname, healthCheckId)
     case ConsulOp.DeregisterHealthCheck(checkId) =>
       deregisterHealthCheck(checkId)
+    case ConsulOp.AddHealthCheckForService(serviceId, hostname, healthCheckId, healthCheckName) =>
+      addHealthCheckForService(serviceId, hostname, healthCheckId, healthCheckName)
     case ConsulOp.AgentRegisterService(service, id, tags, address, port, enableTagOverride, check, checks) =>
       agentRegisterService(service, id, tags, address, port, enableTagOverride, check, checks)
     case ConsulOp.AgentDeregisterService(service) =>
@@ -351,6 +354,56 @@ final class Http4sConsulClient[F[_]](
     }
   }
 
+  /**
+   * Creates JSON payload to add health check to a service
+   * @param id the id of the new health check, must be unique
+   * @param hostname hostname of the http server that accepts health checks
+   * @param serviceId the id of the service to add health check to, this is service instance id (not just service name)
+   * @return json payload to add health check
+   */
+  private def addCheckPayload(
+    id: String,
+    hostname: String,
+    serviceId: String,
+    healthCheckName: String,
+    interval: FiniteDuration = 10.seconds,
+    timeout: FiniteDuration = 1.seconds
+  ): String = {
+    val json = Json.obj(
+      ("ID", Json.fromString(id)),
+      ("ServiceID", Json.fromString(serviceId)),
+      ("Name", Json.fromString(healthCheckName)),
+      ("HTTP", Json.fromString(hostname)),
+      ("Status", Json.fromString("passing")),
+      ("FailuresBeforeCritical", Json.fromInt(3)),
+      ("Method", Json.fromString("GET")),
+      ("Interval", Json.fromString(s"${interval.toSeconds}s")),
+      ("Timeout", Json.fromString(s"${timeout.toSeconds}s")),
+      ("TLSSkipVerify", Json.fromBoolean(true))
+    )
+    log.debug(s"json to add health check for ${hostname}: ${json.spaces2}")
+    json.spaces2
+  }
+
+  def addHealthCheckForService(
+    serviceId: String,
+    hostname: String,
+    healthCheckId: String,
+    healthCheckName: String
+  ): F[Unit] = {
+    for {
+      _ <- F.delay(log.info(s"registering a health check for ${serviceId}"))
+      req <- PUT(
+        addCheckPayload(healthCheckId, hostname, serviceId, healthCheckName),
+        baseUri / "v1" / "agent" / "check" / "register"
+      ).map(addConsulToken)
+        .map(addCreds)
+      response <- blaze.use(client => client.expectOr[String](req)(handleConsulErrorResponse))
+    } yield {
+      log.info(s"registered health check for ${serviceId}")
+    }
+  }
+
   def catalogListNodesForService(
     service: String,
     tag: Option[String] = None
@@ -463,47 +516,6 @@ final class Http4sConsulClient[F[_]](
     } yield {
       log.debug(s"health nodes for service response: $response")
       response
-    }
-  }
-
-  /**
-   * Creates JSON payload to add health check to a service
-   * @param id the id of the new health check, must be unique
-   * @param hostname hostname of the http server that accepts health checks
-   * @param serviceId the id of the service to add health check to, this is service instance id (not just service name)
-   * @return json payload to add health check
-   */
-  private def addCheckPayload(id: String, hostname: String, serviceId: String): String = {
-    String.format(
-      s"""
-         |{
-         |  "ID": "${id}",
-         |  "ServiceID": "${serviceId}",
-         |  "Name": "Multitron Health Check",
-         |  "HTTP": "${hostname}",
-         |  "Status": "passing",
-         |  "FailuresBeforeCritical": 3,
-         |  "Method": "GET",
-         |  "Interval": "30s",
-         |  "Timeout": "5s",
-         |  "TLSSkipVerify": true
-         |}""".stripMargin
-    )
-  }
-
-  def addHealthCheckForService(
-    serviceId: String,
-    hostname: String,
-    healthCheckId: String
-  ): F[Unit] = {
-    for {
-      _ <- F.delay(log.debug(s"registering a health check for ${serviceId}"))
-      req <- PUT(addCheckPayload(healthCheckId, hostname, serviceId), baseUri / "v1" / "agent" / "check" / "register")
-        .map(addConsulToken)
-        .map(addCreds)
-      response <- blaze.use(client => client.expectOr[String](req)(handleConsulErrorResponse))
-    } yield {
-      log.debug("")
     }
   }
 

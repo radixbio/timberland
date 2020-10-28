@@ -31,7 +31,7 @@ job "${prefix}prism" {
         auth_soft_fail = false
         hostname = "${prefix}prism-$${NOMAD_ALLOC_INDEX}"
         network_mode = "weave"
-        port_map = {"cluster" = 2552}
+        port_map = {"cluster" = 2552, "health_check" = 7562}
       }
 
       driver = "docker"
@@ -58,6 +58,11 @@ job "${prefix}prism" {
       service {
         name = "${prefix}prism-$${NOMAD_ALLOC_INDEX}"
         port = "cluster"
+        address_mode = "auto"
+      }
+      service {
+        name = "${prefix}prism-$${NOMAD_ALLOC_INDEX}-h"
+        port = "health_check"
         address_mode = "auto"
       }
       shutdown_delay = "0s"
