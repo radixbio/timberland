@@ -82,7 +82,7 @@ timberland_core_srcs = [
     "src/main/scala/com/radix/timberland/flags/hooks/FlagHook.scala",
     "src/main/scala/com/radix/timberland/flags/hooks/oauthConfig.scala",
     "src/main/scala/com/radix/timberland/runtime/install.scala",
-    "src/main/scala/com/radix/timberland/runtime/services.scala",
+    #"src/main/scala/com/radix/timberland/runtime/services.scala",
     "src/main/scala/com/radix/timberland/util/VaultStarter.scala",
     "src/main/scala/com/radix/timberland/util/LogTUI.scala",
     "src/main/scala/com/radix/timberland/util/util.scala",
@@ -127,6 +127,25 @@ scala_library(
     ],
 )
 
+timberland_service_control_srcs = [
+    "src/main/scala/com/radix/timberland/runtime/services.scala",
+]
+
+scala_library(
+    name = "timberland-service-control",
+    srcs = timberland_service_control_srcs,
+    scalacopts = ["-Ypartial-unification"],
+    visibility = [
+        "//visibility:public",
+    ],
+    exports = [
+        ":timberland-core-lib",
+    ],
+    deps = [
+        ":timberland-core-lib",
+    ],
+)
+
 scala_library(
     name = "timberland-lib",
     # Exclude the kafka and zookeeper sources
@@ -134,7 +153,7 @@ scala_library(
         [
             "src/main/scala/**/*.scala",
         ],
-        exclude = timberland_launcher_srcs + timberland_core_srcs,
+        exclude = timberland_launcher_srcs + timberland_core_srcs + timberland_service_control_srcs,
     ),
     scalacopts = ["-Ypartial-unification"],
     visibility = [
@@ -142,6 +161,7 @@ scala_library(
     ],
     exports = [
         ":timberland-core-lib",
+        ":timberland-service-control",
         "//shared/shared/shared/shared:shared-shared",
         "//utils/helm:helm-jvm",
         "//utils/sheets/jvm/src/main/scala/com/radix/util/sheets:sheets-interps",  #TODO remove this
@@ -151,6 +171,7 @@ scala_library(
     ],
     deps = [
         ":timberland-core-lib",
+        ":timberland-service-control",
         ":timberland-update-lib",
         "//utils/helm:helm-jvm",
         "//utils/sheets/jvm/src/main/scala/com/radix/util/sheets:sheets-interps",  #TODO remove this
