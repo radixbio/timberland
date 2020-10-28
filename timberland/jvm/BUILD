@@ -798,7 +798,7 @@ terraform_provider(
     source = select({
         "aarch64": "@terraform-provider-nomad_arm//file",
         "windows": "@terraform-provider-nomad_win//file",
-        "//conditions:default": "@terraform-provider-nomad//file",
+        "//conditions:default": "//containers:nomad-tf-provider-builder/terraform-provider-nomad_1.4.9_linux_amd64.zip",
     }),
     spec = """provider "nomad" {
    address = "https://${var.nomad_address}:4646"
