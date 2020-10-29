@@ -31,8 +31,6 @@ prefix = trim_prefix(os.getenv("NOMAD_PREFIX", read_prefix_file()))
 services_to_test = set([
   prefix + "apprise-apprise-apprise",
   "consul",
-  prefix + "elasticsearch-es-es-generic-node",
-  prefix + "elasticsearch-kibana-kibana",
   prefix + "kc-daemons-companions-kSQL",
   prefix + "kc-daemons-companions-connect",
   prefix + "kc-daemons-companions-rest-proxy",
@@ -42,8 +40,6 @@ services_to_test = set([
   prefix + "minio-job-minio-group-nginx-minio",
   "nomad",
   "nomad-client",
-  prefix + "retool-retool-postgres",
-  prefix + "retool-retool-retool-main",
   "vault",
   prefix + "yugabyte-yugabyte-ybmaster",
   prefix + "yugabyte-yugabyte-ybtserver",
