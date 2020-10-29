@@ -10,6 +10,7 @@ do
 done
 
 cd /opt/radix/timberland/exec
+wget -O /usr/local/bin/weave https://github.com/weaveworks/weave/releases/download/v2.6.0/weave && chmod +x /usr/local/bin/weave && weave expose
 docker network create --attachable -d weaveworks/net-plugin:2.6.0 weave  --ip-range 10.32.0.0/12 --subnet 10.32.0.0/12
 
 ./timberland runtime enable all
