@@ -22,7 +22,7 @@ job "${prefix}elasticsearch" {
 
       config {
         image = "elasticsearch:7.3.2"
-        args = ["-c","ln -s /local/unicast_hosts.txt /usr/share/elasticsearch/config/unicast_hosts.txt; elasticsearch -Ecluster.name=radix-es -Ediscovery.seed_providers=file -Ecluster.initial_master_nodes=${ dev ? "es1,es2,es3" : "es1"}"]
+        args = ["-c","ln -s /local/unicast_hosts.txt /usr/share/elasticsearch/config/unicast_hosts.txt; elasticsearch -Ecluster.name=radix-es -Ediscovery.seed_providers=file -Ecluster.initial_master_nodes=${ dev ? "es1" : "es1,es2,es3"}"]
         auth_soft_fail = false
         command = "bash"
         hostname = "es$${NOMAD_ALLOC_INDEX+1}"
@@ -131,7 +131,7 @@ job "${prefix}elasticsearch" {
 
       config {
         image = "registry.gitlab.com/radix-labs/kibana-gantt"
-        args = ["--elasticsearch.hosts=http://${prefix}elasticsearch-elasticsearch-es-generic-node.service.consul:9200","--server.host=0.0.0.0","--path.data=/alloc/data","--elasticsearch.preserveHost=false","--xpack.apm.ui.enabled=false","--xpack.graph.enabled=false","--xpack.ml.enabled=false"]
+        args = ["--elasticsearch.hosts=http://${prefix}elasticsearch-es-es-generic-node.service.consul:9200","--server.host=0.0.0.0","--path.data=/alloc/data","--elasticsearch.preserveHost=false","--xpack.apm.ui.enabled=false","--xpack.graph.enabled=false","--xpack.ml.enabled=false"]
         auth_soft_fail = false
         command = "kibana"
         hostname = "$${attr.unique.hostname}-em"
@@ -154,7 +154,7 @@ job "${prefix}elasticsearch" {
 
       resources {
         cpu = 1024
-        memory = 2048
+        memory = 3000
 
         network {
           mbits = 10
