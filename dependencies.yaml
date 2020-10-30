@@ -52,6 +52,11 @@ dependencies:
       modules: [ "scala", "scala-mockserver", "scala-vault" ]
       version: "0.36.1"
 
+  com.fazecast:
+    jSerialComm:
+      lang: java
+      version: "2.6.2"
+
   com.github.andyglow:
     websocket-scala-client:
       lang: scala
@@ -341,6 +346,11 @@ dependencies:
       lang: java
       version: "1.18"
 
+  org.fusesource.leveldbjni:
+    leveldbjni-all:
+      lang: java
+      version: "1.8"
+
   org.http4s:
     http4s:
       lang: scala
@@ -349,6 +359,11 @@ dependencies:
     parboiled:
       lang: scala
       version: "2.0.1"
+
+  org.iq80.leveldb:
+    leveldb-api:
+      lang: java
+      version: "0.12"
 
   org.mock-server:
     mockserver-client-java:
