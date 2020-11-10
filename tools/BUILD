@@ -1,3 +1,5 @@
+load("//tools:scala_rule_wrappers.bzl", "add_phase_merge_in_correct_order")
+
 package(
     default_visibility = ["//visibility:public"],
 )
@@ -36,4 +38,9 @@ py_binary(
     name = "make_rpm_package",
     srcs = ["make_rpm_package.py"],
     deps = [],
+)
+
+add_phase_merge_in_correct_order(
+    name = "patch_phase_merge",
+    visibility = ["//visibility:public"],
 )
