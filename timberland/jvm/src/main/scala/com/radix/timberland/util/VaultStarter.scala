@@ -303,21 +303,22 @@ class VaultUtils {
           env = env
         )
 
-      List("tls-cert", "remote-access", "read-flag-config", "read-consul-ui", "read-certs").map(policy =>
-        Util
-          .proc(
-            vault,
-            "policy",
-            "write",
-            s"-address=https://$vaultAddr:8200",
-            policy,
-            (vaultPath / s"$policy-policy.hcl").toString
-          )
-          .call(
-            stdout = os.ProcessOutput(LogTUI.vault),
-            stderr = os.ProcessOutput(LogTUI.vault),
-            env = env
-          )
+      List("tls-cert", "remote-access", "read-flag-config", "read-consul-ui", "read-certs", "read-message-targets").map(
+        policy =>
+          Util
+            .proc(
+              vault,
+              "policy",
+              "write",
+              s"-address=https://$vaultAddr:8200",
+              policy,
+              (vaultPath / s"$policy-policy.hcl").toString
+            )
+            .call(
+              stdout = os.ProcessOutput(LogTUI.vault),
+              stderr = os.ProcessOutput(LogTUI.vault),
+              env = env
+            )
       )
     })
 

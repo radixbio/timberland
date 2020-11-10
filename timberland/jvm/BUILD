@@ -231,6 +231,7 @@ pkg_tar(
 pkg_tar(
     name = "timberland-vault",
     srcs = [
+               "//timberland/assets:vault/read-message-targets-policy.hcl",
                "//timberland/assets:systemd/vault.env.conf",
                "//timberland/assets:vault/read-certs-policy.hcl",
                "//timberland/assets:vault/read-consul-ui-policy.hcl",
@@ -418,6 +419,7 @@ pkg_tar(
     srcs = [
         "//device_drivers/hw_discovery/jvm:hw-discovery-bin_deploy.jar",
         "//device_drivers/ln2/jvm:ln2-bin_deploy.jar",
+        #"//device_drivers/messaging/jvm:messaging-bin_deploy.jar",
         "//device_drivers/multitrons/jvm:multitrons-bin_deploy.jar",
         "//device_drivers/opentrons/jvm:opentrons-bin_deploy.jar",
         "//device_drivers/quantstudio/jvm:quantstudio-bin_deploy.jar",
@@ -860,7 +862,7 @@ terraform_deployment(
         ":terraform-vault",
     ],
     resources = [
-        ":apprise-terraform",
+        #":apprise-terraform",
         ":aws_keys-terraform",
         ":elasticsearch-terraform",
         ":es_kafka_connector-terraform",
@@ -877,6 +879,7 @@ terraform_deployment(
         "//algs/subgraph-isomorphism-uservice/jvm:gi_uservice-terraform",
         "//device_drivers/hw_discovery/jvm:hw_discovery-terraform",
         "//device_drivers/ln2/jvm:ln2-terraform",
+        "//device_drivers/messaging/jvm:apprise-terraform",
         "//device_drivers/multitrons/jvm:multitrons-terraform",
         "//device_drivers/opentrons/jvm:opentrons-terraform",
         "//device_drivers/quantstudio/jvm:quantstudio-terraform",

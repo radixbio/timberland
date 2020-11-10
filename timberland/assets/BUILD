@@ -34,6 +34,7 @@ exports_files([
     "vault/read-certs-policy.hcl",
     "vault/read-flag-config-policy.hcl",
     "vault/remote-access-policy.hcl",
+    "vault/read-message-targets-policy.hcl",
     "vault/vault_config.conf",
 
     # TLS

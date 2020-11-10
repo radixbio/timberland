@@ -1,6 +1,7 @@
 package com.radix.timberland
 
 import com.radix.timberland.launch.daemonutil
+import com.radix.timberland.util.{EmailRecipient, MTeamsRecipient, MessageKind, SlackRecipient}
 import io.circe.{Parser => _}
 import optparse_applicative._
 import optparse_applicative.types.{Doc, Parser}
@@ -57,6 +58,8 @@ case class Update(
 ) extends Local
 
 case class AddUser(name: String, roles: List[String]) extends Runtime
+
+case class AddRecipient(identifier: String, medium: MessageKind) extends Runtime
 
 sealed trait Prism extends RadixCMD
 
@@ -474,6 +477,32 @@ object cli {
                 case None    => exist
               }
           })
+      )
+    )
+  )
+
+  private val addMessageRecipients = subparser[AddRecipient](
+    command(
+      "slack",
+      info(
+        ^(strArgument(metavar("ID")), strArgument(metavar("WEBHOOK")))((id, h) => AddRecipient(id, SlackRecipient(h)))
+      )
+    ),
+    command(
+      "mteams",
+      info(
+        ^(strArgument(metavar("ID")), strArgument(metavar("WEBHOOK")))((id, h) => AddRecipient(id, MTeamsRecipient(h)))
+      )
+    ),
+    command(
+      "email",
+      info(
+        ^^^(
+          strArgument(metavar("ID")),
+          strArgument(metavar("USERNAME")),
+          strArgument(metavar("DOMAIN")),
+          strArgument(metavar("PASSWORD"))
+        )((id, un, dom, pwd) => AddRecipient(id, EmailRecipient(un, dom, pwd)))
       )
     )
   )
