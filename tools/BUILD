@@ -23,12 +23,6 @@ py_binary(
 )
 
 py_binary(
-    name = "handle-sbt-build",
-    srcs = ["handle-sbt-build.py"],
-    deps = [],
-)
-
-py_binary(
     name = "convert_tar_to_msi",
     srcs = ["convert_tar_to_msi.py"],
     deps = [],

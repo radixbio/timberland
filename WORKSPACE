@@ -488,6 +488,13 @@ git_repository(
 )
 
 http_archive(
+    name = "sbt",
+    build_file_content = """filegroup(name = "all", srcs = glob(["**"]), visibility = ["//visibility:public"])""",
+    sha256 = "4ea0b6fe056fd521eb6f785ee2e4694a2a0128b5de362e233cab0c1a20eb04eb",
+    url = "https://github.com/sbt/sbt/releases/download/v1.4.2/sbt-1.4.2.zip"
+)
+
+http_archive(
     name = "consul",
     build_file_content = "exports_files([\"consul\"])",
     sha256 = "0d74525ee101254f1cca436356e8aee51247d460b56fc2b4f7faef8a6853141f",
