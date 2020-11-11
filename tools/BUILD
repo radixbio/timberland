@@ -1,4 +1,4 @@
-load("//tools:scala_rule_wrappers.bzl", "add_phase_merge_in_correct_order")
+load("//tools:modify_rules_scala_merge_jar_phase.bzl", "add_phase_merge_in_correct_order")
 
 package(
     default_visibility = ["//visibility:public"],

@@ -41,6 +41,7 @@ ext_scalafmt = {
     },
     "phase_providers": [
         "@io_bazel_rules_scala//scala/scalafmt:phase_scalafmt",
+        "@monorepo//tools:patch_phase_merge",  # Fixes reference.conf merge issues
     ],
 }
 
