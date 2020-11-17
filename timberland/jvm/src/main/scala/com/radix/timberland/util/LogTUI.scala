@@ -6,7 +6,7 @@ import java.util.concurrent.Executors
 import cats.effect.{IO, _}
 import cats.effect.concurrent.MVar
 import cats.implicits._
-import com.radix.timberland.util.LogTUI.Printer.PrestartState
+import com.radix.timberland.util.LogTUI.Printer.{AlreadyResponding, Missing, Prestart, PrestartState}
 import com.radix.timberland.util.TerraformMagic.TerraformPlan
 import org.fusesource.jansi.{Ansi, _}
 import org.fusesource.jansi.internal.CLibrary.{isatty, STDOUT_FILENO}
@@ -178,17 +178,22 @@ object TerraformMagic {
 object CLIMagic {
   def ansi = new Ansi()
 
-  val consoleRows = {
-    val pathedTput = if (new java.io.File("/usr/bin/tput").exists()) "/usr/bin/tput" else "tput"
-    def consoleDim(s: String) = {
-      import sys.process._
-      Seq("sh", "-c", s"$pathedTput $s 2> /dev/tty").!!.trim.toInt
-    }
+  val detectTmux: Boolean = {
+    sys.env.get("TMUX").nonEmpty
+  }
+
+  val pathedTput = if (new java.io.File("/usr/bin/tput").exists()) "/usr/bin/tput" else "tput"
+  def consoleDim(s: String) = {
+    import sys.process._
+    Seq("sh", "-c", s"$pathedTput $s 2> /dev/tty").!!.trim.toInt
+  }
+  def consoleRows: Int = {
     try consoleDim("lines")
-    catch { case e => 50 } // Accessing /dev/tty fails in CI, so arbitrary row count
+    catch { case e: Throwable => 50 } // Accessing /dev/tty fails in CI, so arbitrary row count
   }
 
   def _print(text: Ansi): IO[Unit] = IO(System.out.print(text))
+//  def _print(text: Ansi): IO[Unit] = IO()
 
   // For some reason ".render" moves down a line but not back to the leftmost column???
   def print(text: String): IO[Unit] = _print(ansi.render(text + "\n").cursorUpLine().cursorToColumn(0))
@@ -203,8 +208,8 @@ object CLIMagic {
   }
 
   def clearScreenSpace(): IO[Unit] = {
-    System.out.print("\n" * consoleRows)
-    _print(ansi.cursorUp(consoleRows))
+    IO(System.out.print("\n" * consoleRows))
+//    _print(ansi.cursorUp(consoleRows))
   }
   def savePos(): IO[Unit] = {
     _print(ansi.saveCursorPosition())
@@ -220,13 +225,11 @@ object CLIMagic {
       _print(ansi.cursorUp(count * -1))
     } else _print(ansi)
   }
-}
 
-/*
-  Notes:
-    - While LogTUI is active, all terminal output should be through printState(), so
-    that text-overwriting or lack-of-overwriting doesn't produce confusing displays.
- */
+  def sweep(clean: Boolean = false): IO[Unit] = {
+    (if (clean) _print(ansi.eraseScreen()) else IO(Unit)) *> loadPos() *> move(-1 * consoleRows)
+  }
+}
 
 object LogTUI {
 //  def debugprint(s: String): Unit = println(s)
@@ -252,16 +255,32 @@ object LogTUI {
 
   /** *
    * Turns on the LogTUI display.
+   *
+   * NOTE - While the LogTUI is active, all terminal output should be through LogTUI.printAfter()
+   * so that text-overwriting or lack-of-overwriting doesn't produce confusing displays
+   *
    * */
-  def startTUI(): IO[Unit] =
+  def startTUI(consulExists: Boolean = false, nomadExists: Boolean = false, vaultExists: Boolean = false): IO[Unit] = {
+    val serviceStateAtStart = Prestart(
+      consul = { if (consulExists) AlreadyResponding else Missing },
+      nomad = { if (nomadExists) AlreadyResponding else Missing },
+      vault = { if (vaultExists) AlreadyResponding else Missing }
+    )
+
     if (isActive) IO.unit
-    else
+    else if (CLIMagic.detectTmux) {
+      println("It seems we are running in tmux ($TMUX is set); not displaying TUI")
+      IO.unit
+    } else
       for {
-        _ <- IO { isActive = true }
+        _ <- IO {
+          isActive = true
+        }
         _ <- IO.shift(cs)
-        printer <- Printer.beginIterPrint.start
+        printer <- Printer.beginIterPrint(serviceStateAtStart).start
         _ <- IO(this.printerFiber = Some(printer))
       } yield ()
+  }
 
   /*
    * Cancels LogTUI fiber and prints out all messages stored in calls to LogTUI.printAfter()
@@ -354,14 +373,12 @@ object LogTUI {
    * */
   def tfapply(bytearr: Array[Byte], len: Int): Unit = {
     val str = new String(bytearr.take(len), StandardCharsets.UTF_8)
-    applyq.enqueue(str.split("\n").filterNot(_ == "").map(TerraformMagic.translate): _*)
-    debugprint(s"tfapply ${applyq.size} $str")
+    val steps = str.split("\n").filterNot(_ == "").map(TerraformMagic.translate)
+    applyq.enqueue(steps: _*)
+    debugprint(s"tfapply ${applyq.size} ${steps} $str")
   }
 
-  // Redirect from call(s) to vault, in case relevant sometime.
-  def vault(bytearr: Array[Byte], len: Int): Unit = {
-    Unit
-  }
+  def vault(bytearr: Array[Byte], len: Int): Unit = writeLogFromStream(bytearr, len)
 
   def stdErrs(source: String)(bytearr: Array[Byte], len: Int): Unit = {
     val str = new String(bytearr.take(len), StandardCharsets.UTF_8)
@@ -396,6 +413,7 @@ object LogTUI {
     case object Dnsnotresolving extends PrestartState
     case object Done extends PrestartState
     case object Missing extends PrestartState
+    case object AlreadyResponding extends PrestartState
     case class Prestart(
       consul: PrestartState = Missing,
       nomad: PrestartState = Missing,
@@ -434,6 +452,7 @@ object LogTUI {
       quorum: Map[String, DNSStage] = Map.empty,
       linemap: Map[String, Int] = Map.empty,
       lineno: Int = 0,
+      screenSize: Int = CLIMagic.consoleRows,
       tick: Int = 0
     ) { // Considering lineno as number of lines currently being printed
       def mod_prestart(modifier: Prestart => Prestart): State = this.copy(prestart = this.prestart.map(modifier))
@@ -508,7 +527,7 @@ object LogTUI {
         drawnst <- draw(st, newst)
         _ <- IO(Console.flush())
 
-        _ <- if (isActive) IO.sleep(500.millis) *> iterStateAndPrint(drawnst, newplan) else IO()
+        _ <- if (isActive) IO.sleep(500.millis) *> iterStateAndPrint(drawnst, newplan) else CLIMagic.loadPos()
       } yield ()
     }
 
@@ -536,13 +555,6 @@ object LogTUI {
         }
         newst <- IO.pure(st.copy(prestart = newps))
       } yield newst
-
-//    def plan(st: State): IO[State] =
-//      for {
-//        p <- planvar.take
-//        app = Apply.tupled(p)
-//        activated_state = st.copy(app = Some(app), inflight = Some(TerraformMagic.TerraformPlan.empty))
-//      } yield activated_state
 
     def init(st: State): IO[State] =
       for {
@@ -628,34 +640,64 @@ object LogTUI {
       }
     }
 
+    sealed case class DrawingState(st: State, cur_line: Int, last_line: Int, screen_size: Int, screen_overshoot: Int) {
+      def inc_lastline: DrawingState = {
+        this.copy(last_line = this.last_line + 1)
+      }
+      def set_curline(line: Int): DrawingState = {
+        this.copy(cur_line = line)
+      }
+      def inc_overshoot: DrawingState = {
+        this.copy(screen_overshoot = this.screen_overshoot + 1)
+      }
+      def add_line(name: String, lineno: Int): DrawingState = {
+        this.copy(
+          st = st.copy(linemap = st.linemap + (name -> lineno)),
+          last_line = this.last_line + 1
+        )
+      }
+      def inc_tick: DrawingState = {
+        this.copy(st = st.copy(tick = st.tick + 1))
+      }
+      def recoverState: State = {
+        st.copy(lineno = last_line)
+      }
+    }
+    case object DrawingState {
+      def apply(st: State): DrawingState = {
+        DrawingState(st, 0, st.lineno, CLIMagic.consoleRows - 3, 0)
+      }
+    }
+
     /**
      * Updates a single line of the LogTUI display, moving the cursor appropriately
      * such that lines don't have to be updated in order
      *
-     * @param clistate tuple of (current cursor line, last line currently written to in the display,
+     * @param dst tuple of (current cursor line, last line currently written to in the display,
      *          display state representation)
      * @param element tuple of (key identifying the line being updated, string to be written to the line)
      * @return tuple equivalent to clistate, with elements updated to reflect cursor movement and new lines
      *
      * */
-    def update_element(clistate: (Int, Int, State), element: (String, String)): IO[(Int, Int, State)] = {
-      val cur_line = clistate._1
-      val last_line = clistate._2
-      val st = clistate._3
-      val name = element._1
-      val update = element._2
-      // TODO have that work in a less dumb way.  is tuple expansion just not a thing in scala?
+    def update_element(dst: DrawingState, element: (String, String)): IO[DrawingState] = {
+      val (name, update) = element
 
-      val adding_new = !st.linemap.contains(name)
-      val target_line = if (adding_new) last_line else st.linemap(name)
-      for {
-        _ <- CLIMagic.move(target_line - cur_line)
-        _ <- CLIMagic.print(update)
-      } yield
-        if (adding_new)
-          (target_line, last_line + 1, st.copy(linemap = st.linemap + (name -> target_line)))
-        else
-          (target_line, last_line, st)
+      val adding_new = !dst.st.linemap.contains(name)
+      val target_line = if (adding_new) dst.last_line else dst.st.linemap(name)
+
+      val draw_op = if (target_line <= (dst.screen_size - 2)) {
+        val line = target_line - dst.cur_line
+        CLIMagic.move(line) *> CLIMagic.print(update) *> IO(dst.set_curline(target_line))
+      } else {
+        IO(dst.inc_overshoot)
+      }
+
+      if (adding_new)
+        draw_op.map(_.add_line(name, target_line))
+//          (target_line, last_line + 1, screen_size, st.copy(linemap = st.linemap + (name -> target_line)))
+      else
+        draw_op
+//          (target_line, last_line, screen_size, st)
     }
 
     /**
@@ -663,18 +705,16 @@ object LogTUI {
      * does not draw if this is a non-interactive terminal (otherwise the whole
      * log winds up full of dots)
      * */
-    def update_ticker(clistate: (Int, Int, State)): IO[(Int, Int, State)] = {
+    def update_ticker(dst: DrawingState): IO[DrawingState] = {
       if (tty_mode) {
-        val cur_line = clistate._1
-        val last_line = clistate._2
-        val tick_stage = clistate._3.tick % 3
+        val tick_stage = dst.st.tick % 3
         for {
-          _ <- CLIMagic.move(last_line - cur_line)
-          _ <- CLIMagic.print(PrintElements.ticker(tick_stage))
+          _ <- CLIMagic.move(Math.min(dst.last_line - dst.cur_line, (CLIMagic.consoleRows - 2) - dst.cur_line))
+          _ <- CLIMagic.print(PrintElements.ticker(tick_stage, dst.screen_overshoot))
           _ <- CLIMagic.move(1)
-        } yield (last_line, last_line, clistate._3.copy(tick = clistate._3.tick + 1))
+        } yield dst.inc_tick
       } else {
-        IO(clistate)
+        IO(dst)
       }
     }
 
@@ -721,14 +761,13 @@ object LogTUI {
      *
      * */
     def init_draw(st: State, plan: Apply): IO[State] = {
-      val display_seq = (
+      val display_seq =
         List(("1", PrintElements.displayBar), ("2", "")) ++
           prestartStatements(st.prestart.getOrElse(Prestart())) ++
           List(("3", ""), ("4", PrintElements.displayBar), ("5", ""))
-      )
-      val print_update = display_seq.foldLeftM((0, st.lineno, st))(((a, b) => update_element(a, b)))
-      (CLIMagic.clearScreenSpace() *> CLIMagic.savePos() *>
-        print_update.map((tup: (Int, Int, State)) => (tup._3.copy(lineno = tup._2): State)))
+
+      val print_update = display_seq.foldLeftM(DrawingState(st))(update_element)
+      CLIMagic.clearScreenSpace() *> CLIMagic.savePos() *> CLIMagic.sweep() *> print_update.map(_.recoverState)
     }
 
     /**
@@ -740,28 +779,48 @@ object LogTUI {
      *
      * */
     def draw(oldst: State, st: State): IO[State] = {
-      val pres_needs_update = oldst.prestart != st.prestart
-      val app_needs_update = (oldst.app, st.app) match {
-        case (None, None)                 => Set.empty[String]
-        case (None, Some(app))            => app.pending.all
-        case (Some(app), None)            => app.pending.all
-        case (Some(oldapp), Some(newapp)) => newapp.pending.diff(oldapp.pending).all
+      val screenChanged = st.screenSize != CLIMagic.consoleRows
+//      val update_lines : List[(String, String)] = if (screenChanged) {
+//        prestartStatements(st.prestart.getOrElse(Prestart.empty)) ++
+//        st.app.map(ifl => ifl.pending.all.toList).getOrElse(List.empty[(String, String)]) ++
+//        st.inflight.map(_.all.toList).getOrElse(List.empty[(String, String)]) ++
+//        List(("1", PrintElements.displayBar), ("2", ""),
+//          ("3", ""), ("4", PrintElements.displayBar), ("5", ""))
+//      } else {
+      val pres_needs_update = (oldst.prestart != st.prestart) | screenChanged
+      val app_needs_update = if (screenChanged) {
+        st.app.map(ifl => ifl.pending.all).getOrElse(Set.empty[String])
+      } else {
+        (oldst.app, st.app) match {
+          case (None, None)                 => Set.empty[String]
+          case (None, Some(app))            => app.pending.all
+          case (Some(app), None)            => app.pending.all
+          case (Some(oldapp), Some(newapp)) => newapp.pending.diff(oldapp.pending).all
+        }
       }
-      val ifl_needs_update = (oldst.inflight, st.inflight) match {
-        case (None, None)                 => Set.empty[String]
-        case (None, Some(ifl))            => ifl.all
-        case (Some(ifl), None)            => ifl.all
-        case (Some(oldifl), Some(newifl)) => newifl.diff(oldifl).all
+      val ifl_needs_update = if (screenChanged) {
+        st.inflight.map(_.all).getOrElse(Set.empty[String])
+      } else {
+        (oldst.inflight, st.inflight) match {
+          case (None, None)                 => Set.empty[String]
+          case (None, Some(ifl))            => ifl.all
+          case (Some(ifl), None)            => ifl.all
+          case (Some(oldifl), Some(newifl)) => newifl.diff(oldifl).all
+        }
       }
       val tf_needs_update = app_needs_update.union(ifl_needs_update)
-      val q_needs_update = (oldst.quorum.keySet | st.quorum.keySet)
-        .filter(k => oldst.quorum.getOrElse(k, NoDNS(k)) != st.quorum.getOrElse(k, NoDNS(k)))
+      val q_needs_update = if (screenChanged) {
+        oldst.quorum.keySet | st.quorum.keySet
+      } else {
+        (oldst.quorum.keySet | st.quorum.keySet)
+          .filter(k => oldst.quorum.getOrElse(k, NoDNS(k)) != st.quorum.getOrElse(k, NoDNS(k)))
+      }
+
       val pres_update_lines = if (pres_needs_update) {
         prestartStatements(st.prestart.getOrElse(Prestart.empty))
       } else {
         List.empty
       }
-
       val tf_update_lines = if (tf_needs_update.nonEmpty) {
         val update_applying = oldst.app.map(app => app.pending.filter(tf_needs_update)).getOrElse(TerraformPlan.empty)
         val update_inflight = oldst.inflight.getOrElse(TerraformPlan.empty).filter(tf_needs_update)
@@ -778,16 +837,35 @@ object LogTUI {
         List.empty
       }
 
-      val update_lines = pres_update_lines ++ tf_update_lines ++ q_update_lines
-      val print_update = update_lines.foldLeftM((0, st.lineno, st))(((a, b) => update_element(a, b)))
-      CLIMagic.loadPos() *>
+      val extra_update_lines = if (screenChanged) {
+        List(
+          ("1", PrintElements.displayBar),
+          ("2", PrintElements.blankLine),
+          ("3", PrintElements.blankLine),
+          ("4", PrintElements.displayBar),
+          ("5", PrintElements.blankLine)
+        )
+      } else {
+        List.empty[(String, String)]
+      }
+
+      val update_lines = pres_update_lines ++ tf_update_lines ++ q_update_lines ++ extra_update_lines
+
+      val print_update = update_lines.foldLeftM(DrawingState(st))(((a, b) => update_element(a, b)))
+      CLIMagic.sweep(screenChanged) *>
         print_update
           .flatMap(update_ticker)
-          .map((tup: (Int, Int, State)) => (tup._3.copy(lineno = tup._2): State))
+          .map(_.recoverState)
+          .flatMap(st =>
+            CLIMagic
+              .sweep()
+              .map(_ => if (screenChanged) st.copy(screenSize = CLIMagic.consoleRows) else st)
+          )
     }
 
-    def beginIterPrint: IO[Unit] = {
-      val initialState = State.empty
+    def beginIterPrint(prestate: Prestart): IO[Unit] = {
+      val initialState = State.empty.copy(prestart = Some(prestate))
+
       for {
         _ <- CLIMagic.setupCLI()
         st <- init_draw(initialState, Apply(TerraformPlan.empty, Map.empty))
@@ -803,7 +881,10 @@ object LogTUI {
 
 object PrintElements {
   def displayBar: String = {
-    "########################################################"
+    "########################################################              "
+  }
+  def blankLine: String = {
+    "                                                                      "
   }
   def prestartLine(name: String, state: PrestartState): String = {
     state match {
@@ -811,6 +892,7 @@ object PrintElements {
       case LogTUI.Printer.Dnsnotresolving   => s"$name:\t@|green Service started|@           "
       case LogTUI.Printer.Done              => s"$name:\t@|green Service started and DNS resolves|@     "
       case LogTUI.Printer.Missing           => s"$name:\t@|faint ...|@                                 "
+      case LogTUI.Printer.AlreadyResponding => s"$name:\t@|green Is active|@" // TODO asserts too much?
     }
   }
 
@@ -840,7 +922,12 @@ object PrintElements {
     }
   }
 
-  def ticker(stage: Int): String = {
-    "." * (stage + 1) + "        "
+  def ticker(stage: Int, more: Int): String = {
+    val ellipses = "." * (stage + 1) + blankLine
+    if (more > 0) {
+      s"... ($more more) " + ellipses
+    } else {
+      ellipses
+    }
   }
 }

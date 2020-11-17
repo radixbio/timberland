@@ -283,8 +283,8 @@ class VaultUtils {
           "aws"
         )
         .call(
-          stdout = os.Inherit,
-          stderr = os.Inherit,
+          stdout = os.ProcessOutput(LogTUI.vault),
+          stderr = os.ProcessOutput(LogTUI.vault),
           env = env
         )
 
@@ -298,8 +298,8 @@ class VaultUtils {
           s"policy_document=@${vaultPath / "aws-cred-role.json"}"
         )
         .call(
-          stdout = os.Inherit,
-          stderr = os.Inherit,
+          stdout = os.ProcessOutput(LogTUI.vault),
+          stderr = os.ProcessOutput(LogTUI.vault),
           env = env
         )
 

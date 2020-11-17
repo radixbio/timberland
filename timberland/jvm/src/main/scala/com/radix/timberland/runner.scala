@@ -216,6 +216,11 @@ object runner {
                   sys.exit(0)
                 }
                 case cmd @ Update(remoteAddress, prefix, username, password) => {
+                  scribe.Logger.root
+                    .clearHandlers()
+                    .clearModifiers()
+                    .withHandler(scribe.handler.SynchronousLogHandler(writer = LogTUIWriter()))
+                    .replace()
 
                   System.setProperty("dns.server", remoteAddress.getOrElse("127.0.0.1"))
 
@@ -235,7 +240,16 @@ object runner {
                   Util
                     .isPortUp(8501)
                     .flatMap {
-                      case true  => UpdateModules.run(consulExistsProc, prefix = prefix)
+                      case true =>
+                        for {
+                          nomadup <- Util.isPortUp(4646)
+                          vaultup <- Util.isPortUp(8200)
+                          _ <- LogTUI.startTUI(true, nomadup, vaultup) *>
+                            UpdateModules
+                              .run(consulExistsProc, prefix = prefix)
+                              .handleErrorWith(err => LogTUI.endTUI(Some(err))) *>
+                            LogTUI.endTUI()
+                        } yield ()
                       case false => IO.unit
                     }
                     .unsafeRunSync()
@@ -256,7 +270,13 @@ object runner {
               sys.exit(0)
             }
 
-            case FlagSet(flagNames, enable, remoteAddress, username, password) =>
+            case FlagSet(flagNames, enable, remoteAddress, username, password) => {
+              scribe.Logger.root
+                .clearHandlers()
+                .clearModifiers()
+                .withHandler(scribe.handler.SynchronousLogHandler(writer = LogTUIWriter()))
+                .replace()
+
               System.setProperty("dns.server", remoteAddress.getOrElse("127.0.0.1"))
               val flagsToSet = flagNames.map((_, enable)).toMap
 
@@ -281,10 +301,19 @@ object runner {
 
               IO(os.exists(RadPath.persistentDir / ".bootstrap-complete"))
                 .flatMap {
-                  case true  => consulExistsProc
+                  case true =>
+                    for {
+                      consulup <- Util.isPortUp(8500)
+                      nomadup <- Util.isPortUp(4646)
+                      vaultup <- Util.isPortUp(8200)
+                      _ <- LogTUI.startTUI(consulup, nomadup, vaultup) *>
+                        consulExistsProc.handleErrorWith(err => LogTUI.endTUI(Some(err))) *>
+                        LogTUI.endTUI()
+                    } yield ()
                   case false => noConsulProc
                 }
                 .unsafeRunSync()
+            }
 
             case FlagQuery(remoteAddress, username, password) =>
               System.setProperty("dns.server", remoteAddress.getOrElse("127.0.0.1"))
