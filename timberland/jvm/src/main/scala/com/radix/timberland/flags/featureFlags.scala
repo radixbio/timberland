@@ -76,6 +76,9 @@ object featureFlags {
     "retool" -> Set(
       "retool",
       "retool_pg_kafka_connector"
+    ),
+    "server" -> Set(
+      "web_interface"
     )
   )
   // All flags that aren't tied to a specific module

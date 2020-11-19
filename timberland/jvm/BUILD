@@ -890,6 +890,7 @@ terraform_deployment(
         "//utils/prism-uservice/jvm:prism-terraform",
         "//utils/s3lts:s3lts-terraform",
         "//vm/jvm:vm-terraform",
+        "//utils/api/jvm:web-interface"
     ],
     terraform_source = select({
         "aarch64": ["@terraform_arm//:terraform"],
