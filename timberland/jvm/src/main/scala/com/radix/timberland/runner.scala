@@ -224,6 +224,17 @@ object runner {
 
                   System.setProperty("dns.server", remoteAddress.getOrElse("127.0.0.1"))
 
+                  val startTUIOnFlag = for {
+                    localFlags <- featureFlags.getLocalFlags(RadPath.persistentDir)
+                    _ <- if (localFlags.getOrElse("tui", true)) {
+                      for {
+                        nomadup <- Util.isPortUp(4646)
+                        vaultup <- Util.isPortUp(8200)
+                        _ <- LogTUI.startTUI(true, nomadup, vaultup) // Update is only run if consul is up
+                      } yield Unit
+                    } else IO.unit
+                  } yield Unit
+
                   val consulExistsProc = for {
                     serviceAddrs <- if (remoteAddress.isDefined) daemonutil.getServiceIps() else IO.pure(ServiceAddrs())
                     authTokens <- auth.getAuthTokens(
@@ -242,15 +253,12 @@ object runner {
                     .flatMap {
                       case true =>
                         for {
-                          nomadup <- Util.isPortUp(4646)
-                          vaultup <- Util.isPortUp(8200)
-                          _ <- LogTUI.startTUI(true, nomadup, vaultup) *>
-                            UpdateModules
-                              .run(consulExistsProc, prefix = prefix)
+                          _ <- startTUIOnFlag *>
+                            UpdateModules.run(consulExistsProc, prefix = prefix)
                               .handleErrorWith(err => LogTUI.endTUI(Some(err))) *>
                             LogTUI.endTUI()
                         } yield ()
-                      case false => IO.unit
+                      case false => IO(println("Consul is not up; cannot update"))
                     }
                     .unsafeRunSync()
                 }

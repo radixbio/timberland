@@ -1,5 +1,6 @@
 package com.radix.timberland.util
 
+
 import cats.effect.{ContextShift, IO}
 import io.circe.syntax._
 import io.circe.parser.parse
@@ -24,18 +25,19 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.math.Ordering.Implicits._
 
 object TemplateFiles {
-  val config_file = os.root / "opt" / "radix" / "timberland" / "terraform" / "cloud_upload_config.sh"
-  val version_file = os.root / "opt" / "radix" / "timberland" / "terraform" / "config_version"
-  val module_dir = os.root / "opt" / "radix" / "timberland" / "terraform" / "modules"
+  val config_file = RadPath.runtime / "timberland" / "terraform" / "cloud_upload_config.sh"
+  val version_file = RadPath.runtime / "timberland" / "terraform" / "config_version"
+  val module_dir = RadPath.runtime / "timberland" / "terraform" / "modules"
+  val terraform_exec_dir = RadPath.runtime / "terraform" / ".terraform" / "modules"
 }
 
 object UpdateModules {
   case class CloudModule(orgname: String, modname: String, provider: String, api_token: String)
 
-  val ORGNAME = "ORG_NAME=\"(.*)\"".r.unanchored
-  val MODULE = "MODULE=\"(.*)\"".r.unanchored
-  val PROVIDER = "PROVIDER=\"(.*)\"".r.unanchored
-  val API_TOKEN = "API_TOKEN=\"(.*)\"".r.unanchored
+  val ORGNAME = "ORG_NAME=(.*)".r.unanchored
+  val MODULE = "MODULE=(.*)".r.unanchored
+  val PROVIDER = "PROVIDER=(.*)".r.unanchored
+  val API_TOKEN = "API_TOKEN=(.*)".r.unanchored
 
   def parseConfig(prefix: Option[String]): CloudModule = {
     val lines = os.read(TemplateFiles.config_file).split('\n')
@@ -105,8 +107,6 @@ object UpdateModules {
       uri = Uri.fromString(target_url).toOption.get,
       headers = Headers.of(auth_header)
     )
-    println(s"getDownloadLink: $queryRequest")
-
     client.fetch(queryRequest)(resp => IO.pure(resp.headers.get(CaseInsensitiveString("x-terraform-get")).get.value))
   }
 
@@ -165,6 +165,24 @@ object UpdateModules {
       println("Errors occurred during update.  Terraform has been restored to previous configuration.")
     })
 
+  // Terraform fails on replanning if there are fewer module configs in the new
+  // main configuration directory than in terraform's working copy in /opt/radix/terraform.
+  // This removes extraneous modules from the working copy.
+  def auditExecDir(): IO[Unit] = IO({
+    val module_manifest = os.list(TemplateFiles.module_dir).map(_.baseName)
+    val exec_manifest = os.list(TemplateFiles.terraform_exec_dir).map(_.baseName)
+    for {
+      fn <- exec_manifest.toSet.diff(module_manifest.toSet)
+    } yield {
+      if (fn == "modules") {
+        Unit
+      } else {
+        println(s"Removing ${TemplateFiles.terraform_exec_dir / fn}")
+        os.remove.all(TemplateFiles.terraform_exec_dir / fn)
+      }
+    }
+  })
+
   // TODO make version specifiable?
   def run(terraformTask: IO[Boolean], prefix: Option[String]): IO[Unit] = {
     val timestamp = DateTimeFormatter.ofPattern("YY-MM-dd-hh-mm").format(LocalDateTime.now())
@@ -185,6 +203,7 @@ object UpdateModules {
             download_url <- getDownloadLink(modInfo, version, client)
             downloaded <- downloadModuleTar(download_url, tar_file, client)
             swap_successful <- swap_module(tar_file.toString(), module_backup)
+            _ <- auditExecDir()
             ter_successful <- terraformTask
             _ <- if (downloaded && swap_successful && ter_successful)
               IO(os.write.over(TemplateFiles.version_file, version))

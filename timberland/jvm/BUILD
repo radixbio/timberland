@@ -113,7 +113,9 @@ scala_library(
     name = "timberland-update-lib",
     srcs = [
         "src/main/scala/com/radix/timberland/defns.scala",
+        "src/main/scala/com/radix/timberland/util/LogTUI.scala",
         "src/main/scala/com/radix/timberland/util/UpdateJobSpecs.scala",
+        "src/main/scala/com/radix/timberland/util/util.scala",
     ],
     exports = [
         ":timberland-dependencies",
@@ -562,7 +564,7 @@ scala_test(
 pkg_tar(
     name = "terraform-update-config",
     srcs = [
-        "//timberland/assets:update/cloud_upload_config.sh",
+        "//tools:gen-cloud-upload-config",
     ],
     package_dir = "/opt/radix/timberland/terraform",
 )
