@@ -40,11 +40,20 @@ def get_available_images():
     lines = subprocess.Popen(["docker", "images"], stdout = subprocess.PIPE).stdout.read().decode('utf-8').split("\n")[1:]
     return [x.split()[0] for x in lines if x]
 
+# Key reason docker wouldn't be available is if the build is happening in dazel.
+def docker_is_available():
+    try:
+        subprocess.Popen(["docker"])
+        return True
+    except FileNotFoundError:
+        print("Not getting docker image hashes; docker CLI not found.")
+        return False
+
 
 def annotate_images(templatefile, outputfile, dot_git_dir):
-    if not os.environ.get("CI_EC2_INSTANCE_SIZE"):
+    text = open(templatefile).read()
+    if docker_is_available() and not os.environ.get("CI_EC2_INSTANCE_SIZE"):
         images = get_available_images()
-        text = open(templatefile).read()
         imagenames = [item for sublist in re.findall(imagename_pat, text) for item in sublist if item]
         print("imagenames", imagenames)
         for imagename in imagenames:
