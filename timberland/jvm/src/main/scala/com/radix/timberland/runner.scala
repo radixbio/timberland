@@ -254,13 +254,15 @@ object runner {
                       case true =>
                         for {
                           _ <- startTUIOnFlag *>
-                            UpdateModules.run(consulExistsProc, prefix = prefix)
+                            UpdateModules
+                              .run(consulExistsProc, prefix = prefix)
                               .handleErrorWith(err => LogTUI.endTUI(Some(err))) *>
                             LogTUI.endTUI()
                         } yield ()
                       case false => IO(println("Consul is not up; cannot update"))
                     }
                     .unsafeRunSync()
+                  sys.exit(0)
                 }
                 case StartNomad => Right(Unit)
               }
@@ -321,6 +323,8 @@ object runner {
                   case false => noConsulProc
                 }
                 .unsafeRunSync()
+
+              sys.exit(0)
             }
 
             case FlagQuery(remoteAddress, username, password) =>
