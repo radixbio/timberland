@@ -378,24 +378,6 @@ pkg_tar(
 )
 
 pkg_tar(
-    name = "timberland-nomad-config-elasticsearch",
-    srcs = [
-        "//timberland/assets:nomad/config/elasticsearch/unicast_hosts.tpl",
-    ],
-    package_dir = "/opt/radix/timberland/nomad/config/elasticsearch",
-)
-
-pkg_tar(
-    name = "timberland-nomad-config-zookeeper",
-    srcs = [
-        "//timberland/assets:nomad/config/zookeeper/config/zoo.cfg",
-        "//timberland/assets:nomad/config/zookeeper/config/zoo.tpl",
-        "//timberland/assets:nomad/config/zookeeper/config/zoo_replicated.cfg.dynamic",
-    ],
-    package_dir = "/opt/radix/timberland/nomad/zookeeper",
-)
-
-pkg_tar(
     name = "timberland-systemd-services",
     srcs = [
         "//timberland/assets:systemd/consul.service",
@@ -456,8 +438,6 @@ pkg_tar(
         ":timberland-networkd",
         ":timberland-nomad",
         ":timberland-nomad-config",
-        ":timberland-nomad-config-elasticsearch",
-        ":timberland-nomad-config-zookeeper",
         ":timberland-systemd-services",
         ":timberland-vault",
     ],
@@ -813,7 +793,6 @@ terraform_provider(
   ca_file = var.tls_ca_file
   cert_file = var.tls_cert_file
   key_file = var.tls_key_file
-  version = "~> 2.7"
   token = var.acl_token
 }
 """,
@@ -832,7 +811,6 @@ terraform_provider(
    ca_file = var.tls_ca_file
    cert_file = var.tls_nomad_cert_file
    key_file = var.tls_nomad_key_file
-   version = "~> 1.4"
    secret_id = var.acl_token
 }
 """,
@@ -849,7 +827,6 @@ terraform_provider(
     spec = """provider "vault" {
     address = "https://${var.vault_address}:8200"
     ca_cert_file = var.tls_ca_file
-    version = "2.11.0"
     token = var.vault_token
 }
 """,

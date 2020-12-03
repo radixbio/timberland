@@ -13,6 +13,7 @@ client {
   network_speed   = 1000
   options {
     docker.privileged.enabled = "true"
+    docker.volumes.enabled = "true"
   }
 
   host_volume "zookeeper_data" {
@@ -56,6 +57,9 @@ plugin "docker" {
     }
     gc {
       image = false
+    }
+    volumes {
+      enabled = true
     }
   }
 }

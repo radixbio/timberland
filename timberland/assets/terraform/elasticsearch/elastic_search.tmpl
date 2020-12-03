@@ -37,7 +37,6 @@ job "${prefix}elasticsearch" {
           "rest" = 9200,
           "transport" = 9300
         }
-        volumes = ["/opt/radix/timberland:/timberland"]
         cap_add = []
       }
 
@@ -111,7 +110,10 @@ job "${prefix}elasticsearch" {
         left_delimiter = "{{"
         perms = "644"
         right_delimiter = "}}"
-        source = "/opt/radix/timberland/nomad/config/elasticsearch/unicast_hosts.tpl"
+        data = <<EOH
+{{- range service (printf "%s-discovery|passing" (env "NOMAD_GROUP_NAME")) }}
+{{ .Address }}:{{ .Port }}{{ end }}
+EOH
         splay = "5s"
       }
     }
