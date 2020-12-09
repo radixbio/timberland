@@ -84,6 +84,7 @@ dependencies:
       lang: java
       version: "0.4.3"
 
+
   com.github.oshi:
     oshi-core:
       lang: java
@@ -264,6 +265,11 @@ dependencies:
       lang: scala
       modules: [ "core", "jdbc" ]
       version: "3.4.2"
+
+  io.github.cquiroz:
+    scala-java-time:
+      lang: scala
+      version: "2.0.0"
 
   io.github.embeddedkafka:
     embedded-kafka-schema-registry:
