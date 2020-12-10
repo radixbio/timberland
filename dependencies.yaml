@@ -445,7 +445,7 @@ dependencies:
     cats:
       lang: scala
       modules: [ "core", "effect", "free", "kernel", "macros" ]
-      version: "2.0.0"
+      version: "2.1.0"
     cats-mtl-core:
       lang: scala
       version: "0.7.0"
