@@ -1,6 +1,5 @@
 package com.radix.timberland.util
 
-
 import cats.effect.{ContextShift, IO}
 import io.circe.syntax._
 import io.circe.parser.parse
@@ -168,20 +167,21 @@ object UpdateModules {
   // Terraform fails on replanning if there are fewer module configs in the new
   // main configuration directory than in terraform's working copy in /opt/radix/terraform.
   // This removes extraneous modules from the working copy.
-  def auditExecDir(): IO[Unit] = IO({
-    val module_manifest = os.list(TemplateFiles.module_dir).map(_.baseName)
-    val exec_manifest = os.list(TemplateFiles.terraform_exec_dir).map(_.baseName)
-    for {
-      fn <- exec_manifest.toSet.diff(module_manifest.toSet)
-    } yield {
-      if (fn == "modules") {
-        Unit
-      } else {
-        println(s"Removing ${TemplateFiles.terraform_exec_dir / fn}")
-        os.remove.all(TemplateFiles.terraform_exec_dir / fn)
+  def auditExecDir(): IO[Unit] =
+    IO({
+      val module_manifest = os.list(TemplateFiles.module_dir).map(_.baseName)
+      val exec_manifest = os.list(TemplateFiles.terraform_exec_dir).map(_.baseName)
+      for {
+        fn <- exec_manifest.toSet.diff(module_manifest.toSet)
+      } yield {
+        if (fn == "modules") {
+          Unit
+        } else {
+          println(s"Removing ${TemplateFiles.terraform_exec_dir / fn}")
+          os.remove.all(TemplateFiles.terraform_exec_dir / fn)
+        }
       }
-    }
-  })
+    })
 
   // TODO make version specifiable?
   def run(terraformTask: IO[Boolean], prefix: Option[String]): IO[Unit] = {

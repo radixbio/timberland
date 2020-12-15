@@ -84,7 +84,6 @@ dependencies:
       lang: java
       version: "0.4.3"
 
-
   com.github.oshi:
     oshi-core:
       lang: java
