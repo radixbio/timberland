@@ -1,20 +1,32 @@
 #!/usr/bin/env bash
+set -xu
+
+copy_logs() {
+#  set +e
+  mkdir /home/centos/nomad-logs
+  rsync -av --relative /opt/radix/nomad/alloc/./* /home/centos/nomad-logs
+  chmod -R 777 /home/centos/nomad-logs
+  journalctl -u consul > /tmp/consul.log
+  journalctl -u nomad > /tmp/nomad.log
+  journalctl -u vault > /tmp/vault.log
+  journalctl -u consul-template > /tmp/consul-template.log
+#  set -e
+}
+
+trap copy_logs EXIT
 
 docker swarm init
-yes | docker plugin install weaveworks/net-plugin:2.6.0
-docker plugin disable weaveworks/net-plugin:2.6.0
-docker plugin set weaveworks/net-plugin:2.6.0 IPALLOC_RANGE=10.32.0.0/12
-docker plugin enable weaveworks/net-plugin:2.6.0
 
-yum install -y psmisc wget
-wget -O /usr/local/bin/weave https://github.com/weaveworks/weave/releases/download/v2.6.0/weave && chmod +x /usr/local/bin/weave && /usr/local/bin/weave expose
+yum install -y epel-release
+yum install -y jq
+yum install -y psmisc
+
 yum install -y ./timberland-rpm-all.rpm
 
 cd /opt/radix/timberland/exec
-docker network create --attachable -d weaveworks/net-plugin:2.6.0 weave  --ip-range 10.32.0.0/12 --subnet 10.32.0.0/12
-
 ./timberland runtime enable all
 ./timberland runtime disable elemental
+./timberland runtime disable runtime
 ./timberland runtime disable algs
 ./timberland runtime disable utils
 ./timberland runtime disable device_drivers
@@ -28,12 +40,17 @@ echo "Timberland exit code: $TIMBERLAND_EXIT_CODE"
 
 sleep 3
 
+chmod +x /home/centos/gather-results.sh
+/home/centos/gather-results.sh | tee /tmp/results.log
 /home/centos/service_test.py | tee /tmp/service_test.log
 
-TEST_EXIT_CODE=$?
+TEST_EXIT_CODE=${PIPESTATUS[0]}
 echo "Service test exit code: $TEST_EXIT_CODE"
 
-mkdir /home/centos/nomad-logs
-rsync -av --relative /opt/radix/nomad/alloc/./*/alloc/logs/* /home/centos/nomad-logs
+if [ "$TIMBERLAND_EXIT_CODE" -eq 0 ] && [ "$TEST_EXIT_CODE" -eq 0 ]; then
+  EXIT_CODE=0
+else
+  EXIT_CODE=1
+fi
 
-exit $TEST_EXIT_CODE
+exit $EXIT_CODE

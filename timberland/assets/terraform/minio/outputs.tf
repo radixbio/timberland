@@ -1,4 +1,4 @@
 output "minio_health_result" {
-  value = [for entry in data.consul_service_health.minio_health: format("%s:%s", entry.results.0.service.0.address, entry.results.0.service.0.port)]
-  depends_on = [data.consul_service_health.minio_health]
+  value = [for entry in data.consul_service_health.minio_local_health: format("%s:%s", entry.results[0].service[0].address, entry.results[0].service[0].port)]
+  depends_on = [data.consul_service_health.minio_local_health]
 }

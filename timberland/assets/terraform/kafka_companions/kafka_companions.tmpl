@@ -7,9 +7,15 @@ job "${prefix}kc-daemons" {
     value = "linux"
   }
 
+  constraint {
+    operator = "distinct_hosts"
+    value = "true"
+  }
+
   datacenters = ["dc1"]
 
-  group "companions" {
+%{ for i in range(1) ~}
+  group "kafka-companions-${i}" {
     count = 1
 
     task "schema-registry" {
@@ -17,53 +23,28 @@ job "${prefix}kc-daemons" {
       config {
         image = "confluentinc/cp-schema-registry:5.3.1"
         auth_soft_fail = false
-        hostname = "$${attr.unique.hostname}-kafka-schema-registry"
         privileged = false
-        network_mode = "weave"
-        port_map = {"registry_listener" = 8081}
         cap_add = []
+        command = "bash"
+        args = ["-c", "cp /etc/hosts /tmp/hosts; echo \"127.0.1.1 $(hostname)\" >> /tmp/hosts; cat /tmp/hosts > /etc/hosts; /etc/confluent/docker/run"]
       }
 
       driver = "docker"
       env = {
-        "SCHEMA_REGISTRY_KAFKASTORE_TOPIC_REPLICATION_FACTOR" = ${ dev ? "\"1\"" : "\"3\"" },
-        "SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS" = "PLAINTEXT://${prefix}kafka-daemons-kafka-kafka.service.consul:29092",
-        "SCHEMA_REGISTRY_HOST_NAME" = "$${attr.unique.hostname}-kafka-schema-registry",
-        "SCHEMA_REGISTRY_LISTENERS" = "http://0.0.0.0:8081"
+        //"SCHEMA_REGISTRY_KAFKASTORE_TOPIC_REPLICATION_FACTOR" = "${ dev ? 1 : min(quorum_size, 3) }",
+        // this is a bug! we should be able to use OUTSIDE https://github.com/confluentinc/schema-registry/issues/648
+        // a trailing comma in the list of bootstrap servers makes schema registry crash. I removed the trailing comma from all BOOTSTRAP_SERVERS env vars just for symmetry
+        "SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS" = "%{ for j in range(dev ? 1 : quorum_size) ~}PLAINTEXT://$${NOMAD_UPSTREAM_ADDR_kafka-${j}}${ j == (dev ? 1 : quorum_size) - 1 ? "" : ","}%{ endfor ~}",
+        "SCHEMA_REGISTRY_HOST_NAME" = "kc-schema-registry-service-0.service.consul",
+        "SCHEMA_REGISTRY_LISTENERS" = "http://0.0.0.0:8081",
       }
+
       kill_timeout = "5s"
       kill_signal = "SIGINT"
       leader = false
 
       resources {
         memory = 1000
-
-        network {
-          mbits = 10
-
-          port "registry_listener" {
-            static = 8081
-          }
-        }
-      }
-
-      service {
-        port = "registry_listener"
-        tags = ["kafka-companion","kafka-schema-registry"]
-        address_mode = "auto"
-
-        check {
-          address_mode = "host"
-          grpc_use_tls = true
-          initial_status = "critical"
-          interval = "10s"
-          method = "GET"
-          port = "registry_listener"
-          protocol = "http"
-          timeout = "2s"
-          type = "tcp"
-          tls_skip_verify = false
-        }
       }
 
       shutdown_delay = "0s"
@@ -74,19 +55,16 @@ job "${prefix}kc-daemons" {
       config {
         image = "confluentinc/cp-kafka-rest:5.3.1"
         auth_soft_fail = false
-        hostname = "$${attr.unique.hostname}-kafka-rest-proxy"
         privileged = false
-        network_mode = "weave"
-        port_map = {"rest" = 8082}
         cap_add = []
       }
 
       driver = "docker"
       env = {
-        "KAFKA_REST_BOOTSTRAP_SERVERS" = "INSIDE://${prefix}kafka-daemons-kafka-kafka.service.consul:29092",
-        "KAFKA_REST_SCHEMA_REGISTRY_URL" = "http://${prefix}kc-daemons-companions-schema-registry.service.consul:8081",
-        "KAFKA_REST_HOST_NAME" = "$${attr.unique.hostname}-kafka-rest-proxy",
-        "KAFKA_REST_LISTENERS" = "http://0.0.0.0:8082"
+        "KAFKA_REST_BOOTSTRAP_SERVERS" = "%{ for j in range(dev ? 1 : quorum_size) ~}OUTSIDE://$${NOMAD_UPSTREAM_ADDR_kafka-${j}}${ j == (dev ? 1 : quorum_size) - 1 ? "" : ","}%{ endfor ~}",
+        "KAFKA_REST_SCHEMA_REGISTRY_URL" = "http://127.0.0.1:8081",
+        "KAFKA_REST_HOST_NAME" = "kc-rest-service-0.service.consul",
+        "KAFKA_REST_LISTENERS" = "http://0.0.0.0:8082",
       }
       kill_timeout = "5s"
       kill_signal = "SIGINT"
@@ -94,33 +72,6 @@ job "${prefix}kc-daemons" {
 
       resources {
         memory = 1000
-
-        network {
-          mbits = 10
-
-          port "rest" {
-            static = 8082
-          }
-        }
-      }
-
-      service {
-        port = "rest"
-        tags = ["kafka-companion","kafka-rest-proxy"]
-        address_mode = "auto"
-
-        check {
-          address_mode = "host"
-          grpc_use_tls = true
-          initial_status = "critical"
-          interval = "10s"
-          method = "GET"
-          port = "rest"
-          protocol = "http"
-          timeout = "2s"
-          type = "tcp"
-          tls_skip_verify = false
-        }
       }
 
       shutdown_delay = "0s"
@@ -131,36 +82,37 @@ job "${prefix}kc-daemons" {
       config {
         image = "confluentinc/cp-kafka-connect:5.3.1"
         auth_soft_fail = false
-        hostname = "$${attr.unique.hostname}-kafka-connect"
         privileged = false
-        network_mode = "weave"
-        port_map = {"connect" = 8083}
         cap_add = []
+        command = "bash"
+        args = ["-c", "cp /etc/hosts /tmp/hosts; echo \"127.0.1.1 $(hostname)\" >> /tmp/hosts; cat /tmp/hosts > /etc/hosts; /etc/confluent/docker/run"]
       }
 
       driver = "docker"
       env = {
-        "CONNECT_REST_ADVERTISED_HOST_NAME" = "$${attr.unique.hostname}-kafka-connect",
-        "PROXY" = "true",
-        "CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL" = "http://${prefix}kc-daemons-companions-schema-registry:8081",
-        "CONNECT_KEY_CONVERTER" = "io.confluent.connect.avro.AvroConverter",
-        "CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL" = "http://${prefix}kc-daemons-companions-schema-registry:8081",
-        "CONNECT_PLUGIN_PATH" = "/usr/share/java,/etc/kafka-connect/jars",
-        "CONNECT_REST_PORT" = "8083",
-        "CONNECT_LOG4J_LOGGERS" = "org.apache.kafka.connect.runtime.rest=WARN,org.reflections=ERROR",
-        "CONNECT_LOG4J_ROOT_LOGLEVEL" = "INFO",
-        "CONNECT_BOOTSTRAP_SERVERS" = "INSIDE://${prefix}kafka-daemons-kafka-kafka.service.consul:29092",
-        "KAFKA_REST_PROXY_URL" = "http://${prefix}kc-daemons-companions-rest-proxy.service.consul:8082",
+        "CONNECT_BOOTSTRAP_SERVERS" = "%{ for j in range(dev ? 1 : quorum_size) ~}OUTSIDE://$${NOMAD_UPSTREAM_ADDR_kafka-${j}}${ j == (dev ? 1 : quorum_size) - 1 ? "" : ","}%{ endfor ~}",
         "CONNECT_GROUP_ID" = "kafka-daemons-connect-group",
-        "CONNECT_INTERNAL_KEY_CONVERTER" = "org.apache.kafka.connect.json.JsonConverter",
-        "CONNECT_STATUS_STORAGE_TOPIC" = "kafka-connect-daemons-connect-status",
-        "CONNECT_VALUE_CONVERTER" = "io.confluent.connect.avro.AvroConverter",
-        "CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR" = "${ dev ? "1" : "3" }",
-        "CONNECT_STATUS_STORAGE_REPLICATION_FACTOR" = "${ dev ? "1" : "3" }",
-        "CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR" = "${ dev ? "1" : "3" }",
-        "CONNECT_INTERNAL_VALUE_CONVERTER" = "org.apache.kafka.connect.json.JsonConverter",
+        "CONNECT_CONFIG_STORAGE_TOPIC" = "kafka-connect-daemons-connect-configs",
         "CONNECT_OFFSET_STORAGE_TOPIC" = "kafka-connect-daemons-connect-offsets",
-        "CONNECT_CONFIG_STORAGE_TOPIC" = "kafka-connect-daemons-connect-configs"
+        "CONNECT_STATUS_STORAGE_TOPIC" = "kafka-connect-daemons-connect-status",
+        "CONNECT_KEY_CONVERTER" = "io.confluent.connect.avro.AvroConverter",
+        "CONNECT_VALUE_CONVERTER" = "io.confluent.connect.avro.AvroConverter",
+        "CONNECT_INTERNAL_KEY_CONVERTER" = "org.apache.kafka.connect.json.JsonConverter",
+        "CONNECT_INTERNAL_VALUE_CONVERTER" = "org.apache.kafka.connect.json.JsonConverter",
+        "CONNECT_REST_ADVERTISED_HOST_NAME" = "kc-connect-service-0.connect.consul",
+        "CONNECT_REST_ADVERTISED_PORT" = "8083",
+
+        "PROXY" = "true",
+        "KAFKA_REST_PROXY_URL" = "http://127.0.0.1:8083",
+        "CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL" = "http://127.0.0.1:8081",
+        "CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL" = "http://127.0.0.1:8081",
+        "CONNECT_PLUGIN_PATH" = "/usr/share/java,/etc/kafka-connect/jars",
+        "CONNECT_LOG4J_LOGGERS" = "org.apache.kafka.connect.runtime.rest=INFO,org.reflections=ERROR",
+        "CONNECT_LOG4J_ROOT_LOGLEVEL" = "INFO",
+
+        "CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR" = ${ dev ? 1 : min(quorum_size, 3) },
+        "CONNECT_STATUS_STORAGE_REPLICATION_FACTOR" = ${ dev ? 1 : min(quorum_size, 3) },
+        "CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR" = ${ dev ? 1 : min(quorum_size, 3) },
       }
       kill_timeout = "5s"
       kill_signal = "SIGINT"
@@ -168,48 +120,17 @@ job "${prefix}kc-daemons" {
 
       resources {
         memory = 2000
-
-        network {
-          mbits = 10
-
-          port "connect" {
-            static = 8083
-          }
-        }
-      }
-
-      service {
-        port = "connect"
-        tags = ["kafka-companion","kafka-connect"]
-        address_mode = "auto"
-
-        check {
-          address_mode = "host"
-          grpc_use_tls = true
-          initial_status = "critical"
-          interval = "10s"
-          method = "GET"
-          port = "connect"
-          protocol = "http"
-          timeout = "2s"
-          type = "tcp"
-          tls_skip_verify = false
-        }
       }
 
       shutdown_delay = "0s"
     }
-
 
     task "kSQL" {
 
       config {
         image = "confluentinc/cp-ksql-server:5.3.1"
         auth_soft_fail = false
-        hostname = "$${attr.unique.hostname}-kafka-ksql-server"
         privileged = false
-        network_mode = "weave"
-        port_map = {"ui" = 8000}
         cap_add = []
       }
 
@@ -217,9 +138,9 @@ job "${prefix}kc-daemons" {
       env = {
         "PROXY" = "true",
         "KSQL_KQSL_SERVICE_ID" = "ksql-server",
-        "KAFKA_REST_PROXY_URL" = "http://${prefix}kc-daemons-companions-rest-proxy.service.consul:8082",
+        "KAFKA_REST_PROXY_URL" = "http://127.0.0.1:8082",
         "KSQL_LISTENERS" = "http://0.0.0.0:8000",
-        "KSQL_BOOTSTRAP_SERVERS" = "INSIDE://${prefix}kafka-daemons-kafka-kafka.service.consul:29092"
+        "KSQL_BOOTSTRAP_SERVERS" = "%{ for j in range(dev ? 1 : quorum_size) ~}OUTSIDE://$${NOMAD_UPSTREAM_ADDR_kafka-${j}}${ j == (dev ? 1 : quorum_size) - 1 ? "" : ","}%{ endfor ~}"
       }
       kill_timeout = "5s"
       kill_signal = "SIGINT"
@@ -227,38 +148,137 @@ job "${prefix}kc-daemons" {
 
       resources {
         memory = 1000
-
-        network {
-          mbits = 10
-
-          port "ui" {
-            static = 8000
-          }
-        }
-      }
-
-      service {
-        port = "ui"
-        tags = ["kafka-companion","kafka-topics-ui"]
-        address_mode = "auto"
-
-        check {
-          address_mode = "host"
-          grpc_use_tls = true
-          initial_status = "critical"
-          interval = "10s"
-          method = "GET"
-          port = "ui"
-          protocol = "http"
-          timeout = "2s"
-          type = "tcp"
-          tls_skip_verify = false
-        }
       }
 
       shutdown_delay = "0s"
     }
+
+    network {
+      mbits = 10
+      mode = "bridge"
+    }
+
+    service {
+      name = "kc-schema-registry-service-${i}"
+      port = 8081
+      tags = ["kafka-companion","kafka-schema-registry", "${prefix}"]
+      address_mode = "auto"
+
+      connect {
+        sidecar_service {
+          proxy {
+          %{ for j in range(dev ? 1 : quorum_size) ~}
+            upstreams {
+              destination_name = "kafka-${j}"
+              local_bind_port = ${ 9092 + j }
+            }
+          %{ endfor ~}
+          }
+        }
+      }
+
+      check {
+        type = "script"
+        name = "schema-registry-health-${i}"
+        task = "schema-registry"
+        command = "curl"
+        args = ["127.0.0.1:8081"]
+        interval = "10s"
+        timeout = "5s"
+      }
+    }
+
+    service {
+      name = "kc-rest-proxy-service-${i}"
+      port = 8082
+      tags = ["kafka-companion","kafka-rest-proxy", "${prefix}"]
+      address_mode = "auto"
+
+      connect {
+        sidecar_service {
+          proxy {
+          %{ for j in range(dev ? 1 : quorum_size) ~}
+            upstreams {
+              destination_name = "kafka-${j}"
+              local_bind_port = ${ 9092 + j }
+            }
+          %{ endfor ~}
+          }
+        }
+      }
+
+      check {
+        type = "script"
+        name = "rest-proxy-health-${i}"
+        task = "rest-proxy"
+        command = "curl"
+        args = ["127.0.0.1:8082"]
+        interval = "10s"
+        timeout = "5s"
+      }
+    }
+
+    service {
+      name = "kc-connect-service-${i}"
+      port = 8083
+      tags = ["kafka-companion","kafka-connect", "${prefix}"]
+      address_mode = "auto"
+
+      connect {
+        sidecar_service {
+          proxy {
+          %{ for j in range(dev ? 1 : quorum_size) ~}
+            upstreams {
+              destination_name = "kafka-${j}"
+              local_bind_port = ${ 9092 + j }
+            }
+          %{ endfor ~}
+          }
+        }
+      }
+
+      check {
+        type = "script"
+        name = "connect-health-${i}"
+        task = "connect"
+        command = "curl"
+        args = ["127.0.0.1:8083"]
+        interval = "10s"
+        timeout = "5s"
+      }
+    }
+
+    service {
+      name = "kc-ksql-service-${i}"
+      port = 8000
+      tags = ["kafka-companion","kafka-topics-ui", "${prefix}"]
+      address_mode = "auto"
+
+      connect {
+        sidecar_service {
+          proxy {
+          %{ for j in range(dev ? 1 : quorum_size) ~}
+            upstreams {
+              destination_name = "kafka-${j}"
+              local_bind_port = ${ 9092 + j }
+            }
+          %{ endfor ~}
+          }
+        }
+      }
+
+      check {
+        type = "script"
+        name = "ksql-health-${i}"
+        task = "kSQL"
+        command = "curl"
+        args = ["127.0.0.1:8000"]
+        interval = "10s"
+        timeout = "5s"
+      }
+    }
   }
+%{ endfor ~}
 
   namespace = "default"
   priority = 50

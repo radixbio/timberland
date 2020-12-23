@@ -443,7 +443,10 @@ dependencies:
   org.typelevel:
     cats:
       lang: scala
-      modules: [ "core", "effect", "free", "kernel", "macros" ]
+      modules: [ "core", "effect", "free", "kernel" ]
+      version: "2.2.0"
+    cats-macros:
+      lang: scala
       version: "2.1.0"
     cats-mtl-core:
       lang: scala

@@ -9,6 +9,34 @@
 
 set -ex
 
+copy_logs() {
+  set +e
+  scp -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP:/tmp/service_test.log /tmp/service_test.log
+  echo "@@@@@@@@ Got service test log"
+
+  scp -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP:/tmp/results.log /tmp/results.log
+  echo "@@@@@@@@ Got results log"
+
+  scp -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP:/tmp/consul.log /tmp/consul.log
+  echo "@@@@@@@@ Got consul log"
+
+  scp -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP:/tmp/nomad.log /tmp/nomad.log
+  echo "@@@@@@@@ Got nomad log"
+
+  scp -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP:/tmp/vault.log /tmp/vault.log
+  echo "@@@@@@@@ Got vault log"
+
+  scp -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP:/tmp/consul-template.log /tmp/consul-template.log
+  echo "@@@@@@@@ Got consul-template log"
+
+  scp -r -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP:~/nomad-logs/* /tmp/nomad-logs
+  echo "@@@@@@@@ Got nomad logs"
+
+  scp -r -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP:/opt/radix/timberland.log /tmp/timberland.log
+  echo "@@@@@@@@ Got timberland log"
+  set -e
+}
+
 # Is there a more concise way to represent this?
 if [ "$1" == "persist" ];
 then
@@ -27,6 +55,7 @@ else
   INSTALLATION_SCRIPT="./timberland/jvm/src/test/install-deb.sh"
   AWS_INSTANCE_SSH_USER=ubuntu
 fi
+RESULTS_SCRIPT="./timberland/jvm/src/test/gather-results.sh"
 
 if ! [ -x "$(command -v aws)" ]; then
   echo "Please install aws-cli: https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-welcome.html"
@@ -74,24 +103,18 @@ echo "Transferring package to instance ($AWS_INSTANCE_IP)..."
 scp -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $PACKAGE_LOCATION $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP:~
 
 scp -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" ./timberland/jvm/src/test/service_test.py $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP:~
+scp -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $RESULTS_SCRIPT $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP:~
+
 scp -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $INSTALLATION_SCRIPT $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP:~
 
 echo "@@@@@@@@ executing scripted install"
+
+trap copy_logs EXIT
 
 ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP "chmod +x ~/$(basename $INSTALLATION_SCRIPT)"
 ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP "sudo su -c ~/$(basename $INSTALLATION_SCRIPT)"
 
 echo "@@@@@@@@ SSH ended"
-
-scp -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP:/tmp/service_test.log /tmp/service_test.log
-
-echo "@@@@@@@@ Got service test log"
-
-scp -r -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP:~/nomad-logs/* /tmp/nomad-logs
-
-scp -r -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP:/opt/radix/timberland.log /tmp/timberland.log
-
-echo "@@@@@@@@ Got nomad logs"
 
 if [ "$PERSIST" != "true" ];
 then

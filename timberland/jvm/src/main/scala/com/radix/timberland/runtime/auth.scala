@@ -2,7 +2,7 @@ package com.radix.timberland.runtime
 
 import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
-import com.radix.timberland.radixdefs.ServiceAddrs
+import com.radix.timberland.radixdefs.{ACLTokens, ServiceAddrs}
 import com.radix.timberland.util.{LogTUI, RadPath, Util, VaultUtils}
 import com.radix.utils.helm.http4s.vault.Vault
 import com.radix.utils.helm.vault.{CreateSecretRequest, KVGetResult, LoginResponse}
@@ -14,7 +14,7 @@ import org.http4s.implicits._
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
-case class AuthTokens(consulNomadToken: String, vaultToken: String)
+case class AuthTokens(consulNomadToken: String, actorToken: String, vaultToken: String)
 
 object auth {
   implicit val timer: Timer[IO] = IO.timer(ExecutionContext.global)
@@ -55,8 +55,9 @@ object auth {
         IO.ioConcurrentEffect,
         insecureBlaze
       )
-      consulNomadToken <- getConsulTokenFromVault(authenticatedVault)
-    } yield AuthTokens(consulNomadToken, vaultToken)
+      consulNomadToken <- getTokenFromVault(authenticatedVault, "consul-ui-token")
+      actorToken <- getTokenFromVault(authenticatedVault, "actor-token")
+    } yield AuthTokens(consulNomadToken = consulNomadToken, actorToken = actorToken, vaultToken)
 
   }
 
@@ -66,20 +67,25 @@ object auth {
       vaultToken <- IO(new VaultUtils().findVaultToken())
       consulNomadToken <- blaze.use { client =>
         val vault = new Vault[IO](authToken = Some(vaultToken), baseUrl = vaultUri)
-        getConsulTokenFromVault(vault)
+        getTokenFromVault(vault, "consul-ui-token")
       }
-    } yield AuthTokens(consulNomadToken, vaultToken)
+      actorToken <- blaze.use { client =>
+        val vault = new Vault[IO](authToken = Some(vaultToken), baseUrl = vaultUri)
+        getTokenFromVault(vault, "actor-token")
+      }
+    } yield AuthTokens(consulNomadToken = consulNomadToken, actorToken = actorToken, vaultToken = vaultToken)
   }
 
-  private def getConsulTokenFromVault(vault: Vault[IO]): IO[String] =
-    vault.getSecret("consul-ui-token").map {
+  private def getTokenFromVault(vault: Vault[IO], name: String): IO[String] =
+    vault.getSecret(s"tokens/$name").map {
       case Right(KVGetResult(_, data)) =>
         data.hcursor.get[String]("token").toOption.getOrElse {
-          scribe.error("Error parsing consul/nomad token from vault secret")
+          scribe.error(s"Error parsing $name token from vault secret")
           sys.exit(1)
         }
       case Left(err) =>
-        scribe.error("Error getting consul/nomad token from vault\n" + err)
+        scribe.error(s"Error getting $name token from vault\n" + err)
+        scribe.error(s"Error message: ${err.getMessage}")
         sys.exit(1)
     }
 
@@ -89,10 +95,18 @@ object auth {
    * @param consulToken This token is set as the superUser token for consul
    * @return Nothing
    */
-  def writeTokenConfigs(persistentDir: os.Path, consulToken: String): IO[Unit] = {
+  def writeVaultTokenConfigs(persistentDir: os.Path, consulToken: String): IO[Unit] = {
     val vaultConfigLoc = persistentDir / "vault" / "vault_config.conf"
     val vaultConfigRegex = """token = ".+""""
     val vaultConfigRegexReplacement = s"""token = "$consulToken""""
+
+    IO {
+      val vaultConfig = os.read(vaultConfigLoc).replaceAll(vaultConfigRegex, vaultConfigRegexReplacement)
+      os.write.over(vaultConfigLoc, vaultConfig)
+    }
+  }
+
+  def writeConsulNomadTokenConfigs(persistentDir: os.Path, consulToken: String, vaultToken: String): IO[Unit] = {
     val nomadConfigLoc = persistentDir / "nomad" / "config" / "auth.hcl"
     val nomadConfig = s"""consul { token = "$consulToken" }""".stripMargin
     val consulConfigLoc = persistentDir / "consul" / "config" / "auth.hcl"
@@ -103,11 +117,13 @@ object auth {
          |    agent = "$consulToken"
          |  }
          |}
+         |connect {
+         |  ca_config {
+         |    token = "$vaultToken"
+         |  }
+         |}
          |""".stripMargin
-
     IO {
-      val vaultConfig = os.read(vaultConfigLoc).replaceAll(vaultConfigRegex, vaultConfigRegexReplacement)
-      os.write.over(vaultConfigLoc, vaultConfig)
       os.write.over(nomadConfigLoc, nomadConfig)
       os.write.over(consulConfigLoc, consulConfig)
     }
@@ -119,39 +135,58 @@ object auth {
    * @param consulToken The token used to access consul
    * @return Nothing
    */
-  def setupDefaultConsulToken(persistentDir: os.Path, consulToken: String): IO[Unit] = {
+  def setupConsulTokens(persistentDir: os.Path, consulToken: String): IO[String] = {
     val consulDir = persistentDir / "consul"
-    val defaultPolicy = consulDir / "default-policy.hcl"
     val consul = consulDir / "consul"
-    val defaultPolicyCmd = s"$consul acl policy create -token=$consulToken -name=default-policy -rules=@$defaultPolicy"
-    val getDefaultPolicyCmd = s"$consul acl policy read -token=$consulToken -name=default-policy"
+
     val defaultTokenCmd =
       s"$consul acl token create -token=$consulToken -description='Default-allow-DNS.' -policy-name=default-policy"
+
+    for {
+      defaultTokenRes <- setupConsulToken(persistentDir, consulToken, "default-policy", "Default-allow-DNS")
+      actorTokenRes <- setupConsulToken(persistentDir, consulToken, "actor-policy", "akka-actors")
+      setDefaultTokenCmd = s"$consul acl set-agent-token -token=$consulToken default ${defaultTokenRes.token}"
+      _ <- if (defaultTokenRes.cmdRes.exitCode == 0) Util.exec(setDefaultTokenCmd)
+      else IO(scribe.error(s"$defaultTokenCmd exited with ${defaultTokenRes.cmdRes.exitCode}"))
+    } yield actorTokenRes.token
+  }
+
+  private case class TokenResult(cmdRes: Util.ProcOut, token: String)
+  private def setupConsulToken(
+    persistentDir: os.Path,
+    consulToken: String,
+    policyName: String,
+    tokenDescription: String
+  ): IO[TokenResult] = {
+    val consulDir = persistentDir / "consul"
+    val consul = consulDir / "consul"
+    val policyFile = consulDir / s"$policyName.hcl"
+    val policyCmd = s"$consul acl policy create -token=$consulToken -name=$policyName -rules=@$policyFile"
+    val getPolicyCmd = s"$consul acl policy read -token=$consulToken -name=$policyName"
+    val tokenCmd =
+      s"$consul acl token create -token=$consulToken -description='$tokenDescription' -policy-name=$policyName"
+
     for {
       _ <- Util.waitForConsul(consulToken, 60.seconds, address = "http://127.0.0.1:8500")
       _ <- IO.sleep(30.seconds)
-      defaultPolicyCmdRes <- Util.exec(defaultPolicyCmd)
-      checkDefaultPolicyRes <- if (defaultPolicyCmdRes.exitCode == 0) IO.pure(true)
-      else if ((defaultPolicyCmdRes.exitCode != 0) && (defaultPolicyCmdRes.stderr
-                 .contains("already exists"))) {
+      policyCmdRes <- Util.exec(policyCmd)
+      checkPolicyCmdRes <- if (policyCmdRes.exitCode == 0) IO.pure(true)
+      else if (policyCmdRes.exitCode != 0 && policyCmdRes.stderr.contains("already exists")) {
         for {
-          checkDefaultPolicyRes <- Util.exec(getDefaultPolicyCmd)
-          policyAlreadyThere = checkDefaultPolicyRes.stdout.contains(os.read(defaultPolicy))
+          checkPolicyRes <- Util.exec(getPolicyCmd)
+          policyAlreadyThere = checkPolicyRes.stdout.contains(os.read(policyFile))
         } yield policyAlreadyThere
-      } else IO.pure(false) // unknown error
+      } else IO.pure(false) //unknown error
 
-      _ <- if (checkDefaultPolicyRes) IO(scribe.info("Policy already exists!"))
+      _ <- if (checkPolicyCmdRes) IO(scribe.info(s"$policyName policy already exists."))
       else {
-        IO(scribe.error("Unknown error setting up default Consul Policy")); IO(sys.exit(1))
+        IO(scribe.error(s"Unknown error setting up $policyName Consul policy."))
+        IO(sys.exit(1))
       }
-      defaultTokenCmdRes <- Util.exec(defaultTokenCmd)
 
-      dnsRequestToken = parseToken(defaultTokenCmdRes)
-
-      setDefaultTokenCmd = s"$consul acl set-agent-token -token=$consulToken default ${dnsRequestToken.getOrElse("")}"
-      _ <- if (defaultTokenCmdRes.exitCode == 0) Util.exec(setDefaultTokenCmd)
-      else IO(scribe.error(s"$defaultTokenCmd exited with ${defaultTokenCmdRes.exitCode}"))
-    } yield ()
+      tokenCmdRes <- Util.exec(tokenCmd)
+      token = parseToken(tokenCmdRes).getOrElse("")
+    } yield TokenResult(tokenCmdRes, token)
   }
 
   /**
@@ -216,16 +251,32 @@ object auth {
     ()
   }
 
-  def storeMasterToken(masterToken: String): IO[Unit] = {
+  /**
+   * - puts the master consul/nomad token in timberland/.acl-token
+   * - stores the master token as "consul-ui-token" in vault
+   * - stores another token with less permissions in vault as "actor-token"
+   * @param tokens Tokens to store
+   * @return
+   */
+  def storeTokensInVault(tokens: ACLTokens): IO[Unit] = {
     val vaultToken = (new VaultUtils).findVaultToken()
     val vaultUri = uri"https://127.0.0.1:8200"
     val vault = new Vault[IO](authToken = Some(vaultToken), baseUrl = vaultUri)
-    val payload = CreateSecretRequest(data = Map("token" -> masterToken).asJson, cas = None)
-    vault.createSecret("consul-ui-token", payload).map {
-      case Left(err) =>
-        scribe.error(s"Error saving consul/nomad token to vault! Failed with $err.")
-      case Right(_) => ()
-    } *> IO(os.write.over(RadPath.runtime / "timberland" / ".acl-token", masterToken, os.PermSet(400)))
+    List((tokens.masterToken, "consul-ui-token"), (tokens.actorToken, "actor-token"))
+      .map {
+        case (token, name) => {
+          val payload = CreateSecretRequest(data = Map("token" -> token).asJson, cas = None)
+          vault.createSecret(s"tokens/${name}", payload).map {
+            case Left(err) =>
+              scribe.error(s"Error saving ${name} token to vault\n" + err)
+              sys.exit(1)
+            case Right(_) => ()
+          }
+        }
+      }
+      .reduce(_ *> _) *> IO(
+      os.write.over(RadPath.runtime / "timberland" / ".acl-token", tokens.masterToken, os.PermSet(400))
+    )
   }
 
   private def parseToken(cmdResult: Util.ProcOut): Option[String] = {

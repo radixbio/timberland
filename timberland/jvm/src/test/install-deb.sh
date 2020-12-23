@@ -1,20 +1,36 @@
 #!/usr/bin/env bash
-set -exu
+set -xu
+
+copy_logs() {
+#  set +e
+  mkdir /home/ubuntu/nomad-logs
+  rsync -av --relative /opt/radix/nomad/alloc/./* /home/ubuntu/nomad-logs
+  chmod -R 777 /home/ubuntu/nomad-logs
+  journalctl -u consul > /tmp/consul.log
+  journalctl -u nomad > /tmp/nomad.log
+  journalctl -u vault > /tmp/vault.log
+  journalctl -u consul-template > /tmp/consul-template.log
+#  set -e
+}
+
+trap copy_logs EXIT
 
 docker swarm init
 
-until dpkg -i radix-timberland_0.1_all.deb
-do
+until apt install -y jq; do
+  echo "Waiting for apt install"
+  sleep 2
+done
+
+until dpkg -i radix-timberland_0.1_all.deb; do
   echo "waiting for dpkg..."
   sleep 2
 done
 
 cd /opt/radix/timberland/exec
-wget -O /usr/local/bin/weave https://github.com/weaveworks/weave/releases/download/v2.6.0/weave && chmod +x /usr/local/bin/weave && weave expose
-docker network create --attachable -d weaveworks/net-plugin:2.6.0 weave  --ip-range 10.32.0.0/12 --subnet 10.32.0.0/12
-
 ./timberland runtime enable all
 ./timberland runtime disable elemental
+./timberland runtime disable runtime
 ./timberland runtime disable algs
 ./timberland runtime disable utils
 ./timberland runtime disable device_drivers
@@ -28,13 +44,17 @@ echo "Timberland exit code: $TIMBERLAND_EXIT_CODE"
 
 sleep 3
 
+chmod +x /home/ubuntu/gather-results.sh
+/home/ubuntu/gather-results.sh | tee /tmp/results.log
 /home/ubuntu/service_test.py | tee /tmp/service_test.log
 
-TEST_EXIT_CODE=$?
+TEST_EXIT_CODE=${PIPESTATUS[0]}
 echo "Service test exit code: $TEST_EXIT_CODE"
 
-mkdir /home/ubuntu/nomad-logs
+if [ "$TIMBERLAND_EXIT_CODE" -eq 0 ] && [ "$TEST_EXIT_CODE" -eq 0 ]; then
+  EXIT_CODE=0
+else
+  EXIT_CODE=1
+fi
 
-rsync -av --relative /opt/radix/nomad/alloc/./*/alloc/logs/* /home/ubuntu/nomad-logs
-
-exit $TEST_EXIT_CODE
+exit $EXIT_CODE

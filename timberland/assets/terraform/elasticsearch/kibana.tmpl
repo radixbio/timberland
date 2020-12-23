@@ -1,0 +1,97 @@
+job "${prefix}kibana" {
+  all_at_once = false
+
+  constraint {
+    attribute = "$${attr.kernel.name}"
+    operator = "="
+    value = "linux"
+  }
+
+  constraint {
+    operator = "distinct_hosts"
+    value = "true"
+  }
+
+  datacenters = ["dc1"]
+
+  group "kibana" {
+
+    //kibana does not replicate
+    count = 1
+
+    task "kibana" {
+
+      config {
+        image = "registry.gitlab.com/radix-labs/kibana-gantt"
+        // it wants the elasticsearch hosts in json format: ["host1","host2",...]
+        args = ["--elasticsearch.hosts=[%{ for i in range(dev ? 1 : quorum_size) }\"http://$${NOMAD_UPSTREAM_ADDR_es-rest-${i}}\"${ i == (dev ? 1 : quorum_size) - 1 ? "" : ","}%{ endfor }]","--server.host=0.0.0.0","--path.data=/alloc/data","--elasticsearch.preserveHost=false","--xpack.apm.ui.enabled=false","--xpack.graph.enabled=false","--xpack.ml.enabled=false"]
+        auth_soft_fail = false
+        command = "kibana"
+        ulimit = {
+          "nofile" = "65536",
+          "nproc" = "8192",
+          "memlock" = "-1"
+        }
+        privileged = false
+        cap_add = []
+      }
+
+      driver = "docker"
+      env = {
+        "NODE_OPTIONS" = "--max-old-space-size=1024"
+      }
+      kill_timeout = "5s"
+      kill_signal = "SIGINT"
+      leader = false
+
+      resources {
+        cpu = 1024
+        memory = 4096
+      }
+
+      shutdown_delay = "0s"
+    }
+
+    network {
+      mbits = 10
+      mode = "bridge"
+    }
+
+    service {
+      name = "kibana"
+      port = "5601"
+      tags = ["kibana","http", "${prefix}"]
+      address_mode = "auto"
+
+      connect {
+        sidecar_service {
+          proxy {
+          %{ for i in range(dev ? 1 : quorum_size) ~}
+            upstreams {
+              destination_name = "es-rest-${i}"
+              local_bind_port = ${ 9200 + i }
+            }
+          %{ endfor }
+          }
+        }
+      }
+    }
+  }
+
+  namespace = "default"
+  priority = 50
+  region = "global"
+  type = "service"
+
+  update {
+    max_parallel = 1
+    health_check = "checks"
+    min_healthy_time = "10s"
+    healthy_deadline = "5m"
+    progress_deadline = "10m"
+    auto_revert = false
+    canary = 0
+    stagger = "10s"
+  }
+
+}

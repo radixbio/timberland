@@ -42,7 +42,6 @@ object featureFlags {
   // A map from flag name to a list of module names
   private val flagSupersets = Map(
     "core" -> Set(
-      "apprise",
       "kafka",
       "kafka_companions",
       "minio",
@@ -51,6 +50,7 @@ object featureFlags {
       "zookeeper"
     ),
     "device_drivers" -> Set(
+      "apprise",
       "ln2",
       "quantstudio",
       "opentrons",
@@ -104,7 +104,7 @@ object featureFlags {
     confirm: Boolean = false
   )(implicit serviceAddrs: ServiceAddrs = ServiceAddrs()): IO[Map[String, Boolean]] = {
     for {
-      validFlags <- validateFlags(persistentDir, flagsToSet)
+      validFlags <- validateFlags(persistentDir, flagsToSet, tokens)(serviceAddrs)
       actualFlags = resolveSupersetFlags(flagsToSet, validFlags)
       shouldUpdateConsul <- tokens match {
         case Some(_) => isConsulUp()
@@ -225,9 +225,11 @@ object featureFlags {
    * @param persistentDir Timberland directory. Usually /opt/radix/timberland
    * @return The total list of valid flags that was validated against
    */
-  private def validateFlags(persistentDir: os.Path, flags: Map[String, Boolean]): IO[Set[String]] = {
+  private def validateFlags(persistentDir: os.Path, flags: Map[String, Boolean], authTokens: Option[AuthTokens])(
+    implicit serviceAddrs: ServiceAddrs
+  ): IO[Set[String]] = {
     for {
-      validFlags <- getValidFlags(persistentDir)
+      validFlags <- getValidFlags(persistentDir, authTokens)
     } yield {
       val invalidFlags = flags.keySet -- validFlags -- nonModuleFlags
       if (invalidFlags.isEmpty) validFlags
@@ -243,11 +245,13 @@ object featureFlags {
    * @param persistentDir Timberland directory. Usually /opt/radix/timberland
    * @return A list of valid flags
    */
-  private def getValidFlags(persistentDir: os.Path): IO[Set[String]] = {
+  private def getValidFlags(persistentDir: os.Path, tokens: Option[AuthTokens])(
+    implicit serviceAddrs: ServiceAddrs = ServiceAddrs()
+  ): IO[Set[String]] = {
     val moduleFile = persistentDir / os.up / "terraform" / ".terraform" / "modules" / "modules.json"
 
     for {
-      _ <- daemonutil.initTerraform(false, None)
+      _ <- daemonutil.initTerraform(false, tokens.map(_.consulNomadToken))
       _ <- IO {
         if (!os.exists(moduleFile)) {
           // bail iff tform init failed
@@ -356,7 +360,7 @@ object featureFlags {
     remoteFlags: Map[String, Boolean],
     remoteFlagConfig: FlagConfigs,
     persistentDir: os.Path
-  ): IO[Unit] = getValidFlags(persistentDir).map { validFlags =>
+  ): IO[Unit] = getValidFlags(persistentDir, None).map { validFlags =>
     LogTUI.printAfter("\nCurrent Flags:")
     for (flagName <- validFlags) {
       val isFlagEnabledOnRemote = remoteFlags.getOrElse(flagName, defaultFlagMap.getOrElse(flagName, false))

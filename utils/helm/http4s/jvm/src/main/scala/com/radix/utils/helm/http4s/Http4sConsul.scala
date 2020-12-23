@@ -91,8 +91,16 @@ final class Http4sConsulClient[F[_]](
       catalogListNodesForService(service, tag)
   }
 
-  private def addConsulToken(req: Request[F]): Request[F] =
-    accessToken.fold(req)(tok => req.putHeaders(Header("X-Consul-Token", tok)))
+  /**
+   * Many nomad jobs store a consul acl token in the "ACCESS_TOKEN" environment variable
+   */
+  private def addConsulToken(req: Request[F]): Request[F] = {
+    val envAccessToken = System.getenv("ACCESS_TOKEN") match {
+      case null  => None
+      case token => Some(token)
+    }
+    accessToken.orElse(envAccessToken).fold(req)(tok => req.putHeaders(Header("X-Consul-Token", tok)))
+  }
 
   private def addCreds(req: Request[F]): Request[F] =
     credentials.fold(req) {

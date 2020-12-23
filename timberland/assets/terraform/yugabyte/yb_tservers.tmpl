@@ -1,0 +1,148 @@
+job "${prefix}yugabyte-tservers" {
+  all_at_once = false
+
+  constraint {
+    attribute = "$${attr.kernel.name}"
+    operator = "="
+    value = "linux"
+  }
+
+  constraint {
+    operator = "distinct_hosts"
+    value = "true"
+  }
+
+  datacenters = ["dc1"]
+
+%{ for i in range(dev ? 1 : quorum_size) ~}
+  group "yb-tservers-group-${i}" {
+    count = 1
+
+    volume "ybtserver_data" {
+      type = "host"
+      read_only = false
+      source = "ybtserver_data"
+    }
+
+    task "yb-tserver-task" {
+
+      volume_mount {
+        volume = "ybtserver_data"
+        destination = "/ybtserver_data"
+        read_only = false
+      }
+
+      config {
+        image = "yugabytedb/yugabyte:latest"
+        command = "bash"
+        // we need to increment the rpc bind port and advertised port because yugabyte gets sad if multiple nodes have the same advertised address
+        args = ["-c", "/home/yugabyte/bin/yb-tserver --fs_data_dirs=/ybtserver_data --rpc_bind_addresses=0.0.0.0:${ 9100 + i } --server_broadcast_addresses=127.0.0.1:${ 9100 + i } --start_pgsql_proxy --tserver_master_addrs=%{ for j in range(dev ? 1 : quorum_size) }$${NOMAD_UPSTREAM_ADDR_yb-masters-rpc-${j}},%{ endfor } "]
+        auth_soft_fail = false
+        privileged = false
+        cap_add = []
+      }
+
+      driver = "docker"
+      kill_timeout = "5s"
+      kill_signal = "SIGINT"
+      leader = false
+
+      resources {
+        cpu = 300
+        memory = 1000
+      }
+
+      shutdown_delay = "0s"
+    }
+
+    network {
+      mbits = 10
+      mode = "bridge"
+
+      port "ysql_admin" {
+        static = 13000
+        to = 13000
+      }
+    }
+
+    service {
+      name = "yb-tserver-${i}-head"
+      port = 9000
+      tags = ["${prefix}"]
+      address_mode = "auto"
+
+      connect {
+        sidecar_service {
+
+        }
+      }
+
+      check {
+        type = "http"
+        name = "yb-tserver-health-${i}"
+        path = "/status"
+        interval = "30s"
+        timeout = "5s"
+        expose = true
+      }
+    }
+
+    // the service needs to be on the same port as the rpc bind port - ${ 9100 + i }
+    service {
+      name = "yb-tserver-connect-${i}"
+      port = ${ 9100 + i }
+      tags = ["${prefix}"]
+      address_mode = "auto"
+
+      connect {
+        sidecar_service {
+          proxy {
+
+%{ for j in range(dev ? 1 : quorum_size) ~}
+            upstreams {
+              destination_name = "yb-masters-rpc-${j}"
+              local_bind_port = ${ 7100 + j }
+            }
+${ i == j ? "" : <<-EOT
+            upstreams {
+              destination_name = "yb-tserver-connect-${j}"
+              local_bind_port = ${ 9100 + j }
+            }
+            EOT
+}
+%{ endfor ~}
+          }
+        }
+      }
+
+      check {
+        type = "script"
+        name = "yb-tserver-${i}-health"
+        task = "yb-tserver-task"
+        command = "bash"
+        // use all the master addresses to list all the tablet servers, and make sure that this node's port is the same as one of the servers in the listing
+        args = ["-c", "/home/yugabyte/bin/yb-admin -master_addresses %{ for j in range(dev ? 1 : quorum_size) }127.0.0.1:${ 7100 + j},%{ endfor } list_all_tablet_servers | tr ':' ' ' | awk '{print $3}' | grep -v UUID | grep ${ 9100 + i}"]
+        interval = "30s"
+        timeout = "5s"
+      }
+    }
+  }
+%{ endfor ~}
+
+  namespace = "default"
+  priority = 50
+  region = "global"
+  type = "service"
+
+  update {
+    max_parallel = 1
+    health_check = "checks"
+    min_healthy_time = "10s"
+    healthy_deadline = "5m"
+    progress_deadline = "10m"
+    auto_revert = false
+    canary = 0
+    stagger = "10s"
+  }
+
+}

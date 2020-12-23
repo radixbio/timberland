@@ -71,29 +71,6 @@ object runner {
                   // disable DNS cache
                   System.setProperty("networkaddress.cache.ttl", "0")
 
-                  val createWeaveNetwork = if (ensureSupported.osname != "windows") for {
-                    _ <- IO(scribe.info("Creating weave network"))
-                    _ <- IO(os.proc("/usr/bin/sudo /sbin/sysctl -w vm.max_map_count=262144".split(' ')).spawn())
-                    pluginList <- IO(
-                      os.proc("/usr/bin/docker plugin ls".split(' ')).call(cwd = os.root, check = false)
-                    )
-                    _ <- pluginList.out.string.contains("weaveworks/net-plugin:2.6.0") match {
-                      case true => {
-                        IO(
-                          os.proc(
-                              "/usr/bin/docker network create --driver=weaveworks/net-plugin:2.6.0 --attachable weave  --ip-range 10.32.0.0/12 --subnet 10.32.0.0/12"
-                                .split(' ')
-                            )
-                            .call(cwd = os.root, stdout = os.Inherit, check = false)
-                        )
-                        IO.pure(scribe.info("Weave network exists or was created"))
-                      }
-                      case false =>
-                        IO.pure(scribe.info("Weave plugin not installed. Skipping creation of weave network."))
-                    }
-                  } yield ()
-                  else IO.unit
-
                   def startServices(setupACL: Boolean) =
                     for {
                       _ <- IO(scribe.info("Launching daemons"))
@@ -152,7 +129,7 @@ object runner {
                         startServices(setupACL = false)
                       case (false, _, false) =>
                         flagConfig.promptForDefaultConfigs(persistentDir = RadPath.persistentDir) *>
-                          createWeaveNetwork *> startServices(setupACL = true)
+                          startServices(setupACL = true)
                       case (false, _, true) =>
                         for {
                           // TODO: double check ServiceAddrs = otherConsul is fair
@@ -162,7 +139,15 @@ object runner {
                           })
                           authTokens <- auth.getAuthTokens(isRemote = true, serviceAddrs, username, password)
                           storeIntermediateToken <- auth.storeIntermediateToken(authTokens.consulNomadToken)
-                          storeTokens <- auth.writeTokenConfigs(RadPath.persistentDir, authTokens.consulNomadToken)
+                          storeVaultTokenConfig <- auth.writeVaultTokenConfigs(
+                            RadPath.persistentDir,
+                            authTokens.consulNomadToken
+                          )
+                          storeConsulNomadTokenConfig <- auth.writeConsulNomadTokenConfigs(
+                            RadPath.persistentDir,
+                            authTokens.consulNomadToken,
+                            authTokens.vaultToken
+                          )
                           storeVaultToken <- IO((new VaultUtils).storeVaultTokenKey("", authTokens.vaultToken))
                           stillAuthTokens <- startServices(setupACL = true)
                         } yield authTokens
@@ -174,7 +159,15 @@ object runner {
                             case None              => defaultServiceAddrs
                           })
                           authTokens <- auth.getAuthTokens(isRemote = true, serviceAddrs, username, password)
-                          storeTokens <- auth.writeTokenConfigs(RadPath.persistentDir, authTokens.consulNomadToken)
+                          storeVaultTokenConfig <- auth.writeVaultTokenConfigs(
+                            RadPath.persistentDir,
+                            authTokens.consulNomadToken
+                          )
+                          storeConsulNomadTokenConfig <- auth.writeConsulNomadTokenConfigs(
+                            RadPath.persistentDir,
+                            authTokens.consulNomadToken,
+                            authTokens.vaultToken
+                          )
                           storeVaultToken <- IO((new VaultUtils).storeVaultTokenKey("", authTokens.vaultToken))
                         } yield authTokens
                     }
@@ -309,7 +302,7 @@ object runner {
                 _ <- IO(scribe.warn("Could not connect to remote consul instance. Flags stored locally."))
               } yield ()
 
-              IO(os.exists(RadPath.persistentDir / ".bootstrap-complete"))
+              IO(remoteAddress.isDefined || os.exists(RadPath.persistentDir / ".bootstrap-complete"))
                 .flatMap {
                   case true =>
                     for {
@@ -354,13 +347,16 @@ object runner {
                 _ <- vault.enableAuthMethod("userpass")
                 res <- vault.createUser(name, password, policiesWithDefault)
               } yield res match {
-                case Right(_) => ()
+                case Right(_) =>
+                  scribe.info(s"Successfully added user $name to Vault.")
+                  sys.exit(0)
                 case Left(err) =>
                   scribe.error(s"$err")
                   sys.exit(1)
               }
               proc.unsafeRunSync()
           }
+
         case oauth: Oauth =>
           oauth match {
             case GoogleSheets => {

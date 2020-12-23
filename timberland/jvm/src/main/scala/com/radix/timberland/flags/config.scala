@@ -12,6 +12,56 @@ case object config {
    * Config entries can be defined here, organized by flag name
    */
   val flagConfigParams: Map[String, List[FlagConfigEntry]] = Map(
+    "zookeeper" -> List(
+      FlagConfigEntry(
+        key = "quorum_size",
+        destination = Nowhere,
+        prompt = "Zookeeper quorum size",
+        optional = true,
+        default = Some("3"),
+        terraformVar = Some("zookeeper_quorum_size")
+      )
+    ),
+    "kafka" -> List(
+      FlagConfigEntry(
+        key = "quorum_size",
+        destination = Nowhere,
+        prompt = "Kafka quorum size",
+        optional = true,
+        default = Some("3"),
+        terraformVar = Some("kafka_quorum_size")
+      )
+    ),
+    "yugabyte" -> List(
+      FlagConfigEntry(
+        key = "quorum_size",
+        destination = Nowhere,
+        prompt = "Yugabyte quorum size",
+        optional = true,
+        default = Some("3"),
+        terraformVar = Some("yugabyte_quorum_size")
+      )
+    ),
+    "elasticsearch" -> List(
+      FlagConfigEntry(
+        key = "quorum_size",
+        destination = Nowhere,
+        prompt = "Elasticsearch quorum size",
+        optional = true,
+        default = Some("3"),
+        terraformVar = Some("elasticsearch_quorum_size")
+      )
+    ),
+    "runtime" -> List(
+      FlagConfigEntry(
+        key = "quorum_size",
+        destination = Nowhere,
+        prompt = "Runtime quorum size",
+        optional = true,
+        default = Some("3"),
+        terraformVar = Some("runtime_quorum_size")
+      )
+    ),
     "minio" -> List(
       FlagConfigEntry(
         key = "aws_access_key_id",

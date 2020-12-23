@@ -19,6 +19,9 @@
     "enable_token_persistence": true
   },
   "verify_incoming": false,
-  "verify_outgoing": false,
-  "verify_server_hostname": false
+  "verify_outgoing": true,
+  "verify_server_hostname": true,
+  "ca_file": "/opt/radix/certs/ca/cert.pem",
+  "cert_file": "/opt/radix/certs/consul/cert.pem",
+  "key_file": "/opt/radix/certs/consul/key.pem"
 }

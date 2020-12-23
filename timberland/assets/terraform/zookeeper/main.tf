@@ -4,8 +4,8 @@ resource "nomad_job" "zookeeper" {
 }
 
 data "consul_service_health" "zookeeper_health" {
-  count = var.enable ? 1 : 0
-  name = "${var.prefix}zookeeper-daemons-zookeeper-zookeeper"
+  count = var.enable ? (var.dev ? 1 : var.quorum_size) : 0
+  name = "zookeeper-client-${count.index}"
   passing = true
   depends_on = [nomad_job.zookeeper]
   wait_for = "300s"

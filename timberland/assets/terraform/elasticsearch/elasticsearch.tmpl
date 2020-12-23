@@ -1,0 +1,170 @@
+job "${prefix}elasticsearch" {
+  all_at_once = false
+
+  constraint {
+    attribute = "$${attr.kernel.name}"
+    operator = "="
+    value = "linux"
+  }
+
+  constraint {
+    operator = "distinct_hosts"
+    value = "true"
+  }
+
+  datacenters = ["dc1"]
+
+%{ for i in range(dev ? 1 : quorum_size) ~}
+  group "elasticsearch-${i}" {
+    count = 1
+
+    volume "elasticsearch_data" {
+      type = "host"
+      source = "elasticsearch_data"
+      read_only = false
+    }
+
+    task "es-generic-node" {
+
+      volume_mount {
+        volume = "elasticsearch_data"
+        destination = "/var/lib/elasticsearch"
+        read_only = false
+      }
+
+      config {
+        image = "elasticsearch:7.3.2"
+        // we need to set the network.host because otherwise, elasticsearch will bind to (and advertise) the docker container IP
+        // we need to set transport.port because otherwise, all the elasticsearch nodes will bind to and advertise 9300,
+        // and they won't like that they're all advertising the same address
+        // we need to set the host.name because it defaults to the docker container's hostname
+        args = ["-c","ln -s /local/unicast_hosts.txt /usr/share/elasticsearch/config/unicast_hosts.txt; elasticsearch -Ecluster.name=radix-es -Ediscovery.seed_providers=file -Enetwork.host=127.0.0.1 -Etransport.port=${ 9300 + i } -Enode.name=es${i} -Ecluster.initial_master_nodes=%{ for i in range(dev ? 1 : quorum_size) }es${i}${ i == (dev ? 1 : quorum_size) - 1  ? "" : "," }%{ endfor }"]
+        auth_soft_fail = false
+        command = "bash"
+        ulimit = {
+          "nofile" = "65536",
+          "nproc" = "8192",
+          "memlock" = "-1",
+        }
+        privileged = false
+        volumes = ["/opt/radix/timberland:/timberland"]
+        cap_add = []
+      }
+
+      driver = "docker"
+      env = {
+        "ES_JAVA_OPTS" = "-Xms8g -Xmx8g"
+      }
+      kill_timeout = "5s"
+      kill_signal = "SIGINT"
+      leader = false
+
+      resources {
+        memory = 10000
+      }
+
+      shutdown_delay = "0s"
+      user = "elasticsearch"
+
+      template {
+        change_mode = "noop"
+        destination = "local/unicast_hosts.txt"
+        env = false
+        left_delimiter = "{{"
+        perms = "644"
+        right_delimiter = "}}"
+        data = <<EOH
+127.0.0.1:${ 9300 + i }
+%{ for j in range(dev ? 1 : quorum_size) ~}
+${ i == j ? "" : <<-EOT
+{{ env "NOMAD_UPSTREAM_ADDR_es-transport-${j}" }}
+EOT
+}
+%{ endfor ~}
+EOH
+        splay = "5s"
+      }
+    }
+
+    network {
+      mbits = 10
+      mode = "bridge"
+    }
+
+    // we need to increment the port to match the network.port in the args
+    service {
+      name = "es-transport-${i}"
+      port = ${ 9300 + i }
+      tags = ["elasticsearch","transport", "${prefix}"]
+      address_mode = "auto"
+
+      connect {
+        sidecar_service {
+          proxy {
+
+%{ for j in range(dev ? 1 : quorum_size) ~}
+${ i == j ? "" : <<-EOT
+            upstreams {
+              destination_name = "es-transport-${j}"
+              local_bind_port = ${ 9300 + j }
+            }
+            EOT
+}
+%{ endfor ~}
+          }
+        }
+      }
+
+      check {
+        type = "script"
+        name = "es-transport-health-${i}"
+        task = "es-generic-node"
+        command = "curl"
+        args = ["127.0.0.1:${ 9300 + i }"]
+        interval = "30s"
+        timeout = "5s"
+      }
+    }
+
+    // we don't need to change the port of the rest service because elasticsearch doesn't use it to cluster
+    service {
+      name = "es-rest-${i}"
+      port = 9200
+      tags = ["elasticsearch","rest", "${prefix}"]
+      address_mode = "auto"
+
+      connect {
+        sidecar_service {
+        }
+      }
+
+      check {
+        type = "script"
+        name = "es-rest-health-${i}"
+        task = "es-generic-node"
+        command = "curl"
+        args = ["127.0.0.1:9200"]
+        interval = "30s"
+        timeout = "5s"
+      }
+    }
+  }
+%{ endfor ~}
+
+  namespace = "default"
+  priority = 50
+  region = "global"
+  type = "service"
+
+  update {
+    max_parallel = 1
+    health_check = "checks"
+    min_healthy_time = "10s"
+    healthy_deadline = "5m"
+    progress_deadline = "10m"
+    auto_revert = false
+    canary = 0
+    stagger = "10s"
+  }
+
+}

@@ -11,9 +11,7 @@ job "${prefix}yugabyte-kafka-connector" {
         image = "appropriate/curl"
         auth_soft_fail = false
         command = "/local/start.sh"
-        hostname = "$${attr.unique.hostname}-yb-kafka-connect"
         privileged = false
-        network_mode = "weave"
         cap_add = []
       }
 
@@ -24,10 +22,6 @@ job "${prefix}yugabyte-kafka-connector" {
 
       resources {
         memory = 100
-
-        network {
-          mbits = 10
-        }
       }
 
       shutdown_delay = "0s"
@@ -44,20 +38,20 @@ job "${prefix}yugabyte-kafka-connector" {
         #!/usr/bin/env ash
 
         command="curl -X PUT \
-        http://${prefix}kc-daemons-companions-connect.service.consul:8083/connectors/yugabyte/config \
+        http://$${NOMAD_UPSTREAM_ADDR_kc-connect-0}/connectors/yugabyte/config \
         -H 'Content-Type: application/json' \
         -H 'Accept: application/json' \
         -d '{
         \"connector.class\": \"io.confluent.connect.jdbc.JdbcSinkConnector\",
         \"type.name\": \"radix\",
         \"offset.flush.interval.ms\": \"1000\",
-        \"value.converter.schema.registry.url\": \"http://${prefix}kc-daemons-companions-schema-registry.service.consul:8081/\",
+        \"value.converter.schema.registry.url\": \"http://$${NOMAD_UPSTREAM_ADDR_kc-schema-registry-service-0}/\",
         \"topics.regex\": \".*-journal\",
         \"tasks.max\": \"1\",
         \"topic.prefix\": \"retool-postgres-\",
         \"mode\": \"bulk\",
         \"errors.tolerance\": \"all\",
-        \"connection.url\": \"jdbc:postgresql://${prefix}yugabyte-yugabyte-ybtserver.service.consul:5433?user=yugabyte&password=yugabyte\",
+        \"connection.url\": \"jdbc:postgresql://$${NOMAD_UPSTREAM_ADDR_yb-tserver-connect-0}?user=yugabyte&password=yugabyte\",
         \"value.converter\": \"io.confluent.connect.avro.AvroConverter\",
         \"key.converter\": \"org.apache.kafka.connect.storage.StringConverter\"
         }'"
@@ -68,6 +62,39 @@ job "${prefix}yugabyte-kafka-connector" {
         EOH
       }
     }
+
+    network {
+      mbits = 10
+      mode = "bridge"
+    }
+
+    service {
+          name = "yb-kafka-connector-service"
+          port = 8080
+          tags = ["yb-connect"]
+          address_mode = "auto"
+
+          connect {
+            sidecar_service {
+              proxy {
+                upstreams {
+                  destination_name = "kc-connect-service"
+                  local_bind_port = 8083
+                }
+
+                upstreams {
+                  destination_name = "kc-schema-registry-service"
+                  local_bind_port = 8081
+                }
+
+                upstreams {
+                  destination_name = "yb-tserver-connect-0"
+                  local_bind_port = 5433
+                }
+              }
+            }
+          }
+        }
   }
 
   namespace = "default"

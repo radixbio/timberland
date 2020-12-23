@@ -11,6 +11,8 @@ vault {
 client {
   enabled         = true
   network_speed   = 1000
+  cni_path = "C:/opt/cni/bin"
+
   options {
     docker.privileged.enabled = "true"
   }

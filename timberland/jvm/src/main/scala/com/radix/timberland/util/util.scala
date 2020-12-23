@@ -302,6 +302,8 @@ object RadPath {
     case "windows" => ".exe"
     case _         => ""
   }
+
+  val cni: os.Path = os.root / "opt" / "cni" / "bin"
   val persistentDir: os.Path = runtime / "timberland"
   val nomadExec: os.Path = persistentDir / "nomad" / s"nomad$fileExtension"
   val consulExec: os.Path = persistentDir / "consul" / s"consul$fileExtension"
@@ -322,7 +324,8 @@ object RadPath {
     runtime / "zookeeper_data",
     runtime / "kafka_data",
     runtime / "ybmaster_data",
-    runtime / "ybtserver_data"
+    runtime / "ybtserver_data",
+    runtime / "elasticsearch_data"
   )
   (minioFolders ++ otherFolders).map(path => os.makeDir.all(path))
 

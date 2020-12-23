@@ -3,8 +3,6 @@ Description=Vault
 Documentation=https://vaultproject.io/docs/
 Wants=network-online.target
 After=network-online.target
-Wants=consul.service
-After=consul.service
 
 [Service]
 ExecReload=/bin/kill -HUP $MAINPID

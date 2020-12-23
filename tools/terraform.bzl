@@ -14,27 +14,36 @@ def encodeStructure(filestructure):
 def rerootStructure(filestructure, rootdir):
     return [(pathjoin(rootdir, target_path), fileobj) for target_path, fileobj in filestructure]
 
+def hash_template(ctx, unhashed_template, dot_git_dir):
+    hashed_template = ctx.actions.declare_file(unhashed_template.path)
+    ctx.actions.run(
+        executable = ctx.executable.mark_image_digests,
+        inputs = [unhashed_template, dot_git_dir],
+        outputs = [hashed_template],
+        arguments = [unhashed_template.path, hashed_template.path, dot_git_dir.path],
+    )
+    return hashed_template
+
 def _mod_impl(ctx):
     jobname = ctx.attr.jobname
 
+    hashes = []
+    if ctx.files.nomad_templates:
+        hashes = [hash_template(ctx, file, ctx.file._dot_git_dir) for file in ctx.files.nomad_templates]
     if ctx.file.nomad_template:
-        hashed_template = ctx.actions.declare_file(ctx.file.nomad_template.path)
-        ctx.actions.run(
-            executable = ctx.executable.mark_image_digests,
-            inputs = [ctx.file.nomad_template, ctx.file._dot_git_dir],
-            outputs = [hashed_template],
-            arguments = [ctx.file.nomad_template.path, hashed_template.path, ctx.file._dot_git_dir.path],
-        )
+        hashes += [hash_template(ctx, ctx.file.nomad_template, ctx.file._dot_git_dir)]
 
-        files = [hashed_template] + ctx.files.terraform_files
-    else:
-        files = ctx.files.terraform_files
+    files = hashes + ctx.files.terraform_files
 
     mod_deps = [d[NomadJobResource].jobname for d in ctx.attr.deps]
+    mod_output_deps = [d[NomadJobResource].jobname for d in ctx.attr.output_deps]
+
+    mod_dep_contents = ""
     if mod_deps:
-        mod_dep_line = ["depends_on = [%s]" % ", ".join(["module.%s" % x for x in mod_deps])]
-    else:
-        mod_dep_line = []
+        mod_dep_contents = ", ".join(["module.%s" % x for x in mod_deps])
+    if mod_output_deps:
+        mod_dep_contents = ", ".join(["module.%s.%s_health_result" % (x, x) for x in mod_output_deps])
+    mod_dep_line = ["depends_on = [%s]" % mod_dep_contents]
     mod_str = 'module "%s" {\n  %s\n}\n' % (jobname, "\n  ".join(mod_dep_line + ctx.attr.module_spec))
 
     specs = depset([mod_str], transitive = [d[MainTFSpec].specs for d in ctx.attr.deps])
@@ -50,8 +59,10 @@ terraform_module = rule(
     attrs = {
         "jobname": attr.string(),
         "nomad_template": attr.label(allow_single_file = True, default = None),
+        "nomad_templates": attr.label_list(allow_files = True, default = []),
         "terraform_files": attr.label_list(allow_files = True, default = []),
         "deps": attr.label_list(default = []),
+        "output_deps": attr.label_list(default = []),
         "module_spec": attr.string_list(),
         "mark_image_digests": attr.label(
             default = Label("//tools:annotate_images"),

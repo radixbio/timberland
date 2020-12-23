@@ -9,9 +9,17 @@ resource "nomad_job" "minio" {
   })
 }
 
-data "consul_service_health" "minio_health" {
+data "consul_service_health" "minio_local_health" {
   count = var.enable ? 1 : 0
-  name = "${var.prefix}minio-job-minio-group-minio-local"
+  name = "minio-local-service"
+  passing = true
+  depends_on = [nomad_job.minio]
+  wait_for = "300s"
+}
+
+data "consul_service_health" "minio_remote_health" {
+  count = var.enable && var.have_upstream_creds ? 1 : 0
+  name = "minio-remote-service"
   passing = true
   depends_on = [nomad_job.minio]
   wait_for = "300s"

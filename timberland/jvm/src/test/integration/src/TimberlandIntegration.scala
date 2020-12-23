@@ -7,8 +7,9 @@ import cats.effect.{ContextShift, IO, Resource, Timer}
 import cats.implicits._
 import cats.~>
 import com.radix.timberland.launch.daemonutil
-import com.radix.timberland.runtime.AuthTokens
+import com.radix.timberland.runtime.{auth, AuthTokens}
 import com.radix.timberland.flags.featureFlags.resolveSupersetFlags
+import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.timberland.util.{Util, VaultUtils}
 import com.radix.utils.helm.{ConsulOp, HealthStatus, NomadOp}
 import com.radix.utils.helm.http4s.{Http4sConsulClient, Http4sNomadClient}
@@ -28,9 +29,9 @@ import scala.sys.process.Process
  */
 trait TimberlandIntegration extends AsyncFlatSpec with Matchers with BeforeAndAfterAll {
 
-  val ConsulPort = 8501
-  val NomadPort = 4646
-  implicit val tokens: AuthTokens = getTokens()
+  val consulPort = 8501
+  val nomadPort = 4646
+  implicit val tokens: AuthTokens = auth.getAuthTokens(false, ServiceAddrs(), None, None).unsafeRunSync()
 
   override implicit val executionContext: ExecutionContext =
     ExecutionContext.fromExecutor(Executors.newWorkStealingPool(20))
@@ -48,58 +49,16 @@ trait TimberlandIntegration extends AsyncFlatSpec with Matchers with BeforeAndAf
     "core" -> true,
     "yugabyte" -> false,
     "vault" -> false,
-    "retool" -> false,
     "elemental" -> false,
     "elasticsearch" -> false
   )
 
   private lazy val resolvedFlags = resolveSupersetFlags(featureFlags)
 
-  // TODO(alex): This needs vault https certs
-  /**
-   * Get the master token for Consul/Nomad by querying Vault. This is needed for consulR and nomadR to communicate with
-   * the Consul and Nomad HTTP APIs.
-   *
-   * @return An object containing the vault token and master ACL token for Consul/Nomad.
-   */
-  def getTokens(): AuthTokens = {
-    val vaultToken = new VaultUtils().findVaultToken()
-    val getCommand =
-      "/opt/radix/timberland/vault/vault kv get -address=https://vault.service.consul:8200 secret/consul-ui-token"
-        .split(
-          " "
-        )
-    val consulNomadTokenProc = Process(getCommand, None, "VAULT_TOKEN" -> vaultToken, "VAULT_SKIP_VERIFY" -> "true")
-    val consulNomadToken = consulNomadTokenProc.lineStream.find(_.contains("token")) match {
-      case Some(line) => line.split("\\s+")(1).drop(10).dropRight(1)
-      case None       => ""
-    }
-    AuthTokens(consulNomadToken, vaultToken)
-  }
-
-  /**
-   * Stop and purge all jobs currently in Nomad with the given prefix using the Nomad HTTP API.
-   *
-   * @param prefix Any jobs with this prefix will be purged.
-   */
-  def purgeNomadJobs(prefix: String = "") = {
-    val prog = NomadOp.nomadListJobs(prefix).map(_.map(_.name).map(NomadOp.nomadStopJob(_, true)))
-
-    def recur(f: NomadOp ~> IO): IO[Unit] = {
-      for {
-        left <- prog.foldMap(f).map(_.map(_.foldMap(f)).parSequence).flatten.map(_.toSet)
-        _ = println(left)
-        res <- if (left.isEmpty) IO.unit else IO.sleep(1.second) *> recur(f)
-      } yield res
-    }
-
-    nomadR.use(recur).unsafeRunSync()
-  }
-
-  val nomadR: Resource[IO, NomadOp ~> IO] = blaze
+  val nomadR: Resource[IO, NomadOp ~> IO] = BlazeClientBuilder[IO](implicitly[ExecutionContext]).resource
     .map(client =>
       new Http4sNomadClient[IO](
-        baseUri = Uri.unsafeFromString("https://nomad.service.consul:4646"),
+        baseUri = Uri.unsafeFromString(s"http://nomad.service.consul:$nomadPort"),
         client = client,
         accessToken = Some(tokens.consulNomadToken)
       )
@@ -109,6 +68,7 @@ trait TimberlandIntegration extends AsyncFlatSpec with Matchers with BeforeAndAf
     super.beforeAll()
     //NOTE: change this None to Some(scribe.LogLevel.Debug) if you want more info as to why your test is failing
     scribe.Logger.root.clearHandlers().clearModifiers().withHandler(minimumLevel = None).replace()
+
     // Make sure Consul and Nomad are up before using terraform
     val res = Util.waitForDNS("consul.service.consul", 1.minutes) *>
       Util.waitForDNS("nomad.service.consul", 1.minutes) *>
@@ -123,13 +83,15 @@ trait TimberlandIntegration extends AsyncFlatSpec with Matchers with BeforeAndAf
     } catch {
       case ex: ConcurrentModificationException => ()
     } finally {
-      purgeNomadJobs("integration")
+//      daemonutil.stopTerraform(integrationTest = true)
+      // should NOT purge nomad jobs using the nomad http api because terraform gets confused
+      // when services it started are stopped by an entity other than terraform
     }
   }
 
   val interp: ConsulOp ~> IO =
     new Http4sConsulClient[IO](
-      Uri.unsafeFromString("https://consul.service.consul:8501"),
+      Uri.unsafeFromString(s"https://consul.service.consul:${consulPort}"),
       Some(tokens.consulNomadToken)
     )
 
@@ -158,8 +120,6 @@ trait TimberlandIntegration extends AsyncFlatSpec with Matchers with BeforeAndAf
       .unsafeRunSync()
   }
 
-  val prefix = "integration-"
-
   "timberland" should "bring up backing runtimesystem containers" in {
     assert(check("nomad"))
     assert(check("nomad-client"))
@@ -167,46 +127,60 @@ trait TimberlandIntegration extends AsyncFlatSpec with Matchers with BeforeAndAf
   }
 
   if (resolvedFlags.getOrElse("apprise", false)) it should "bring up apprise" in {
-    assert(check(s"${prefix}apprise-apprise-apprise"))
+    assert(check(s"apprise"))
+    assert(check(s"apprise-sidecar-proxy"))
   }
 
   if (resolvedFlags.getOrElse("elasticsearch", false)) it should "bring up elasticsearch/kibana" in {
-    assert(check(s"${prefix}elasticsearch-elasticsearch-es-generic-node"))
-    assert(check(s"${prefix}elasticsearch-kibana-kibana"))
+    assert(check(s"es-rest-0"))
+    assert(check(s"es-rest-0-sidecar-proxy"))
+    assert(check(s"es-transport-0"))
+    assert(check(s"es-transport-0-sidecar-proxy"))
+    assert(check(s"kibana"))
+    assert(check(s"kibana-sidecar-proxy"))
   }
 
   if (resolvedFlags.getOrElse("elemental", false)) it should "bring up elemental" in {
-    assert(check(s"${prefix}elemental-machines-em-em"))
+    assert(check(s"elemental-machines-em-em"))
   }
 
   if (resolvedFlags.getOrElse("kafka", false)) it should "bring up kafka" in {
-    assert(check(s"${prefix}kafka-daemons-kafka-kafka"))
+    assert(check(s"kafka-0"))
+    assert(check(s"kafka-0-sidecar-proxy"))
   }
 
   if (resolvedFlags.getOrElse("kafka_companions", false)) it should "bring up kafka companions" in {
-    assert(check(s"${prefix}kc-daemons-companions-kSQL"))
-    assert(check(s"${prefix}kc-daemons-companions-connect"))
-    assert(check(s"${prefix}kc-daemons-companions-rest-proxy"))
-    assert(check(s"${prefix}kc-daemons-companions-schema-registry"))
+    assert(check("kc-ksql-service-0"))
+    assert(check("kc-ksql-service-0-sidecar-proxy"))
+    assert(check("kc-schema-registry-service-0"))
+    assert(check("kc-schema-registry-service-0-sidecar-proxy"))
+    assert(check("kc-rest-proxy-service-0"))
+    assert(check("kc-rest-proxy-service-0-sidecar-proxy"))
+    assert(check("kc-connect-service-0"))
+    assert(check("kc-connect-service-0-sidecar-proxy"))
   }
 
   if (resolvedFlags.getOrElse("minio", false)) it should "bring up minio" in {
-    assert(check(s"${prefix}minio-job-minio-group-minio-local"))
-    assert(check(s"${prefix}minio-job-minio-group-nginx-minio"))
-  }
-
-  if (resolvedFlags.getOrElse("retool", false)) it should "bring up retool/postgres" in {
-    assert(check(s"${prefix}retool-retool-postgres"))
-    assert(check(s"${prefix}retool-retool-retool-main"))
+    assert(check(s"minio-local-service"))
+    assert(check(s"minio-local-service-sidecar-proxy"))
   }
 
   if (resolvedFlags.getOrElse("yugabyte", false)) it should "bring up yugabyte" in {
-    assert(check(s"${prefix}yugabyte-yugabyte-ybmaster"))
-    assert(check(s"${prefix}yugabyte-yugabyte-ybtserver"))
+    assert(check("yb-master-head-node-rpc"))
+    assert(check("yb-master-head-node-rpc-sidecar-proxy"))
+    assert(check("yb-masters-rpc-0"))
+    assert(check("yb-masters-rpc-0-sidecar-proxy"))
+    assert(check("yb-tserver-connect-0"))
+    assert(check("yb-tserver-connect-0-sidecar-proxy"))
   }
 
   if (resolvedFlags.getOrElse("zookeeper", false)) it should "bring up zookeeper" in {
-    assert(check(s"${prefix}zookeeper-daemons-zookeeper-zookeeper"))
+    assert(check("zookeeper-client-0"))
+    assert(check("zookeeper-client-0-sidecar-proxy"))
+//    assert(check("zookeeper-follower-0"))
+    assert(check("zookeeper-follower-0-sidecar-proxy"))
+//    assert(check("zookeeper-othersrvs-0"))
+    assert(check("zookeeper-othersrvs-0-sidecar-proxy"))
   }
 
 }

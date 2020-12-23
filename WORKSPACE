@@ -226,13 +226,12 @@ load(
     "@io_bazel_rules_scala//scala:scala.bzl",
     "scala_repositories",
 )
-
 load(
     "@io_bazel_rules_scala//jmh:jmh.bzl",
-    "jmh_repositories"
+    "jmh_repositories",
 )
-jmh_repositories()
 
+jmh_repositories()
 
 scala_repositories(
     scala_extra_jars = {
@@ -498,7 +497,7 @@ http_archive(
     name = "sbt",
     build_file_content = """filegroup(name = "all", srcs = glob(["**"]), visibility = ["//visibility:public"])""",
     sha256 = "4ea0b6fe056fd521eb6f785ee2e4694a2a0128b5de362e233cab0c1a20eb04eb",
-    url = "https://github.com/sbt/sbt/releases/download/v1.4.2/sbt-1.4.2.zip"
+    url = "https://github.com/sbt/sbt/releases/download/v1.4.2/sbt-1.4.2.zip",
 )
 
 http_archive(
@@ -546,23 +545,23 @@ http_archive(
 
 http_file(
     name = "terraform-provider-nomad",
-    downloaded_file_path = "nomad/terraform-provider-nomad_1.4.8_linux_amd64.zip",
-    sha256 = "122a87b8c09b12ab29641f198db2db13d8f559346996d6472ad5bb676de1002b",
-    urls = ["https://releases.hashicorp.com/terraform-provider-nomad/1.4.8/terraform-provider-nomad_1.4.8_linux_amd64.zip"],
+    downloaded_file_path = "nomad/terraform-provider-nomad_1.4.10_linux_amd64.zip",
+    sha256 = "df9a447070bda6e5d16ee03617bfb63943d805ea0d8c70974fdf44f2408d3314",
+    urls = ["https://releases.hashicorp.com/terraform-provider-nomad/1.4.10/terraform-provider-nomad_1.4.10_linux_amd64.zip"],
 )
 
 http_file(
     name = "terraform-provider-consul",
-    downloaded_file_path = "consul/terraform-provider-consul_2.7.0_linux_amd64.zip",
-    sha256 = "6cc007f02065258d2e7e9d04d196aa7c16731f11f5923e06d78488e14be2c8a5",
-    urls = ["https://releases.hashicorp.com/terraform-provider-consul/2.7.0/terraform-provider-consul_2.7.0_linux_amd64.zip"],
+    downloaded_file_path = "consul/terraform-provider-consul_2.9.0_linux_amd64.zip",
+    sha256 = "a8b6e097a04607ca77e4df8f4c46bdc87ed36ddf0955a6fbd23255f7697037cc",
+    urls = ["https://releases.hashicorp.com/terraform-provider-consul/2.9.0/terraform-provider-consul_2.9.0_linux_amd64.zip"],
 )
 
 http_file(
     name = "terraform-provider-vault",
-    downloaded_file_path = "vault/terraform-provider-vault_2.11.0_linux_amd64.zip",
-    sha256 = "01ecd700ad6887de8c0c88df265f5f2fa2601116348aef11a070d05250882a0c",
-    urls = ["https://releases.hashicorp.com/terraform-provider-vault/2.11.0/terraform-provider-vault_2.11.0_linux_amd64.zip"],
+    downloaded_file_path = "vault/terraform-provider-vault_2.12.2_linux_amd64.zip",
+    sha256 = "426b695de0bb93b1738a9888bff90db277c3d36564d2caaa3c5b1466c5f84926",
+    urls = ["https://releases.hashicorp.com/terraform-provider-vault/2.12.2/terraform-provider-vault_2.12.2_linux_amd64.zip"],
 )
 
 http_archive(
@@ -586,33 +585,8 @@ exports_files([
   "sbr",
   "tuning",
 ])""",
-    sha256 = "bd682ffcf701e8f83283cdff7281aad0c83b02a56084d6e601216210732833f9",
-    url = "https://github.com/containernetworking/plugins/releases/download/v0.8.5/cni-plugins-linux-amd64-v0.8.5.tgz",
-)
-
-http_archive(
-    name = "containernetworking-cni-plugin",
-    build_file_content = """
-exports_files([
-  "bandwidth",
-  "firewall",
-  "host-device",
-  "ipvlan",
-  "macvlan",
-  "ptp",
-  "static",
-  "vlan",
-  "bridge",
-  "dhcp",
-  "flannel",
-  "host-local",
-  "loopback",
-  "portmap",
-  "sbr",
-  "tuning",
-])""",
-    sha256 = "bd682ffcf701e8f83283cdff7281aad0c83b02a56084d6e601216210732833f9",
-    url = "https://github.com/containernetworking/plugins/releases/download/v0.8.5/cni-plugins-linux-amd64-v0.8.5.tgz",
+    sha256 = "977824932d5667c7a37aa6a3cbba40100a6873e7bd97e83e8be837e3e7afd0a8",
+    url = "https://github.com/containernetworking/plugins/releases/download/v0.8.7/cni-plugins-linux-amd64-v0.8.7.tgz",
 )
 
 http_archive(
@@ -668,23 +642,48 @@ http_archive(
 
 http_file(
     name = "terraform-provider-nomad_arm",
-    downloaded_file_path = "nomad/terraform-provider-nomad_1.4.8_linux_arm.zip",
-    sha256 = "3c6c009eaf83c3be9298e3799fea68b4c21fc7fb6077849f8e91865ece03cc93",
-    urls = ["https://releases.hashicorp.com/terraform-provider-nomad/1.4.8/terraform-provider-nomad_1.4.8_linux_arm.zip"],
+    downloaded_file_path = "nomad/terraform-provider-nomad_1.4.10_linux_arm.zip",
+    sha256 = "a7b6df2c69a48008e7912a0e1c2a1ccd7789a218a426b269d403cd09d9d139a4",
+    urls = ["https://releases.hashicorp.com/terraform-provider-nomad/1.4.10/terraform-provider-nomad_1.4.10_linux_arm.zip"],
 )
 
 http_file(
     name = "terraform-provider-consul_arm",
-    downloaded_file_path = "consul/terraform-provider-consul_2.7.0_linux_arm.zip",
-    sha256 = "23d356b293e209c3cefe42f8408468a3f808efa8f826096a0a7423f8b7d500bc",
-    urls = ["https://releases.hashicorp.com/terraform-provider-consul/2.7.0/terraform-provider-consul_2.7.0_linux_arm.zip"],
+    downloaded_file_path = "consul/terraform-provider-consul_2.9.0_linux_arm.zip",
+    sha256 = "565878dabc285f7d00743540e09091e48f863810a17afbaa968ebf4f160e49d8",
+    urls = ["https://releases.hashicorp.com/terraform-provider-consul/2.9.0/terraform-provider-consul_2.9.0_linux_arm.zip"],
 )
 
 http_file(
     name = "terraform-provider-vault_arm",
-    downloaded_file_path = "vault/terraform-provider-vault_2.11.0_linux_arm.zip",
-    sha256 = "36bb7ccf11cd4aa8f37626116a4c10820f95ca78773b5c74d8c8e51f50a75a0d",
-    urls = ["https://releases.hashicorp.com/terraform-provider-vault/2.11.0/terraform-provider-vault_2.11.0_linux_arm.zip"],
+    downloaded_file_path = "vault/terraform-provider-vault_2.12.0_linux_arm.zip",
+    sha256 = "d342a11f5b4c3f031e207bd3bd10d2ce3141f5fcdd1b96a9f77c3fefa7f792c9",
+    urls = ["https://releases.hashicorp.com/terraform-provider-vault/2.12.0/terraform-provider-vault_2.12.0_linux_arm.zip"],
+)
+
+http_archive(
+    name = "containernetworking-cni-plugin_arm",
+    build_file_content = """
+exports_files([
+  "bandwidth",
+  "firewall",
+  "host-device",
+  "ipvlan",
+  "macvlan",
+  "ptp",
+  "static",
+  "vlan",
+  "bridge",
+  "dhcp",
+  "flannel",
+  "host-local",
+  "loopback",
+  "portmap",
+  "sbr",
+  "tuning",
+])""",
+    sha256 = "ae13d7b5c05bd180ea9b5b68f44bdaa7bfb41034a2ef1d68fd8e1259797d642f",
+    url = "https://github.com/containernetworking/plugins/releases/download/v0.8.7/cni-plugins-linux-arm64-v0.8.7.tgz",
 )
 
 ### Windows binaries
@@ -734,35 +733,50 @@ http_archive(
 
 http_file(
     name = "terraform-provider-nomad_win",
-    downloaded_file_path = "nomad/terraform-provider-nomad_1.4.8_linux_win.zip",
-    sha256 = "8e5c6515c5a3f5ee46466e8f5159587b31cbb4eb12d313267e87e04e519fe60d",
-    urls = ["https://releases.hashicorp.com/terraform-provider-nomad/1.4.8/terraform-provider-nomad_1.4.8_windows_amd64.zip"],
+    downloaded_file_path = "nomad/terraform-provider-nomad_1.4.10_linux_win.zip",
+    sha256 = "499c91558d88b7b38af4586e3e80210d173aeefcca53d3adde8e1320d9bbf15d",
+    urls = ["https://releases.hashicorp.com/terraform-provider-nomad/1.4.10/terraform-provider-nomad_1.4.10_windows_amd64.zip"],
 )
 
 http_file(
     name = "terraform-provider-consul_win",
-    downloaded_file_path = "consul/terraform-provider-consul_2.7.0_linux_win.zip",
-    sha256 = "f9cf8674af1d0687f317a29219523f3a7d4223272fe969670ea2d4f60b3cc16f",
-    urls = ["https://releases.hashicorp.com/terraform-provider-consul/2.7.0/terraform-provider-consul_2.7.0_windows_amd64.zip"],
+    downloaded_file_path = "consul/terraform-provider-consul_2.9.0_linux_win.zip",
+    sha256 = "abd1c731655336b65880814b8cf0bacc312ce74f8b98cc574ed3227e4c2af30a",
+    urls = ["https://releases.hashicorp.com/terraform-provider-consul/2.9.0/terraform-provider-consul_2.9.0_windows_amd64.zip"],
 )
 
 http_file(
     name = "terraform-provider-vault_win",
     downloaded_file_path = "vault/terraform-provider-vault_2.11.0_linux_win.zip",
-    sha256 = "46d875dcbfcba1442cb286ca1522d10f456b80de0a9456db19025acc5baf9e68",
-    urls = ["https://releases.hashicorp.com/terraform-provider-vault/2.11.0/terraform-provider-vault_2.11.0_windows_amd64.zip"],
+    sha256 = "23546d695371cf5e46e333158a4a81eb964517369683b0721ddcbbc71c75c2ce",
+    urls = ["https://releases.hashicorp.com/terraform-provider-vault/2.12.0/terraform-provider-vault_2.12.0_windows_amd64.zip"],
 )
 
+http_archive(
+    name = "containernetworking-cni-plugin_win",
+    build_file_content = """
+exports_files([
+  "flannel.exe",
+  "host-local.exe",
+  "win-bridge.exe",
+  "win-overlay.exe"
+])""",
+    sha256 = "8dcc56f6856f7df41588bc760244066350d713422019e23573c4be1238a463de",
+    url = "https://github.com/containernetworking/plugins/releases/download/v0.8.7/cni-plugins-windows-amd64-v0.8.7.tgz",
+)
 
 http_archive(
-  name = "rules_jmh",
-  strip_prefix = "buchgr-rules_jmh-a5f0231",
-  url = "https://github.com/buchgr/rules_jmh/zipball/a5f0231ebfde44b4904c7d101b9f269b96c86d06",
-  type = "zip",
-#  sha256 = "dbb7d7e5ec6e932eddd41b910691231ffd7b428dff1ef9a24e4a9a59c1a1762d",
+    name = "rules_jmh",
+    strip_prefix = "buchgr-rules_jmh-a5f0231",
+    type = "zip",
+    url = "https://github.com/buchgr/rules_jmh/zipball/a5f0231ebfde44b4904c7d101b9f269b96c86d06",
+    #  sha256 = "dbb7d7e5ec6e932eddd41b910691231ffd7b428dff1ef9a24e4a9a59c1a1762d",
 )
 
 load("@rules_jmh//:deps.bzl", "rules_jmh_deps")
+
 rules_jmh_deps()
+
 load("@rules_jmh//:defs.bzl", "rules_jmh_maven_deps")
+
 rules_jmh_maven_deps()

@@ -7,9 +7,17 @@ job "${prefix}kafka-daemons" {
     value = "linux"
   }
 
+  constraint {
+    operator = "distinct_hosts"
+    value = "true"
+  }
+
   datacenters = ["dc1"]
 
-  group "kafka" {
+%{ for i in range(dev ? 1 : quorum_size) ~}
+  group "kafka-${i}" {
+
+    count = 1
 
     volume "kafka_data" {
       type = "host"
@@ -17,12 +25,11 @@ job "${prefix}kafka-daemons" {
       read_only = false
     }
 
-    constraint {
-      operator = "distinct_hosts"
-      value = "true"
+    //hack to (try to) pin reallocations to the same node
+    //it can fail!
+    ephemeral_disk {
+      sticky = true
     }
-
-    count = ${ quorum_size }
 
     task "kafka" {
 
@@ -34,43 +41,26 @@ job "${prefix}kafka-daemons" {
 
       config {
         image = "confluentinc/cp-kafka:5.3.1"
-        args = ["/timberland/exec/timberland-launcher_deploy.jar","launch","kafka" ${dev ? ", \"--dev\"" : ""}, "--prefix", "${prefix}"]
         auth_soft_fail = false
-        command = "-jar"
-        entrypoint = ["java"]
-        hostname = "$${attr.unique.hostname}-kafka"
         privileged = false
-        network_mode = "weave"
-        port_map = {"kafka" = 9092}
-        volumes = ["/opt/radix/timberland:/timberland"]
         cap_add = []
-        mounts = [
-          {
-            type = "bind"
-            target = "/ca.pem"
-            source = "/opt/radix/certs/ca/cert.pem"
-            readonly = true
-          },
-          {
-            type = "bind"
-            target = "/client-cert"
-            source = "/opt/radix/certs/cli"
-            readonly = true
-          }
-        ]
+        //TODO read meta.properties here and use that if it exists
       }
 
       driver = "docker"
       env = {
-        "KAFKA_LISTENERS" = "INSIDE://0.0.0.0:29092,OUTSIDE://0.0.0.0:$${NOMAD_PORT_kafka}",
+        "KAFKA_ADVERTISED_HOST_NAME" = "kafka-${i}.service.consul",
+        // we need to increment the listeners and advertised listeners because zookeeper gets sad if multiple kafka nodes have the same advertised listeners
+        "KAFKA_ADVERTISED_LISTENERS" = "INSIDE://127.0.0.1:${interbroker_port + i},OUTSIDE://127.0.0.1:${9092 + i}",
+        // KAFKA_LISTENERS actually tells kafka what host:port to bind to
+        "KAFKA_LISTENERS" = "INSIDE://0.0.0.0:${interbroker_port + i},OUTSIDE://0.0.0.0:${9092 + i}",
+        // kafka wants to be able to talk to all the zookeepers
+        "KAFKA_ZOOKEEPER_CONNECT" = "%{ for j in range(dev ? 1 : zookeeper_quorum_size) ~}$${NOMAD_UPSTREAM_ADDR_zookeeper-client-${j}},%{ endfor ~}",
         "KAFKA_LISTENER_SECURITY_PROTOCOL_MAP" = "INSIDE:PLAINTEXT,OUTSIDE:PLAINTEXT",
-        "KAFKA_BROKER_ID" = "$${NOMAD_ALLOC_INDEX}",
         "TOPIC_AUTO_CREATE" = "true",
-        "KAFKA_INTER_BROKER_LISTENER_NAME" = "INSIDE",
-        "TLS_CA" = "/ca.pem",
-        "TLS_CERT" = "/client-cert/cert.pem",
-        "TLS_KEY" = "/client-cert/key.pem",
-        ${ dev ? "\"KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR\" = \"1\"," : "" }
+        "KAFKA_INTER_BROKER_LISTENER_NAME" = "OUTSIDE",
+        "KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR" = "${ dev ? 1 : min(quorum_size, 3) }",
+        //TODO read meta.properties here and use that if it exists
       }
       kill_timeout = "5s"
       kill_signal = "SIGINT"
@@ -79,38 +69,61 @@ job "${prefix}kafka-daemons" {
       resources {
         cpu = 1000
         memory = 2048
-
-        network {
-          mbits = 10
-
-          port "kafka" {
-            static = 9092
-          }
-        }
-      }
-
-      service {
-        port = "kafka"
-        tags = ["kafka-quorum","kafka-plaintext"]
-        address_mode = "auto"
-
-        check {
-          address_mode = "host"
-          grpc_use_tls = true
-          initial_status = "critical"
-          interval = "10s"
-          method = "GET"
-          port = "kafka"
-          protocol = "http"
-          timeout = "2s"
-          type = "tcp"
-          tls_skip_verify = false
-        }
       }
 
       shutdown_delay = "0s"
     }
+
+    network {
+      mbits = 10
+      mode = "bridge"
+    }
+
+    service {
+      name = "kafka-${i}"
+      port = ${ 9092 + i }
+      tags = ["kafka-quorum","kafka-plaintext", "${prefix}"]
+      address_mode = "auto"
+
+      connect {
+        sidecar_service {
+          proxy {
+
+            %{ for j in range(dev ? 1 : zookeeper_quorum_size) ~}
+            upstreams {
+              destination_name = "zookeeper-client-${j}"
+              local_bind_port = ${ 2181 + j }
+            }
+            %{ endfor ~}
+
+            %{ for j in range(dev ? 1 : quorum_size) ~}
+            ${ i == j ? "" : <<-EOT
+            upstreams {
+              destination_name = "kafka-${j}"
+              local_bind_port = ${ 9092 + j}
+            }
+            EOT
+            }
+            %{ endfor ~}
+          }
+        }
+      }
+
+      check {
+        type = "script"
+        name = "kafka-health-${i}"
+        task = "kafka"
+        command = "bash"
+        // the broker id assigned by zookeeper gets written to meta.properties. if that file doesn't exist, something has gone wrong
+        // otherwise, check that this kafka's broker id is contained in the list of kafka nodes given by zookeeper
+        args = ["-c", "if [ -f /var/lib/kafka/data/meta.properties ]; then echo dump | nc localhost 2181 | grep /brokers/ids/$(cat /var/lib/kafka/data/meta.properties  | grep broker.id | sed 's/^[^=]*=//g'); else echo 'meta.properties file not found'; exit 1; fi"]
+        interval = "10s"
+        timeout = "5s"
+      }
+    }
   }
+
+%{ endfor ~}
 
   namespace = "default"
   priority = 50

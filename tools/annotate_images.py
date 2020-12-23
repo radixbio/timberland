@@ -29,9 +29,9 @@ def get_digest(imagename, image_available):
     if "\n" in digest_output:
         digstr = digest_output.split('\n')[1].split()[2]
         if digstr and "<none>" not in digstr:
-          return "@".join([shortname, digstr])
+            return "@".join([shortname, digstr])
         else:
-          return ""
+            return ""
     else:
         return ""
 
@@ -86,12 +86,15 @@ def annotate_images(templatefile, outputfile, dot_git_dir):
          (os.path.basename(templatefile), branch_name))
 
         newline_indices = [m.end()-2 for m in re.finditer(r"{CURRENT_BRANCH}.*\n", text)]
+        diff = 0
+        comment = "#Branch 'master' chosen due to failure to get current branch name during build.\n"
 
         text = text.replace('{CURRENT_BRANCH}"', 'master"')
 
         for index in newline_indices:
-          # need to insert on a newline so it doesn't get inserted in the middle of a ternary statement
-          text = text[:index] + "#Branch 'master' chosen due to failure to get current branch name during build.\n" + text[index:]
+            # need to insert on a newline so it doesn't get inserted in the middle of a ternary statement
+            text = text[:index+diff] + comment + text[index+diff:]
+            diff += len(comment)
     else:
         text = text.replace("{CURRENT_BRANCH}", branch_name)
 

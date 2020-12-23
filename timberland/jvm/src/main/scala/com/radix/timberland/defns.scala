@@ -60,4 +60,9 @@ package object radixdefs {
     nomadAddr: String = "nomad.service.consul",
     vaultAddr: String = "vault.service.consul"
   )
+
+  case class ACLTokens(
+    masterToken: String,
+    actorToken: String
+  )
 }

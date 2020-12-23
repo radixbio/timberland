@@ -1,0 +1,122 @@
+job "${prefix}nginx" {
+  all_at_once = false
+
+  constraint {
+    attribute = "$${attr.kernel.name}"
+    operator = "="
+    value = "linux"
+  }
+
+  constraint {
+    operator = "distinct_hosts"
+    value = "true"
+  }
+
+  datacenters = ["dc1"]
+
+  group "nginx" {
+
+    count = 1
+
+    task "nginx" {
+      config {
+        image = "nginx:latest"
+        volumes = [
+          "local/default.conf:/etc/nginx/conf.d/default.conf"
+        ]
+        command = "bash"
+        args = ["-c", "nginx && sleep infinity"]
+        auth_soft_fail = false
+        privileged = false
+        cap_add = []
+      }
+
+      template {
+        data = <<EOF
+        server_names_hash_bucket_size 128;
+        %{ for i in range(length(services)) ~}
+        server {
+          # listen 8080 ssl;
+          listen 8080;
+          server_name ${services[i]}.service.consul;
+          # ssl_certificate /cert.pem;
+          # ssl_certificate_key /key.pem;
+          location / {
+            proxy_pass http://localhost:${ 5000 + i };
+          }
+        }
+        %{ endfor ~}
+        server {
+            listen 8080 default_server;
+            server_name localhost;
+            # ssl_certificate /cert.pem;
+            # ssl_certificate_key /key.pem;
+
+            location / {
+              root /usr/share/nginx/html;
+            }
+
+            error_page   500 502 503 504  /50x.html;
+            location = /50x.html {
+              root /usr/share/nginx/html;
+            }
+        }
+        EOF
+        destination = "local/default.conf"
+      }
+
+      driver = "docker"
+      kill_timeout = "5s"
+      kill_signal = "SIGINT"
+      leader = false
+
+      shutdown_delay = "0s"
+    }
+
+    network {
+      mbits = 10
+      mode = "bridge"
+      port "https" {
+        static = 8080
+        to = 8080
+      }
+    }
+
+    service "nginx" {
+      name = "nginx"
+      port = "8080"
+      tags = ["nginx", "${prefix}"]
+      address_mode = "auto"
+
+      connect {
+        sidecar_service {
+          proxy {
+            %{ for i in range(length(services)) }
+            upstreams {
+              destination_name = "${services[i]}"
+              local_bind_port = ${ 5000 + i }
+            }
+            %{ endfor }
+          }
+        }
+      }
+
+      check {
+        type = "http"
+        protocol = "http" # Set to https
+        tls_skip_verify = true
+        name = "nginx-health"
+        path = "/"
+        interval = "30s"
+        timeout = "5s"
+        expose = true
+      }
+    }
+  }
+
+  namespace = "default"
+  priority = 50
+  region = "global"
+  type = "service"
+
+}

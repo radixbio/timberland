@@ -23,6 +23,8 @@ services for the Radix Runtime
 ###AUTOFILLED###
 
 %post
+echo "vm.max_map_count=262144" >> /etc/sysctl.conf
+
 if [ -f /opt/radix/timberland/exec/timberland ]; then
     cd /opt/radix/timberland/exec/
     ./timberland runtime dns up

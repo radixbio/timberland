@@ -89,13 +89,6 @@ timberland_core_srcs = [
     "src/main/scala/com/radix/timberland/util/UpdateJobSpecs.scala",
 ]
 
-timberland_launcher_srcs = [
-    "src/main/scala/com/radix/timberland/launch/kafka.scala",
-    "src/main/scala/com/radix/timberland/launch/zookeeper.scala",
-    "src/main/scala/com/radix/timberland/launcher.scala",
-    "src/main/scala/com/radix/timberland/launch/yugabyte.scala",
-]
-
 scala_library(
     name = "timberland-core-lib",
     srcs = timberland_core_srcs,
@@ -155,7 +148,7 @@ scala_library(
         [
             "src/main/scala/**/*.scala",
         ],
-        exclude = timberland_launcher_srcs + timberland_core_srcs + timberland_service_control_srcs,
+        exclude = timberland_core_srcs + timberland_service_control_srcs,
     ),
     scalacopts = ["-Ypartial-unification"],
     visibility = [
@@ -182,17 +175,6 @@ scala_library(
     ],
 )
 
-scala_library(
-    name = "timberland-launcher-lib",
-    srcs = timberland_launcher_srcs,
-    exports = [
-        ":timberland-core-lib",
-    ],
-    deps = [
-        ":timberland-core-lib",
-    ],
-)
-
 scala_binary(
     name = "timberland-bin",
     srcs = ["src/main/scala/com/radix/timberland/runner.scala"],
@@ -212,14 +194,6 @@ filegroup(
     srcs = [":timberland-bin_deploy.jar"],
 )
 
-scala_binary(
-    name = "timberland-launcher",
-    main_class = "com.radix.timberland.launcher",
-    deps = [
-        ":timberland-launcher-lib",
-    ],
-)
-
 pkg_tar(
     name = "timberland-executables",
     srcs = [
@@ -236,15 +210,13 @@ pkg_tar(
                "//timberland/assets:vault/read-message-targets-policy.hcl",
                "//timberland/assets:systemd/vault.env.conf",
                "//timberland/assets:vault/read-certs-policy.hcl",
-               "//timberland/assets:vault/read-consul-ui-policy.hcl",
+               "//timberland/assets:vault/actor-acl-token-policy.hcl",
                "//timberland/assets:vault/read-flag-config-policy.hcl",
                "//timberland/assets:vault/remote-access-policy.hcl",
                "//timberland/assets:vault/aws-cred-role.json",
                "//timberland/assets:vault/tls-cert-policy.hcl",
                "//timberland/assets:vault/tls-cert-role.json",
                "//timberland/assets:vault/vault_config.conf",
-               #               "@vault",
-               #               "@vault-plugin-secrets-oauthapp",
            ] + select({
                "aarch64": ["@vault_arm//:vault"],
                "windows": ["@vault_win//:vault.exe"],
@@ -263,7 +235,6 @@ pkg_tar(
     srcs = [
         "wrappers/timberland",
         "//timberland/jvm:timberland-bin_deploy.jar",
-        "//timberland/jvm:timberland-launcher_deploy.jar",
         "//timberland_svc/jvm:timberland-svc-bin_deploy.jar",
     ],
     package_dir = "/opt/radix/timberland/exec",
@@ -272,6 +243,7 @@ pkg_tar(
 pkg_tar(
     name = "timberland-consul",
     srcs = [
+        "//timberland/assets:consul/actor-policy.hcl",
         "//timberland/assets:consul/default-policy.hcl",
         "//timberland/assets:systemd/consul.env.conf",
     ] + select({
@@ -283,12 +255,59 @@ pkg_tar(
 )
 
 pkg_tar(
+    name = "timberland-containernetworking-cni-plugin",
+    srcs = select({
+        "aarch64": [
+            "@containernetworking-cni-plugin_arm//:bandwidth",
+            "@containernetworking-cni-plugin_arm//:bridge",
+            "@containernetworking-cni-plugin_arm//:dhcp",
+            "@containernetworking-cni-plugin_arm//:firewall",
+            "@containernetworking-cni-plugin_arm//:flannel",
+            "@containernetworking-cni-plugin_arm//:host-device",
+            "@containernetworking-cni-plugin_arm//:host-local",
+            "@containernetworking-cni-plugin_arm//:ipvlan",
+            "@containernetworking-cni-plugin_arm//:loopback",
+            "@containernetworking-cni-plugin_arm//:macvlan",
+            "@containernetworking-cni-plugin_arm//:portmap",
+            "@containernetworking-cni-plugin_arm//:ptp",
+            "@containernetworking-cni-plugin_arm//:sbr",
+            "@containernetworking-cni-plugin_arm//:static",
+            "@containernetworking-cni-plugin_arm//:tuning",
+            "@containernetworking-cni-plugin_arm//:vlan",
+        ],
+        "windows": [
+            "@containernetworking-cni-plugin_win//:flannel.exe",
+            "@containernetworking-cni-plugin_win//:host-local.exe",
+            "@containernetworking-cni-plugin_win//:win-bridge.exe",
+            "@containernetworking-cni-plugin_win//:win-overlay.exe",
+        ],
+        "//conditions:default": [
+            "@containernetworking-cni-plugin//:bandwidth",
+            "@containernetworking-cni-plugin//:bridge",
+            "@containernetworking-cni-plugin//:dhcp",
+            "@containernetworking-cni-plugin//:firewall",
+            "@containernetworking-cni-plugin//:flannel",
+            "@containernetworking-cni-plugin//:host-device",
+            "@containernetworking-cni-plugin//:host-local",
+            "@containernetworking-cni-plugin//:ipvlan",
+            "@containernetworking-cni-plugin//:loopback",
+            "@containernetworking-cni-plugin//:macvlan",
+            "@containernetworking-cni-plugin//:portmap",
+            "@containernetworking-cni-plugin//:ptp",
+            "@containernetworking-cni-plugin//:sbr",
+            "@containernetworking-cni-plugin//:static",
+            "@containernetworking-cni-plugin//:tuning",
+            "@containernetworking-cni-plugin//:vlan",
+        ],
+    }),
+    package_dir = "/opt/cni/bin",
+)
+
+pkg_tar(
     name = "timberland-consul-config",
     srcs = [
         "//timberland/assets:consul/consul-client.json",
-        "//timberland/assets:consul/consul-client-tls.json",
         "//timberland/assets:consul/consul-server.json",
-        "//timberland/assets:consul/consul-server-bootstrap.json",
     ],
     package_dir = "/opt/radix/timberland/consul",
 )
@@ -296,7 +315,6 @@ pkg_tar(
 pkg_tar(
     name = "timberland-consul-template",
     srcs = [
-        "//timberland/assets:consul-template/ca/cert.pem.tpl",
         "//timberland/assets:consul-template/config.hcl",
         "//timberland/assets:consul-template/config-windows.hcl",
         "//timberland/assets:systemd/consul-template.env.conf",
@@ -312,6 +330,7 @@ pkg_tar(
     name = "timberland-consul-template-ca",
     srcs = [
         "//timberland/assets:consul-template/ca/cert.pem.tpl",
+        "//timberland/assets:consul-template/ca/combined.pem.tpl",
     ],
     package_dir = "/opt/radix/timberland/consul-template/ca",
 )
@@ -414,6 +433,14 @@ pkg_tar(
     package_dir = "/opt/radix/device_drivers/",
 )
 
+pkg_tar(
+    name = "timberland-cni-config",
+    srcs = [
+        "//timberland/assets:container_networking/cni.conf",
+    ],
+    package_dir = "/etc/sysctl.d/",
+)
+
 write_git_branch_to_file(
     name = "git-branch-file",
     package_dir = "/opt/radix/timberland",
@@ -425,6 +452,7 @@ pkg_tar(
         ":git-branch-file",
         ":terraform-full-deploy",
         ":terraform-update-config",
+        ":timberland-cni-config",
         ":timberland-consul",
         ":timberland-consul-config",
         ":timberland-consul-template",
@@ -433,6 +461,7 @@ pkg_tar(
         ":timberland-consul-template-consul",
         ":timberland-consul-template-nomad",
         ":timberland-consul-template-vault",
+        ":timberland-containernetworking-cni-plugin",
         ":timberland-devdrivers",
         ":timberland-exec",
         ":timberland-networkd",
@@ -506,6 +535,7 @@ sh_test(
         "src/test/ci.sh",
     ],
     data = [
+        "src/test/gather-results.sh",
         "src/test/install-deb.sh",
         "src/test/install-rpm.sh",
         "src/test/service_test.py",
@@ -550,23 +580,6 @@ pkg_tar(
 )
 
 terraform_module(
-    name = "apprise-terraform",
-    jobname = "apprise",
-    module_spec = [
-        'enable = contains(var.feature_flags, "apprise")',
-        'source = "/opt/radix/timberland/terraform/modules/apprise"',
-        "test = var.test",
-        "prefix = var.prefix",
-    ],
-    nomad_template = "//timberland/assets:terraform/apprise/apprise.tmpl",
-    terraform_files = [
-        "//timberland/assets:terraform/apprise/main.tf",
-        "//timberland/assets:terraform/apprise/outputs.tf",
-        "//timberland/assets:terraform/apprise/variables.tf",
-    ],
-)
-
-terraform_module(
     name = "aws_keys-terraform",
     jobname = "aws_keys",
     module_spec = [
@@ -587,8 +600,12 @@ terraform_module(
         'dev = contains(var.feature_flags, "dev")',
         "test = var.test",
         "prefix = var.prefix",
+        "quorum_size = var.elasticsearch_quorum_size",
     ],
-    nomad_template = "//timberland/assets:terraform/elasticsearch/elastic_search.tmpl",
+    nomad_templates = [
+        "//timberland/assets:terraform/elasticsearch/elasticsearch.tmpl",
+        "//timberland/assets:terraform/elasticsearch/kibana.tmpl",
+    ],
     terraform_files = [
         "//timberland/assets:terraform/elasticsearch/main.tf",
         "//timberland/assets:terraform/elasticsearch/outputs.tf",
@@ -618,6 +635,22 @@ terraform_module(
 )
 
 terraform_module(
+    name = "nginx-terraform",
+    jobname = "nginx",
+    module_spec = [
+        'source = "/opt/radix/timberland/terraform/modules/nginx"',
+        "prefix = var.prefix",
+        'dev = contains(var.feature_flags, "dev")',
+    ],
+    terraform_files = [
+        "//timberland/assets:terraform/nginx/nginx.tmpl",
+        "//timberland/assets:terraform/nginx/main.tf",
+        "//timberland/assets:terraform/nginx/outputs.tf",
+        "//timberland/assets:terraform/nginx/variables.tf",
+    ],
+)
+
+terraform_module(
     name = "kafka-terraform",
     jobname = "kafka",
     module_spec = [
@@ -625,17 +658,20 @@ terraform_module(
         'source = "/opt/radix/timberland/terraform/modules/kafka"',
         "test = var.test",
         "prefix = var.prefix",
+        'dev = contains(var.feature_flags, "dev")',
         "quorum_size = var.kafka_quorum_size",
+        "zookeeper_quorum_size = var.zookeeper_quorum_size",
         "interbroker_port = var.kafka_interbroker_port",
-        "zookeeper_address = module.zookeeper.zookeeper_health_result",
     ],
     nomad_template = "//timberland/assets:terraform/kafka/kafka.tmpl",
+    output_deps = [
+        ":zookeeper-terraform",
+    ],
     terraform_files = [
         "//timberland/assets:terraform/kafka/main.tf",
         "//timberland/assets:terraform/kafka/outputs.tf",
         "//timberland/assets:terraform/kafka/variables.tf",
     ],
-    deps = [":zookeeper-terraform"],
 )
 
 terraform_module(
@@ -647,17 +683,18 @@ terraform_module(
         'dev = contains(var.feature_flags, "dev")',
         "test = var.test",
         "prefix = var.prefix",
-        "quorum_size = var.kafka_companions_quorum_size",
+        "quorum_size = var.kafka_quorum_size",
         "interbroker_port = var.kafka_interbroker_port",
-        "kafka_address = module.kafka.kafka_health_result",
     ],
     nomad_template = "//timberland/assets:terraform/kafka_companions/kafka_companions.tmpl",
+    output_deps = [
+        ":kafka-terraform",
+    ],
     terraform_files = [
         "//timberland/assets:terraform/kafka_companions/main.tf",
         "//timberland/assets:terraform/kafka_companions/outputs.tf",
         "//timberland/assets:terraform/kafka_companions/variables.tf",
     ],
-    deps = [":kafka-terraform"],
 )
 
 terraform_module(
@@ -678,45 +715,8 @@ terraform_module(
         "//timberland/assets:terraform/minio/outputs.tf",
         "//timberland/assets:terraform/minio/variables.tf",
     ],
-    deps = [":kafka-terraform"],
-)
-
-terraform_module(
-    name = "retool-terraform",
-    jobname = "retool",
-    module_spec = [
-        'enable = contains(var.feature_flags, "retool")',
-        'source = "/opt/radix/timberland/terraform/modules/retool"',
-        'dev = contains(var.feature_flags, "dev")',
-        "test = var.test",
-        "prefix = var.prefix",
-    ],
-    nomad_template = "//timberland/assets:terraform/retool/retool.tmpl",
-    terraform_files = [
-        "//timberland/assets:terraform/retool/main.tf",
-        "//timberland/assets:terraform/retool/outputs.tf",
-        "//timberland/assets:terraform/retool/variables.tf",
-    ],
-)
-
-terraform_module(
-    name = "retool_pg_kafka_connector-terraform",
-    jobname = "retool_pg_kafka_connector",
-    module_spec = [
-        'enable = contains(var.feature_flags, "retool_pg_kafka_connector")',
-        'source = "/opt/radix/timberland/terraform/modules/retool_pg_kafka_connector"',
-        "test = var.test",
-        "prefix = var.prefix",
-    ],
-    nomad_template = "//timberland/assets:terraform/retool_pg_kafka_connector/retool_pg_kafka_connector.tmpl",
-    terraform_files = [
-        "//timberland/assets:terraform/retool_pg_kafka_connector/main.tf",
-        "//timberland/assets:terraform/retool_pg_kafka_connector/outputs.tf",
-        "//timberland/assets:terraform/retool_pg_kafka_connector/variables.tf",
-    ],
     deps = [
-        ":kafka_companions-terraform",
-        ":retool-terraform",
+        ":kafka-terraform",
     ],
 )
 
@@ -731,13 +731,15 @@ terraform_module(
         "test = var.test",
         "quorum_size = var.yugabyte_quorum_size",
     ],
-    nomad_template = "//timberland/assets:terraform/yugabyte/yugabyte.tmpl",
+    nomad_templates = [
+        "//timberland/assets:terraform/yugabyte/yb_masters.tmpl",
+        "//timberland/assets:terraform/yugabyte/yb_tservers.tmpl",
+    ],
     terraform_files = [
         "//timberland/assets:terraform/yugabyte/main.tf",
         "//timberland/assets:terraform/yugabyte/outputs.tf",
         "//timberland/assets:terraform/yugabyte/variables.tf",
     ],
-    deps = [],
 )
 
 terraform_module(
@@ -778,7 +780,6 @@ terraform_module(
         "//timberland/assets:terraform/zookeeper/outputs.tf",
         "//timberland/assets:terraform/zookeeper/variables.tf",
     ],
-    deps = [],
 )
 
 terraform_provider(
@@ -804,7 +805,8 @@ terraform_provider(
     source = select({
         "aarch64": "@terraform-provider-nomad_arm//file",
         "windows": "@terraform-provider-nomad_win//file",
-        "//conditions:default": "//containers:nomad-tf-provider-builder/terraform-provider-nomad_1.4.9_linux_amd64.zip",
+        "//conditions:default": "@terraform-provider-nomad//file",
+        #        "//conditions:default": "//containers:nomad-tf-provider-builder/terraform-provider-nomad_1.4.9_linux_amd64.zip",
     }),
     spec = """provider "nomad" {
    address = "https://${var.nomad_address}:4646"
@@ -841,15 +843,13 @@ terraform_deployment(
         ":terraform-vault",
     ],
     resources = [
-        #":apprise-terraform",
         ":aws_keys-terraform",
         ":elasticsearch-terraform",
         ":es_kafka_connector-terraform",
         ":kafka-terraform",
         ":kafka_companions-terraform",
         ":minio-terraform",
-        ":retool-terraform",
-        ":retool_pg_kafka_connector-terraform",
+        ":nginx-terraform",
         ":yugabyte-terraform",
         ":yugabyte_kafka_connector-terraform",
         ":zookeeper-terraform",
@@ -865,11 +865,11 @@ terraform_deployment(
         "//device_drivers/tf-exactive/jvm:tf_exactive-terraform",
         "//runtime/jvm:runtime-terraform",
         "//sensors/elemental/jvm:elemental-terraform",
+        "//utils/api/jvm:web-interface",
         "//utils/bunny_uservice/jvm:bunny_uservice-terraform",
         "//utils/prism-uservice/jvm:prism-terraform",
         "//utils/s3lts:s3lts-terraform",
         "//vm/jvm:vm-terraform",
-        "//utils/api/jvm:web-interface",
     ],
     terraform_source = select({
         "aarch64": ["@terraform_arm//:terraform"],

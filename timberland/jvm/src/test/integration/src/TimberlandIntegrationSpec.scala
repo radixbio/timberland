@@ -7,7 +7,6 @@ class TimberlandIntegrationSpec extends TimberlandIntegration {
     "core" -> true,
     "yugabyte" -> true,
     "vault" -> true,
-    "retool" -> true,
     "elemental" -> false,
     "elasticsearch" -> true
   )

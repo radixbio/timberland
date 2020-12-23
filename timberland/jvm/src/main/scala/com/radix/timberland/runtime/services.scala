@@ -11,8 +11,14 @@ import java.util.concurrent.Executors
 
 import com.radix.timberland.runtime.Services.serviceController
 import com.radix.timberland.flags.hooks.{awsAuthConfig, AWSAuthConfigFile}
+import com.radix.timberland.radixdefs.ACLTokens
 import com.radix.timberland.util._
 import com.radix.utils.tls.ConsulVaultSSLContext
+import org.http4s.Header
+import org.http4s.Method.POST
+import org.http4s.client.dsl.io._
+import org.http4s.implicits._
+import io.circe.syntax._
 
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext
@@ -39,7 +45,7 @@ trait ServiceControl {
   def configureConsul(parameters: String): IO[Unit] = ???
   def appendParametersConsul(parameters: String): IO[Unit] = ???
   def configureConsulTemplate(parameters: String): IO[Unit] = ???
-  def configureConsulTemplate(consulToken: String, vaultToken: String): IO[Unit] = ???
+  def configureConsulTemplate(consulToken: String, vaultToken: String, vaultAddress: Option[String]): IO[Unit] = ???
   def configureNomad(parameters: String, vaultToken: String, consulToken: String): IO[Unit] = ???
   def configureTimberlandSvc(): IO[Unit] = ???
   def configureVault(parameters: String): IO[Unit] = ???
@@ -81,6 +87,7 @@ class LinuxServiceControl extends ServiceControl {
       _ <- IO.sleep(5.seconds)
       _ = ConsulVaultSSLContext.refreshCerts()
     } yield hupProcOut
+
   ///Util.exec("systemctl reload vault")
   override def refreshVault()(implicit timer: Timer[IO]): IO[Util.ProcOut] =
     for {
@@ -91,14 +98,21 @@ class LinuxServiceControl extends ServiceControl {
       _ = ConsulVaultSSLContext.refreshCerts()
     } yield hupProcOut
 
-  override def configureConsulTemplate(consulToken: String, vaultToken: String): IO[Unit] = {
+  override def configureConsulTemplate(
+    consulToken: String,
+    vaultToken: String,
+    vaultAddress: Option[String]
+  ): IO[Unit] = {
     val envFilePath = RadPath.persistentDir / "consul-template" / "consul-template.env.conf"
     for {
       envars <- IO {
-        s"""CONSUL_TEMPLATE_CMD_ARGS=-config=${(RadPath.persistentDir / "consul-template" / "config.hcl").toString()}
-             |CONSUL_TOKEN=$consulToken
-             |VAULT_TOKEN=$vaultToken
-             |""".stripMargin
+        s"""CONSUL_TEMPLATE_CMD_ARGS=-config=${(RadPath.persistentDir / "consul-template" / "config.hcl")
+             .toString()} ${vaultAddress
+             .map(addr => s"-vault-addr=https://$addr:8200")
+             .getOrElse("")}
+           |CONSUL_TOKEN=$consulToken
+           |VAULT_TOKEN=$vaultToken
+           |""".stripMargin
       }
       _ <- IO(os.write.over(envFilePath, envars))
     } yield ()
@@ -111,6 +125,7 @@ class LinuxServiceControl extends ServiceControl {
     for {
       args <- IO(s"""NOMAD_CMD_ARGS=$parameters -config=${RadPath.persistentDir}/nomad/config -consul-token=$consulToken
                              |VAULT_TOKEN=$vaultToken
+                             |PATH=${sys.env("PATH")}:${(RadPath.persistentDir / "consul").toString()}
                              |""".stripMargin)
 
       _ = LogTUI.event(NomadStarting)
@@ -144,7 +159,11 @@ class WindowsServiceControl extends ServiceControl {
       _ <- configureConsul(s"$origParameters $parameters")
     } yield ()
 
-  override def configureConsulTemplate(consulToken: String, vaultToken: String): IO[Unit] =
+  override def configureConsulTemplate(
+    consulToken: String,
+    vaultToken: String,
+    vaultAddress: Option[String]
+  ): IO[Unit] =
     Util.execArr(
       "sc.exe create consul-template binpath="
         .split(" ") :+ s"${(RadPath.persistentDir / "consul-template" / "consul-template.exe").toString}"
@@ -154,7 +173,9 @@ class WindowsServiceControl extends ServiceControl {
           .split(
             " "
           ) :+ "DisplayName=" :+ "Radix: Consul-Template for Timberland" :+ "binPath=" :+ s"${(RadPath.persistentDir / "consul-template" / "consul-template.exe").toString} -config=${(RadPath.persistentDir / "consul-template" / "config-windows.hcl")
-          .toString()} -vault-token=$vaultToken -consul-token=$consulToken -once"
+          .toString()} -vault-token=$vaultToken -consul-token=$consulToken -once ${vaultAddress
+          .map(addr => s"-vault-addr=https://$addr:8200")
+          .getOrElse("")}"
       ) *> IO.unit
 
   override def restartConsul(): IO[Util.ProcOut] = stopConsul *> startConsul
@@ -197,7 +218,10 @@ class WindowsServiceControl extends ServiceControl {
         "sc.exe config nomad"
           .split(
             " "
-          ) :+ "DisplayName=" :+ "Radix: Nomad for Timberland" :+ "binPath=" :+ s"${(RadPath.persistentDir / "nomad" / "nomad.exe").toString} agent $parameters  -config=${(RadPath.persistentDir / "nomad" / "config").toString} -vault-token=$vaultToken -consul-token=$consulToken"
+          ) :+ "DisplayName=" :+ "Radix: Nomad for Timberland" :+ "binPath=" :+ s"${(RadPath.persistentDir / "nomad" / "nomad.exe").toString} agent $parameters  -config=${(RadPath.persistentDir / "nomad" / "config").toString} -vault-token=$vaultToken -consul-token=$consulToken -path=${sys
+          .env("PATH")}:${(RadPath.persistentDir / "consul").toString()}:${RadPath.cni
+          .toString()}:${sys.env.get("JAVA_HOME").map(os.Path(_) / "bin").getOrElse("").toString}"
+        // include Consul, CNI, and JVM paths so Nomad will be able to find everything it needs
       ) *> IO.unit
   override def stopNomad(): IO[Util.ProcOut] = Util.exec("sc.exe stop nomad")
 
@@ -249,7 +273,7 @@ object Services {
    * @param bindAddr  IPv4 to bind if not the default route
    * @param leaderNodeO  leader node, if applicable
    * @param bootstrapExpect   number of nodes to expect for bootstrapping
-   * @param setupACL whether or not we should setup the ACLs for consul/nomad/etc
+   * @param initialSetup whether or not we should setup the ACLs for consul/nomad/etc
    * @param serverJoin whether or not we should join as a server or client
    * @return a started consul and nomad
    */
@@ -257,7 +281,7 @@ object Services {
     bindAddr: Option[String],
     leaderNodeO: Option[String],
     bootstrapExpect: Int,
-    setupACL: Boolean,
+    initialSetup: Boolean,
     serverJoin: Boolean
   ): IO[AuthTokens] =
     for {
@@ -282,53 +306,69 @@ object Services {
       )
 
       intermediateAclTokenFile = RadPath.runtime / "timberland" / ".intermediate-acl-token"
+      clientJoin = (leaderNodeO.isDefined && !serverJoin)
+      remoteJoin = clientJoin || serverJoin
       hasPartiallyBootstrapped <- IO(os.exists(intermediateAclTokenFile))
       consulToken <- makeOrGetIntermediateToken
       _ <- IO {
-        if (setupACL && !os.exists(awsAuthConfig.configFile)) {
+        if (initialSetup && !os.exists(awsAuthConfig.configFile)) {
           os.write(awsAuthConfig.configFile, AWSAuthConfigFile(credsExistInVault = false).asJson.toString)
         }
       }
-
-      clientJoin = (leaderNodeO.isDefined && !serverJoin)
-      remoteJoin = clientJoin | serverJoin
-      _ <- if (setupACL) auth.writeTokenConfigs(RadPath.persistentDir, consulToken) else IO.unit
       _ <- IO {
         consulTemplateReplacementCerts.foreach { certBakPath =>
           if (os.exists(certBakPath)) os.remove(certBakPath)
         }
       }
-      _ <- setupConsul(finalBindAddr, leaderNodeO, bootstrapExpect, clientJoin)
-      _ <- if (setupACL) auth.setupDefaultConsulToken(RadPath.persistentDir, consulToken) else IO.unit
+
+      _ <- makeTempCerts(RadPath.persistentDir)
+      _ <- if (initialSetup) auth.writeVaultTokenConfigs(RadPath.persistentDir, consulToken) else IO.unit
+
+      // START VAULT
       _ <- if (!remoteJoin) for {
+        _ <- IO { os.makeDir.all(RadPath.runtime / "vault") } // need to manually make dir so vault can make raft db
         _ <- startVault(finalBindAddr)
-        _ <- (new VaultStarter).initializeAndUnsealAndSetupVault(setupACL)
-        _ <- Util.waitForSystemdString("consul", "Synced service: service=vault:", 30.seconds)
+        _ <- (new VaultStarter).initializeAndUnsealAndSetupVault(initialSetup)
       } yield ()
       else IO.unit
+
       vaultToken <- IO((new VaultUtils).findVaultToken())
-      _ <- serviceController.configureConsulTemplate(consulToken, vaultToken) // wait for consulCaCertPemBak
+      _ <- if (initialSetup) auth.writeConsulNomadTokenConfigs(RadPath.persistentDir, consulToken, vaultToken)
+      else IO.unit
+
+      // START CONSUL TEMPLATE
+      _ <- serviceController.configureConsulTemplate(consulToken, vaultToken, leaderNodeO)
       _ <- serviceController.startConsulTemplate()
       _ <- consulTemplateReplacementCerts.map(Util.waitForPathToExist(_, 30.seconds)).parSequence
-      _ <- if (remoteJoin)
-        IO(
-          os.copy.over(
-            RadPath.runtime / "timberland" / "consul" / "consul-client-tls.json",
-            RadPath.runtime / "timberland" / "consul" / "config" / "consul.json"
-          )
-        )
+      _ <- if (!remoteJoin) for {
+        _ <- serviceController.restartVault()
+        _ <- serviceController.restartConsulTemplate()
+        _ <- IO.sleep(5.seconds)
+        _ = ConsulVaultSSLContext.refreshCerts()
+        _ <- (new VaultStarter)
+          .initializeAndUnsealVault(baseUrl = uri"https://127.0.0.1:8200", shouldBootstrapVault = false)
+      } yield ()
       else IO.unit
-      _ <- serviceController.refreshConsul()
-      _ <- if (!remoteJoin) serviceController.refreshVault() else IO.unit
+
+      // START CONSUL
+      _ <- setupConsul(finalBindAddr, leaderNodeO, bootstrapExpect, clientJoin)
+      _ <- Util.waitForSystemdString("consul", "agent: Synced node info", 60.seconds)
+      actorToken <- if (initialSetup) auth.setupConsulTokens(RadPath.persistentDir, consulToken) else IO("")
+      _ <- if (!remoteJoin) Util.waitForSystemdString("consul", "Synced service: service=vault:", 30.seconds)
+      else IO.unit
+      _ <- if (initialSetup) addConsulIntention(consulToken) else IO.unit
+
+      // START NOMAD
       _ <- setupNomad(finalBindAddr, leaderNodeO, bootstrapExpect, vaultToken, consulToken, serverJoin)
-      consulNomadToken <- if (setupACL & !remoteJoin) {
+      consulNomadToken <- if (initialSetup && !remoteJoin) {
         auth.setupNomadMasterToken(RadPath.persistentDir, consulToken)
-      } else if (setupACL & remoteJoin)
+      } else if (initialSetup && remoteJoin)
         IO(consulToken)
       else {
         auth.getMasterToken
       }
-      _ <- if (!remoteJoin) auth.storeMasterToken(consulNomadToken) else IO.unit
+      _ <- if (!remoteJoin) auth.storeTokensInVault(ACLTokens(masterToken = consulNomadToken, actorToken = actorToken))
+      else IO.unit
       _ <- if (serverJoin) serviceController.appendParametersConsul("-server") // add -server to consul invocation
       else IO.unit
       _ <- IO(os.write.over(RadPath.persistentDir / ".bootstrap-complete", "\n"))
@@ -340,7 +380,7 @@ object Services {
       _ <- serviceController.configureTimberlandSvc()
       _ <- serviceController.restartTimberlandSvc()
       _ <- IO(scribe.info("started services"))
-    } yield AuthTokens(consulNomadToken, vaultToken)
+    } yield AuthTokens(consulNomadToken = consulNomadToken, actorToken = actorToken, vaultToken)
 
   def searchForPort(netinf: List[String], port: Int): IO[Option[NonEmptyList[String]]] = {
     val addrs = for {
@@ -368,7 +408,7 @@ object Services {
     val baseArgs =
       s"""-bind=$bindAddr -advertise=$bindAddr -client=\\\"127.0.0.1 $bindAddr\\\" -config-dir=${(RadPath.persistentDir / "consul" / "config").toString}"""
     val clientJoin = leaderNodeO.isDefined && !serverJoin
-    val remoteJoin = clientJoin | serverJoin
+    val remoteJoin = clientJoin || serverJoin
 
     val baseArgsWithSeeds = leaderNodeO match {
       case Some(seedString) =>
@@ -383,38 +423,24 @@ object Services {
 
       case None => baseArgs
     }
+
     val baseArgsWithSeedsAndServer = remoteJoin match {
       case false => s"$baseArgsWithSeeds -bootstrap-expect=$bootstrapExpect -server"
       case true  => baseArgsWithSeeds
     }
+
     val consulConfigDir = RadPath.runtime / "timberland" / "consul" / "config"
     val consulDir = RadPath.runtime / "timberland" / "consul"
-    remoteJoin match {
-      case false =>
-        for {
-          _ <- serviceController.configureConsul(baseArgsWithSeedsAndServer)
-          _ <- IO(LogTUI.event(ConsulStarting))
-          _ <- IO(os.copy.over(consulDir / "consul-server-bootstrap.json", consulConfigDir / "consul.json"))
-          _ <- serviceController.restartConsul()
-          _ <- Util.waitForPortUp(8500, 10.seconds)
-          _ <- makeTempCerts(RadPath.persistentDir)
-          _ <- IO(os.copy.over(consulDir / "consul-server.json", consulConfigDir / "consul.json"))
-          _ <- serviceController.restartConsul()
-          _ <- IO(LogTUI.event(ConsulSystemdUp))
-          _ <- Util.waitForPortUp(8501, 10.seconds)
-        } yield ()
-      case true =>
-        for {
-          _ <- serviceController.configureConsul(baseArgsWithSeedsAndServer)
-          _ <- IO(LogTUI.event(ConsulStarting))
-          _ <- IO(os.copy.over(consulDir / "consul-client.json", consulConfigDir / "consul.json"))
-          _ <- serviceController.restartConsul()
-          _ <- Util.waitForPortUp(8500, 10.seconds)
-          _ <- Util.waitForPortUp(8501, 10.seconds)
-          _ <- makeTempCerts(RadPath.persistentDir)
-          _ <- IO(LogTUI.event(ConsulSystemdUp))
-        } yield ()
-    }
+    val consulConfigFile = consulDir / (if (remoteJoin) "consul-client.json" else "consul-server.json")
+    for {
+      _ <- serviceController.configureConsul(baseArgsWithSeedsAndServer)
+      _ <- IO(LogTUI.event(ConsulStarting))
+      _ <- IO(os.copy.over(consulConfigFile, consulConfigDir / "consul.json"))
+      _ <- serviceController.restartConsul()
+      _ <- Util.waitForPortUp(8500, 10.seconds)
+      _ <- Util.waitForPortUp(8501, 10.seconds)
+      _ <- IO(LogTUI.event(ConsulSystemdUp))
+    } yield ()
   }
 
 //  def startNomad(bindAddr: String, bootstrapExpect: Int, vaultToken: String, remoteJoin: Boolean = false): IO[Unit] = {
@@ -432,6 +458,7 @@ object Services {
       case (true, _)      => "-consul-client-auto-join"
       case (false, true)  => s"-server"
     }
+
     val baseArgsWithSeeds = leaderNodeO match {
       case Some(seedString) =>
         seedString
@@ -469,6 +496,19 @@ object Services {
 
   }
 
+  private def addConsulIntention(consulToken: String): IO[Unit] = {
+    val req = POST(
+      Map("SourceName" -> "*", "DestinationName" -> "*", "Action" -> "allow").asJson.toString(),
+      uri"https://consul.service.consul:8501/v1/connect/intentions",
+      Header("X-Consul-Token", consulToken)
+    )
+
+    ConsulVaultSSLContext.blaze.use(_.status(req)).map { status =>
+      if (status.code != 200) scribe.warn("Error adding consul intention: " + status.reason)
+      ()
+    }
+  }
+
   private def makeOrGetIntermediateToken: IO[String] =
     IO {
       val intermediateAclTokenFile = RadPath.runtime / "timberland" / ".intermediate-acl-token"
@@ -481,43 +521,49 @@ object Services {
       }
     }
 
+  /**
+   * This creates temporary certificates so that vault can start before it is configured to generate its own certs
+   */
   private def makeTempCerts(persistentDir: os.Path): IO[Unit] = {
+    implicit val certDir: os.Path = RadPath.runtime / "certs"
     val consul = persistentDir / "consul" / "consul"
-    val certDir = os.root / "opt" / "radix" / "certs"
-    val consulCaCertPem = certDir / "ca" / "cert.pem"
-    val consulCaKeyPem = certDir / "ca" / "key.pem"
-    val consulServerCertPem = certDir / "consul" / "cert.pem"
-    val consulServerKeyPem = certDir / "consul" / "key.pem"
-    val vaultClientCertPem = certDir / "vault" / "cert.pem"
-    val vaultClientKeyPem = certDir / "vault" / "key.pem"
-    val cliCertPem = certDir / "cli" / "cert.pem"
-    val cliKeyPem = certDir / "cli" / "key.pem"
-    for {
-      _ <- IO(os.makeDir.all(certDir))
-      _ <- Util.exec(s"$consul tls ca create", cwd = certDir)
-      _ <- IO(os.makeDir.all(certDir / "consul"))
-      _ <- Util.exec(s"$consul tls cert create -server -additional-dnsname=consul.service.consul", certDir)
-      _ <- IO {
-        os.move.over(certDir / "dc1-server-consul-0.pem", consulServerCertPem)
-        os.move.over(certDir / "dc1-server-consul-0-key.pem", consulServerKeyPem)
-      }
-      _ <- IO(os.makeDir.all(certDir / "vault"))
-      _ <- Util.exec(s"$consul tls cert create -client -additional-dnsname=vault.service.consul", certDir)
-      _ <- IO {
-        os.move.over(certDir / "dc1-client-consul-0.pem", vaultClientCertPem)
-        os.move.over(certDir / "dc1-client-consul-0-key.pem", vaultClientKeyPem)
-      }
-      _ <- IO(os.makeDir.all(certDir / "cli"))
-      _ <- Util.exec(s"$consul tls cert create -cli", certDir)
-      _ <- IO {
-        os.move.over(certDir / "dc1-cli-consul-0.pem", cliCertPem)
-        os.move.over(certDir / "dc1-cli-consul-0-key.pem", cliKeyPem)
-        os.makeDir.all(certDir / "ca")
-        os.move.over(certDir / "consul-agent-ca.pem", consulCaCertPem)
-        os.move.over(certDir / "consul-agent-ca-key.pem", consulCaKeyPem)
-      }
-    } yield ()
+
+    IO(os.makeDir.all(certDir)) *>
+      Util.exec(s"$consul tls ca create", cwd = certDir) *>
+      genCert(
+        folder = "vault",
+        fileName = "dc1-client-consul-0",
+        command = Some(s"$consul tls cert create -client -additional-dnsname=vault.service.consul")
+      ) *>
+      genCert(
+        folder = "cli",
+        fileName = "dc1-cli-consul-0",
+        command = Some(s"$consul tls cert create -cli")
+      ) *>
+      genCert(
+        folder = "consul",
+        fileName = "dc1-server-consul-0",
+        command = Some(s"$consul tls cert create -server -additional-dnsname=consul.service.consul")
+      ) *>
+      genCert(
+        folder = "ca",
+        fileName = "consul-agent-ca"
+      ) *>
+      IO(os.remove(certDir / "ca" / "key.pem"))
   }
+
+  /**
+   * This method runs $command and moves the resulting files $fileName.pem and $fileName-key.pem to radix/$Folder
+   * @param folder The folder to put the resulting cert and key in
+   * @param fileName The name of the cert file generated by running $command
+   * @param command The command to run to generate the required cert and key
+   */
+  private def genCert(folder: String, fileName: String, command: Option[String] = None)(implicit certDir: os.Path) =
+    command.map(Util.exec(_, certDir)).getOrElse(IO.unit) *> IO {
+      os.makeDir.all(certDir / folder)
+      os.move.over(certDir / s"$fileName.pem", certDir / folder / "cert.pem")
+      os.move.over(certDir / s"$fileName-key.pem", certDir / folder / "key.pem")
+    }
 
   def startWeave(hosts: List[String]): IO[Unit] =
     for {

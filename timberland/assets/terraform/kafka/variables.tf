@@ -21,6 +21,11 @@ variable "quorum_size" {
   default = 1
 }
 
+variable "zookeeper_quorum_size" {
+  type = number
+  default = 1
+}
+
 variable "dev" {
   description = "Whether the runtime is being launched in dev mode"
   type = bool
@@ -31,9 +36,4 @@ variable "interbroker_port" {
   description = ""
   type = number
   default = 29092
-}
-
-variable "zookeeper_address" {
-  type = list(string)
-  default = []
 }

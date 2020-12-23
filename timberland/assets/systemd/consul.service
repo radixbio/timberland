@@ -3,6 +3,8 @@ Description="HashiCorp Consul"
 Documentation=https://www.consul.io/
 Requires=network-online.target
 After=network-online.target
+Wants=vault.service
+After=vault.service
 ConditionFileNotEmpty=/opt/radix/timberland/consul/config/consul.json
 
 [Service]

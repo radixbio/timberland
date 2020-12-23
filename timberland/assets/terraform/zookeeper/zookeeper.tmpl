@@ -7,14 +7,16 @@ job "${prefix}zookeeper-daemons" {
     value = "linux"
   }
 
+  constraint {
+    operator = "distinct_hosts"
+    value = "true"
+  }
+
   datacenters = ["dc1"]
 
-  group "zookeeper" {
-
-    constraint {
-      operator = "distinct_hosts"
-      value = "true"
-    }
+%{ for i in range(dev ? 1 : quorum_size) ~}
+  group "zookeeper-${i}" {
+    count = 1
 
     volume "zookeeper_data" {
       type = "host"
@@ -22,9 +24,27 @@ job "${prefix}zookeeper-daemons" {
       source = "zookeeper_data"
     }
 
-    count = ${ quorum_size }
+    //hack to pin reallocations to the same node
+    ephemeral_disk {
+      sticky = true
+    }
 
     task "zookeeper" {
+
+      config {
+        image = "zookeeper:3.4"
+        auth_soft_fail = false
+        cap_add = []
+        //TODO remove this when the zk docker container can deal with ZOO_MY_ID correctly
+        args = ["-c", "if [ ! -f /data/myid ]; then echo $ZOO_MY_ID > /data/myid; fi; if [ ! $ZOO_MY_ID = 1 ]; then sleep 10; fi; zkServer.sh start-foreground"]
+        entrypoint = ["/bin/bash"]
+      }
+
+      env {
+        // ZOO_MY_ID is documented to work, but the hack above means it does not
+        "ZOO_MY_ID" = "${i+1}"
+        "ZOOCFGDIR" = "/local"
+      }
 
       volume_mount {
         volume = "zookeeper_data"
@@ -32,37 +52,29 @@ job "${prefix}zookeeper-daemons" {
         read_only = false
       }
 
-      config {
-        image = "zookeeper:3.4"
-        auth_soft_fail = false
-        hostname = "$${attr.unique.hostname}-zookeeper"
-        privileged = false
-        network_mode = "weave"
-        port_map = {
-          "client" = 2181,
-          "follower" = 2888,
-          "othersrvs" = 3888
-        }
-        cap_add = []
+      driver = "docker"
+
+      kill_timeout = "5s"
+      kill_signal = "SIGINT"
+      leader = false
+
+      resources {
+        cpu = 1000
+        memory = 2048
       }
+
+      shutdown_delay = "0s"
 
       template {
         change_mode = "noop"
-        destination = "data/myid"
+        destination = "local/zoo.cfg"
         env = false
         left_delimiter = "{{"
         perms = "644"
         right_delimiter = "}}"
-        data = "$${NOMAD_ALLOC_ID}"
-        splay = "5s"
-      }
-
-      template {
-        change_mode = "noop"
-        destination = "conf/zoo.cfg"
         data = <<EOH
 dataDir=/data
-dataLogDir=/datalog
+dataLogDir=/data
 tickTime=2000
 initLimit=5
 syncLimit=2
@@ -72,156 +84,213 @@ autopurge.purgeInterval=0
 maxClientCnxns=60
 standaloneEnabled=false
 4lw.commands.whitelist=*
+server.${i+1}=127.0.0.1:${ 2888 + i }:${ 3888 + i }
+%{ for j in range(dev ? 1 : quorum_size) ~}
+${ i == j ? "" : <<-EOT
+server.${j+1}={{ env "NOMAD_UPSTREAM_ADDR_zookeeper-follower-${j}" }}:{{ env "NOMAD_UPSTREAM_PORT_zookeeper-othersrvs-${j}" }}
+EOT
+}
+%{ endfor ~}
+EOH
+// we say server.i+1 and server.j+1 above because i and j start at 0, but a zookeeper node's id must be between 1 and 255
+// zookeeper uses the follower and othersrvs ports to cluster
+        splay = "5s"
+        vault_grace = "15s"
+      }
+
+      // this is automatically put into /conf, but we're using /local as the config dir, so we need this file in /local as well
+      template {
+        change_mode = "noop"
+        destination = "local/configuration.xsl"
+        env = false
+        data = <<EOH
+<?xml version="1.0"?>
+<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" version="1.0">
+<xsl:output method="html"/>
+<xsl:template match="configuration">
+<html>
+<body>
+<table border="1">
+<tr>
+ <td>name</td>
+ <td>value</td>
+ <td>description</td>
+</tr>
+<xsl:for-each select="property">
+<tr>
+  <td><a name="{name}"><xsl:value-of select="name"/></a></td>
+  <td><xsl:value-of select="value"/></td>
+  <td><xsl:value-of select="description"/></td>
+</tr>
+</xsl:for-each>
+</table>
+</body>
+</html>
+</xsl:template>
+</xsl:stylesheet>
 EOH
       }
 
+      // this is automatically put into /conf, but we're using /local as the config dir, so we need this file in /local as well
       template {
         change_mode = "noop"
-        destination = "local/conf/zoo_servers"
+        destination = "local/log4j.properties"
+        env = false
         data = <<EOH
-{{ range $tag, $services := service "zookeeper-daemons-zookeeper-zookeeper|any" | byTag }}
-{{ if $tag | contains "client" }}
-{{ range $services }}
-{{ scratch.MapSet .Address "client" .Port }}
-{{ scratch.MapSet .Address "done" "false" }}
-{{ end }}
-{{ else }}
-{{ if $tag | contains "follower" }}
-{{ range $services }}
-{{ scratch.MapSet .Address "follower" .Port }}
-{{ scratch.MapSet .Address "done" "false" }}
-{{ end }}
-{{ else }}
-{{ if $tag | contains "othersrvs" }}
-{{ range $services }}
-{{ scratch.MapSet .Address "othersrvs" .Port }}
-{{ scratch.MapSet .Address "done" "false" }}
-{{ end }}
-{{ else }}
-{{ end }}
-{{ end }}
-{{ end }}
-{{ end }}
-{{ scratch.Set "index" 1 }}
-{{ scratch.Set "ZOO_SERVERS" "" }}
-{{ range $i, $services := service "zookeeper-daemons-zookeeper-zookeeper|any" }}
-{{ if ($services.Tags | contains "zookeeper-quorum") }}
-{{ $addr := (scratch.Get .Address)}}
-{{ if not (index $addr "done" | parseBool) }}
-{{ $mynode := "temp" }}
-{{ with node }}
-{{ if eq $services.Node .Node.Node }}
-{{ scratch.Set "ZOO_SERVERS" (print (scratch.Get "ZOO_SERVERS") "server." (scratch.Get "index") "=" $services.Address ":2888:3888\n" )}}
-{{ scratch.Set "ZOO_MY_ID" (scratch.Get "index") }}
-{{ else }}
-{{ scratch.Set "ZOO_SERVERS" (print (scratch.Get "ZOO_SERVERS") "server." (scratch.Get "index") "=" $services.Address ":" (index $addr "follower") ":" ( index $addr "othersrvs") "\n" )}}
-{{ end }}
-{{ scratch.MapSet $services.Address "done" "true"}}
-{{ scratch.Set "index" (scratch.Get "index" | add 1 ) }}
-{{ end }}
-{{ end }}
-{{ end }}
-{{ end }}
-{{ scratch.Get "ZOO_SERVERS" }}
+# Define some default values that can be overridden by system properties
+zookeeper.root.logger=DEBUG, CONSOLE
+zookeeper.console.threshold=DEBUG
+zookeeper.log.dir=.
+zookeeper.log.file=zookeeper.log
+zookeeper.log.threshold=DEBUG
+zookeeper.tracelog.dir=.
+zookeeper.tracelog.file=zookeeper_trace.log
+
+#
+# ZooKeeper Logging Configuration
+#
+
+# Format is "<default threshold> (, <appender>)+
+
+# DEFAULT: console appender only
+log4j.rootLogger=$${zookeeper.root.logger}
+
+# Example with rolling log file
+#log4j.rootLogger=DEBUG, CONSOLE, ROLLINGFILE
+
+# Example with rolling log file and tracing
+#log4j.rootLogger=TRACE, CONSOLE, ROLLINGFILE, TRACEFILE
+
+#
+# Log INFO level and above messages to the console
+#
+log4j.appender.CONSOLE=org.apache.log4j.ConsoleAppender
+log4j.appender.CONSOLE.Threshold=$${zookeeper.console.threshold}
+log4j.appender.CONSOLE.layout=org.apache.log4j.PatternLayout
+log4j.appender.CONSOLE.layout.ConversionPattern=%d{ISO8601} [myid:%X{myid}] - %-5p [%t:%C{1}@%L] - %m%n
+
+#
+# Add ROLLINGFILE to rootLogger to get log file output
+#    Log DEBUG level and above messages to a log file
+log4j.appender.ROLLINGFILE=org.apache.log4j.RollingFileAppender
+log4j.appender.ROLLINGFILE.Threshold=$${zookeeper.log.threshold}
+log4j.appender.ROLLINGFILE.File=$${zookeeper.log.dir}/$${zookeeper.log.file}
+
+# Max log file size of 10MB
+log4j.appender.ROLLINGFILE.MaxFileSize=10MB
+# uncomment the next line to limit number of backup files
+#log4j.appender.ROLLINGFILE.MaxBackupIndex=10
+
+log4j.appender.ROLLINGFILE.layout=org.apache.log4j.PatternLayout
+log4j.appender.ROLLINGFILE.layout.ConversionPattern=%d{ISO8601} [myid:%X{myid}] - %-5p [%t:%C{1}@%L] - %m%n
+
+
+#
+# Add TRACEFILE to rootLogger to get log file output
+#    Log DEBUG level and above messages to a log file
+log4j.appender.TRACEFILE=org.apache.log4j.FileAppender
+log4j.appender.TRACEFILE.Threshold=TRACE
+log4j.appender.TRACEFILE.File=$${zookeeper.tracelog.dir}/$${zookeeper.tracelog.file}
+
+log4j.appender.TRACEFILE.layout=org.apache.log4j.PatternLayout
+### Notice we are including log4j's NDC here (%x)
+log4j.appender.TRACEFILE.layout.ConversionPattern=%d{ISO8601} [myid:%X{myid}] - %-5p [%t:%C{1}@%L][%x] - %m%n
 EOH
       }
 
-      # for zk 2.5+weave, we need a zoo_replicated.cfg.dynamic file that gets edited by the scala code.
-      # nomad doesn't like 'data = ""' so use an empty heredoc
-      # consul connect obviates this so it will go away soon
-      template {
-        change_mode = "noop"
-        destination = "conf/zoo_replicated.cfg.dynamic"
-        data = <<EOH
-        EOH
-      }
+    }
 
-      driver = "docker"
-      kill_timeout = "5s"
-      kill_signal = "SIGINT"
-      leader = false
+    network {
+      mode = "bridge"
+      mbits = 10
+    }
 
-      resources {
-        cpu = 1000
-        memory = 2048
+    // we need three services because zookeeper does things on three ports - 2181 for client (which kafka connects to),
+    // and 2888 and 3888 for follower and othersrvs (which are used to cluster)
 
-        network {
-          mbits = 10
+    service {
+      name = "zookeeper-client-${i}"
+      port = 2181
+      tags = ["zookeeper-quorum","zookeeper-client", "${prefix}"]
+      address_mode = "auto"
 
-          port "client" {
-            static = 2181
-          }
-
-          port "follower" {
-            static = 2888
-          }
-
-          port "othersrvs" {
-            static = 3888
+      connect {
+        sidecar_service {
+          proxy {
+            %{ for j in range(dev ? 1 : quorum_size) ~}
+            ${ i == j ? "" : <<-EOT
+            upstreams {
+              destination_name = "zookeeper-client-${j}"
+              local_bind_port = ${ 2071 + j }
+            }
+            EOT
+            }
+            %{ endfor ~}
           }
         }
       }
 
-      service {
-        port = "client"
-        tags = ["zookeeper-quorum","zookeeper-client"]
-        address_mode = "auto"
+      check {
+        type = "script"
+        name = "zookeeper-health-${i}"
+        task = "zookeeper"
+        command = "/bin/sh"
+        args = ["-c", "[ \"$(echo ruok | nc 127.0.0.1 2181)\" = 'imok' ] && exit 0; exit 1"]
+        interval = "10s"
+        timeout = "5s"
+      }
+    }
 
-        check {
-          address_mode = "host"
-          grpc_use_tls = true
-          initial_status = "critical"
-          interval = "10s"
-          method = "GET"
-          port = "client"
-          protocol = "http"
-          timeout = "2s"
-          type = "tcp"
-          tls_skip_verify = false
+
+    //we increment the bind port here to preserve identical bind ports for foreign zk's
+    service {
+      name = "zookeeper-follower-${i}"
+      port = ${2888+i}
+      tags = ["zookeeper-quorum","zookeeper-follower", "${prefix}"]
+      address_mode = "auto"
+
+      connect {
+        sidecar_service {
+          proxy {
+            %{ for j in range(dev ? 1 : quorum_size) }
+              ${ i == j ? "" : <<-EOT
+              upstreams {
+                destination_name = "zookeeper-follower-${j}"
+                local_bind_port = ${ 2888 + j }
+              }
+              EOT
+              }
+              %{ endfor ~}
+          }
         }
       }
+    }
 
-      service {
-        port = "follower"
-        tags = ["zookeeper-quorum","zookeeper-follower"]
-        address_mode = "auto"
+    //we increment the bind port here to preserve identical bind ports for foreign zk's
+    service {
+      name = "zookeeper-othersrvs-${i}"
+      port = ${3888+i}
+      tags = ["zookeeper-quorum","zookeeper-othersrvs", "${prefix}"]
+      address_mode = "auto"
 
-        check {
-          address_mode = "host"
-          grpc_use_tls = true
-          initial_status = "critical"
-          interval = "10s"
-          method = "GET"
-          port = "client"
-          protocol = "http"
-          timeout = "2s"
-          type = "tcp"
-          tls_skip_verify = false
+      connect {
+        sidecar_service {
+          proxy {
+            %{ for j in range(dev ? 1 : quorum_size) }
+            ${ i == j ? "" : <<-EOT
+            upstreams {
+              destination_name = "zookeeper-othersrvs-${j}"
+              local_bind_port = ${ 3888 + j }
+            }
+            EOT
+            }
+            %{ endfor ~}
+          }
         }
       }
-
-      service {
-        port = "othersrvs"
-        tags = ["zookeeper-quorum","zookeeper-othersrvs"]
-        address_mode = "auto"
-
-        check {
-          address_mode = "host"
-          grpc_use_tls = true
-          initial_status = "critical"
-          interval = "10s"
-          method = "GET"
-          port = "client"
-          protocol = "http"
-          timeout = "2s"
-          type = "tcp"
-          tls_skip_verify = false
-        }
-      }
-
-      shutdown_delay = "0s"
     }
   }
+%{ endfor ~}
 
   namespace = "default"
   priority = 50

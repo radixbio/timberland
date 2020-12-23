@@ -38,35 +38,33 @@ package object daemonutil {
    */
   val flagServiceMap = Map(
     "zookeeper" -> Vector(
-      "zookeeper-daemons-zookeeper-zookeeper"
+      "zookeeper-client-0",
+      "zookeeper-follower-0",
+      "zookeeper-othersrvs-0"
     ),
     "minio" -> Vector(
-      "minio-job-minio-group-minio-local",
-      "minio-job-minio-group-nginx-minio"
+      "minio-local-service"
     ),
     "apprise" -> Vector(
-      "apprise-apprise-apprise"
+      "apprise"
     ),
     "kafka_companions" -> Vector(
-      "kc-daemons-companions-kSQL",
-      "kc-daemons-companions-connect",
-      "kc-daemons-companions-rest-proxy",
-      "kc-daemons-companions-schema-registry"
+      "kc-schema-registry-service-0",
+      "kc-rest-proxy-service-0",
+      "kc-connect-service-0",
+      "kc-ksql-service-0"
     ),
     "kafka" -> Vector(
-      "kafka-daemons-kafka-kafka"
+      "kafka-0"
     ),
     "yugabyte" -> Vector(
-      "yugabyte-yugabyte-ybmaster",
-      "yugabyte-yugabyte-ybtserver"
+      "yb-masters-rpc-0",
+      "yb-tserver-connect-0"
     ),
     "elasticsearch" -> Vector(
-      "elasticsearch-es-es-generic-node",
-      "elasticsearch-kibana-kibana"
-    ),
-    "retool" -> Vector(
-      "retool-retool-postgres",
-      "retool-retool-retool-main"
+      "es-rest-0",
+      "es-transport-0",
+      "kibana"
     ),
     "elemental" -> Vector(
       "elemental-machines-em-em"
@@ -104,7 +102,7 @@ package object daemonutil {
     variables: String
   ): IO[(TerraformMagic.TerraformPlan, Map[String, List[String]])] = {
     IO {
-      val tlsVarStr = terraformTLSVars.mkString(" ")
+      val tlsVarStr = terraformTLSVars().mkString(" ")
       val F = File.createTempFile("radix", ".plan")
       val planCommand = Seq("bash", "-c", s"${execDir / "terraform"} plan $tlsVarStr $variables -out=$F")
       val showCommand = s"${execDir / "terraform"} show -json $F".split(" ")
@@ -207,7 +205,7 @@ package object daemonutil {
       })
   }
 
-  def terraformTLSVars: Iterable[String] = {
+  def terraformTLSVars(backendConfig: Boolean = false): Iterable[String] = {
     val certDir: os.Path = RadPath.runtime / "certs"
     val tlsVars = Map(
       "tls_ca_file" -> sys.env.getOrElse("TLS_CA", (certDir / "ca" / "cert.pem").toString),
@@ -216,7 +214,13 @@ package object daemonutil {
       "tls_nomad_cert_file" -> sys.env.getOrElse("TLS_NOMAD_CERT", (certDir / "nomad" / "cli-cert.pem").toString),
       "tls_nomad_key_file" -> sys.env.getOrElse("TLS_NOMAD_KEY", (certDir / "nomad" / "cli-key.pem").toString)
     )
-    tlsVars.map(kv => s"-var='${kv._1}=${kv._2}'")
+    val tlsBackendConfig = Map(
+      "ca_file" -> sys.env.getOrElse("TLS_CA", (certDir / "ca" / "cert.pem").toString),
+      "cert_file" -> sys.env.getOrElse("TLS_CERT", (certDir / "cli" / "cert.pem").toString),
+      "key_file" -> sys.env.getOrElse("TLS_KEY", (certDir / "cli" / "key.pem").toString)
+    )
+    val vars = tlsVars.map(kv => s"-var='${kv._1}=${kv._2}'")
+    if (backendConfig) vars ++ tlsBackendConfig.map(kv => s"-backend-config=${kv._1}=${kv._2}") else vars
   }
 
   def getTerraformWorkDir(is_integration: Boolean): os.Path = {
@@ -266,7 +270,10 @@ package object daemonutil {
     tokens: AuthTokens
   ): IO[Int] = {
     val workingDir = getTerraformWorkDir(integrationTest)
-    val mkTmpDir = IO({ os.remove.all(RadPath.temp); os.makeDir.all(RadPath.temp / "terraform") }) //Seq("bash", "-c", "rm -rf /tmp/radix && mkdir -p /tmp/radix/terraform")
+    val mkTmpDir = IO({
+      if (os.exists(RadPath.temp)) os.remove.all(RadPath.temp)
+      os.makeDir.all(RadPath.temp / "terraform")
+    })
 
     updatePrefixFile(prefix)
 
@@ -289,7 +296,7 @@ package object daemonutil {
     val apply = for {
       flagConfig <- flagConfig.updateFlagConfig(featureFlags)
       flagConfigStr = flagConfig.configVars.map(kv => s"-var='${kv._1}=${kv._2}'").mkString(" ")
-      tlsConfigStr = terraformTLSVars.mkString(" ")
+      tlsConfigStr = terraformTLSVars().mkString(" ")
       definedVarsStr = s"""-var='defined_config_vars=["${flagConfig.definedVars.mkString("""","""")}"]'"""
       configStr = s"$flagConfigStr $tlsConfigStr $definedVarsStr "
       applyCommand = Seq(
@@ -335,7 +342,7 @@ package object daemonutil {
           s"-backend-config=address=${serviceAddrs.consulAddr}:8501",
           s"-backend-config=access_token=${backendMasterToken.get}",
           s"-var='acl_token=${backendMasterToken.get}'"
-        ) ++ terraformTLSVars
+        ) ++ terraformTLSVars(backendConfig = true)
       else Seq.empty
 
     val initAgainCommand = Seq(
@@ -398,7 +405,7 @@ package object daemonutil {
     val enabledServices = featureFlags.toList.flatMap {
       case (feature, enabled) =>
         if (enabled) {
-          flagServiceMap.getOrElse(feature, Vector()).map(name => prefix + name)
+          flagServiceMap.getOrElse(feature, Vector())
         } else Vector()
     }
 

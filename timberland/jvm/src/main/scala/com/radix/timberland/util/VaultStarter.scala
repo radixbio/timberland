@@ -87,9 +87,10 @@ class VaultUtils {
   def setupVault(): IO[Unit] =
     IO({
       val vaultAddr = "127.0.0.1" // Dhash says this is gonna potentially be something other than localhost soon
+      val caPath = RadPath.runtime / "certs" / "ca"
       val env = Map(
         "VAULT_TOKEN" -> findVaultToken(),
-        "VAULT_CACERT" -> (RadPath.runtime / "certs" / "ca" / "cert.pem").toString
+        "VAULT_CACERT" -> (caPath / "cert.pem").toString
       )
 
       val vaultPath = RadPath.runtime / "timberland" / "vault"
@@ -189,7 +190,7 @@ class VaultUtils {
           "ttl=87600h"
         )
         .call(
-          stdout = vaultPath / "CA.crt",
+          stdout = caPath / "root.pem",
           stderr = os.ProcessOutput(LogTUI.vault),
           env = env
         )
@@ -302,9 +303,8 @@ class VaultUtils {
           stderr = os.ProcessOutput(LogTUI.vault),
           env = env
         )
-
-      List("tls-cert", "remote-access", "read-flag-config", "read-consul-ui", "read-certs", "read-message-targets").map(
-        policy =>
+      List("tls-cert", "remote-access", "read-flag-config", "actor-acl-token", "read-certs", "read-message-targets")
+        .map(policy =>
           Util
             .proc(
               vault,
@@ -319,7 +319,7 @@ class VaultUtils {
               stderr = os.ProcessOutput(LogTUI.vault),
               env = env
             )
-      )
+        )
     })
 
   def findVaultToken(): String = {
@@ -340,6 +340,7 @@ class VaultUtils {
 class VaultStarter {
   private[this] implicit val timer: Timer[IO] = IO.timer(global)
   private[this] implicit val cs: ContextShift[IO] = IO.contextShift(global)
+
   def checkVaultInitStatus(implicit vaultSession: VaultSession[IO]) = {
     for {
       initStatus <- vaultSession.sysInitStatus
@@ -475,6 +476,7 @@ class VaultStarter {
 
   def initializeAndUnsealVault(baseUrl: Uri, shouldBootstrapVault: Boolean): IO[VaultSealStatus] = {
     val vaultUtils = new VaultUtils
+
     def getResult(implicit vaultSession: VaultSession[IO]): IO[VaultSealStatus] =
       for {
         _ <- IO(scribe.trace("Checking Vault Status..."))
@@ -487,7 +489,8 @@ class VaultStarter {
             for {
               _ <- IO(vaultUtils.storeVaultTokenKey(key, root_token))
               vaultResp <- waitOnVaultUnseal(key, root_token)
-              checkVaultUnsealed <- Util.waitForDNS("vault.service.consul", 15.seconds)
+              _ <- IO.sleep(10.seconds) // TODO(alex): waitForSystemdString doesn't work here, smth else is necessary
+              // was previously waitForDns(vault.service.consul)
               setupVault <- if (shouldBootstrapVault) vaultUtils.setupVault() else IO.unit
             } yield vaultResp
           }
@@ -535,7 +538,8 @@ class VaultStarter {
     val starter = new VaultStarter()
     val unseal = for {
       vaultUnseal <- starter.initializeAndUnsealVault(vaultBaseUrl, shouldSetupVault)
-      checkVaultUnsealed <- Util.waitForDNS("vault.service.consul", 15.seconds)
+      // TODO(alex): waitForSystemd required here in some edge case where vaultUnseal != VaultUnsealed? (was previously
+      // waitForDns(vault.service.consul)
       oauthId = sys.env.get("GOOGLE_OAUTH_ID")
       oauthSecret = sys.env.get("GOOGLE_OAUTH_SECRET")
       registerGoogleOAuthPlugin <- (vaultUnseal, oauthId, oauthSecret) match {

@@ -52,8 +52,38 @@ variable "yugabyte_quorum_size" {
   default = 1 //3
 }
 
-variable "elastic_search_quorum_size" {
+variable "elasticsearch_quorum_size" {
   description = ""
+  type = number
+  default = 1
+}
+
+variable "dbpmjss_quorum_size" {
+  type = number
+  default = 1
+}
+
+variable "hmrpp_quorum_size" {
+  type = number
+  default = 1
+}
+
+variable "gi_quorum_size" {
+  type = number
+  default = 1
+}
+
+variable "runtime_quorum_size" {
+  type = number
+  default = 1
+}
+
+variable "prism_quorum_size" {
+  type = number
+  default = 1
+}
+
+variable "s3lts_quorum_size" {
   type = number
   default = 1
 }

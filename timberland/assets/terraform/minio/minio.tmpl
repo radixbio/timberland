@@ -8,82 +8,9 @@ job "${prefix}minio-job" {
   }
 
   datacenters = ["dc1"]
-
-  group "minio-group" {
+${ !have_upstream_creds ? "" : <<EOH
+  group minio-remote-group {
     count = 1
-
-    task "minio-local" {
-      vault {
-        policies = ["read-flag-config"]
-        change_mode = "signal"
-        change_signal = "SIGUSR1"
-      }
-
-      config {
-        image = "minio/minio:latest"
-        auth_soft_fail = false
-        hostname = "$${attr.unique.hostname}-em"
-        privileged = false
-        network_mode = "weave"
-        port_map = {
-          "minio" = 9000
-        }
-        entrypoint = ["minio", "--compat"]
-        args = ["server", "/data"]
-        volumes = ["/opt/radix/minio_data:/data"]
-        cap_add = []
-      }
-
-      driver = "docker"
-
-      env = {
-        "MINIO_NOTIFY_KAFKA_ENABLE" = "true",
-        "MINIO_NOTIFY_KAFKA_BROKERS" = "${prefix}kafka-daemons-kafka-kafka.service.consul:29092",
-        "MINIO_NOTIFY_KAFKA_TOPIC" = "bucketevents",
-        "MINIO_ACCESS_KEY" = "${have_upstream_creds ? aws_access_key : "minio-access-key"}",
-        "MINIO_SECRET_KEY" = "${have_upstream_creds ? aws_secret_key : "minio-secret-key"}"
-      }
-
-      kill_timeout = "5s"
-      kill_signal = "SIGINT"
-      leader = false
-
-      resources {
-        cpu = 1000
-        memory = 300
-
-        network {
-          mbits = 10
-
-          port "minio" {
-            static = 9000
-          }
-        }
-      }
-
-      service {
-        port = "minio"
-        tags = ["minio", "client"]
-        address_mode = "auto"
-
-        check {
-          address_mode = "host"
-          grpc_use_tls = true
-          initial_status = "critical"
-          interval = "10s"
-          method = "GET"
-          port = "minio"
-          protocol = "http"
-          timeout = "2s"
-          type = "tcp"
-          tls_skip_verify = false
-        }
-      }
-
-      shutdown_delay = "0s"
-    }
-
-    ${ !have_upstream_creds ? "" : <<-EOH
     task "minio-remote" {
       vault {
         policies = ["read-flag-config"]
@@ -96,15 +23,11 @@ job "${prefix}minio-job" {
         args = ["gateway", "s3"]
         auth_soft_fail = false
         entrypoint = ["minio"]
-        hostname = "$${attr.unique.hostname}-em"
         privileged = false
-        network_mode = "weave"
-        port_map = {
-          "minio_remote" = 9000
-        }
         volumes = ["/opt/radix/minio_data_remote:/data"]
         cap_add = []
       }
+
       driver = "docker"
       env = {
         "MINIO_ACCESS_KEY" = "${have_upstream_creds ? aws_access_key : "minio-access-key"}",
@@ -118,119 +41,77 @@ job "${prefix}minio-job" {
       resources {
         cpu = 1000
         memory = 300
-
-        network {
-          mbits = 10
-
-          port "minio_remote" {
-            static = 9002
-          }
-        }
-      }
-
-      service {
-        port = "minio_remote"
-        tags = ["minio", "client"]
-        address_mode = "auto"
-
-        check {
-          address_mode = "host"
-          grpc_use_tls = true
-          initial_status = "critical"
-          interval = "10s"
-          method = "GET"
-          port = "minio_remote"
-          protocol = "http"
-          timeout = "2s"
-          type = "tcp"
-          tls_skip_verify = false
-        }
       }
 
       shutdown_delay = "0s"
     }
-        EOH
+
+    network {
+      mbits = 10
+      mode = "bridge"
     }
 
-    task "nginx-minio" {
+    service {
+      name = "minio-remote-service"
+      port = 9000
+      tags = ["minio", "remote", "${prefix}"]
+      address_mode = "auto"
 
-      config {
-        image = "nginx:latest"
-        auth_soft_fail = false
-        hostname = "$${attr.unique.hostname}-em"
-        privileged = false
-        network_mode = "weave"
-        volumes = ["local/nginx.conf:/etc/nginx/nginx.conf"]
-        port_map = {
-          "nginx" = 9000
-        }
-        cap_add = []
-      }
-
-      template {
-        change_mode = "noop"
-        destination = "local/nginx.conf"
-
-        data = <<EOH
-        worker_processes 1;
-
-        events {
-          worker_connections 1024;
-        }
-
-        http {
-          default_type text/html;
-          access_log /dev/stdout;
-          sendfile on;
-          keepalive_timeout 65;
-
-          upstream minio {
-            {{ range service "${prefix}minio-job-minio-group-minio-local" }}
-              server {{ .Address }}:{{ .Port }};
-            {{ end }}
-
-            {{ range service "${prefix}minio-job-minio-group-minio-remote" }}
-              server {{ .Address }}:{{ .Port }} backup;
-            {{ end }}
-          }
-
-          server {
-            listen 9000;
-            server_name ${prefix}minio-job-minio-group-nginx-minio.service.consul;
-
-            ignore_invalid_headers off;
-            client_max_body_size 10000m;
-            proxy_buffering off;
-
-            location / {
-              proxy_set_header X-Real-IP $remote_addr;
-              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-              proxy_set_header X-Forwarded-Proto $scheme;
-              proxy_set_header Host $http_host;
-              proxy_hide_header "X-AMZ-Bucket-Region";
-              proxy_hide_header "X-AMZ-Request-Id";
-
-              proxy_connect_timeout 300;
-              # Default is HTTP/1, keepalive is only enabled in HTTP/1.1
-              proxy_http_version 1.1;
-              proxy_set_header Connection "";
-              chunked_transfer_encoding off;
-
-              proxy_pass http://minio;
-              ${ have_upstream_creds ? "proxy_next_upstream error http_404;" : "" }
+      connect {
+        sidecar_service {
+          proxy {
+            upstreams {
+              destination_name = "kafka-0"
+              local_bind_port = 9092
             }
           }
         }
-        EOH
       }
 
-      restart {
-        attempts = 10
-        delay = "20s"
-        mode = "fail"
+      check {
+        type = "http"
+        name = "minio-remote-health"
+        path = "/minio/health/live"
+        interval = "30s"
+        timeout = "5s"
+        expose = true
+      }
+    }
+  }
+EOH
+}
+
+  group "minio-local-group" {
+    count = 1
+
+    task "minio-local" {
+      vault {
+        policies = ["read-flag-config"]
+
+        change_mode = "signal"
+        change_signal = "SIGUSR1"
+      }
+
+      config {
+        image = "minio/minio:latest"
+        auth_soft_fail = false
+        privileged = false
+        entrypoint = ["minio", "--compat"]
+        args = ["server", "/data"]
+        volumes = ["/opt/radix/minio_data:/data"]
+        cap_add = []
       }
 
       driver = "docker"
+
+      env = {
+        "MINIO_NOTIFY_KAFKA_ENABLE" = "true",
+        "MINIO_NOTIFY_KAFKA_BROKERS" = "$${NOMAD_UPSTREAM_ADDR_kafka-0}",
+        "MINIO_NOTIFY_KAFKA_TOPIC" = "bucketevents",
+        "MINIO_ACCESS_KEY" = "${have_upstream_creds ? aws_access_key : "minio-access-key"}",
+        "MINIO_SECRET_KEY" = "${have_upstream_creds ? aws_secret_key : "minio-secret-key"}"
+      }
+
       kill_timeout = "5s"
       kill_signal = "SIGINT"
       leader = false
@@ -238,36 +119,41 @@ job "${prefix}minio-job" {
       resources {
         cpu = 1000
         memory = 300
+      }
 
-        network {
-          mbits = 10
+      shutdown_delay = "0s"
+    }
 
-          port "nginx" {
-            static = 1339
+    network {
+      mbits = 10
+      mode = "bridge"
+    }
+
+    service {
+      name = "minio-local-service"
+      port = 9000
+      tags = ["minio", "local", "${prefix}"]
+      address_mode = "auto"
+
+      connect {
+        sidecar_service {
+          proxy {
+            upstreams {
+              destination_name = "kafka-0"
+              local_bind_port = 9092
+            }
           }
         }
       }
 
-      service {
-        port = "nginx"
-        tags = ["minio", "client"]
-        address_mode = "host"
-
-        check {
-          address_mode = "host"
-          grpc_use_tls = true
-          initial_status = "critical"
-          interval = "10s"
-          method = "GET"
-          port = "nginx"
-          protocol = "http"
-          timeout = "2s"
-          type = "tcp"
-          tls_skip_verify = false
-        }
+      check {
+        type = "http"
+        name = "minio-local-health"
+        path = "/minio/health/live"
+        interval = "30s"
+        timeout = "5s"
+        expose = true
       }
-
-      shutdown_delay = "0s"
     }
   }
 

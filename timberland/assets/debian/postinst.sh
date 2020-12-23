@@ -4,16 +4,17 @@ systemctl daemon-reload
 
 sysctl -w vm.max_map_count=262144
 
-yes | docker plugin install weaveworks/net-plugin:2.6.0
-docker plugin disable weaveworks/net-plugin:2.6.0
-docker plugin set weaveworks/net-plugin:2.6.0 IPALLOC_RANGE=10.32.0.0/12
-docker plugin enable weaveworks/net-plugin:2.6.0
+mkdir -p /opt/radix/terraform
+mkdir -p /opt/radix/zookeeper_data
+mkdir -p /opt/radix/kafka_data
+mkdir -p /opt/radix/ybmaster_data
+mkdir -p /opt/radix/ybtserver_data
+mkdir -p /opt/radix/elasticsearch_data
 
 if [ -f /opt/radix/timberland/exec/timberland ]; then
     cd /opt/radix/timberland/exec/
     ./timberland runtime dns up
 fi
-
 
 # WARNING: This following actions are not idempotent!
 # See: https://www.debian.org/doc/debian-policy/ch-maintainerscripts.html

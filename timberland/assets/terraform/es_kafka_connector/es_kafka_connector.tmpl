@@ -11,9 +11,7 @@ job "${prefix}es-kafka-connector" {
         image = "appropriate/curl"
         auth_soft_fail = false
         command = "/local/start.sh"
-        hostname = "$${attr.unique.hostname}-em"
         privileged = false
-        network_mode = "weave"
         cap_add = []
       }
 
@@ -25,10 +23,6 @@ job "${prefix}es-kafka-connector" {
       resources {
         cpu = 1000
         memory = 100
-
-        network {
-          mbits = 10
-        }
       }
 
       shutdown_delay = "0s"
@@ -45,18 +39,18 @@ job "${prefix}es-kafka-connector" {
         #!/usr/bin/env ash
 
         command="curl -X PUT \
-        http://${prefix}kc-daemons-companions-connect.service.consul:8083/connectors/elasticsearch-sink/config \
+        http://$${NOMAD_UPSTREAM_ADDR_kc-connect-service-0}/connectors/elasticsearch-sink/config \
         -H 'Content-Type: application/json' \
         -H 'Accept: application/json' \
         -d '{
         \"connector.class\": \"io.confluent.connect.elasticsearch.ElasticsearchSinkConnector\",
         \"type.name\": \"radix\",
         \"offset.flush.interval.ms\": \"1000\",
-        \"value.converter.schema.registry.url\": \"http://${prefix}kc-daemons-companions-schema-registry.service.consul:8081/\",
+        \"value.converter.schema.registry.url\": \"http://$${NOMAD_UPSTREAM_ADDR_kc-schema-registry-service-0}/\",
         \"topics.regex\": \".*-journal\",
         \"tasks.max\": \"1\",
         \"errors.tolerance\": \"all\",
-        \"connection.url\": \"http://${prefix}elasticsearch-es-es-generic-node.service.consul:9200\",
+        \"connection.url\": \"http://$${NOMAD_UPSTREAM_ADDR_es-rest-0}\",
         \"value.converter\": \"io.confluent.connect.avro.AvroConverter\",
         \"key.converter\": \"org.apache.kafka.connect.storage.StringConverter\"
         }'"
@@ -65,6 +59,39 @@ job "${prefix}es-kafka-connector" {
 
         while [ $? -ne 0 ]; do sleep 2; eval $command; done
         EOH
+      }
+    }
+
+    network {
+      mbits = 10
+      mode = "bridge"
+    }
+
+    service {
+      name = "es-kafka-connector-service"
+      port = 8080
+      tags = ["es-connect"]
+      address_mode = "auto"
+
+      connect {
+        sidecar_service {
+          proxy {
+            upstreams {
+              destination_name = "kc-connect-service-0"
+              local_bind_port = 8083
+            }
+
+            upstreams {
+              destination_name = "kc-schema-registry-service-0"
+              local_bind_port = 8081
+            }
+
+            upstreams {
+              destination_name = "es-rest-0"
+              local_bind_port = 9200
+            }
+          }
+        }
       }
     }
   }

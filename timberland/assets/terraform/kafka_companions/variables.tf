@@ -32,8 +32,3 @@ variable "interbroker_port" {
   type = number
   default = 29092
 }
-
-variable "kafka_address" {
-  type = list(string)
-  default = []
-}
