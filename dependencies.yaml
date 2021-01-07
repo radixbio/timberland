@@ -216,6 +216,9 @@ dependencies:
     zio:
       lang: scala
       version: "1.0.1"
+    zio-actors:
+      lang: scala
+      version: "0.0.7"
     zio-interop-cats:
       lang: scala
       version: "2.1.4.0"

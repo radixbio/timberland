@@ -44,16 +44,16 @@ object runner {
 
     def cmdEval(cmd: RadixCMD): Unit = {
       cmd match {
-        case cmd@Start(
-        loglevel,
-        bindIP,
-        leaderNode,
-        remoteAddress,
-        prefix,
-        username,
-        password,
-        serverJoin
-        ) =>
+        case cmd @ Start(
+              loglevel,
+              bindIP,
+              leaderNode,
+              remoteAddress,
+              prefix,
+              username,
+              password,
+              serverJoin
+            ) =>
           scribe.Logger.root
             .clearHandlers()
             .clearModifiers()
@@ -79,11 +79,11 @@ object runner {
 
           // only run on leader node, or with a remote address as a target
           def startLogTuiAndRunTerraform(
-                                          featureFlags: Map[String, Boolean],
-                                          serviceAddrs: ServiceAddrs,
-                                          authTokens: AuthTokens,
-                                          waitForQuorum: Boolean
-                                        ) =
+            featureFlags: Map[String, Boolean],
+            serviceAddrs: ServiceAddrs,
+            authTokens: AuthTokens,
+            waitForQuorum: Boolean
+          ) =
             for {
               _ <- if (featureFlags.getOrElse("tui", true)) LogTUI.startTUI() else IO.unit
               _ <- IO(LogTUI.writeLog(s"using flags: $featureFlags"))
@@ -94,7 +94,7 @@ object runner {
                   case code => {
                     LogTUI.writeLog("runTerraform failed, exiting")
                   }
-                    sys.exit(code)
+                  sys.exit(code)
                 }
               }
               _ <- if (waitForQuorum) daemonutil.waitForQuorum(featureFlags) else IO.unit
@@ -130,7 +130,7 @@ object runner {
                   // TODO: double check ServiceAddrs = otherConsul is fair
                   serviceAddrs <- IO(leaderNode match {
                     case Some(otherConsul) => ServiceAddrs(otherConsul, otherConsul, otherConsul)
-                    case None => defaultServiceAddrs
+                    case None              => defaultServiceAddrs
                   })
                   authTokens <- auth.getAuthTokens(isRemote = true, serviceAddrs, username, password)
                   storeIntermediateToken <- auth.storeIntermediateToken(authTokens.consulNomadToken)
@@ -151,7 +151,7 @@ object runner {
                   // TODO: double check ServiceAddrs = otherConsul is fair
                   serviceAddrs <- IO(leaderNode match {
                     case Some(otherConsul) => ServiceAddrs(otherConsul, otherConsul, otherConsul)
-                    case None => defaultServiceAddrs
+                    case None              => defaultServiceAddrs
                   })
                   authTokens <- auth.getAuthTokens(isRemote = true, serviceAddrs, username, password)
                   storeVaultTokenConfig <- auth.writeVaultTokenConfigs(
@@ -259,7 +259,7 @@ object runner {
             .withHandler(minimumLevel = Some(scribe.Level.Debug))
             .replace()
           val dns_set = dns match {
-            case DNSUp => launch.dns.up()
+            case DNSUp   => launch.dns.up()
             case DNSDown => launch.dns.down()
           }
           dns_set.unsafeRunSync()

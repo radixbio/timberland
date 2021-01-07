@@ -17,44 +17,47 @@ import org.http4s.CharsetRange.*
  * client certificates against the consul connect native intent authorization api before proceeding
  */
 case object ConnectNativeBlazeMiddleware {
-  def middleware(service: HttpRoutes[IO]): HttpRoutes[IO] = Kleisli[OptionT[IO, *], Request[IO], Response[IO]] { (req: Request[IO]) =>
-    val reqIO: Option[IO[Request[IO]]] = req.attributes.lookup(ServerRequestKeys.SecureSession).flatten.map { session =>
-      val cert = session.X509Certificate.head
-      val serialByteString = cert.getSerialNumber.toString(16).reverse.padTo(22, "0").reverse
-      val byteStringWithColons = serialByteString.grouped(2).map(_.mkString).mkString(":")
-      val authRequestPayload = Map(
-        "Target" -> req.serverAddr,
-        "ClientCertURI" -> "",
-        "ClientCertSerial" -> byteStringWithColons
-      ).asJson
-      POST(
-        authRequestPayload,
-        Uri.unsafeFromString("https://consul.service.consul:8501/v1/agent/connect/authorize"),
-        Header("X-Consul-Token", System.getenv("ACCESS_TOKEN"))
-      )
-    }
-
-    val reqOption: OptionT[IO, Request[IO]] = OptionT(reqIO match {
-      case Some(x) => x.map(Some(_))
-      case None => IO.pure(None)
-    })
-
-    val resp = (consulReq: Request[IO]) => OptionT(
-      blaze
-        .use { client =>
-          client.expect[String](consulReq)
-        }
-        .map(decode[AuthResponse](_))
-        .map(_.toOption)
-    )
-
-    for {
-      consulReq <- reqOption
-      consulResp <- resp(consulReq)
-      realResp <- consulResp match {
-        case AuthResponse(true, _) => service(req)
-        case _ => OptionT.none[IO, Response[IO]]
+  def middleware(service: HttpRoutes[IO]): HttpRoutes[IO] = Kleisli[OptionT[IO, *], Request[IO], Response[IO]] {
+    (req: Request[IO]) =>
+      val reqIO: Option[IO[Request[IO]]] = req.attributes.lookup(ServerRequestKeys.SecureSession).flatten.map {
+        session =>
+          val cert = session.X509Certificate.head
+          val serialByteString = cert.getSerialNumber.toString(16).reverse.padTo(22, "0").reverse
+          val byteStringWithColons = serialByteString.grouped(2).map(_.mkString).mkString(":")
+          val authRequestPayload = Map(
+            "Target" -> req.serverAddr,
+            "ClientCertURI" -> "",
+            "ClientCertSerial" -> byteStringWithColons
+          ).asJson
+          POST(
+            authRequestPayload,
+            Uri.unsafeFromString("https://consul.service.consul:8501/v1/agent/connect/authorize"),
+            Header("X-Consul-Token", System.getenv("ACCESS_TOKEN"))
+          )
       }
-    } yield realResp
+
+      val reqOption: OptionT[IO, Request[IO]] = OptionT(reqIO match {
+        case Some(x) => x.map(Some(_))
+        case None    => IO.pure(None)
+      })
+
+      val resp = (consulReq: Request[IO]) =>
+        OptionT(
+          blaze
+            .use { client =>
+              client.expect[String](consulReq)
+            }
+            .map(decode[AuthResponse](_))
+            .map(_.toOption)
+        )
+
+      for {
+        consulReq <- reqOption
+        consulResp <- resp(consulReq)
+        realResp <- consulResp match {
+          case AuthResponse(true, _) => service(req)
+          case _                     => OptionT.none[IO, Response[IO]]
+        }
+      } yield realResp
   }
 }
