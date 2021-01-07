@@ -11,6 +11,8 @@ def dockerize_scala(
         repository = None,
         layers = [],
         extra_tar_data = [],
+        jvm_flags = [],
+        debug = False,
         **kwargs):
     """Creates two rules: scala_image and container_push. Targets are named as follows:
       * scala_image: name + "-docker"
@@ -44,6 +46,7 @@ def dockerize_scala(
         main_class = main_class,
         deps = deps,
         layers = layers,
+        jvm_flags = jvm_flags + ["-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"] if debug else [],
         **kwargs
     )
 
