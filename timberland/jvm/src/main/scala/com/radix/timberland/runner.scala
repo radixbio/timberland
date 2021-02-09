@@ -301,9 +301,12 @@ object runner {
                   consulup <- Util.isPortUp(8500)
                   nomadup <- Util.isPortUp(4646)
                   vaultup <- Util.isPortUp(8200)
-                  _ <- LogTUI.startTUI(consulup, nomadup, vaultup) *>
-                    consulExistsProc.handleErrorWith(err => LogTUI.endTUI(Some(err))) *>
-                    LogTUI.endTUI()
+                  flagMap <- featureFlags.getLocalFlags(RadPath.persistentDir)
+                  _ <- if (flagMap.getOrElse("tui", true)) {
+                    LogTUI.startTUI(consulup, nomadup, vaultup) *>
+                      consulExistsProc.handleErrorWith(err => LogTUI.endTUI(Some(err))) *>
+                      LogTUI.endTUI()
+                  } else consulExistsProc
                 } yield ()
               case false => noConsulProc
             }
