@@ -438,6 +438,15 @@ pkg_tar(
 )
 
 pkg_tar(
+    name = "timberland-utils",
+    srcs = [
+        "//timberland/assets:terraform/es_kafka_connector/es_conn_config.json",
+    ],
+    package_dir = "/opt/radix/utils/",
+)
+
+
+pkg_tar(
     name = "timberland-cni-config",
     srcs = [
         "//timberland/assets:container_networking/cni.conf",
@@ -467,6 +476,7 @@ pkg_tar(
         ":timberland-consul-template-vault",
         ":timberland-containernetworking-cni-plugin",
         ":timberland-devdrivers",
+	":timberland-utils",
         ":timberland-exec",
         ":timberland-networkd",
         ":timberland-nomad",

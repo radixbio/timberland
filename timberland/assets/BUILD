@@ -101,6 +101,7 @@ exports_files([
     "terraform/es_kafka_connector/main.tf",
     "terraform/es_kafka_connector/outputs.tf",
     "terraform/es_kafka_connector/variables.tf",
+    "terraform/es_kafka_connector/es_conn_config.json",
 
     # YUGABYTE KAFKA CONNECTOR MODULE
     "terraform/yugabyte_kafka_connector/yugabyte_kafka_connector.tmpl",

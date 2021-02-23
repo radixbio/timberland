@@ -13,6 +13,14 @@ job "${prefix}es-kafka-connector" {
         command = "/local/start.sh"
         privileged = false
         cap_add = []
+        mounts = [
+          {
+            type = "bind"
+            target = "/local/connector_config.json"
+            source = "/opt/radix/utils/es_conn_config.json"
+            readonly = true
+          }
+        ]
       }
 
       driver = "docker"
@@ -38,26 +46,17 @@ job "${prefix}es-kafka-connector" {
         data = <<EOH
         #!/usr/bin/env ash
 
-        command="curl -X PUT \
-        http://$${NOMAD_UPSTREAM_ADDR_kc-connect-service-0}/connectors/elasticsearch-sink/config \
+        env
+
+        command="curl -X POST \
+        http://127.0.0.1:8083/connectors \
         -H 'Content-Type: application/json' \
         -H 'Accept: application/json' \
-        -d '{
-        \"connector.class\": \"io.confluent.connect.elasticsearch.ElasticsearchSinkConnector\",
-        \"type.name\": \"radix\",
-        \"offset.flush.interval.ms\": \"1000\",
-        \"value.converter.schema.registry.url\": \"http://$${NOMAD_UPSTREAM_ADDR_kc-schema-registry-service-0}/\",
-        \"topics.regex\": \".*-journal\",
-        \"tasks.max\": \"1\",
-        \"errors.tolerance\": \"all\",
-        \"connection.url\": \"http://$${NOMAD_UPSTREAM_ADDR_es-rest-0}\",
-        \"value.converter\": \"io.confluent.connect.avro.AvroConverter\",
-        \"key.converter\": \"org.apache.kafka.connect.storage.StringConverter\"
-        }'"
+        -d @/local/connector_config.json"
 
         eval $command
 
-        while [ $? -ne 0 ]; do sleep 2; eval $command; done
+        while [[ $? -ne 0 ]]; do sleep 2; eval $command; done
         EOH
       }
     }

@@ -233,6 +233,10 @@ job "${prefix}kc-daemons" {
               local_bind_port = ${ 9092 + j }
             }
           %{ endfor ~}
+          upstreams {
+            destination_name = "es-rest-0"
+            local_bind_port = 9200
+          }
           }
         }
       }
