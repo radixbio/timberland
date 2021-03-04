@@ -44,7 +44,7 @@ trait ServiceControl {
   def stopVault(): IO[Util.ProcOut] = ???
   def configureConsul(parameters: String): IO[Unit] = ???
   def appendParametersConsul(parameters: String): IO[Unit] = ???
-  def configureConsulTemplate(parameters: String): IO[Unit] = ???
+  def configureConsulTemplate(parameters: String): IO[Unit] = ??? // this throws an error on linux
   def configureConsulTemplate(consulToken: String, vaultToken: String, vaultAddress: Option[String]): IO[Unit] = ???
   def configureNomad(parameters: String, vaultToken: String, consulToken: String): IO[Unit] = ???
   def configureTimberlandSvc(): IO[Unit] = ???
@@ -58,6 +58,7 @@ class LinuxServiceControl extends ServiceControl {
   override def restartTimberlandSvc(): IO[Util.ProcOut] = Util.exec("systemctl restart timberland-svc")
   override def restartVault(): IO[Util.ProcOut] = Util.exec("systemctl restart vault")
   override def stopConsul(): IO[Util.ProcOut] = Util.exec("systemctl stop consul")
+  // override def stopConsulTemplate(): IO[Util.ProcOut] = Util.exec...
   override def stopNomad(): IO[Util.ProcOut] = Util.exec("systemctl stop nomad")
   override def stopVault(): IO[Util.ProcOut] = Util.exec("systemctl stop vault")
   override def stopTimberlandSvc(): IO[Util.ProcOut] = Util.exec("systemctl stop timberland-svc")

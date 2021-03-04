@@ -316,18 +316,15 @@ object VaultUtils {
         )
     })
 
-  def findVaultToken(): String = {
-    val token = sys.env.get("VAULT_TOKEN") match {
-      case Some(token) => token
-      case None => {
-        val source = scala.io.Source.fromFile((RadPath.runtime / "timberland" / ".vault-token").toString())
-        val lines =
-          try source.mkString
-          finally source.close()
-        lines
-      }
+  def findVaultToken(): String = sys.env.get("VAULT_TOKEN") match {
+    case Some(token) => token
+    case None => {
+      val source = scala.io.Source.fromFile((RadPath.runtime / "timberland" / ".vault-token").toString())
+      val lines =
+        try source.mkString
+        finally source.close()
+      lines
     }
-    return token
   }
 }
 
@@ -503,6 +500,7 @@ class VaultStarter {
       _ <- IO(scribe.info(s"VAULT STATUS: ${vaultUnseal}"))
       vaultToken <- IO(vaultUnseal match {
         case VaultUnsealed(key: String, token: String) => VaultUtils.storeVaultTokenKey(key, token)
+        // case _ => ???
       })
     } yield vaultToken
     unseal

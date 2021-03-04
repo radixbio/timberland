@@ -1,6 +1,6 @@
 package com.radix.timberland.flags
 
-import com.radix.timberland.flags.hooks.{awsAuthConfig, dockerAuthConfig, oktaAuthConfig, ensureSupported, oauthConfig, FlagHook}
+import com.radix.timberland.flags.hooks.{awsAuthConfig, dockerAuthConfig, ensureSupported, oauthConfig, oktaAuthConfig, FlagHook}
 import cats.effect.IO
 import com.radix.timberland.launch.daemonutil
 import com.radix.timberland.radixdefs.ServiceAddrs

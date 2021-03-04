@@ -12,7 +12,7 @@ import cats.implicits._
 import io.circe.syntax._
 import io.circe.generic.auto._
 import io.circe.parser.decode
-import com.radix.timberland.flags.hooks.{AWSAuthConfigFile, awsAuthConfig}
+import com.radix.timberland.flags.hooks.{awsAuthConfig, AWSAuthConfigFile}
 import com.radix.timberland.runtime.AuthTokens
 import com.radix.utils.tls.ConsulVaultSSLContext.blaze
 
@@ -56,13 +56,17 @@ object OAuthController {
       case VaultUnsealed(_, token) if oauthId.isDefined && oauthSecret.isDefined =>
         initializeGoogleOauthPlugin(token, vaultBaseUrl)
       case VaultUnsealed(_, _) =>
-        IO(scribe.info(
-          "GOOGLE_OAUTH_ID and/or GOOGLE_OAUTH_SECRET are not set. The Google oauth plugin will not be initialized."
-        ))
+        IO(
+          scribe.info(
+            "GOOGLE_OAUTH_ID and/or GOOGLE_OAUTH_SECRET are not set. The Google oauth plugin will not be initialized."
+          )
+        )
       case VaultSealed =>
-        IO(scribe.info(
-          "Vault remains sealed. Please check your configuration."
-        ))
+        IO(
+          scribe.info(
+            "Vault remains sealed. Please check your configuration."
+          )
+        )
     }
   }
 

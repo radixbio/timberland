@@ -10,7 +10,7 @@ import com.radix.timberland.flags.{RemoteConfig, _}
 import com.radix.timberland.launch.daemonutil
 import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.timberland.runtime._
-import com.radix.timberland.util.{LogTUI, LogTUIWriter, RadPath, UpdateModules, Util, OAuthController, VaultStarter, VaultUtils}
+import com.radix.timberland.util.{LogTUI, LogTUIWriter, OAuthController, RadPath, UpdateModules, Util, VaultStarter, VaultUtils}
 import com.radix.utils.helm.http4s.vault.Vault
 import io.circe.{Parser => _}
 import optparse_applicative._

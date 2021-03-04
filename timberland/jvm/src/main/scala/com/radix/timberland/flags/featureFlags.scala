@@ -249,25 +249,21 @@ object featureFlags {
     implicit serviceAddrs: ServiceAddrs = ServiceAddrs()
   ): IO[Set[String]] = {
     val moduleFile = persistentDir / os.up / "terraform" / ".terraform" / "modules" / "modules.json"
-
     for {
       _ <- daemonutil.initTerraform(false, tokens.map(_.consulNomadToken))
-      _ <- IO {
-        if (!os.exists(moduleFile)) {
-          // bail iff tform init failed
-          return IO.pure(Set[String]())
-        }
-      }
-      modulesText <- IO(os.read(moduleFile))
-    } yield {
-      val modulesJson = parse(modulesText).getOrElse(Json.Null)
-      modulesJson.hcursor
-        .get[List[ModuleDefinition]]("Modules")
-        .toOption
-        .get
-        .map { case ModuleDefinition(key, _, _) => key }
-        .filter(name => name.nonEmpty)
-        .toSet
+      fileExists <- IO(os.exists(moduleFile))
+      maybeModulesText <- if (fileExists) IO(Some(os.read(moduleFile))) else IO.pure(None)
+    } yield maybeModulesText match {
+      case None => Set[String]() // bail iff tform init failed
+      case Some(modulesText) =>
+        val modulesJson = parse(modulesText).getOrElse(Json.Null)
+        modulesJson.hcursor
+          .get[List[ModuleDefinition]]("Modules")
+          .toOption
+          .get
+          .map { case ModuleDefinition(key, _, _) => key }
+          .filter(name => name.nonEmpty)
+          .toSet
     }
   }
 

@@ -1,5 +1,6 @@
 package com.radix.timberland.util
 
+import java.io.{PrintWriter, StringWriter}
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.Executors
 
@@ -270,6 +271,7 @@ object LogTUI {
     if (isActive) IO.unit
     else if (CLIMagic.detectTmux) {
       println("It seems we are running in tmux ($TMUX is set); not displaying TUI")
+      // this doesn't seem to work
       IO.unit
     } else
       for {
@@ -297,13 +299,17 @@ object LogTUI {
           Console.flush()
           denouement.foreach(println)
           println()
-          if (error.isEmpty) {
-            println("Complete")
-          } else {
-            println("Encountered Errors")
-            println("Startup hit exception:")
-            println(error.get.fillInStackTrace)
-            sys.exit(1)
+          error match {
+            case None => println("Complete")
+            case Some(definitely_error) => {
+              println("Encountered Errors")
+              println("Startup hit exception:")
+              val sw = new StringWriter
+              definitely_error.printStackTrace(new PrintWriter(sw))
+              println(sw.toString)
+              println(error.get.fillInStackTrace)
+              sys.exit(1)
+            }
           }
           println("\n")
         } else denouement.foreach(println)
@@ -859,7 +865,9 @@ object LogTUI {
           .flatMap(st =>
             CLIMagic
               .sweep()
-              .map(_ => if (screenChanged) st.copy(screenSize = CLIMagic.consoleRows) else st)
+              *> CLIMagic
+                .move(st.lineno + 1) // stay below the last line when not drawing
+                .map(_ => if (screenChanged) st.copy(screenSize = CLIMagic.consoleRows) else st)
           )
     }
 
