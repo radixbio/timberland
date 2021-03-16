@@ -5,9 +5,9 @@ import java.nio.charset.StandardCharsets
 import java.util.concurrent.Executors
 
 import cats.effect.{IO, _}
-import cats.effect.concurrent.MVar
+import cats.effect.concurrent.{MVar, MVar2}
 import cats.implicits._
-import com.radix.timberland.util.LogTUI.Printer.{AlreadyResponding, Missing, Prestart, PrestartState}
+import com.radix.timberland.util.LogTUI.Printer.{AlreadyResponding, Missing, HashistackStates, ServiceState}
 import com.radix.timberland.util.TerraformMagic.TerraformPlan
 import org.fusesource.jansi.{Ansi, _}
 import org.fusesource.jansi.internal.CLibrary.{isatty, STDOUT_FILENO}
@@ -25,28 +25,31 @@ case class LogTUIWriter() extends Writer {
   }
 }
 
-sealed trait WKEvent
+
+// Hashistack consists of Services with Events and States
+
+sealed trait HashistackEvent
 //TODO up/down
-case object ConsulStarting extends WKEvent
-case object NomadStarting extends WKEvent
-case object VaultStarting extends WKEvent
-case object ConsulSystemdUp extends WKEvent
-case object NomadSystemdUp extends WKEvent
-case object VaultSystemdUp extends WKEvent
-case object ConsulDNSUp extends WKEvent
-case object NomadDNSUp extends WKEvent
-case object VaultDNSUp extends WKEvent
+case object ConsulStarting extends HashistackEvent
+case object NomadStarting extends HashistackEvent
+case object VaultStarting extends HashistackEvent
+case object ConsulSystemdUp extends HashistackEvent
+case object NomadSystemdUp extends HashistackEvent
+case object VaultSystemdUp extends HashistackEvent
+case object ConsulDNSUp extends HashistackEvent
+case object NomadDNSUp extends HashistackEvent
+case object VaultDNSUp extends HashistackEvent
 
 trait PlanTarget
-case class CreateT() extends PlanTarget
-case class UpdateT() extends PlanTarget
-case class ReadT() extends PlanTarget
-case class DeleteT() extends PlanTarget
-case class NoopT() extends PlanTarget
+case class CreateTask() extends PlanTarget
+case class UpdateTask() extends PlanTarget
+case class ReadTask() extends PlanTarget
+case class DeleteTask() extends PlanTarget
+case class NoopTask() extends PlanTarget
 trait PlanStage
-case class WaitingS() extends PlanStage
-case class InflightS() extends PlanStage
-case class IsDoneS() extends PlanStage
+case class WaitingState() extends PlanStage
+case class InflightState() extends PlanStage
+case class IsDoneState() extends PlanStage
 
 trait DNSStage { val name: String }
 case class NoDNS(name: String) extends DNSStage
@@ -112,16 +115,6 @@ object TerraformMagic {
   case class ReadStart(name: String) extends TFStateChange
   case class ReadComplete(name: String, duration: String) extends TFStateChange
   case class NotChange() extends TFStateChange
-  def TFStateChangePriority(sc: TFStateChange): Int =
-    sc match {
-      case NotChange()             => 0
-      case DestroyStart(_, _)      => 1
-      case CreateStart(_)          => 2
-      case Data(_)                 => 3
-      case DestroyComplete(_, _)   => 4
-      case CreateComplete(_, _, _) => 5
-      case ApplyComplete()         => 6
-    }
 
   val destroyPat = "(.*): Destroying... (.*)".r.unanchored
   val destroyCompletePat = "(.*): Destruction complete after (.*)".r.unanchored
@@ -134,14 +127,11 @@ object TerraformMagic {
   val readCompletePat = "(.*): Read complete after (.*)".r.unanchored
   val applyCompletePat = "Apply complete! Resources: (\\d+) added, (\\d+) changed, (\\d+) destroyed.".r.unanchored
 
-  def cleanStr(str: String): String = {
-    str.replaceAll("[^A-Za-z0-9.,!:\\[\\] ]", "")
-  }
   val getnamePat = ".*\\.(.*)\\[0\\]".r.unanchored
   val namePat = "(\\w+)".r.unanchored
   val nomadJobPat = "nomadjob\\.(.*)".r.unanchored
   val consulHPat = "consulservicehealth\\.(.*)".r.unanchored
-  def res_name(in: String): String = cleanStr(in) match {
+  def resolveName(in: String): String = cleanStr(in) match {
     case getnamePat(name)  => name
     case nomadJobPat(name) => name
     case consulHPat(name)  => name
@@ -151,18 +141,20 @@ object TerraformMagic {
       in
     }
   }
+  def cleanStr(str: String): String = {
+    str.replaceAll("[^A-Za-z0-9.,!:\\[\\] ]", "")
+  }
   def translate(in: String): TerraformMagic.TFStateChange = {
     cleanStr(in) match {
-      case TerraformMagic.destroyPat(name, id)                => TerraformMagic.DestroyStart(res_name(name), id)
-      case TerraformMagic.destroyCompletePat(name, duration)  => TerraformMagic.DestroyComplete(res_name(name), duration)
-      case TerraformMagic.destroyRefreshingStatePat(name, id) => TerraformMagic.Data(res_name(name))
-      case TerraformMagic.creatingPat(name)                   => TerraformMagic.CreateStart(res_name(name))
-      case TerraformMagic.creationCompletePat(name, duration, id) =>
-        TerraformMagic.CreateComplete(res_name(name), duration, id)
-      case TerraformMagic.createRefreshingStatePat(name)  => TerraformMagic.Data(res_name(name))
-      case TerraformMagic.readCompletePat(name, duration) => TerraformMagic.ReadComplete(res_name(name), duration)
+      case TerraformMagic.destroyPat(name, id) => TerraformMagic.DestroyStart(resolveName(name), id)
+      case TerraformMagic.destroyCompletePat(name, duration) => TerraformMagic.DestroyComplete(resolveName(name), duration)
+      case TerraformMagic.destroyRefreshingStatePat(name, id) => TerraformMagic.Data(resolveName(name))
+      case TerraformMagic.creatingPat(name)                   => TerraformMagic.CreateStart(resolveName(name))
+      case TerraformMagic.creationCompletePat(name, duration, id) => TerraformMagic.CreateComplete(resolveName(name), duration, id)
+      case TerraformMagic.createRefreshingStatePat(name)  => TerraformMagic.Data(resolveName(name))
+      case TerraformMagic.readCompletePat(name, duration) => TerraformMagic.ReadComplete(resolveName(name), duration)
       case TerraformMagic.stillReadingPat(name)           => TerraformMagic.NotChange()
-      case TerraformMagic.readingPat(name)                => TerraformMagic.ReadStart(res_name(name))
+      case TerraformMagic.readingPat(name)                => TerraformMagic.ReadStart(resolveName(name))
       case TerraformMagic.applyCompletePat(n_added, n_changed, n_destroyed) =>
         TerraformMagic.ApplyComplete()
       case x => {
@@ -211,21 +203,21 @@ object CLIMagic {
   def clearScreenSpace(): IO[Unit] = {
     IO(System.out.print("\n" * consoleRows))
 //    _print(ansi.cursorUp(consoleRows))
+    // this might cause a blank screen at endTUI
   }
   def savePos(): IO[Unit] = {
     _print(ansi.saveCursorPosition())
   }
   def loadPos(): IO[Unit] = {
     _print(ansi.restoreCursorPosition())
+    // or it's this being called by iterStateAndDraw
   }
 
-  def move(count: Int): IO[Unit] = {
-    if (count > 0) {
-      _print(ansi.cursorDown(count))
-    } else if (count < 0) {
-      _print(ansi.cursorUp(count * -1))
-    } else _print(ansi)
-  }
+  def move(count: Int): IO[Unit] = _print(count match {
+     case x if x < 0 => ansi.cursorUp(x * -1)
+     case x if x > 0 => ansi.cursorDown(x)
+     case _ => ansi
+  })
 
   def sweep(clean: Boolean = false): IO[Unit] = {
     (if (clean) _print(ansi.eraseScreen()) else IO(Unit)) *> loadPos() *> move(-1 * consoleRows)
@@ -244,13 +236,28 @@ object LogTUI {
 
   implicit val cs = IO.contextShift(ec)
 
-  private val extevtq = mutable.Queue.empty[WKEvent]
+  private val extevtq = mutable.Queue.empty[HashistackEvent]
   private val initq = mutable.Queue.empty[String]
   private val applyq = mutable.Queue.empty[TerraformMagic.TFStateChange]
   private val dnsq = mutable.Queue.empty[DNSStage]
   private val planvar: MVar[IO, (TerraformMagic.TerraformPlan, Map[String, List[String]])] =
     MVar.empty[IO, (TerraformMagic.TerraformPlan, Map[String, List[String]])].unsafeRunSync()
   private val denouement = mutable.Queue.empty[String]
+
+  final class MLock(mvar: MVar2[IO, Unit]) {
+    def acquire(): IO[Unit] =
+      mvar.take
+
+    def release(): IO[Unit] =
+      mvar.put(())
+  }
+
+  object MLock {
+    def apply(): IO[MLock] =
+      MVar[IO].of(()).map(ref => new MLock(ref))
+  }
+
+  val writing: MLock = MLock().unsafeRunSync()
 
   val log_path = RadPath.runtime / "timberland.log"
 
@@ -262,7 +269,7 @@ object LogTUI {
    *
    * */
   def startTUI(consulExists: Boolean = false, nomadExists: Boolean = false, vaultExists: Boolean = false): IO[Unit] = {
-    val serviceStateAtStart = Prestart(
+    val serviceStateAtStart = HashistackStates(
       consul = { if (consulExists) AlreadyResponding else Missing },
       nomad = { if (nomadExists) AlreadyResponding else Missing },
       vault = { if (vaultExists) AlreadyResponding else Missing }
@@ -307,7 +314,6 @@ object LogTUI {
               val sw = new StringWriter
               definitely_error.printStackTrace(new PrintWriter(sw))
               println(sw.toString)
-              println(error.get.fillInStackTrace)
               sys.exit(1)
             }
           }
@@ -330,11 +336,11 @@ object LogTUI {
   /**
    * Receives initial plan info from calls to terraform plan/show
    * */
-  def plan(plan_deps: (TerraformMagic.TerraformPlan, Map[String, List[String]])): IO[Unit] = {
-    debugprint(s"plan " + plan_deps._2.toString())
+  def plan(planDeps: (TerraformMagic.TerraformPlan, Map[String, List[String]])): IO[Unit] = {
+    debugprint(s"plan " + planDeps._2.toString())
     IO(Unit)
 
-    planvar.put(plan_deps)
+    planvar.put(planDeps)
   }
 
   /**
@@ -358,7 +364,7 @@ object LogTUI {
   /**
    * Receives state updates from startup functions for systemd services (Consul, Nomad, Vault)
    * */
-  def event(evt: WKEvent): Unit = {
+  def event(evt: HashistackEvent): Unit = {
     writeLog(s"Services: $evt")
     debugprint("extevtq + " + evt.toString())
     extevtq.enqueue(evt)
@@ -377,7 +383,7 @@ object LogTUI {
   /**
    * Receives output from Terraform apply process
    * */
-  def tfapply(bytearr: Array[Byte], len: Int): Unit = {
+  def tfApply(bytearr: Array[Byte], len: Int): Unit = {
     val str = new String(bytearr.take(len), StandardCharsets.UTF_8)
     val steps = str.split("\n").filterNot(_ == "").map(TerraformMagic.translate)
     applyq.enqueue(steps: _*)
@@ -404,28 +410,20 @@ object LogTUI {
   }
 
   object Printer {
-    def getConsoleSize = {
-      val pathedTput = if (new java.io.File("/usr/bin/tput").exists()) "/usr/bin/tput" else "tput"
-      def consoleDim(s: String) = {
-        import sys.process._
-        Seq("sh", "-c", s"$pathedTput $s 2> /dev/tty").!!.trim.toInt
-      }
-      (consoleDim("cols"), consoleDim("lines"))
-    }
     case class Apply(pending: TerraformMagic.TerraformPlan, deps: Map[String, List[String]])
 
-    sealed trait PrestartState
-    case object Systemdnotstarted extends PrestartState
-    case object Dnsnotresolving extends PrestartState
-    case object Done extends PrestartState
-    case object Missing extends PrestartState
-    case object AlreadyResponding extends PrestartState
-    case class Prestart(
-      consul: PrestartState = Missing,
-      nomad: PrestartState = Missing,
-      vault: PrestartState = Missing
+    sealed trait ServiceState
+    case object Systemdnotstarted extends ServiceState
+    case object Dnsnotresolving extends ServiceState
+    case object Done extends ServiceState
+    case object Missing extends ServiceState
+    case object AlreadyResponding extends ServiceState
+    case class HashistackStates(
+                         consul: ServiceState = Missing,
+                         nomad: ServiceState = Missing,
+                         vault: ServiceState = Missing
     ) {
-      def updatewk(in: WKEvent): Prestart =
+      def updateHashistackStates(in: HashistackEvent): HashistackStates =
         in match {
           case ConsulStarting =>
             this.copy(consul = Systemdnotstarted)
@@ -447,28 +445,30 @@ object LogTUI {
             this.copy(vault = Done)
         }
     }
-    case object Prestart {
-      def empty: Prestart = Prestart()
+    case object HashistackStates {
+      def empty: HashistackStates = HashistackStates()
     }
 
     case class State(
-      prestart: Option[Prestart] = None,
-      app: Option[Apply] = None,
-      inflight: Option[TerraformMagic.TerraformPlan] = None, // Changed since deps is immutable
-      quorum: Map[String, DNSStage] = Map.empty,
-      linemap: Map[String, Int] = Map.empty,
-      lineno: Int = 0,
-      screenSize: Int = CLIMagic.consoleRows,
-      tick: Int = 0
+          hashistackStates: Option[HashistackStates] = None,
+          apply: Option[Apply] = None,
+          inflight: Option[TerraformMagic.TerraformPlan] = None, // Changed since deps is immutable
+          quorum: Map[String, DNSStage] = Map.empty,
+          // these next three should be part of DrawingState
+          linemap: Map[String, Int] = Map.empty,
+          lineno: Int = 0,
+          screenSize: Int = CLIMagic.consoleRows,
+          tick: Int = 0
     ) { // Considering lineno as number of lines currently being printed
-      def mod_prestart(modifier: Prestart => Prestart): State = this.copy(prestart = this.prestart.map(modifier))
-      def mod_app(modifier: TerraformMagic.TerraformPlan => TerraformMagic.TerraformPlan): State = {
-        this.copy(app = this.app.map(ap => ap.copy(pending = modifier(ap.pending))))
+      // SL: inconsistent use of lineno vs lastline FML
+      def modifyHashistackStates(modifier: HashistackStates => HashistackStates): State = this.copy(hashistackStates = this.hashistackStates.map(modifier))
+      def modifyApply(modifier: TerraformMagic.TerraformPlan => TerraformMagic.TerraformPlan): State = {
+        this.copy(apply = this.apply.map(ap => ap.copy(pending = modifier(ap.pending))))
       }
-      def mod_inflight(modifier: TerraformMagic.TerraformPlan => TerraformMagic.TerraformPlan): State = {
+      def modifyInflight(modifier: TerraformMagic.TerraformPlan => TerraformMagic.TerraformPlan): State = {
         this.copy(inflight = this.inflight.map(modifier))
       }
-      def mod_quorum(name: String, value: DNSStage): State = {
+      def modifyQuorum(name: String, value: DNSStage): State = {
         this.copy(quorum = quorum + (name -> value))
       }
     }
@@ -486,20 +486,20 @@ object LogTUI {
      * @return Apply object with names formatted to match those received via tfapply
      * */
     def translatePlan(plan_tuple: (TerraformPlan, Map[String, List[String]])): Apply = {
-      val (tp, deps) = plan_tuple
-      val translated_tp = tp.copy(
-        create = tp.create.map(TerraformMagic.res_name),
-        read = tp.read.map(TerraformMagic.res_name),
-        update = tp.update.map(TerraformMagic.res_name),
-        delete = tp.delete.map(TerraformMagic.res_name),
-        noop = tp.noop.map(TerraformMagic.res_name)
+      val (plan, deps) = plan_tuple
+      val translatedPlan = plan.copy(
+        create = plan.create.map(TerraformMagic.resolveName),
+        read = plan.read.map(TerraformMagic.resolveName),
+        update = plan.update.map(TerraformMagic.resolveName),
+        delete = plan.delete.map(TerraformMagic.resolveName),
+        noop = plan.noop.map(TerraformMagic.resolveName)
       )
       val translated_deps = deps.keys
         .foldLeft(Map.empty[String, List[String]])((mp, k) =>
-          mp + (TerraformMagic.res_name(k) -> deps(k).map(TerraformMagic.res_name))
+          mp + (TerraformMagic.resolveName(k) -> deps(k).map(TerraformMagic.resolveName))
         )
 
-      Apply.tupled((translated_tp, translated_deps))
+      Apply.tupled((translatedPlan, translated_deps))
     }
 
     /**
@@ -516,51 +516,47 @@ object LogTUI {
      * */
     def iterStateAndPrint(st: State, plan: Option[Apply]): IO[Unit] = {
       for {
-        evtextdata <- IO(extevtq.nonEmpty)
-        initdata <- IO(initq.nonEmpty)
-        plandata <- planvar.isEmpty.map(x => !x) // fake nonEmpty
-        appdata <- IO(applyq.nonEmpty)
-        dnsdata <- IO(dnsq.nonEmpty)
-        newplan <- if (plandata) planvar.take.map(translatePlan).map(x => Some(x)) else IO(plan)
-        planstate = if (plandata) st.copy(app = newplan, inflight = Some(TerraformPlan.empty)) else st
+        externalEventData <- IO(extevtq.nonEmpty)
+        initData <- IO(initq.nonEmpty)
+        planData <- planvar.isEmpty.map(x => !x) // fake nonEmpty
+        applyData <- IO(applyq.nonEmpty)
+        dnsData <- IO(dnsq.nonEmpty)
+        newPlan <- if (planData) planvar.take.map(translatePlan).map(x => Some(x)) else IO(plan)
+        planState = if (planData) st.copy(apply = newPlan, inflight = Some(TerraformPlan.empty)) else st
 
-        newst <- for {
-          a <- if (evtextdata) prestart(planstate) else IO(planstate)
-          b <- if (initdata) init(a) else IO(a)
-          c <- if (appdata && plan.nonEmpty) tfapplyp(plan)(b) else IO(b)
-          d <- if (dnsdata) quorum(c) else IO(c)
+        newState <- for {
+          a <- if (externalEventData) iterateHashistackStates(planState) else IO(planState)
+          b <- if (initData) init(a) else IO(a)
+          c <- if (applyData && plan.nonEmpty) tfapplyp(plan)(b) else IO(b)
+          d <- if (dnsData) quorum(c) else IO(c)
         } yield d
-        drawnst <- draw(st, newst)
+        drawnState <- draw(st, newState)
         _ <- IO(Console.flush())
-
-        _ <- if (isActive) IO.sleep(500.millis) *> iterStateAndPrint(drawnst, newplan) else CLIMagic.loadPos()
+        _ <- if (isActive) IO.sleep(500.millis) *> iterStateAndPrint(drawnState, newPlan) else CLIMagic.loadPos()
       } yield ()
     }
 
     /**
      * Updates state to reflect events from the systemd service startup
      * */
-    def prestart(st: State): IO[State] =
+    def iterateHashistackStates(st: State): IO[State] =
       for {
         ext <- IO(extevtq.headOption.map(_ => extevtq.dequeueAll(_ => true).toList))
-        newps = ext match {
-          case None        => st.prestart
+        newStates = ext match {
+          case None        => st.hashistackStates
           case Some(value) =>
-            // Apply all the log messages to deterimine new print state, in order
+            // Apply all the log messages to determine new print state, in order
             value
               .map({
-                in: WKEvent =>
-                  { pst: Prestart =>
-                    pst.updatewk(in)
-                  }
+                in: HashistackEvent => {states: HashistackStates => states.updateHashistackStates(in)}
               })
-              .foldLeft(st.prestart)({
+              .foldLeft(st.hashistackStates)({
                 case (Some(st), f) => Some(f(st))
-                case (None, f)     => Some(f(Prestart.empty))
+                case (None, f)     => Some(f(HashistackStates.empty))
               })
         }
-        newst <- IO.pure(st.copy(prestart = newps))
-      } yield newst
+        newState <- IO.pure(st.copy(hashistackStates = newStates))
+      } yield newState
 
     def init(st: State): IO[State] =
       for {
@@ -573,7 +569,7 @@ object LogTUI {
      * */
     def quorum(st: State): IO[State] = {
       def applyQuorumUpdates(st: State, change: DNSStage): State = {
-        st.mod_quorum(change.name, change)
+        st.modifyQuorum(change.name, change)
       }
 
       for {
@@ -590,7 +586,7 @@ object LogTUI {
      *
      * State keeps track of tasks in the Terraform plan as being waiting-to-occur or "in-flight" (a task
      * which is in the overall plan but is in neither of these categories is assumed complete.)  As Terraform events
-     * (Create, Delete, etc against particular targets) are assimilated the lists are manipulated appropirately
+     * (Create, Delete, etc against particular targets) are assimilated the lists are manipulated appropriately
      *
      * @param deps Map of each module/health-check to its dependencies; used to infer task completion in cases
      *             where these aren't directly reported
@@ -602,38 +598,39 @@ object LogTUI {
     def applyChange(deps: Map[String, List[String]])(st: State, change: TerraformMagic.TFStateChange): State = {
       change match {
         case TerraformMagic.DestroyStart(name, id) => {
-          st.mod_app(_.removedelete(name))
-            .mod_inflight(_.adddelete(name)) // Take thing from app.destroy and add to inflight
+          st.modifyApply(_.removedelete(name))
+            .modifyInflight(_.adddelete(name)) // Take thing from app.destroy and add to inflight
         }
         case TerraformMagic.DestroyComplete(name, duration) => {
-          st.mod_inflight(_.removedelete(name))
+          st.modifyInflight(_.removedelete(name))
         }
         case TerraformMagic.Data(name) => {
-          st.mod_app(_.removeread(name)).mod_inflight(_.addread(name)) // Take thing from app.read
+          st.modifyApply(_.removeread(name)).modifyInflight(_.addread(name)) // Take thing from app.read
         }
         case TerraformMagic.CreateStart(name) => {
-          st.mod_app(_.removecreate(name))
-            .mod_inflight(_.addcreate(name)) // Take thing from app.create and add to inflight.create
+          st.modifyApply(_.removecreate(name))
+            .modifyInflight(_.addcreate(name)) // Take thing from app.create and add to inflight.create
         } //check data dependency fulfillment + emit line
         case TerraformMagic.CreateComplete(name, duration, id) => {
-          st.mod_inflight(_.removecreate(name)) // Take thing from inflight.create
+          st.modifyInflight(_.removecreate(name)) // Take thing from inflight.create
         }
         case TerraformMagic.ReadStart(name) => {
-          st.mod_app(_.removeread(name)).mod_inflight(_.addread(name))
+          st.modifyApply(_.removeread(name)).modifyInflight(_.addread(name))
         }
         case TerraformMagic.ReadComplete(name, _) => {
-          st.mod_inflight(_.removeread(name))
+          st.modifyInflight(_.removeread(name))
         }
         case TerraformMagic.ApplyComplete() => {
           // Clear app and inflight (assert that app is empty?)
-          st.copy(app = None, inflight = None)
+          st.copy(apply = None, inflight = None)
         }
         case TerraformMagic.NotChange() => st
       }
     }
 
-    def tfapplyp(opapp: Option[Apply])(st: State): IO[State] = {
-      opapp match {
+    // tfApplyChanges?
+    def tfapplyp(maybeApply: Option[Apply])(st: State): IO[State] = {
+      maybeApply match {
         case None => IO(st)
         case Some(app) =>
           for {
@@ -646,27 +643,27 @@ object LogTUI {
       }
     }
 
-    sealed case class DrawingState(st: State, cur_line: Int, last_line: Int, screen_size: Int, screen_overshoot: Int) {
-      def inc_lastline: DrawingState = {
-        this.copy(last_line = this.last_line + 1)
+    sealed case class DrawingState(st: State, currentLine: Int, lastLine: Int, screenSize: Int, screenOvershoot: Int) {
+      def incrementLastline: DrawingState = {
+        this.copy(lastLine = this.lastLine + 1)
       }
-      def set_curline(line: Int): DrawingState = {
-        this.copy(cur_line = line)
+      def setCurrentLine(line: Int): DrawingState = {
+        this.copy(currentLine = line)
       }
-      def inc_overshoot: DrawingState = {
-        this.copy(screen_overshoot = this.screen_overshoot + 1)
+      def incrementOvershoot: DrawingState = {
+        this.copy(screenOvershoot = this.screenOvershoot + 1)
       }
-      def add_line(name: String, lineno: Int): DrawingState = {
+      def addLine(name: String, lineno: Int): DrawingState = {
         this.copy(
           st = st.copy(linemap = st.linemap + (name -> lineno)),
-          last_line = this.last_line + 1
+          lastLine = this.lastLine + 1
         )
       }
-      def inc_tick: DrawingState = {
+      def incrementTick: DrawingState = {
         this.copy(st = st.copy(tick = st.tick + 1))
       }
-      def recoverState: State = {
-        st.copy(lineno = last_line)
+      def getState: State = {
+        st.copy(lineno = lastLine)
       }
     }
     case object DrawingState {
@@ -685,24 +682,23 @@ object LogTUI {
      * @return tuple equivalent to clistate, with elements updated to reflect cursor movement and new lines
      *
      * */
-    def update_element(dst: DrawingState, element: (String, String)): IO[DrawingState] = {
+    def updateElement(dst: DrawingState, element: (String, String)): IO[DrawingState] = {
       val (name, update) = element
 
-      val adding_new = !dst.st.linemap.contains(name)
-      val target_line = if (adding_new) dst.last_line else dst.st.linemap(name)
+      val addingNew = !dst.st.linemap.contains(name)
+      val targetLine = if (addingNew) dst.lastLine else dst.st.linemap(name)
 
-      val draw_op = if (target_line <= (dst.screen_size - 2)) {
-        val line = target_line - dst.cur_line
-        CLIMagic.move(line) *> CLIMagic.print(update) *> IO(dst.set_curline(target_line))
+      val newDrawingState = if (targetLine <= (dst.screenSize - 2)) {
+        val line = targetLine - dst.currentLine
+        CLIMagic.move(line) *> CLIMagic.print(update) *> IO(dst.setCurrentLine(targetLine))
       } else {
-        IO(dst.inc_overshoot)
+        IO(dst.incrementOvershoot)
       }
-
-      if (adding_new)
-        draw_op.map(_.add_line(name, target_line))
+      if (addingNew)
+        newDrawingState.map(_.addLine(name, targetLine))
 //          (target_line, last_line + 1, screen_size, st.copy(linemap = st.linemap + (name -> target_line)))
       else
-        draw_op
+        newDrawingState
 //          (target_line, last_line, screen_size, st)
     }
 
@@ -711,14 +707,14 @@ object LogTUI {
      * does not draw if this is a non-interactive terminal (otherwise the whole
      * log winds up full of dots)
      * */
-    def update_ticker(dst: DrawingState): IO[DrawingState] = {
+    def updateTicker(dst: DrawingState): IO[DrawingState] = {
       if (tty_mode) {
-        val tick_stage = dst.st.tick % 3
+        val tickStage = dst.st.tick % 3
         for {
-          _ <- CLIMagic.move(Math.min(dst.last_line - dst.cur_line, (CLIMagic.consoleRows - 2) - dst.cur_line))
-          _ <- CLIMagic.print(PrintElements.ticker(tick_stage, dst.screen_overshoot))
+          _ <- CLIMagic.move(Math.min(dst.lastLine - dst.currentLine, (CLIMagic.consoleRows - 2) - dst.currentLine))
+          _ <- CLIMagic.print(PrintElements.ticker(tickStage, dst.screenOvershoot))
           _ <- CLIMagic.move(1)
-        } yield dst.inc_tick
+        } yield dst.incrementTick
       } else {
         IO(dst)
       }
@@ -733,11 +729,11 @@ object LogTUI {
      * */
     def terraformPlanStatements(tf: TerraformPlan, stage: PlanStage): List[(String, String)] = {
       (
-        (for (c <- tf.create) yield (c, PrintElements.componentLine(c, CreateT(), stage))) |
-          (for (u <- tf.update) yield (u, PrintElements.componentLine(u, UpdateT(), stage))) |
-          (for (r <- tf.read) yield (r, PrintElements.componentLine(r, ReadT(), stage))) |
-          (for (d <- tf.delete) yield (d, PrintElements.componentLine(d, DeleteT(), stage))) |
-          (for (n <- tf.noop) yield (n, PrintElements.componentLine(n, NoopT(), stage)))
+        (for (c <- tf.create) yield (c, PrintElements.componentLine(c, CreateTask(), stage))) |
+          (for (u <- tf.update) yield (u, PrintElements.componentLine(u, UpdateTask(), stage))) |
+          (for (r <- tf.read) yield (r, PrintElements.componentLine(r, ReadTask(), stage))) |
+          (for (d <- tf.delete) yield (d, PrintElements.componentLine(d, DeleteTask(), stage))) |
+          (for (n <- tf.noop) yield (n, PrintElements.componentLine(n, NoopTask(), stage)))
       ).toList
     }
 
@@ -746,11 +742,11 @@ object LogTUI {
      * @return (line id, line content) pairs for e.g. update_element()
      *
      * */
-    def prestartStatements(prestart: Prestart): List[(String, String)] = {
+    def prestartStatements(prestart: HashistackStates): List[(String, String)] = {
       List(
-        ("Consul", PrintElements.prestartLine("Consul", prestart.consul)),
-        ("Nomad", PrintElements.prestartLine("Nomad", prestart.nomad)),
-        ("Vault", PrintElements.prestartLine("Vault", prestart.vault))
+        ("Consul", PrintElements.hashistackLine("Consul", prestart.consul)),
+        ("Nomad", PrintElements.hashistackLine("Nomad", prestart.nomad)),
+        ("Vault", PrintElements.hashistackLine("Vault", prestart.vault))
       )
     }
 
@@ -766,84 +762,79 @@ object LogTUI {
      * systemd services
      *
      * */
-    def init_draw(st: State, plan: Apply): IO[State] = {
+    def initDraw(st: State, plan: Apply): IO[State] = {
       val display_seq =
         List(("1", PrintElements.displayBar), ("2", "")) ++
-          prestartStatements(st.prestart.getOrElse(Prestart())) ++
+          prestartStatements(st.hashistackStates.getOrElse(HashistackStates())) ++
           List(("3", ""), ("4", PrintElements.displayBar), ("5", ""))
 
-      val print_update = display_seq.foldLeftM(DrawingState(st))(update_element)
-      CLIMagic.clearScreenSpace() *> CLIMagic.savePos() *> CLIMagic.sweep() *> print_update.map(_.recoverState)
+      val newDrawingState = display_seq.foldLeftM(DrawingState(st))(updateElement)
+      CLIMagic.clearScreenSpace() *> CLIMagic.savePos() *> CLIMagic.sweep() *> newDrawingState.map(_.getState)
     }
 
     /**
      * Draws to the screen the diff between the current state and the previous state.
      *
-     * @param oldst State representation from the previous iteration
+     * @param oldState State representation from the previous iteration
      * @param st updated State representation
      * @return updated State which has been further updated with current display state
      *
      * */
-    def draw(oldst: State, st: State): IO[State] = {
+    def draw(oldState: State, st: State): IO[State] = {
+      // I think screenChanged checks for resizing the terminal, but I'm not sure
       val screenChanged = st.screenSize != CLIMagic.consoleRows
-//      val update_lines : List[(String, String)] = if (screenChanged) {
-//        prestartStatements(st.prestart.getOrElse(Prestart.empty)) ++
-//        st.app.map(ifl => ifl.pending.all.toList).getOrElse(List.empty[(String, String)]) ++
-//        st.inflight.map(_.all.toList).getOrElse(List.empty[(String, String)]) ++
-//        List(("1", PrintElements.displayBar), ("2", ""),
-//          ("3", ""), ("4", PrintElements.displayBar), ("5", ""))
-//      } else {
-      val pres_needs_update = (oldst.prestart != st.prestart) | screenChanged
-      val app_needs_update = if (screenChanged) {
-        st.app.map(ifl => ifl.pending.all).getOrElse(Set.empty[String])
+      val hashistackNeedsUpdate = (oldState.hashistackStates != st.hashistackStates) | screenChanged
+      val applyNeedsUpdate = if (screenChanged) {
+        st.apply.map(ifl => ifl.pending.all).getOrElse(Set.empty[String])
       } else {
-        (oldst.app, st.app) match {
+        (oldState.apply, st.apply) match {
           case (None, None)                 => Set.empty[String]
           case (None, Some(app))            => app.pending.all
           case (Some(app), None)            => app.pending.all
           case (Some(oldapp), Some(newapp)) => newapp.pending.diff(oldapp.pending).all
         }
       }
-      val ifl_needs_update = if (screenChanged) {
+      val inflightNeedsUpdate = if (screenChanged) {
         st.inflight.map(_.all).getOrElse(Set.empty[String])
       } else {
-        (oldst.inflight, st.inflight) match {
+        (oldState.inflight, st.inflight) match {
           case (None, None)                 => Set.empty[String]
           case (None, Some(ifl))            => ifl.all
           case (Some(ifl), None)            => ifl.all
           case (Some(oldifl), Some(newifl)) => newifl.diff(oldifl).all
         }
       }
-      val tf_needs_update = app_needs_update.union(ifl_needs_update)
-      val q_needs_update = if (screenChanged) {
-        oldst.quorum.keySet | st.quorum.keySet
+      val tfNeedsUpdate = applyNeedsUpdate.union(inflightNeedsUpdate)
+      val quorumNeedsUpdate = if (screenChanged) {
+        oldState.quorum.keySet | st.quorum.keySet
       } else {
-        (oldst.quorum.keySet | st.quorum.keySet)
-          .filter(k => oldst.quorum.getOrElse(k, NoDNS(k)) != st.quorum.getOrElse(k, NoDNS(k)))
+        (oldState.quorum.keySet | st.quorum.keySet)
+          .filter(k => oldState.quorum.getOrElse(k, NoDNS(k)) != st.quorum.getOrElse(k, NoDNS(k)))
       }
 
-      val pres_update_lines = if (pres_needs_update) {
-        prestartStatements(st.prestart.getOrElse(Prestart.empty))
+      val hashistackUpdateLines = if (hashistackNeedsUpdate) {
+        prestartStatements(st.hashistackStates.getOrElse(HashistackStates.empty))
       } else {
         List.empty
       }
-      val tf_update_lines = if (tf_needs_update.nonEmpty) {
-        val update_applying = oldst.app.map(app => app.pending.filter(tf_needs_update)).getOrElse(TerraformPlan.empty)
-        val update_inflight = oldst.inflight.getOrElse(TerraformPlan.empty).filter(tf_needs_update)
+      val tfUpdateLines = if (tfNeedsUpdate.nonEmpty) {
+        val updateApply =
+          oldState.apply.map(apply => apply.pending.filter(tfNeedsUpdate)).getOrElse(TerraformPlan.empty)
+        val updateInflight = oldState.inflight.getOrElse(TerraformPlan.empty).filter(tfNeedsUpdate)
         (
-          terraformPlanStatements(update_applying, InflightS()) ++
-            terraformPlanStatements(update_inflight, IsDoneS())
+          terraformPlanStatements(updateApply, InflightState()) ++
+            terraformPlanStatements(updateInflight, IsDoneState())
         )
       } else {
         List.empty
       }
-      val q_update_lines = if (q_needs_update.nonEmpty) {
-        q_needs_update.map(k => quorumStatement(st.quorum.getOrElse(k, NoDNS(k))))
+      val quorumUpdateLines = if (quorumNeedsUpdate.nonEmpty) {
+        quorumNeedsUpdate.map(k => quorumStatement(st.quorum.getOrElse(k, NoDNS(k))))
       } else {
         List.empty
       }
 
-      val extra_update_lines = if (screenChanged) {
+      val extraUpdateLines = if (screenChanged) {
         List(
           ("1", PrintElements.displayBar),
           ("2", PrintElements.blankLine),
@@ -855,28 +846,32 @@ object LogTUI {
         List.empty[(String, String)]
       }
 
-      val update_lines = pres_update_lines ++ tf_update_lines ++ q_update_lines ++ extra_update_lines
+      val updateLines = hashistackUpdateLines ++ tfUpdateLines ++ quorumUpdateLines ++ extraUpdateLines
 
-      val print_update = update_lines.foldLeftM(DrawingState(st))(((a, b) => update_element(a, b)))
-      CLIMagic.sweep(screenChanged) *>
-        print_update
-          .flatMap(update_ticker)
-          .map(_.recoverState)
+      val newDrawingState = updateLines.foldLeftM(DrawingState(st))(((a, b) => updateElement(a, b)))
+
+      LogTUI.writing.acquire *>
+        CLIMagic.sweep(screenChanged) *>
+        newDrawingState
+          .flatMap(updateTicker)
+          .map(_.getState)
           .flatMap(st =>
             CLIMagic
               .sweep()
               *> CLIMagic
                 .move(st.lineno + 1) // stay below the last line when not drawing
                 .map(_ => if (screenChanged) st.copy(screenSize = CLIMagic.consoleRows) else st)
+              <* LogTUI.writing.release
           )
+
     }
 
-    def beginIterPrint(prestate: Prestart): IO[Unit] = {
-      val initialState = State.empty.copy(prestart = Some(prestate))
+    def beginIterPrint(prestate: HashistackStates): IO[Unit] = {
+      val initialState = State.empty.copy(hashistackStates = Some(prestate))
 
       for {
         _ <- CLIMagic.setupCLI()
-        st <- init_draw(initialState, Apply(TerraformPlan.empty, Map.empty))
+        st <- initDraw(initialState, Apply(TerraformPlan.empty, Map.empty))
         _ <- iterStateAndPrint(st, None)
       } yield ()
     }
@@ -894,7 +889,7 @@ object PrintElements {
   def blankLine: String = {
     "                                                                      "
   }
-  def prestartLine(name: String, state: PrestartState): String = {
+  def hashistackLine(name: String, state: ServiceState): String = {
     state match {
       case LogTUI.Printer.Systemdnotstarted => s"$name:\t@|bold Waiting for systemd start|@"
       case LogTUI.Printer.Dnsnotresolving   => s"$name:\t@|green Service started|@           "
@@ -905,18 +900,19 @@ object PrintElements {
   }
 
   def componentLine(rawName: String, target: PlanTarget, stage: PlanStage): String = {
-    val name = TerraformMagic.res_name(rawName)
+    val name = TerraformMagic.resolveName(rawName)
     val verb = target match {
-      case CreateT() => "Create"
-      case UpdateT() => "Update"
-      case ReadT()   => "Receive"
-      case DeleteT() => "Delete"
-      case NoopT()   => "Do nothing"
+      case CreateTask() => "Create"
+      case UpdateTask() => "Update"
+      case ReadTask()   => "Receive"
+      case DeleteTask() => "Delete"
+      case NoopTask()   => "Do nothing"
     }
     stage match {
-      case WaitingS()  => s"@|bold ${verb} $name|@  ".padTo(50, '-') + " @|faint Waiting|@                 "
-      case InflightS() => s"@|bold ${verb} $name|@  ".padTo(50, '-') + " @|bold In process...|@           "
-      case IsDoneS()   => s"@|bold $verb $name|@  ".padTo(50, '-') + " @|green Successful|@                             "
+      case WaitingState()  => s"@|bold ${verb} $name|@  ".padTo(50, '-') + " @|faint Waiting|@                 "
+      case InflightState() => s"@|bold ${verb} $name|@  ".padTo(50, '-') + " @|bold In process...|@           "
+      case IsDoneState() =>
+        s"@|bold $verb $name|@  ".padTo(50, '-') + " @|green Successful|@                             "
     }
   }
 

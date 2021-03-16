@@ -8,7 +8,7 @@ import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.timberland.runtime.AuthTokens
 
 import scala.concurrent.duration._
-import com.radix.timberland.util.Util
+import com.radix.timberland.util.{LogTUI, Util}
 import com.radix.utils.helm
 import com.radix.utils.helm.http4s.Http4sConsulClient
 import com.radix.utils.helm.http4s.vault.{Vault => VaultSession}
@@ -273,8 +273,10 @@ object flagConfig {
     implicit val cs: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
     implicit val timer: Timer[IO] = IO.timer(ExecutionContext.global)
     for {
+      _ <- LogTUI.writing.acquire
       _ <- IO(Console.print((if (entry.optional) "[Optional] " else "") + entry.prompt + "> "))
       userInput <- Util.timeoutTo(IO(StdIn.readLine()), timeout, IO.pure(null))
+      _ <- LogTUI.writing.release
       maybeDefault <- IO {
         entry.default match {
           case Some(value) => Some(value)
@@ -284,13 +286,20 @@ object flagConfig {
       maybeUserInput <- IO {
         userInput match {
           case null | "" =>
-            if (entry.optional) maybeDefault
-            else
+            if (entry.optional) {
+              for {
+                // necessary so the next prompt doesn't print on the same line
+                _ <- IO(Console.println(" [timed out]"))
+              } yield ()
+              maybeDefault
+            } else
               Some(entry.default.getOrElse {
                 Console.err.println("\nConfig option not specified with no available fallback value, quitting")
                 sys.exit(1)
               })
-          case response: String => Some(response)
+          case response: String => {
+            Some(response)
+          }
         }
       }
     } yield maybeUserInput

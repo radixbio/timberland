@@ -131,7 +131,9 @@ package object daemonutil {
 //          resource_changes <- x.hcursor.downField("resource_changes").as[Array[Json]]
           addresses <- resource_changes.map(_.hcursor.downField("address").as[String]).toList.sequence
           //strip off the [0] to get the actual addresses
-          withoutindex = addresses.map(TerraformMagic.stripindex)
+          withoutindex = addresses.map(
+            address => address.replaceAll("\\[[0-9]+\\]", "")
+          )
           actions <- resource_changes
             .map(_.hcursor.downField("change").downField("actions").as[List[String]])
             .toList
@@ -147,8 +149,7 @@ package object daemonutil {
                   .downField("module_calls")
                   .keys
                   .getOrElse(List.empty)
-              } yield (
-                x.hcursor
+              } yield x.hcursor
                   .downField("configuration")
                   //be generic about modules
                   .downField(m)
@@ -165,12 +166,11 @@ package object daemonutil {
                       } yield (addr, deps)
                     ).toList.sequence[Err, (String, List[String])]
                   )
-                )
             })
             .toList
             .sequence[Err, List[(String, List[String])]]
-            //WARN: Intellij syntax hightlighting and typing gets funky here. It works though!
-            // hand over only the relavant keys
+            //WARN: Intellij syntax highlighting and typing gets funky here. It works though!
+            // hand over only the relevant keys
             .map(_.flatten.toMap): Either[DecodingFailure, Map[String, List[String]]]
 //              .filterKeys(withoutindex.toSet.contains) // TODO Disabling this for now as it filtered out everything.  Fix?
 //              .mapValues(_.filter(withoutindex.toSet.contains))): Either[DecodingFailure, Map[String, List[String]]]
@@ -267,7 +267,7 @@ package object daemonutil {
     implicit serviceAddrs: ServiceAddrs = ServiceAddrs(),
     tokens: AuthTokens
   ): IO[Int] = {
-    val workingDir = getTerraformWorkDir(integrationTest)
+      val workingDir = getTerraformWorkDir(integrationTest)
     val mkTmpDir = IO({
       if (os.exists(RadPath.temp)) os.remove.all(RadPath.temp)
       os.makeDir.all(RadPath.temp / "terraform")
@@ -308,7 +308,7 @@ package object daemonutil {
             .proc(applyCommand)
             .call(
               cwd = workingDir,
-              stdout = os.ProcessOutput(LogTUI.tfapply),
+              stdout = os.ProcessOutput(LogTUI.tfApply),
               stderr = os.ProcessOutput(LogTUI.stdErrs("terraform-apply"))
             )
             .exitCode

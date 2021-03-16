@@ -58,7 +58,7 @@ class LinuxServiceControl extends ServiceControl {
   override def restartTimberlandSvc(): IO[Util.ProcOut] = Util.exec("systemctl restart timberland-svc")
   override def restartVault(): IO[Util.ProcOut] = Util.exec("systemctl restart vault")
   override def stopConsul(): IO[Util.ProcOut] = Util.exec("systemctl stop consul")
-  // override def stopConsulTemplate(): IO[Util.ProcOut] = Util.exec...
+  override def stopConsulTemplate(): IO[Util.ProcOut] = Util.exec("systemctl stop consul-connect")
   override def stopNomad(): IO[Util.ProcOut] = Util.exec("systemctl stop nomad")
   override def stopVault(): IO[Util.ProcOut] = Util.exec("systemctl stop vault")
   override def stopTimberlandSvc(): IO[Util.ProcOut] = Util.exec("systemctl stop timberland-svc")
