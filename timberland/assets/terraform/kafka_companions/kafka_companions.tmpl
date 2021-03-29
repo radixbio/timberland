@@ -86,6 +86,14 @@ job "${prefix}kc-daemons" {
         cap_add = []
         command = "bash"
         args = ["-c", "cp /etc/hosts /tmp/hosts; echo \"127.0.1.1 $(hostname)\" >> /tmp/hosts; cat /tmp/hosts > /etc/hosts; /etc/confluent/docker/run"]
+        mounts = [
+          {
+            type = "bind"
+            target = "/etc/kafka-connect/jars/osipi-sink-connector.jar"
+            source = "/opt/radix/utils/kafka_connect_osipi-lib-patched.jar"
+            readonly = true
+          }
+        ]
       }
 
       driver = "docker"

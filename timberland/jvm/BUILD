@@ -440,11 +440,11 @@ pkg_tar(
 pkg_tar(
     name = "timberland-utils",
     srcs = [
+        "//utils/kafka_connect_osipi/jvm:kafka_connect_osipi-lib-patched.jar",
         "//timberland/assets:terraform/es_kafka_connector/es_conn_config.json",
     ],
     package_dir = "/opt/radix/utils/",
 )
-
 
 pkg_tar(
     name = "timberland-cni-config",
@@ -476,7 +476,7 @@ pkg_tar(
         ":timberland-consul-template-vault",
         ":timberland-containernetworking-cni-plugin",
         ":timberland-devdrivers",
-	":timberland-utils",
+        ":timberland-utils",
         ":timberland-exec",
         ":timberland-networkd",
         ":timberland-nomad",
@@ -868,6 +868,7 @@ terraform_deployment(
         "//utils/prism-uservice/jvm:prism-terraform",
         "//utils/s3lts:s3lts-terraform",
         "//vm/jvm:vm-terraform",
+        "//utils/kafka_connect_osipi/jvm:kafka_connect_osipi-terraform"
     ],
     terraform_source = select({
         "aarch64": ["@terraform_arm//:terraform"],

@@ -333,6 +333,10 @@ dependencies:
       version: "3.8.1"
 
   org.apache.kafka:
+    connect:
+      lang: java
+      modules: [ "api", "json", "runtime" ]
+      version: "2.3.1"
     kafka:
       lang: scala
       modules: [ "", "streams-scala" ]

@@ -295,6 +295,20 @@ load("//3rdparty:target_file.bzl", "build_external_workspace")
 
 build_external_workspace(name = "third_party")
 
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
+
+git_repository(
+    name = "com_github_johnynek_bazel_jar_jar",
+    commit = "171f268569384c57c19474b04aebe574d85fde0d", # Latest commit SHA as at 2019/02/13
+    remote = "https://github.com/johnynek/bazel_jar_jar.git",
+)
+
+load(
+    "@com_github_johnynek_bazel_jar_jar//:jar_jar.bzl",
+    "jar_jar_repositories",
+)
+jar_jar_repositories()
+
 http_archive(
     name = "io_bazel_rules_docker",
     sha256 = "dc97fccceacd4c6be14e800b2a00693d5e8d07f69ee187babfd04a80a9f8e250",

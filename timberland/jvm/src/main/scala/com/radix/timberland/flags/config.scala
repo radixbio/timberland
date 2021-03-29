@@ -99,6 +99,38 @@ case object config {
         optional = true
       )
     ),
+    "osipi_connector" -> List(
+      FlagConfigEntry(
+        key = "url",
+        destination = Vault,
+        prompt = "OSIPi Server URL",
+        default = Some("https://localhost:443/piwebapi/omf")
+      ),
+      FlagConfigEntry(
+        key = "auth_method",
+        destination = Vault,
+        prompt = "OSIPi Auth Method [Bearer, Basic]",
+        default = Some("Bearer")
+      ),
+      FlagConfigEntry(
+        key = "bearer_token",
+        destination = Vault,
+        prompt = "OSIPi Bearer Token",
+        optional = true
+      ),
+      FlagConfigEntry(
+        key = "basic_username",
+        destination = Vault,
+        prompt = "OSIPi Username",
+        optional = true
+      ),
+      FlagConfigEntry(
+        key = "basic_password",
+        destination = Vault,
+        prompt = "OSIPi Password",
+        optional = true
+      )
+    ),
     "google-oauth" -> List(
       FlagConfigEntry(
         key = "GOOGLE_OAUTH_ID",
