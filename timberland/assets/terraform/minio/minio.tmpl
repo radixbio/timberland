@@ -54,7 +54,7 @@ ${ !have_upstream_creds ? "" : <<EOH
     service {
       name = "minio-remote-service"
       port = 9000
-      tags = ["minio", "remote", "${prefix}"]
+      tags = ["minio", "remote", "${prefix}", "user"]
       address_mode = "auto"
 
       connect {
@@ -166,18 +166,22 @@ EOH
 
           server {
             listen 1339;
-            server_name ${prefix}minio-job-minio-group-nginx-minio.service.consul;
+            server_name nginx-minio.service.consul;
 
             ignore_invalid_headers off;
             client_max_body_size 10000m;
             proxy_buffering off;
+
+            location /health {
+                return 200;
+            }
 
             location / {
               proxy_set_header X-Real-IP $remote_addr;
               proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
               proxy_set_header X-Forwarded-Proto $scheme;
               proxy_set_header Host $http_host;
-              proxy_set_header Authorization $authorization;
+              proxy_set_header Authorization ${ have_upstream_creds ? "$authorization" : "$http_authorization"};
               proxy_hide_header "X-AMZ-Bucket-Region";
               proxy_hide_header "X-AMZ-Request-Id";
 
@@ -240,7 +244,7 @@ EOH
     service {
       name = "nginx-minio"
       port = "nginx"
-      tags = ["minio", "client"]
+      tags = ["minio", "client", "user"]
       address_mode = "host"
 
       connect {
@@ -263,7 +267,7 @@ EOH
         port = "nginx"
         timeout = "2s"
         type = "http"
-        path = "/"
+        path = "/health"
         tls_skip_verify = false
       }
     }
@@ -271,7 +275,7 @@ EOH
     service {
       name = "minio-local-service"
       port = 9000
-      tags = ["minio", "local", "${prefix}"]
+      tags = ["minio", "local", "${prefix}", "user"]
       address_mode = "auto"
 
       connect {

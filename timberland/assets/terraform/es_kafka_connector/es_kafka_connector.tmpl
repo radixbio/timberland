@@ -69,7 +69,7 @@ job "${prefix}es-kafka-connector" {
     service {
       name = "es-kafka-connector-service"
       port = 8080
-      tags = ["es-connect"]
+      tags = ["es-connect", "system"]
       address_mode = "auto"
 
       connect {

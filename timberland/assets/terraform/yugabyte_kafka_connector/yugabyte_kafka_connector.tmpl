@@ -71,7 +71,7 @@ job "${prefix}yugabyte-kafka-connector" {
     service {
           name = "yb-kafka-connector-service"
           port = 8080
-          tags = ["yb-connect"]
+          tags = ["yb-connect", "system"]
           address_mode = "auto"
 
           connect {

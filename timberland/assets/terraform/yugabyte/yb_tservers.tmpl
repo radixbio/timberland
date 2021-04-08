@@ -68,7 +68,7 @@ job "${prefix}yugabyte-tservers" {
     service {
       name = "yb-tserver-${i}-head"
       port = 9000
-      tags = ["${prefix}"]
+      tags = ["${prefix}", "user"]
       address_mode = "auto"
 
       connect {
@@ -91,7 +91,7 @@ job "${prefix}yugabyte-tservers" {
     service {
       name = "yb-tserver-connect-${i}"
       port = ${ 9100 + i }
-      tags = ["${prefix}"]
+      tags = ["${prefix}", "system"]
       address_mode = "auto"
 
       connect {

@@ -82,10 +82,10 @@ job "${prefix}nginx" {
       }
     }
 
-    service "nginx" {
+    service {
       name = "nginx"
       port = "8080"
-      tags = ["nginx", "${prefix}"]
+      tags = ["nginx", "${prefix}", "user"]
       address_mode = "auto"
 
       connect {

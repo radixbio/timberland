@@ -82,7 +82,7 @@ job "${prefix}kafka-daemons" {
     service {
       name = "kafka-${i}"
       port = ${ 9092 + i }
-      tags = ["kafka-quorum","kafka-plaintext", "${prefix}"]
+      tags = ["kafka-quorum","kafka-plaintext", "${prefix}", "system"]
       address_mode = "auto"
 
       connect {

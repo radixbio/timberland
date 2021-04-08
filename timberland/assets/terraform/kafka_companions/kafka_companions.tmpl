@@ -169,7 +169,7 @@ job "${prefix}kc-daemons" {
     service {
       name = "kc-schema-registry-service-${i}"
       port = 8081
-      tags = ["kafka-companion","kafka-schema-registry", "${prefix}"]
+      tags = ["kafka-companion","kafka-schema-registry", "${prefix}", "system"]
       address_mode = "auto"
 
       connect {
@@ -199,7 +199,7 @@ job "${prefix}kc-daemons" {
     service {
       name = "kc-rest-proxy-service-${i}"
       port = 8082
-      tags = ["kafka-companion","kafka-rest-proxy", "${prefix}"]
+      tags = ["kafka-companion","kafka-rest-proxy", "${prefix}", "system"]
       address_mode = "auto"
 
       connect {
@@ -229,7 +229,7 @@ job "${prefix}kc-daemons" {
     service {
       name = "kc-connect-service-${i}"
       port = 8083
-      tags = ["kafka-companion","kafka-connect", "${prefix}"]
+      tags = ["kafka-companion","kafka-connect", "${prefix}", "system"]
       address_mode = "auto"
 
       connect {
@@ -263,7 +263,7 @@ job "${prefix}kc-daemons" {
     service {
       name = "kc-ksql-service-${i}"
       port = 8000
-      tags = ["kafka-companion","kafka-topics-ui", "${prefix}"]
+      tags = ["kafka-companion","kafka-topics-ui", "${prefix}", "system"]
       address_mode = "auto"
 
       connect {

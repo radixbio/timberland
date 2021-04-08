@@ -56,6 +56,7 @@ else
   AWS_INSTANCE_SSH_USER=ubuntu
 fi
 RESULTS_SCRIPT="./timberland/jvm/src/test/gather-results.sh"
+SHUTDOWN_SCRIPT="./timberland/jvm/src/test/shutdown-after-uptime.sh"
 
 if ! [ -x "$(command -v aws)" ]; then
   echo "Please install aws-cli: https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-welcome.html"
@@ -97,6 +98,8 @@ then
   # Remove the crontab entry for the automatic power-off script
   ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP 'crontab -r' || exit 0
 fi
+
+scp -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $SHUTDOWN_SCRIPT $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP:~
 
 echo "Transferring package to instance ($AWS_INSTANCE_IP)..."
 

@@ -60,7 +60,7 @@ job "${prefix}kibana" {
     service {
       name = "kibana"
       port = "5601"
-      tags = ["kibana","http", "${prefix}"]
+      tags = ["kibana","http", "${prefix}", "user"]
       address_mode = "auto"
 
       connect {

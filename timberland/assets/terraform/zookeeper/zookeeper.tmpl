@@ -211,7 +211,7 @@ EOH
     service {
       name = "zookeeper-client-${i}"
       port = 2181
-      tags = ["zookeeper-quorum","zookeeper-client", "${prefix}"]
+      tags = ["zookeeper-quorum","zookeeper-client", "${prefix}", "system"]
       address_mode = "auto"
 
       connect {
@@ -246,7 +246,7 @@ EOH
     service {
       name = "zookeeper-follower-${i}"
       port = ${2888+i}
-      tags = ["zookeeper-quorum","zookeeper-follower", "${prefix}"]
+      tags = ["zookeeper-quorum","zookeeper-follower", "${prefix}", "system"]
       address_mode = "auto"
 
       connect {
@@ -270,7 +270,7 @@ EOH
     service {
       name = "zookeeper-othersrvs-${i}"
       port = ${3888+i}
-      tags = ["zookeeper-quorum","zookeeper-othersrvs", "${prefix}"]
+      tags = ["zookeeper-quorum","zookeeper-othersrvs", "${prefix}", "system"]
       address_mode = "auto"
 
       connect {

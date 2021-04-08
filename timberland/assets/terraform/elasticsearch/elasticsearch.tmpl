@@ -95,7 +95,7 @@ EOH
     service {
       name = "es-transport-${i}"
       port = ${ 9300 + i }
-      tags = ["elasticsearch","transport", "${prefix}"]
+      tags = ["elasticsearch","transport", "${prefix}", "system"]
       address_mode = "auto"
 
       connect {
@@ -130,7 +130,7 @@ ${ i == j ? "" : <<-EOT
     service {
       name = "es-rest-${i}"
       port = 9200
-      tags = ["elasticsearch","rest", "${prefix}"]
+      tags = ["elasticsearch","rest", "${prefix}", "system"]
       address_mode = "auto"
 
       connect {
