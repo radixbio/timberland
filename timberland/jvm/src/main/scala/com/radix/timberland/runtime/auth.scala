@@ -3,7 +3,7 @@ package com.radix.timberland.runtime
 import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
 import com.radix.timberland.radixdefs.{ACLTokens, ServiceAddrs}
-import com.radix.timberland.util.{LogTUI, RadPath, Util, VaultUtils}
+import com.radix.timberland.util.{Investigator, LogTUI, RadPath, Util, VaultUtils}
 import com.radix.utils.helm.http4s.vault.Vault
 import com.radix.utils.helm.vault.{CreateSecretRequest, KVGetResult, LoginResponse}
 import com.radix.utils.tls.ConsulVaultSSLContext.blaze
@@ -206,7 +206,7 @@ object auth {
     val masterPolicy = "00000000-0000-0000-0000-000000000001"
 
     for {
-      nomadResolves <- Util.waitForDNS("nomad.service.consul", 60.seconds)
+      nomadResolves <- Investigator.waitForService("nomad", 60.seconds)
       nomadUp <- Util.waitForPortUp(4646, 60.seconds)
       _ <- Util.waitForNomad(30.seconds)
       _ <- IO.pure(scribe.info(s"nomad resolves: $nomadResolves, nomad listening on 4646: $nomadUp"))

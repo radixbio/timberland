@@ -5,7 +5,6 @@ import java.net.{InetAddress, NetworkInterface, ServerSocket, UnknownHostExcepti
 
 import ammonite.ops._
 import cats.effect.{ContextShift, IO, Resource, Timer}
-import cats.implicits._
 import com.radix.utils.tls.ConsulVaultSSLContext.blaze
 import org.http4s.Header
 import org.http4s.Method._
@@ -35,7 +34,7 @@ object Util {
    */
   def timeout[A](fa: IO[A], after: FiniteDuration)(implicit timer: Timer[IO], cs: ContextShift[IO]): IO[A] = {
 
-    val error = new TimeoutException(after.toString)
+    val error = new TimeoutException(after.toString) // this should give more info about what is being run, maybe a message argument?
     timeoutTo(fa, after, IO.raiseError(error))
   }
 
@@ -61,31 +60,6 @@ object Util {
       case Left(a)  => IO.pure(a)
       case Right(_) => fallback
     }
-  }
-
-  /** Wait for a DNS record to become available. Consul will not return a record for failing services.
-   * This returns Unit because we do not care what the result is, only that there is at least one.
-   *
-   * @param dnsName         The DNS name to look up
-   * @param timeoutDuration How long to wait before throwing an exception
-   */
-  def waitForDNS(dnsName: String, timeoutDuration: FiniteDuration): IO[Unit] = {
-    scribe.info(s"waiting for $dnsName to resolve, a maximum of $timeoutDuration")
-    def queryLoop(): IO[Unit] =
-      for {
-        lookupResult <- IO(InetAddress.getAllByName(dnsName)).attempt
-        _ <- lookupResult match {
-          case Left(_: UnknownHostException) => IO.sleep(2.seconds) *> queryLoop
-          case Left(err: Throwable)          => LogTUI.dns(ErrorDNS(dnsName)) *> IO.raiseError(err)
-          case Right(addresses: Array[InetAddress]) =>
-            addresses match {
-              case Array() => LogTUI.dns(EmptyDNS(dnsName)) *> IO.sleep(2.seconds) *> queryLoop
-              case _       => LogTUI.dns(ResolveDNS(dnsName))
-            }
-        }
-      } yield ()
-
-    LogTUI.dns(WaitForDNS(dnsName)) *> timeout(queryLoop, timeoutDuration) *> IO.unit
   }
 
   /**

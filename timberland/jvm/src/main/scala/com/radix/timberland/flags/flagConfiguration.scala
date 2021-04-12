@@ -270,13 +270,14 @@ object flagConfig {
    * @return The response from stdin if the response is nonempty and the terminal is interactive
    */
   private def promptUser(entry: FlagConfigEntry, timeout: FiniteDuration = 30.seconds): IO[Option[String]] = {
+    // if (entry.optional) {IO{entry.default}} else { // nice for testing! maybe use the dev flag?
     implicit val cs: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
     implicit val timer: Timer[IO] = IO.timer(ExecutionContext.global)
     for {
-      _ <- LogTUI.writing.acquire
+      _ <- LogTUI.acquireScreen()
       _ <- IO(Console.print((if (entry.optional) "[Optional] " else "") + entry.prompt + "> "))
       userInput <- Util.timeoutTo(IO(StdIn.readLine()), timeout, IO.pure(null))
-      _ <- LogTUI.writing.release
+      _ <- LogTUI.releaseScreen()
       maybeDefault <- IO {
         entry.default match {
           case Some(value) => Some(value)
@@ -289,6 +290,7 @@ object flagConfig {
             if (entry.optional) {
               for {
                 // necessary so the next prompt doesn't print on the same line
+                // wrong IO nesting?
                 _ <- IO(Console.println(" [timed out]"))
               } yield ()
               maybeDefault

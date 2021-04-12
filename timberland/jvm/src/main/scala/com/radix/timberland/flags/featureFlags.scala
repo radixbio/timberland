@@ -39,7 +39,7 @@ object featureFlags {
   private val specialFlags =
     Set("dev", "google-oauth", "docker-auth", "okta-auth", "tui", "remote_images", "custom_tag")
 
-  // A map from flag name to a list of module names
+  // A map from flag name to a list of module names // may no longer necessary?
   private val flagSupersets = Map(
     "core" -> Set(
       "kafka",
@@ -315,12 +315,14 @@ object featureFlags {
     implicit val timer: Timer[IO] = IO.timer(ExecutionContext.global)
     for {
       pendingChangesExist <- printFlagInfo(persistentDir, consulIsUp, serviceAddrs, authTokens, extraFlags)
+      _ <- LogTUI.acquireScreen()
       _ <- if (pendingChangesExist) {
         IO(Console.print("The above changes will be written to consul/vault. Continue? [Y/n] "))
       } else IO.unit
       userInput <- if (pendingChangesExist) {
         Util.timeoutTo(IO(StdIn.readLine()), 30.seconds, IO.pure("y"))
       } else IO.pure("y")
+      _ <- LogTUI.releaseScreen()
     } yield {
       if (userInput != null && userInput.nonEmpty && userInput.toLowerCase != "y") sys.exit(0) else ()
     }
@@ -379,7 +381,7 @@ object featureFlags {
     val pendingChangeLines = localFlags.flatMap { localFlag =>
       val flagName = localFlag._1
       val isEnabled = localFlag._2
-      val resetStr = AnsiColor.RESET + AnsiColor.BOLD
+      val resetStr = AnsiColor.RESET + AnsiColor.BOLD // should use jansi
       val remoteCfgMap = remoteFlagConfig.vaultData.getOrElse(flagName, Map.empty) ++
         remoteFlagConfig.consulData.getOrElse(flagName, Map.empty)
       val localCfgMap = localFlagConfig.vaultData.getOrElse(flagName, Map.empty) ++

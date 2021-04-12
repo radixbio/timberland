@@ -18,7 +18,7 @@ import java.util.jar.JarFile
 object Installer {
 
   /*
-  This true monstrosity is due to the fact that it's impossible to extract a dircetory recursivley
+  This true monstrosity is due to the fact that it's impossible to extract a directory recursively
   from a java resource.
    */
   class MoveFromJVMResources[F[_]](implicit F: Effect[F]) extends FunctionalCopy[F] {

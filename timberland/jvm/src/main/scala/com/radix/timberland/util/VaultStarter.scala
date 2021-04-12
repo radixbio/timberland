@@ -10,12 +10,8 @@ import com.radix.utils.helm.vault._
 import com.radix.utils.tls.ConsulVaultSSLContext.blaze
 import io.circe.generic.auto._
 import io.circe.parser._
-import io.circe.literal._
 import io.circe.syntax._
-import org.http4s.{Header, Uri}
-import org.http4s.client.dsl.io._
-import org.http4s.circe._
-import org.http4s.Method.PUT
+import org.http4s.Uri
 import org.http4s.implicits._
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -82,33 +78,17 @@ object VaultUtils {
     }
   }
 
-  def setupVault(): IO[Unit] = {
-    val vaultAddr = "127.0.0.1"
-    val vaultToken = findVaultToken()
-    blaze.use { client =>
-      val req = PUT(
-        json"""{ "allowed_origins": ["https://localhost:1337"] }""",
-        Uri.unsafeFromString(s"https://$vaultAddr:8200/v1/sys/config/cors"),
-        Header("X-Vault-Token", vaultToken)
-      )
-      client.expect[String](req).map(println)
-    } *> IO {
+  def setupVault(): IO[Unit] =
+    IO({
+      val vaultAddr = "127.0.0.1" // maybe this should be vault.service.consul, but doing that seems to break tests
       val caPath = RadPath.runtime / "certs" / "ca"
       val env = Map(
-        "VAULT_TOKEN" -> vaultToken,
+        "VAULT_TOKEN" -> findVaultToken(),
         "VAULT_CACERT" -> (caPath / "cert.pem").toString
       )
 
       val vaultPath = RadPath.runtime / "timberland" / "vault"
       val vault = vaultPath / "vault"
-
-      Util.proc(vault, "auth", "enable", "userpass")
-        .call(
-          stdout = os.ProcessOutput(LogTUI.vault),
-          stderr = os.ProcessOutput(LogTUI.vault),
-          env = env
-        )
-
       Util
         .proc(
           vault,
@@ -334,8 +314,7 @@ object VaultUtils {
               env = env
             )
         )
-    }
-  }
+    })
 
   def findVaultToken(): String = sys.env.get("VAULT_TOKEN") match {
     case Some(token) => token

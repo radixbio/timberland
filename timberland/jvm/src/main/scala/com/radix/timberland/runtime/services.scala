@@ -128,8 +128,7 @@ class LinuxServiceControl extends ServiceControl {
                              |VAULT_TOKEN=$vaultToken
                              |PATH=${sys.env("PATH")}:${(RadPath.persistentDir / "consul").toString()}
                              |""".stripMargin)
-
-      _ = LogTUI.event(NomadStarting)
+      _ = Investigator.reportHashiUpdate("Nomad", "Starting")
       _ = LogTUI.writeLog("spawning nomad via systemd")
       _ = os.write.over(RadPath.persistentDir / "nomad" / "nomad.env.conf", args)
 
@@ -435,12 +434,12 @@ object Services {
     val consulConfigFile = consulDir / (if (remoteJoin) "consul-client.json" else "consul-server.json")
     for {
       _ <- serviceController.configureConsul(baseArgsWithSeedsAndServer)
-      _ <- IO(LogTUI.event(ConsulStarting))
+      _ <- Investigator.reportHashiUpdate("Consul", "Starting")
       _ <- IO(os.copy.over(consulConfigFile, consulConfigDir / "consul.json"))
       _ <- serviceController.restartConsul()
       _ <- Util.waitForPortUp(8500, 10.seconds)
       _ <- Util.waitForPortUp(8501, 10.seconds)
-      _ <- IO(LogTUI.event(ConsulSystemdUp))
+      _ <- Investigator.reportHashiUpdate("Consul", "Service started")
     } yield ()
   }
 
@@ -477,13 +476,13 @@ object Services {
     for {
       configureNomad <- serviceController.configureNomad(parameters, vaultToken, consulToken)
       procOut <- serviceController.restartNomad()
-      _ <- Util
-        .waitForDNS("nomad.service.consul", 30.seconds)
+      _ <- Investigator
+        .waitForService("nomad", 30.seconds)
         .recoverWith(Function.unlift { _ =>
           scribe.warn("Nomad did not exit cleanly. Restarting nomad systemd service...")
-          Some(serviceController.restartNomad().map(_ => ()))
+          Some(serviceController.restartNomad().map(_ => (false))) // not sure if that's right
         })
-      _ <- IO(LogTUI.event(NomadSystemdUp))
+      _ <- Investigator.reportHashiUpdate("Nomad", "Service started")
     } yield ()
   }
 
@@ -492,13 +491,13 @@ object Services {
       s"""VAULT_CMD_ARGS=-address=https://${bindAddr}:8200 -config=${RadPath.persistentDir}/vault/vault_config.conf""".stripMargin
     for {
       _ <- IO {
-        LogTUI.event(VaultStarting)
+        Investigator.reportHashiUpdate("Vault", "Starting")
         LogTUI.writeLog("spawning vault via systemd")
         os.write.over(RadPath.persistentDir / "vault" / "vault.env.conf", args)
       }
       restartProc <- serviceController.restartVault()
       _ <- Util.waitForPortUp(8200, 30.seconds)
-      _ <- IO(LogTUI.event(VaultSystemdUp))
+      _ <- Investigator.reportHashiUpdate("Vault", "Service started")
     } yield ()
 
   }

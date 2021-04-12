@@ -106,25 +106,25 @@ scala_library(
     ],
 )
 
-scala_library(
-    name = "timberland-update-lib",
-    srcs = [
-        "src/main/scala/com/radix/timberland/defns.scala",
-        "src/main/scala/com/radix/timberland/util/LogTUI.scala",
-        "src/main/scala/com/radix/timberland/util/UpdateJobSpecs.scala",
-        "src/main/scala/com/radix/timberland/util/util.scala",
-    ],
-    exports = [
-        ":timberland-dependencies",
-        "@third_party//3rdparty/jvm/org/apache/commons:commons_compress",
-        "@third_party//3rdparty/jvm/org/http4s:http4s_core",
-    ],
-    deps = [
-        ":timberland-dependencies",
-        "@third_party//3rdparty/jvm/org/apache/commons:commons_compress",
-        "@third_party//3rdparty/jvm/org/http4s:http4s_core",
-    ],
-)
+#scala_library(
+#    name = "timberland-update-lib",
+#    srcs = [
+#        "src/main/scala/com/radix/timberland/defns.scala",
+#        "src/main/scala/com/radix/timberland/util/LogTUI.scala",
+#        "src/main/scala/com/radix/timberland/util/UpdateJobSpecs.scala",
+#        "src/main/scala/com/radix/timberland/util/util.scala",
+#    ],
+#    exports = [
+#        ":timberland-dependencies",
+#        "@third_party//3rdparty/jvm/org/apache/commons:commons_compress",
+#        "@third_party//3rdparty/jvm/org/http4s:http4s_core",
+#    ],
+#    deps = [
+#        ":timberland-dependencies",
+#        "@third_party//3rdparty/jvm/org/apache/commons:commons_compress",
+#        "@third_party//3rdparty/jvm/org/http4s:http4s_core",
+#    ],
+#)
 
 timberland_service_control_srcs = [
     "src/main/scala/com/radix/timberland/runtime/services.scala",
@@ -171,7 +171,7 @@ scala_library(
     deps = [
         ":timberland-core-lib",
         ":timberland-service-control",
-        ":timberland-update-lib",
+        #      ":timberland-update-lib",
         "//utils/helm:helm-jvm",
         "//utils/sheets/jvm/src/main/scala/com/radix/util/sheets:sheets-interps",  #TODO remove this
         "@third_party//3rdparty/jvm/com/github/tototoshi:scala_csv",
@@ -879,5 +879,15 @@ terraform_deployment(
     toplevel_module_aux = [
         "//timberland/assets:terraform/main/variables.tf",
         "//timberland/assets:terraform/main/outputs.tf",
+    ],
+)
+
+scala_binary(
+    name = "debug",
+    srcs = [],
+    main_class = "ammonite.Main",
+    deps = [
+        ":timberland-lib",
+        "@third_party//3rdparty/jvm/com/lihaoyi:ammonite_2_12_8",
     ],
 )

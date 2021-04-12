@@ -77,7 +77,7 @@ dependencies:
   com.github.julien-truffaut:
     monocle-core:
       lang: scala
-      version: "1.4.0"
+      version: "2.1.0"
 
   com.github.mmarquee:
     ui-automation:
@@ -118,7 +118,10 @@ dependencies:
   com.lihaoyi:
     ammonite-ops:
       lang: scala
-      version: "2.0.4"
+      version: "2.2.0"
+    ammonite_2.12.8:
+      lang: scala/unmangled
+      version: "2.2.0"
     autowire:
       lang: scala
       version: "0.2.6"
@@ -130,7 +133,7 @@ dependencies:
       version: "2.2.2"
     os-lib:
       lang: scala
-      version: "0.6.3"
+      version: "0.7.1"
     pprint:
       lang: scala
       version: "0.5.5"
@@ -142,10 +145,10 @@ dependencies:
       version: "0.1.7"
     ujson:
       lang: scala
-      version: "0.6.6"
+      version: "1.2.0"
     upickle:
       lang: scala
-      version: "0.6.6"
+      version: "1.2.0"
 
   com.nrinaudo:
     kantan.codecs:
@@ -356,7 +359,7 @@ dependencies:
   org.fusesource.jansi:
     jansi:
       lang: java
-      version: "1.18"
+      version: "2.3.2"
 
   org.fusesource.leveldbjni:
     leveldbjni-all:

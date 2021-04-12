@@ -10,7 +10,7 @@ import com.radix.timberland.launch.daemonutil
 import com.radix.timberland.runtime.{auth, AuthTokens}
 import com.radix.timberland.flags.featureFlags.resolveSupersetFlags
 import com.radix.timberland.radixdefs.ServiceAddrs
-import com.radix.timberland.util.{Util, VaultUtils}
+import com.radix.timberland.util.{Investigator, Util, VaultUtils}
 import com.radix.utils.helm.{ConsulOp, HealthStatus, NomadOp}
 import com.radix.utils.helm.http4s.{Http4sConsulClient, Http4sNomadClient}
 import org.http4s.Uri
@@ -70,8 +70,8 @@ trait TimberlandIntegration extends AsyncFlatSpec with Matchers with BeforeAndAf
     scribe.Logger.root.clearHandlers().clearModifiers().withHandler(minimumLevel = None).replace()
 
     // Make sure Consul and Nomad are up before using terraform
-    val res = Util.waitForDNS("consul.service.consul", 1.minutes) *>
-      Util.waitForDNS("nomad.service.consul", 1.minutes) *>
+    val res = Investigator.waitForService("consul", 1.minutes) *>
+      Investigator.waitForService("nomad", 1.minutes) *>
       daemonutil.runTerraform(resolvedFlags, integrationTest = true, None) *> IO(println(resolvedFlags)) *>
       daemonutil.waitForQuorum(resolvedFlags, integrationTest = true)
     res.unsafeRunSync()

@@ -94,7 +94,8 @@ object OAuthController {
       _ <- vaultSession.enableSecretsEngine("oauth2/google", enableEngineRequest)
 
       oauthConfigRequest = CreateSecretRequest(
-        data = RegisterProvider("google",
+        data = RegisterProvider(
+          "google",
           sys.env.getOrElse("GOOGLE_OAUTH_ID", ""),
           sys.env.getOrElse("GOOGLE_OAUTH_SECRET", "")
         ).asJson,

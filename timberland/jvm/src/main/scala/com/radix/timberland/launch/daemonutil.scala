@@ -4,76 +4,20 @@ import java.io.File
 import java.net.UnknownHostException
 
 import cats.effect.{ContextShift, IO, Timer}
-import cats.implicits._
 import com.radix.timberland.flags.flagConfig
 import com.radix.timberland.flags.hooks.{awsAuthConfig, oktaAuthConfig}
 import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.timberland.runtime.AuthTokens
 import com.radix.timberland.util.{Util, _}
-import com.radix.utils.helm.http4s.Http4sNomadClient
-import com.radix.utils.helm.{NomadOp, NomadReadRaftConfigurationResponse}
-import io.circe.parser.parse
-import io.circe.{DecodingFailure, Json}
 import org.xbill.DNS
 
-import scala.concurrent.ExecutionContext
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.duration._
-
-sealed trait DaemonState
-
-case object AllDaemonsStarted extends DaemonState
 
 package object daemonutil {
   private[this] implicit val timer: Timer[IO] = IO.timer(global)
   private[this] implicit val cs: ContextShift[IO] = IO.contextShift(global)
 
   val execDir = RadPath.runtime / "timberland" / "terraform"
-
-  /**
-   * A map from feature flag to a list of services associated with that flag
-   * This is used to determine when features have finished starting up
-   */
-  val flagServiceMap = Map(
-    "zookeeper" -> Vector(
-      "zookeeper-client-0",
-      "zookeeper-follower-0",
-      "zookeeper-othersrvs-0"
-    ),
-    "minio" -> Vector(
-      "minio-local-service"
-    ),
-    "apprise" -> Vector(
-      "apprise"
-    ),
-    "kafka_companions" -> Vector(
-      "kc-schema-registry-service-0",
-      "kc-rest-proxy-service-0",
-      "kc-connect-service-0",
-      "kc-ksql-service-0"
-    ),
-    "kafka" -> Vector(
-      "kafka-0"
-    ),
-    "yugabyte" -> Vector(
-      "yb-masters-rpc-0",
-      "yb-tserver-connect-0"
-    ),
-    "elasticsearch" -> Vector(
-      "es-rest-0",
-      "es-transport-0",
-      "kibana"
-    ),
-    "elemental" -> Vector(
-      "elemental-machines-em-em"
-    )
-  )
-
-  def checkNomadState(implicit interp: Http4sNomadClient[IO]): IO[NomadReadRaftConfigurationResponse] = {
-    for {
-      state <- NomadOp.nomadReadRaftConfiguration().foldMap(interp)
-    } yield state
-  }
 
   def getServiceIps(): IO[ServiceAddrs] = {
     def queryDns(host: String) = IO {
@@ -94,11 +38,11 @@ package object daemonutil {
     } yield ServiceAddrs(consulAddr, nomadAddr, consulAddr)
   }
 
-  def readTerraformPlan(
+  def readTerraformPlan( // is this still needed?
     execDir: os.Path,
     workingDir: os.Path,
     variables: String
-  ): IO[(TerraformMagic.TerraformPlan, Map[String, List[String]])] = {
+  ): IO[Unit] = {
     IO {
       val tlsVarStr = terraformTLSVars().mkString(" ")
       val F = File.createTempFile("radix", ".plan")
@@ -106,101 +50,8 @@ package object daemonutil {
       val showCommand = s"${execDir / "terraform"} show -json $F".split(" ")
       val planout = Util.proc(planCommand).call(cwd = workingDir)
       val planshow = Util.proc(showCommand).call(cwd = workingDir)
-
-      val shown = new String(planshow.out.bytes)
-      parse(shown) match {
-        case Left(value)  => IO.raiseError(value)
-        case Right(value) => IO.pure(value)
-      }
-    }.flatten
-      .flatMap(x => {
-        //        import cats._
-        //        import cats.instances.all._
-        //        import cats.implicits._
-        import cats.instances.either._
-        import cats.instances.list._
-        import cats.syntax.traverse._
-
-        type Err[A] = Either[DecodingFailure, A]
-        val resource_changes = x.hcursor.downField("resource_changes").as[Array[Json]] match {
-          case Left(fail)  => Array.empty[Json] // Should only occur if no changes are being made?
-          case Right(data) => data
-        }
-        val prog = for {
-          //extract changed resources
-//          resource_changes <- x.hcursor.downField("resource_changes").as[Array[Json]]
-          addresses <- resource_changes.map(_.hcursor.downField("address").as[String]).toList.sequence
-          //strip off the [0] to get the actual addresses
-          withoutindex = addresses.map(
-            address => address.replaceAll("\\[[0-9]+\\]", "")
-          )
-          actions <- resource_changes
-            .map(_.hcursor.downField("change").downField("actions").as[List[String]])
-            .toList
-            .sequence
-          // extract dependency structure of resources
-          modules <- Right(x.hcursor.downField("configuration").keys.get.filterNot(_ == "provider_config"))
-          dependencies <- modules
-            .flatMap(m => {
-              for {
-                submod <- x.hcursor
-                  .downField("configuration")
-                  .downField(m)
-                  .downField("module_calls")
-                  .keys
-                  .getOrElse(List.empty)
-              } yield x.hcursor
-                  .downField("configuration")
-                  //be generic about modules
-                  .downField(m)
-                  .downField("module_calls")
-                  .downField(submod)
-                  .downField("module")
-                  .downField("resources")
-                  .as[Array[Json]]
-                  .flatMap(
-                    _.map(resource =>
-                      for {
-                        addr <- resource.hcursor.get[String]("address")
-                        deps <- resource.hcursor.getOrElse("depends_on")(List.empty[String])
-                      } yield (addr, deps)
-                    ).toList.sequence[Err, (String, List[String])]
-                  )
-            })
-            .toList
-            .sequence[Err, List[(String, List[String])]]
-            //WARN: Intellij syntax highlighting and typing gets funky here. It works though!
-            // hand over only the relevant keys
-            .map(_.flatten.toMap): Either[DecodingFailure, Map[String, List[String]]]
-//              .filterKeys(withoutindex.toSet.contains) // TODO Disabling this for now as it filtered out everything.  Fix?
-//              .mapValues(_.filter(withoutindex.toSet.contains))): Either[DecodingFailure, Map[String, List[String]]]
-        } yield {
-          (
-            addresses.zip(actions).flatMap(x => x._2.map(y => (y, x._1))).groupBy(_._1).mapValues(_.map(_._2)),
-            dependencies
-          )
-        }
-
-        prog match {
-          case Left(err) => IO.raiseError(err)
-          case Right(v)  => IO.pure(v)
-        }
-      })
-      //      .map(_.toMap)
-      .map({
-        case (plan, deps) => {
-          (
-            TerraformMagic.TerraformPlan(
-              plan.getOrElse("create", List.empty).toSet,
-              plan.getOrElse("read", List.empty).toSet,
-              plan.getOrElse("update", List.empty).toSet,
-              plan.getOrElse("delete", List.empty).toSet,
-              plan.getOrElse("no-op", List.empty).toSet
-            ),
-            deps
-          )
-        }
-      })
+      ()
+    }
   }
 
   def terraformTLSVars(backendConfig: Boolean = false): Iterable[String] = {
@@ -267,7 +118,7 @@ package object daemonutil {
     implicit serviceAddrs: ServiceAddrs = ServiceAddrs(),
     tokens: AuthTokens
   ): IO[Int] = {
-      val workingDir = getTerraformWorkDir(integrationTest)
+    val workingDir = getTerraformWorkDir(integrationTest)
     val mkTmpDir = IO({
       if (os.exists(RadPath.temp)) os.remove.all(RadPath.temp)
       os.makeDir.all(RadPath.temp / "terraform")
@@ -288,8 +139,7 @@ package object daemonutil {
         s"-var='vault_address=${serviceAddrs.vaultAddr}' " +
         s"""-var='feature_flags=["${featureFlags.filter(_._2).keys.mkString("""","""")}"]' """
 
-    val show: IO[(TerraformMagic.TerraformPlan, Map[String, List[String]])] =
-      readTerraformPlan(execDir, workingDir, variables)
+    val show: IO[Unit] = readTerraformPlan(execDir, workingDir, variables)
 
     val apply = for {
       flagConfig <- flagConfig.updateFlagConfig(featureFlags)
@@ -308,18 +158,20 @@ package object daemonutil {
             .proc(applyCommand)
             .call(
               cwd = workingDir,
-              stdout = os.ProcessOutput(LogTUI.tfApply),
-              stderr = os.ProcessOutput(LogTUI.stdErrs("terraform-apply"))
+              stdout = os.ProcessOutput(LogTUI.writeLogFromStream),
+              stderr = os.ProcessOutput(LogTUI.stdErrs(s"terraform apply $configStr"))
             )
             .exitCode
         else 0
       )
     } yield applyExitCode
 
+    // val _apply = apply //.handleErrorWith(err => IO {println(applyCommand)} *>LogTUI.endTUI(Some(err)))
+
     val proc = awsAuthConfig.writeMinioAndAWSCredsToVault *>
       oktaAuthConfig.writeOktaCredsToVault *>
+      Investigator.investigateEverything(tokens.consulNomadToken) *>
       initTerraform(integrationTest, Some(tokens.consulNomadToken)) *>
-      show.flatMap(LogTUI.plan) *>
       apply
     if (integrationTest) mkTmpDir *> proc else proc
   }
@@ -356,7 +208,7 @@ package object daemonutil {
     val workingDir = getTerraformWorkDir(integrationTest)
 
     for {
-      alreadyInitialized <- IO(if (os.exists(workingDir)) os.list(workingDir).nonEmpty else false)
+      alreadyInitialized <- IO(if (os.exists(workingDir)) os.list(workingDir).nonEmpty else false) // culprit
       initCommand = if (alreadyInitialized) initAgainCommand else initFirstCommand
       _ <- IO(
         if (!System.getProperty("os.name").toLowerCase.contains("windows"))
@@ -364,7 +216,7 @@ package object daemonutil {
             .proc(initCommand)
             .call(
               cwd = workingDir,
-              stdout = os.ProcessOutput(LogTUI.init),
+              stdout = os.ProcessOutput(LogTUI.writeLogFromStream),
               stderr = os.ProcessOutput(LogTUI.stdErrs("terraform-init")),
               check = false
             )
@@ -380,22 +232,7 @@ package object daemonutil {
     IO(ret.exitCode)
   }
 
-  def waitForQuorum(featureFlags: Map[String, Boolean], integrationTest: Boolean = false): IO[DaemonState] = {
-    implicit val cs: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
-    implicit val timer: Timer[IO] = IO.timer(ExecutionContext.global)
-
-    val prefix = getPrefix(integrationTest)
-
-    val enabledServices = featureFlags.toList.flatMap {
-      case (feature, enabled) =>
-        if (enabled) {
-          flagServiceMap.getOrElse(feature, Vector())
-        } else Vector()
-    }
-
-    enabledServices.parTraverse { service =>
-      Util.waitForDNS(s"$service.service.consul", 5.minutes)
-    } *> IO.pure(AllDaemonsStarted)
+  def waitForQuorum(featureFlags: Map[String, Boolean], integrationTest: Boolean = false): IO[Unit] = {
+    Investigator.waitForInvestigations()
   }
-
 }

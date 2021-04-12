@@ -4,19 +4,17 @@ import java.io.File
 
 import ammonite.ops._
 import cats.effect.{ContextShift, IO}
-import cats.implicits._
 import com.radix.timberland.flags.hooks.ensureSupported
-import com.radix.timberland.flags.{RemoteConfig, _}
+import com.radix.timberland.flags._
 import com.radix.timberland.launch.daemonutil
 import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.timberland.runtime._
-import com.radix.timberland.util.{LogTUI, LogTUIWriter, OAuthController, RadPath, UpdateModules, Util, VaultStarter, VaultUtils}
+import com.radix.timberland.util.{Investigator, LogTUI, LogTUIWriter, OAuthController, RadPath, UpdateModules, Util, VaultStarter, VaultUtils}
 import com.radix.utils.helm.http4s.vault.Vault
 import io.circe.{Parser => _}
 import optparse_applicative._
 import org.http4s.implicits._
 import com.radix.utils.tls.ConsulVaultSSLContext._
-import scalaz.syntax.apply._
 
 import scala.concurrent.ExecutionContext.global
 import scala.concurrent.duration._
@@ -54,14 +52,14 @@ object runner {
               password,
               serverJoin
             ) =>
+          val writer = LogTUIWriter()
           scribe.Logger.root
             .clearHandlers()
             .clearModifiers()
-            .withHandler(scribe.handler.SynchronousLogHandler(writer = LogTUIWriter()))
+            .withHandler(scribe.handler.SynchronousLogHandler(formatter = writer.format, writer = writer))
             .replace()
           scribe.info(s"starting runtime with $cmd")
 
-          import ammonite.ops._
           System.setProperty("dns.server", remoteAddress.getOrElse("127.0.0.1"))
           // disable DNS cache
           System.setProperty("networkaddress.cache.ttl", "0")
@@ -74,7 +72,7 @@ object runner {
               _ <- if (localFlags.getOrElse("tui", true)) LogTUI.startTUI() else IO.unit
               bootstrapExpect = if (localFlags.getOrElse("dev", true)) 1 else 3
               tokens <- Services.startServices(bindIP, leaderNode, bootstrapExpect, setupACL, serverJoin)
-              _ <- Util.waitForDNS("vault.service.consul", 30.seconds)
+              _ <- Investigator.waitForService("vault", 30.seconds)
             } yield tokens
 
           // only run on leader node, or with a remote address as a target
@@ -97,7 +95,7 @@ object runner {
                   sys.exit(code)
                 }
               }
-              _ <- if (waitForQuorum) daemonutil.waitForQuorum(featureFlags) else IO.unit
+              _ <- if (waitForQuorum) Investigator.waitForInvestigations() else IO.unit
             } yield ()
 
           // Called when consul/nomad/vault are on localhost
@@ -123,7 +121,7 @@ object runner {
               case (true, false, false) =>
                 startServices(setupACL = false)
               case (false, _, false) =>
-                flagConfig.promptForDefaultConfigs(persistentDir = RadPath.persistentDir) *>
+                flagConfig.promptForDefaultConfigs(persistentDir = RadPath.persistentDir) *> // logtui starts first?
                   startServices(setupACL = true)
               case (false, _, true) =>
                 for {
@@ -146,6 +144,7 @@ object runner {
                   storeVaultToken <- IO(VaultUtils.storeVaultTokenKey("", authTokens.vaultToken))
                   stillAuthTokens <- startServices(setupACL = true)
                 } yield authTokens
+              // maybe this should be (true, _, true) to avoid match may not be exhaustive?
               case (true, true, true) =>
                 for {
                   // TODO: double check ServiceAddrs = otherConsul is fair
@@ -233,7 +232,7 @@ object runner {
             )
             flagMap <- featureFlags.updateFlags(RadPath.persistentDir, Some(authTokens))(serviceAddrs)
             _ <- daemonutil.runTerraform(flagMap)(serviceAddrs, authTokens) // calls updateFlagConfig
-            _ <- if (remoteAddress.isEmpty) daemonutil.waitForQuorum(flagMap) else IO.unit
+            _ <- if (remoteAddress.isEmpty) Investigator.waitForInvestigations() else IO.unit
           } yield true
 
           Util

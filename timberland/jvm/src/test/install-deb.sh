@@ -34,7 +34,7 @@ cd /opt/radix/timberland/exec
 ./timberland disable algs
 ./timberland disable utils
 ./timberland disable device_drivers
-./timberland disable tui
+./timberland disable tui # i feel like i should write a test for tui
 ./timberland disable retool
 ./timberland disable elasticsearch
 ./timberland start
