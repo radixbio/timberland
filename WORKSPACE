@@ -1,4 +1,7 @@
-workspace(name = "monorepo")
+workspace(
+    name = "monorepo",
+    managed_directories = {"@npm": ["interface/typescript/node_modules"]},
+)
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file")
 load("@bazel_tools//tools/build_defs/repo:jvm.bzl", "jvm_maven_import_external")
@@ -794,3 +797,18 @@ rules_jmh_deps()
 load("@rules_jmh//:defs.bzl", "rules_jmh_maven_deps")
 
 rules_jmh_maven_deps()
+
+http_archive(
+    name = "build_bazel_rules_nodejs",
+    sha256 = "55a25a762fcf9c9b88ab54436581e671bc9f4f523cb5a1bd32459ebec7be68a8",
+    urls = ["https://github.com/bazelbuild/rules_nodejs/releases/download/3.2.2/rules_nodejs-3.2.2.tar.gz"],
+)
+
+load("@build_bazel_rules_nodejs//:index.bzl", "yarn_install")
+
+yarn_install(
+    # Name this npm so that Bazel Label references look like @npm//package
+    name = "npm",
+    package_json = "//interface/typescript:package.json",
+    yarn_lock = "//interface/typescript:yarn.lock",
+)

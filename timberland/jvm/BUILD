@@ -447,6 +447,14 @@ pkg_tar(
 )
 
 pkg_tar(
+    name = "timberland-radix-ui",
+    srcs = [
+        "//interface/typescript:build",
+    ],
+    package_dir = "/opt/radix/interface/typescript/",
+)
+
+pkg_tar(
     name = "timberland-cni-config",
     srcs = [
         "//timberland/assets:container_networking/cni.conf",
@@ -476,6 +484,7 @@ pkg_tar(
         ":timberland-consul-template-vault",
         ":timberland-containernetworking-cni-plugin",
         ":timberland-devdrivers",
+        ":timberland-radix-ui",
         ":timberland-exec",
         ":timberland-networkd",
         ":timberland-nomad",
