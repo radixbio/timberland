@@ -22,6 +22,11 @@ until apt install -y jq; do
   sleep 2
 done
 
+until apt install -y socat; do
+  echo "Waiting for apt install"
+  sleep 2
+done
+
 until dpkg -i radix-timberland_0.1_all.deb; do
   echo "waiting for dpkg..."
   sleep 2

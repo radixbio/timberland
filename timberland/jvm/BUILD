@@ -516,6 +516,7 @@ pkg_deb(
         "openjdk-11-jdk",
         "net-tools",
         "avahi-utils",
+        "socat"
     ],
     description = "Radix Timberland deploy file",
     maintainer = "Alex Hulbert",
