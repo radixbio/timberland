@@ -32,11 +32,49 @@ job "${prefix}yugabyte-tservers" {
         read_only = false
       }
 
+      template {
+        data = <<EOH
+#!/usr/bin/env bash
+set -m
+
+# note that we need to use the environment variables with underscores, *not* dashes,
+# or they don't resolve. I.e. $${NOMAD_UPSTREAM_IP_svc_name} instead of $${NOMAD_UPSTREAM_IP_svc-name}
+
+# we need to increment the rpc bind port and advertised port because yugabyte gets sad if multiple nodes have the same advertised address
+/home/yugabyte/bin/yb-tserver \
+  --fs_data_dirs=/ybtserver_data \
+  --rpc_bind_addresses=0.0.0.0:${ 9100 + i } \
+  --server_broadcast_addresses=127.0.0.1:${ 9100 + i } \
+  --start_pgsql_proxy \
+  --tserver_master_addrs=%{ for j in range(dev ? 1 : quorum_size) }$${NOMAD_UPSTREAM_ADDR_yb_masters_rpc_${j}},%{ endfor } \
+  &
+
+setup_yedis_cmd() {
+  /home/yugabyte/bin/yb-admin \
+    --master_addresses %{ for j in range(dev ? 1 : quorum_size) }$${NOMAD_UPSTREAM_ADDR_yb_masters_rpc_${j}},%{ endfor } \
+    setup_redis_table
+}
+
+# we need to wait for a heartbeat from the master before we'll be able to set up redis
+until setup_yedis_cmd; do
+  echo "Waiting to set up redis..."
+  sleep 2
+done
+
+echo "Redis setup complete."
+
+fg %1
+EOH
+        destination = "local/start_tserver.sh"
+        perms = "555"
+      }
+
       config {
         image = "yugabytedb/yugabyte:latest"
-        command = "bash"
-        // we need to increment the rpc bind port and advertised port because yugabyte gets sad if multiple nodes have the same advertised address
-        args = ["-c", "/home/yugabyte/bin/yb-tserver --fs_data_dirs=/ybtserver_data --rpc_bind_addresses=0.0.0.0:${ 9100 + i } --server_broadcast_addresses=127.0.0.1:${ 9100 + i } --start_pgsql_proxy --tserver_master_addrs=%{ for j in range(dev ? 1 : quorum_size) }$${NOMAD_UPSTREAM_ADDR_yb-masters-rpc-${j}},%{ endfor } "]
+        volumes = [
+          "local/start_tserver.sh:/home/yugabyte/start_tserver.sh"
+        ]
+        command = "/home/yugabyte/start_tserver.sh"
         auth_soft_fail = false
         privileged = false
         cap_add = []
@@ -85,6 +123,18 @@ job "${prefix}yugabyte-tservers" {
         timeout = "5s"
         expose = true
       }
+    }
+
+    service {
+        name = "yb-tserver-${i}-yedis"
+        port = 6379
+        tags = ["${prefix}", "system"]
+        address_mode = "auto"
+
+        connect {
+            sidecar_service {
+            }
+        }
     }
 
     // the service needs to be on the same port as the rpc bind port - ${ 9100 + i }

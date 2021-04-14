@@ -89,6 +89,11 @@ dependencies:
       lang: java
       version: "5.0.1"
 
+  com.github.scredis:
+    scredis:
+      lang: scala
+      version: "2.4.3"
+
   com.github.tototoshi:
     scala-csv:
       lang: scala
