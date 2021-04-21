@@ -33,7 +33,9 @@ cd /opt/radix/timberland/exec
 ./timberland disable tui
 ./timberland disable retool
 ./timberland disable elasticsearch
+./timberland disable nginx
 ./timberland start
+./timberland enable nginx
 
 TIMBERLAND_EXIT_CODE=$?
 echo "Timberland exit code: $TIMBERLAND_EXIT_CODE"

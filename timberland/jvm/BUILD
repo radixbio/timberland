@@ -654,6 +654,7 @@ terraform_module(
         'source = "/opt/radix/timberland/terraform/modules/nginx"',
         "prefix = var.prefix",
         'dev = contains(var.feature_flags, "dev")',
+        'enable = contains(var.feature_flags, "nginx")',
     ],
     terraform_files = [
         "//timberland/assets:terraform/nginx/nginx.tmpl",
@@ -876,6 +877,7 @@ terraform_deployment(
         "//sensors/elemental/jvm:elemental-terraform",
         "//utils/api/jvm:web-interface",
         "//utils/bunny_uservice/jvm:bunny_uservice-terraform",
+        "//utils/healthcheck:healthcheck-terraform",
         "//utils/kafka_connect_osipi/jvm:kafka_connect_osipi-terraform",
         "//utils/prism-uservice/jvm:prism-terraform",
         "//utils/s3lts:s3lts-terraform",

@@ -45,6 +45,7 @@ object featureFlags {
       "kafka",
       "kafka_companions",
       "minio",
+      "nginx",
       "retool",
       "retool_pg_kafka_connector",
       "zookeeper"

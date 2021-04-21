@@ -9,3 +9,9 @@ variable "dev" {
   type = bool
   default = true //false
 }
+
+variable "enable" {
+  description = "Whether or not to create all the resources in this module"
+  type = bool
+  default = true
+}

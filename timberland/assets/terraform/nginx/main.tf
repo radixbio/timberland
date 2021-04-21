@@ -1,5 +1,5 @@
 resource "nomad_job" "nginx" {
-  count = 1
+  count = var.enable ? 1 : 0
   jobspec = templatefile("/opt/radix/timberland/terraform/modules/nginx/nginx.tmpl", {
     prefix = var.prefix,
     services = var.dev ? data.consul_services.svc_list.names : [
@@ -14,7 +14,7 @@ resource "nomad_job" "nginx" {
 }
 
 data "consul_service_health" "nginx_health" {
-  count = 1
+  count = var.enable ? 1 : 0
   name = "nginx"
   passing = true
   depends_on = [nomad_job.nginx]

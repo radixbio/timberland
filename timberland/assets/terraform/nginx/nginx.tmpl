@@ -22,7 +22,9 @@ job "${prefix}nginx" {
       config {
         image = "nginx:latest"
         volumes = [
-          "local/default.conf:/etc/nginx/conf.d/default.conf"
+          "local/default.conf:/etc/nginx/conf.d/default.conf",
+          "/opt/radix/certs/consul/cert.pem:/cert.pem",
+          "/opt/radix/certs/consul/key.pem:/key.pem"
         ]
         mounts = [
           {
@@ -42,23 +44,33 @@ job "${prefix}nginx" {
       template {
         data = <<EOF
         server_names_hash_bucket_size 128;
+
         %{ for i in range(length(services)) ~}
         server {
-          # listen 8080 ssl;
-          listen 8080;
+          listen 8080 ssl;
           server_name ${services[i]}.service.consul;
-          # ssl_certificate /cert.pem;
-          # ssl_certificate_key /key.pem;
+          ssl_certificate /cert.pem;
+          ssl_certificate_key /key.pem;
           location / {
             proxy_pass http://localhost:${ 5000 + i };
           }
+
+          %{ if services[i] == "web-interface-graphql" }
+          location /subscriptions {
+            proxy_pass http://localhost:${ 5000 + i }/subscriptions;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_read_timeout 86400;
+          }
+          %{ endif }
         }
         %{ endfor ~}
         server {
             listen 8080 default_server;
             server_name localhost;
-            # ssl_certificate /cert.pem;
-            # ssl_certificate_key /key.pem;
+            ssl_certificate /cert.pem;
+            ssl_certificate_key /key.pem;
 
             location / {
               root /var/www/radix-ui;
@@ -111,7 +123,7 @@ job "${prefix}nginx" {
 
       check {
         type = "http"
-        protocol = "http" # Set to https
+        protocol = "https"
         tls_skip_verify = true
         name = "nginx-health"
         path = "/"
