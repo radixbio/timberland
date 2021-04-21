@@ -513,7 +513,7 @@ pkg_deb(
     data = ":timberland-full-tar",
     depends = [
         "docker.io | docker-ce",
-        "openjdk-11-jdk",
+        "openjdk-11-jre-headless",
         "net-tools",
         "avahi-utils",
         "socat"
