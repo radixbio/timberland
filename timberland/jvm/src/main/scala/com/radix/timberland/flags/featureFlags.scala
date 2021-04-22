@@ -11,19 +11,21 @@ import com.radix.timberland.util.{LogTUI, Util}
 import com.radix.utils.helm
 import com.radix.utils.helm.http4s.Http4sConsulClient
 import com.radix.utils.helm.{ConsulOp, QueryResponse}
+import com.radix.utils.tls.ConsulVaultSSLContext._
 import io.circe.parser.{decode, parse}
 import io.circe.syntax._
 import io.circe.{Decoder, Json}
 import org.http4s.Uri
-import com.radix.utils.tls.ConsulVaultSSLContext._
 
-import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration._
 import scala.io.{AnsiColor, StdIn}
 
 sealed trait FlagUpdateResponse
+
 case class ConsulFlagsUpdated(flags: Map[String, Boolean]) extends FlagUpdateResponse
+
 case class FlagsStoredLocally() extends FlagUpdateResponse
 
 case class ModuleDefinition(key: String, source: String, dir: String)
@@ -57,7 +59,8 @@ object featureFlags {
       "opentrons",
       "multitrons",
       "hw_discovery",
-      "tf_exactive"
+      "tf_exactive",
+      "eve"
     ),
     "algs" -> Set(
       "hmrpp_uservice",
@@ -91,11 +94,12 @@ object featureFlags {
    * Sets a feature flag either in Consul or in the local flag file (if Consul is not running)
    * If Consul is up, this also pushes pending changes in the local flag file. If flags is empty,
    * this function only pushes the pending changes.
+   *
    * @param persistentDir Timberland directory. Usually /opt/radix/timberland/terraform
-   * @param tokens Contains the consul token used to update flags. If this isn't set, the function
-   *               will always write to the local flag file
-   * @param flagsToSet A map of new flags to push
-   * @param confirm Whether to prompt the user before submitting flags to consul
+   * @param tokens        Contains the consul token used to update flags. If this isn't set, the function
+   *                      will always write to the local flag file
+   * @param flagsToSet    A map of new flags to push
+   * @param confirm       Whether to prompt the user before submitting flags to consul
    * @return The current state of all known feature flags
    */
   def updateFlags(
@@ -143,6 +147,7 @@ object featureFlags {
 
   /**
    * Pushes a map of flags to Consul
+   *
    * @param flags The flags to push
    * @return The total set of all flags on Consul after pushing
    */
@@ -160,6 +165,7 @@ object featureFlags {
 
   /**
    * Reads the local flag file to get the "dev" setting along with any pending feature flag changes
+   *
    * @param persistentDir Timberland directory. Usually /opt/radix/timberland
    * @return A map of flags present in the local flag file
    */
@@ -183,8 +189,9 @@ object featureFlags {
   /**
    * Store a set of feature flags locally on the disk. These will be pushed to Consul next time
    * timberland connects to Consul
+   *
    * @param persistentDir Timberland directory. Usually /opt/radix/timberland
-   * @param flags The flags to set in the local flag file
+   * @param flags         The flags to set in the local flag file
    * @return The updated contents of the flag file
    */
   private def setLocalFlags(persistentDir: os.Path, flags: Map[String, Boolean]): IO[Map[String, Boolean]] = {
@@ -199,8 +206,9 @@ object featureFlags {
   /**
    * Removes all flags except special flags from the local file. This is so that if another computer
    * changes the feature flags on Consul, starting timberland on the original computer won't overwrite them
+   *
    * @param persistentDir Timberland directory. Usually /opt/radix/timberland
-   * @param contents List of all flags (used to persist special flags)
+   * @param contents      List of all flags (used to persist special flags)
    * @return Nothing
    */
   private def clearLocalFlagFile(persistentDir: os.Path, contents: Map[String, Boolean]): IO[Unit] = {
@@ -223,6 +231,7 @@ object featureFlags {
 
   /**
    * Throws an error if any of the flags specified in `flags` is invalid
+   *
    * @param persistentDir Timberland directory. Usually /opt/radix/timberland
    * @return The total list of valid flags that was validated against
    */
@@ -243,6 +252,7 @@ object featureFlags {
 
   /**
    * Auto-detects a list of valid flags, each corresponding with a terraform module or a member of nonModuleFlags
+   *
    * @param persistentDir Timberland directory. Usually /opt/radix/timberland
    * @return A list of valid flags
    */
@@ -271,8 +281,9 @@ object featureFlags {
   /**
    * If you call `timberland enable <flag>` and <flag> is has config options where destination = Nowhere,
    * then this function will prompt you for those config options and call the associated hooks for <flag>
+   *
    * @param flagsToSet A list of flags that were enabled or disabled
-   * @param addrs Service addresses
+   * @param addrs      Service addresses
    * @return Nothing
    */
   def callNonpersistentFlagHooks(flagsToSet: Map[String, Boolean])(implicit addrs: ServiceAddrs): IO[Unit] = {
@@ -331,6 +342,7 @@ object featureFlags {
 
   /**
    * Prints the current state of flags along with any pending changes
+   *
    * @return True if there are any pending changes
    */
   def printFlagInfo(

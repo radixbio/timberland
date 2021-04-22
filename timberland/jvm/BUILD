@@ -433,6 +433,7 @@ pkg_tar(
         "//device_drivers/tf-exactive/jvm:tfexactive-bin",
         "//device_drivers/tf-exactive/jvm:tfexactive-bin.jar",
         "//device_drivers/tf-exactive/jvm:tfexactive-bin_deploy.jar",
+        "//device_drivers/eve/jvm:eve-bin_deploy.jar",
     ],
     package_dir = "/opt/radix/device_drivers/",
 )
@@ -866,6 +867,7 @@ terraform_deployment(
         "//algs/dbpmjss-uservice/jvm:dbpmjss_uservice-terraform",
         "//algs/hmrpp-uservice/jvm:hmrpp_uservice-terraform",
         "//algs/subgraph-isomorphism-uservice/jvm:gi_uservice-terraform",
+        "//device_drivers/eve/jvm:eve-terraform",
         "//device_drivers/hw_discovery/jvm:hw_discovery-terraform",
         "//device_drivers/ln2/jvm:ln2-terraform",
         "//device_drivers/messaging/jvm:apprise-terraform",
