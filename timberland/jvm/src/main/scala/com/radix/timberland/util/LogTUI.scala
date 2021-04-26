@@ -343,7 +343,7 @@ object LogTUI {
       _ <- IO.shift
       _ = AnsiConsole.systemInstall()
       _ = print(ansi.eraseScreen().saveCursorPosition())
-      _ = os.write.over(os.pwd/"_timberland_status_updates", "new run\n")
+      _ = os.write.over(os.root / "tmp" / "timberland_status_updates", "new run\n")
       _ <- renderStatuses(startingState).start
     } yield ()
   }
@@ -382,7 +382,7 @@ object LogTUI {
   def renderStatuses(prevStatuses: List[StatusLine], tick: Int = 0): IO[Unit] = {
     val getMergedStatuses = IO {
       val newStatuses = Investigator.statusUpdateQueue.dequeueAll(_ => true).toList
-      newStatuses.foreach(s => os.write.append(os.pwd / "_timberland_status_updates", s.toString + "\n"))
+      newStatuses.foreach(s => os.write.append(os.root / "tmp" / "timberland_status_updates", s.toString + "\n"))
       (prevStatuses ++ newStatuses)
         .groupBy(_.key)
         .map(_._2.last) // keep the most recent status for each distinct identifier
