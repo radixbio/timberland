@@ -58,17 +58,7 @@ variable "elasticsearch_quorum_size" {
   default = 1
 }
 
-variable "dbpmjss_quorum_size" {
-  type = number
-  default = 1
-}
-
-variable "hmrpp_quorum_size" {
-  type = number
-  default = 1
-}
-
-variable "gi_quorum_size" {
+variable "algs_quorum_size" {
   type = number
   default = 1
 }

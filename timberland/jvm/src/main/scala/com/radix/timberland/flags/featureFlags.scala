@@ -63,9 +63,7 @@ object featureFlags {
       "eve"
     ),
     "algs" -> Set(
-      "hmrpp_uservice",
-      "dbpmjss_uservice",
-      "gi_uservice"
+      "algs_mega_uservice"
     ),
     "utils" -> Set(
       "prism",
