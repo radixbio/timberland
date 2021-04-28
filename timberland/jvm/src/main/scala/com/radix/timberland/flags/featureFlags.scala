@@ -60,6 +60,7 @@ object featureFlags {
       "multitrons",
       "hw_discovery",
       "tf_exactive",
+      "osipi_connector",
       "eve",
       "minifors2"
     ),
@@ -73,12 +74,10 @@ object featureFlags {
     ),
     "kafka" -> Set(
       "kafka",
-      "kafka_companions",
-      "retool_pg_kafka_connector"
+      "kafka_companions"
     ),
     "retool" -> Set(
-      "retool",
-      "retool_pg_kafka_connector"
+      "retool"
     ),
     "server" -> Set(
       "web_interface"

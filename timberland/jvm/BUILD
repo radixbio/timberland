@@ -433,19 +433,25 @@ pkg_tar(
         "//device_drivers/tf-exactive/jvm:tfexactive-bin",
         "//device_drivers/tf-exactive/jvm:tfexactive-bin.jar",
         "//device_drivers/tf-exactive/jvm:tfexactive-bin_deploy.jar",
+        "//device_drivers/kafka_connectors/osipi/jvm:kafka_connect_osipi-bin_deploy.jar",
+        "//device_drivers/kafka_connectors/elastic/jvm:kafka_connect_elastic-bin_deploy.jar",
+        "//device_drivers/kafka_connectors/yugabyte/jvm:kafka_connect_yugabyte-bin_deploy.jar",
         "//device_drivers/minifors2/jvm:minifors2-bin_deploy.jar",
         "//device_drivers/eve/jvm:eve-bin_deploy.jar",
     ],
     package_dir = "/opt/radix/device_drivers/",
 )
 
+# These jars are distinct from the ones on the devdrivers target above. While the deploy jars above
+#   are the main class for starting the monitor actor and triggering the connector to initialize,
+#   the final jars below are the ones containing the actual connector code, purged of all duplicate
+#   deps
 pkg_tar(
-    name = "timberland-utils",
+    name = "timberland-connectors",
     srcs = [
-        "//timberland/assets:terraform/es_kafka_connector/es_conn_config.json",
-        "//utils/kafka_connect_osipi/jvm:kafka_connect_osipi-lib-patched.jar",
+        "//device_drivers/kafka_connectors/osipi/jvm:kafka_connect_osipi-connector-patched.jar"
     ],
-    package_dir = "/opt/radix/utils/",
+    package_dir = "/opt/radix/kafka_connectors/",
 )
 
 pkg_tar(
@@ -486,13 +492,13 @@ pkg_tar(
         ":timberland-consul-template-vault",
         ":timberland-containernetworking-cni-plugin",
         ":timberland-devdrivers",
+        ":timberland-connectors",
+        ":timberland-radix-ui",
         ":timberland-exec",
         ":timberland-networkd",
         ":timberland-nomad",
         ":timberland-nomad-config",
-        ":timberland-radix-ui",
         ":timberland-systemd-services",
-        ":timberland-utils",
         ":timberland-vault",
     ],
 )
@@ -629,27 +635,6 @@ terraform_module(
 )
 
 terraform_module(
-    name = "es_kafka_connector-terraform",
-    jobname = "es_kafka_connector",
-    module_spec = [
-        'enable = contains(var.feature_flags, "es_kafka_connector")',
-        'source = "/opt/radix/timberland/terraform/modules/es_kafka_connector"',
-        "test = var.test",
-        "prefix = var.prefix",
-    ],
-    nomad_template = "//timberland/assets:terraform/es_kafka_connector/es_kafka_connector.tmpl",
-    terraform_files = [
-        "//timberland/assets:terraform/es_kafka_connector/main.tf",
-        "//timberland/assets:terraform/es_kafka_connector/outputs.tf",
-        "//timberland/assets:terraform/es_kafka_connector/variables.tf",
-    ],
-    deps = [
-        ":elasticsearch-terraform",
-        ":kafka_companions-terraform",
-    ],
-)
-
-terraform_module(
     name = "nginx-terraform",
     jobname = "nginx",
     module_spec = [
@@ -756,27 +741,6 @@ terraform_module(
 )
 
 terraform_module(
-    name = "yugabyte_kafka_connector-terraform",
-    jobname = "yugabyte_kafka_connector",
-    module_spec = [
-        'enable = contains(var.feature_flags, "yb_kafka_connector")',
-        'source = "/opt/radix/timberland/terraform/modules/yugabyte_kafka_connector"',
-        "test = var.test",
-        "prefix = var.prefix",
-    ],
-    nomad_template = "//timberland/assets:terraform/yugabyte_kafka_connector/yugabyte_kafka_connector.tmpl",
-    terraform_files = [
-        "//timberland/assets:terraform/yugabyte_kafka_connector/main.tf",
-        "//timberland/assets:terraform/yugabyte_kafka_connector/outputs.tf",
-        "//timberland/assets:terraform/yugabyte_kafka_connector/variables.tf",
-    ],
-    deps = [
-        ":kafka_companions-terraform",
-        ":yugabyte-terraform",
-    ],
-)
-
-terraform_module(
     name = "zookeeper-terraform",
     jobname = "zookeeper",
     module_spec = [
@@ -857,13 +821,11 @@ terraform_deployment(
     ],
     resources = [
         ":elasticsearch-terraform",
-        ":es_kafka_connector-terraform",
         ":kafka-terraform",
         ":kafka_companions-terraform",
         ":minio-terraform",
         ":nginx-terraform",
         ":yugabyte-terraform",
-        ":yugabyte_kafka_connector-terraform",
         ":zookeeper-terraform",
         "//algs/common/algs-mega-uservice/jvm:algs-mega-uservice-terraform",
         "//device_drivers/hw_discovery/jvm:hw_discovery-terraform",
@@ -879,10 +841,12 @@ terraform_deployment(
         "//utils/api/jvm:web-interface",
         "//utils/bunny_uservice/jvm:bunny_uservice-terraform",
         "//utils/healthcheck:healthcheck-terraform",
-        "//utils/kafka_connect_osipi/jvm:kafka_connect_osipi-terraform",
         "//utils/prism-uservice/jvm:prism-terraform",
         "//utils/s3lts:s3lts-terraform",
         "//vm/jvm:vm-terraform",
+        "//device_drivers/kafka_connectors/osipi/jvm:kafka_connect_osipi-terraform",
+        "//device_drivers/kafka_connectors/elastic/jvm:kafka_connect_elastic-terraform",
+        "//device_drivers/kafka_connectors/yugabyte/jvm:kafka_connect_yugabyte-terraform"
     ],
     terraform_source = select({
         "aarch64": ["@terraform_arm//:terraform"],

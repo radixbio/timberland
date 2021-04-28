@@ -266,6 +266,10 @@ dependencies:
       version: "0.13.0-M4"
 
   io.confluent:
+    kafka:
+      lang: java
+      modules: [ "connect-elasticsearch", "connect-jdbc" ]
+      version: "3.1.0"
     kafka-avro-serializer:
       lang: java
       version: "5.3.1"

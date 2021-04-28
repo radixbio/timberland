@@ -4,7 +4,7 @@ set -xu
 copy_logs() {
 #  set +e
   mkdir /home/ubuntu/nomad-logs
-  rsync -av -q --relative /opt/radix/nomad/alloc/./* /home/ubuntu/nomad-logs
+  rsync -q -av --relative /opt/radix/nomad/alloc/./* /home/ubuntu/nomad-logs
   chmod -R 777 /home/ubuntu/nomad-logs
   journalctl -u consul > /tmp/consul.log
   journalctl -u nomad > /tmp/nomad.log

@@ -92,19 +92,6 @@ exports_files([
     "terraform/yugabyte/outputs.tf",
     "terraform/yugabyte/variables.tf",
 
-    # ES KAFKA CONNECTOR MODULE
-    "terraform/es_kafka_connector/es_kafka_connector.tmpl",
-    "terraform/es_kafka_connector/main.tf",
-    "terraform/es_kafka_connector/outputs.tf",
-    "terraform/es_kafka_connector/variables.tf",
-    "terraform/es_kafka_connector/es_conn_config.json",
-
-    # YUGABYTE KAFKA CONNECTOR MODULE
-    "terraform/yugabyte_kafka_connector/yugabyte_kafka_connector.tmpl",
-    "terraform/yugabyte_kafka_connector/main.tf",
-    "terraform/yugabyte_kafka_connector/outputs.tf",
-    "terraform/yugabyte_kafka_connector/variables.tf",
-
     # NGINX MODULE
     "terraform/nginx/nginx.tmpl",
     "terraform/nginx/main.tf",

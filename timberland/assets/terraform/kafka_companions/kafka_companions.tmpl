@@ -90,7 +90,7 @@ job "${prefix}kc-daemons" {
           {
             type = "bind"
             target = "/etc/kafka-connect/jars/osipi-sink-connector.jar"
-            source = "/opt/radix/utils/kafka_connect_osipi-lib-patched.jar"
+            source = "/opt/radix/kafka_connectors/kafka_connect_osipi-connector-patched.jar"
             readonly = true
           }
         ]
