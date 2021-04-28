@@ -361,6 +361,11 @@ dependencies:
       lang: java
       version: "1.65"
 
+  org.eclipse.milo:
+    sdk-client:
+      lang: java
+      version: "0.5.3"
+
   org.fusesource.jansi:
     jansi:
       lang: java

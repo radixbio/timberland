@@ -60,7 +60,8 @@ object featureFlags {
       "multitrons",
       "hw_discovery",
       "tf_exactive",
-      "eve"
+      "eve",
+      "minifors2"
     ),
     "algs" -> Set(
       "algs_mega_uservice"

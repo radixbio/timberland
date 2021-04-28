@@ -4,7 +4,7 @@ set -xu
 copy_logs() {
 #  set +e
   mkdir /home/ubuntu/nomad-logs
-  rsync -av --relative /opt/radix/nomad/alloc/./* /home/ubuntu/nomad-logs
+  rsync -av -q --relative /opt/radix/nomad/alloc/./* /home/ubuntu/nomad-logs
   chmod -R 777 /home/ubuntu/nomad-logs
   journalctl -u consul > /tmp/consul.log
   journalctl -u nomad > /tmp/nomad.log
@@ -39,7 +39,7 @@ cd /opt/radix/timberland/exec
 ./timberland disable algs
 ./timberland disable utils
 ./timberland disable device_drivers
-./timberland disable tui # i feel like i should write a test for tui
+./timberland disable tui
 ./timberland disable retool
 ./timberland disable elasticsearch
 ./timberland disable nginx
