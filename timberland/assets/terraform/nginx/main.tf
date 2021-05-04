@@ -18,7 +18,7 @@ data "consul_service_health" "nginx_health" {
   name = "nginx"
   passing = true
   depends_on = [nomad_job.nginx]
-  wait_for = "300s"
+  wait_for = "600s"
 }
 
 data "consul_services" "svc_list" {

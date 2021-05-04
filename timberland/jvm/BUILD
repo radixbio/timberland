@@ -1,9 +1,8 @@
 load("@rules_pkg//:pkg.bzl", "pkg_deb", "pkg_tar")
 load("@io_bazel_rules_docker//docker/util:run.bzl", "container_run_and_commit", "container_run_and_extract")
 load("@io_bazel_rules_docker//container:container.bzl", "container_image", "container_layer", "container_load", "container_push")
-load("//tools:pkg_rpm_with_branch.bzl", "pkg_rpm_with_branch")
 load("//tools:terraform.bzl", "dynamic_rpm_spec", "terraform_deployment", "terraform_module", "terraform_provider")
-load("//tools:write_git_branch_to_file.bzl", "write_git_branch_to_file")
+load("//tools:workspace_status.bzl", "workspace_status")
 load("//tools:windows.bzl", "pkg_msi")
 load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
 load("//tools:rpm.bzl", "rpm_package")
@@ -106,27 +105,8 @@ scala_library(
     ],
 )
 
-#scala_library(
-#    name = "timberland-update-lib",
-#    srcs = [
-#        "src/main/scala/com/radix/timberland/defns.scala",
-#        "src/main/scala/com/radix/timberland/util/LogTUI.scala",
-#        "src/main/scala/com/radix/timberland/util/UpdateJobSpecs.scala",
-#        "src/main/scala/com/radix/timberland/util/util.scala",
-#    ],
-#    exports = [
-#        ":timberland-dependencies",
-#        "@third_party//3rdparty/jvm/org/apache/commons:commons_compress",
-#        "@third_party//3rdparty/jvm/org/http4s:http4s_core",
-#    ],
-#    deps = [
-#        ":timberland-dependencies",
-#        "@third_party//3rdparty/jvm/org/apache/commons:commons_compress",
-#        "@third_party//3rdparty/jvm/org/http4s:http4s_core",
-#    ],
-#)
-
 timberland_service_control_srcs = [
+    # why is this separate?
     "src/main/scala/com/radix/timberland/runtime/services.scala",
 ]
 
@@ -242,6 +222,7 @@ pkg_tar(
         "//timberland_svc/jvm:timberland-svc-bin_deploy.jar",
     ],
     package_dir = "/opt/radix/timberland/exec",
+    #    package_dir = "/usr/bin",
 )
 
 pkg_tar(
@@ -433,6 +414,8 @@ pkg_tar(
         "//device_drivers/tf-exactive/jvm:tfexactive-bin",
         "//device_drivers/tf-exactive/jvm:tfexactive-bin.jar",
         "//device_drivers/tf-exactive/jvm:tfexactive-bin_deploy.jar",
+        "//device_drivers/elemental/gateway/jvm:elemental-gateway-bin_deploy.jar",
+        "//device_drivers/elemental/kafka_bridge/jvm:elemental_bridge-bin_deploy.jar",
         "//device_drivers/kafka_connectors/osipi/jvm:kafka_connect_osipi-bin_deploy.jar",
         "//device_drivers/kafka_connectors/elastic/jvm:kafka_connect_elastic-bin_deploy.jar",
         "//device_drivers/kafka_connectors/yugabyte/jvm:kafka_connect_yugabyte-bin_deploy.jar",
@@ -449,7 +432,8 @@ pkg_tar(
 pkg_tar(
     name = "timberland-connectors",
     srcs = [
-        "//device_drivers/kafka_connectors/osipi/jvm:kafka_connect_osipi-connector-patched.jar"
+        "//device_drivers/elemental/kafka_bridge/jvm:elemental_bridge-connector-patched.jar",
+        "//device_drivers/kafka_connectors/osipi/jvm:kafka_connect_osipi-connector-patched.jar",
     ],
     package_dir = "/opt/radix/kafka_connectors/",
 )
@@ -470,18 +454,37 @@ pkg_tar(
     package_dir = "/etc/sysctl.d/",
 )
 
-write_git_branch_to_file(
-    name = "git-branch-file",
+workspace_status(
+    name = "commit-message",
+    variable = "STABLE_COMMIT_MSG",
+)
+
+workspace_status(
+    name = "deb-description",
+    variable = "STABLE_DEB_DESCRIPTION",
+)
+
+workspace_status(
+    name = "release-name",
+    variable = "STABLE_RELEASE_NAME",
+)
+
+pkg_tar(
+    name = "release-name-tar",
+    srcs = [
+        "commit-message",
+        "release-name",
+    ],
     package_dir = "/opt/radix/timberland",
 )
 
 pkg_tar(
     name = "timberland-full-tar",
     deps = [
-        ":git-branch-file",
+        ":release-name-tar",
         ":terraform-full-deploy",
-        ":terraform-update-config",
         ":timberland-cni-config",
+        ":timberland-connectors",
         ":timberland-consul",
         ":timberland-consul-config",
         ":timberland-consul-template",
@@ -492,12 +495,11 @@ pkg_tar(
         ":timberland-consul-template-vault",
         ":timberland-containernetworking-cni-plugin",
         ":timberland-devdrivers",
-        ":timberland-connectors",
-        ":timberland-radix-ui",
         ":timberland-exec",
         ":timberland-networkd",
         ":timberland-nomad",
         ":timberland-nomad-config",
+        ":timberland-radix-ui",
         ":timberland-systemd-services",
         ":timberland-vault",
     ],
@@ -526,12 +528,12 @@ pkg_deb(
         "avahi-utils",
         "socat",
     ],
-    description = "Radix Timberland deploy file",
+    description_file = ":deb-description",
     maintainer = "Alex Hulbert",
     package = "radix-timberland",
     postinst = "//timberland/assets:debian/postinst.sh",
     prerm = "//timberland/assets:debian/prerm.sh",
-    version = "0.1",
+    version = "0.1",  # filename will have a blank version bc file can't be read at analysis time
 )
 
 rpm_package(
@@ -544,7 +546,7 @@ rpm_package(
 sh_binary(
     name = "timberland-ec2-dev",
     srcs = [
-        "src/test/ci.sh",
+        "src/test/ec2_integration_runner.sh",
     ],
     args = [
         "persist",
@@ -564,7 +566,7 @@ sh_test(
     size = "large",
     timeout = "eternal",
     srcs = [
-        "src/test/ci.sh",
+        "src/test/ec2_integration_runner.sh",
     ],
     data = [
         "src/test/gather-results.sh",
@@ -602,14 +604,6 @@ scala_test(
     #giving both caching and exclusivity
     #this tag should also be added for the normal bazel test to ignore
     deps = [":synthetic-integration-lib"],
-)
-
-pkg_tar(
-    name = "terraform-update-config",
-    srcs = [
-        "//tools:gen-cloud-upload-config",
-    ],
-    package_dir = "/opt/radix/timberland/terraform",
 )
 
 terraform_module(
@@ -828,7 +822,11 @@ terraform_deployment(
         ":yugabyte-terraform",
         ":zookeeper-terraform",
         "//algs/common/algs-mega-uservice/jvm:algs-mega-uservice-terraform",
+        "//device_drivers/elemental/kafka_bridge/jvm:elemental_bridge-terraform",
         "//device_drivers/hw_discovery/jvm:hw_discovery-terraform",
+        "//device_drivers/kafka_connectors/elastic/jvm:kafka_connect_elastic-terraform",
+        "//device_drivers/kafka_connectors/osipi/jvm:kafka_connect_osipi-terraform",
+        "//device_drivers/kafka_connectors/yugabyte/jvm:kafka_connect_yugabyte-terraform",
         "//device_drivers/ln2/jvm:ln2-terraform",
         "//device_drivers/messaging/jvm:apprise-terraform",
         "//device_drivers/minifors2/jvm:minifors2-terraform",
@@ -837,16 +835,12 @@ terraform_deployment(
         "//device_drivers/quantstudio/jvm:quantstudio-terraform",
         "//device_drivers/tf-exactive/jvm:tf_exactive-terraform",
         "//runtime/jvm:runtime-terraform",
-        "//sensors/elemental/jvm:elemental-terraform",
         "//utils/api/jvm:web-interface",
         "//utils/bunny_uservice/jvm:bunny_uservice-terraform",
         "//utils/healthcheck:healthcheck-terraform",
         "//utils/prism-uservice/jvm:prism-terraform",
         "//utils/s3lts:s3lts-terraform",
         "//vm/jvm:vm-terraform",
-        "//device_drivers/kafka_connectors/osipi/jvm:kafka_connect_osipi-terraform",
-        "//device_drivers/kafka_connectors/elastic/jvm:kafka_connect_elastic-terraform",
-        "//device_drivers/kafka_connectors/yugabyte/jvm:kafka_connect_yugabyte-terraform"
     ],
     terraform_source = select({
         "aarch64": ["@terraform_arm//:terraform"],

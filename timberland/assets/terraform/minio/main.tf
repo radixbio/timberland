@@ -30,7 +30,7 @@ data "consul_service_health" "minio_local_health" {
   name = "minio-local-service"
   passing = true
   depends_on = [nomad_job.minio]
-  wait_for = "300s"
+  wait_for = "600s"
 }
 
 data "consul_service_health" "minio_remote_health" {
@@ -38,5 +38,5 @@ data "consul_service_health" "minio_remote_health" {
   name = "minio-remote-service"
   passing = true
   depends_on = [nomad_job.minio]
-  wait_for = "300s"
+  wait_for = "600s"
 }

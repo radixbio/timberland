@@ -30,7 +30,7 @@ ${ !have_upstream_creds ? "" : <<EOH
 
       driver = "docker"
       env = {
-        "MINIO_ACCESS_KEY" = "${have_upstream_creds ? aws_access_key : ""}",
+        "MINIO_ACCESS_KEY" = "${have_upstream_creds ? aws_access_key : ""}", # this may cause an error
         "MINIO_SECRET_KEY" = "${have_upstream_creds ? aws_secret_key : ""}"
       }
 
@@ -67,7 +67,8 @@ ${ !have_upstream_creds ? "" : <<EOH
           }
         }
       }
-
+# sometimes with works on either ubuntu or centos and may or may not time out, perhaps depending on branch name
+# it might be related to ssl/mTLS
       check {
         type = "http"
         name = "minio-remote-health"
@@ -118,7 +119,7 @@ EOH
 
       resources {
         cpu = 1000
-        memory = 300
+        memory = 700
       }
 
       shutdown_delay = "0s"

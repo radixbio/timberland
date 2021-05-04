@@ -61,6 +61,7 @@ object featureFlags {
       "hw_discovery",
       "tf_exactive",
       "osipi_connector",
+      "elemental_bridge",
       "eve",
       "minifors2"
     ),

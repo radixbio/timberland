@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
+start_time="$(date -u +%s)"
+t () {
+  set +xu
+  now="$(date -u +%s)"
+  elapsed="$((now-start_time))"
+  echo -n "T+$elapsed: "
+  set -xu
+}
 set -xu
 
 copy_logs() {
@@ -15,24 +23,22 @@ copy_logs() {
 
 trap copy_logs EXIT
 
-docker swarm init
-
 until apt install -y jq; do
-  echo "Waiting for apt install"
+  t; echo "Waiting for apt install"
   sleep 2
 done
 
 until apt install -y socat; do
-  echo "Waiting for apt install"
+  t; echo "Waiting for apt install"
   sleep 2
 done
 
 until dpkg -i radix-timberland_0.1_all.deb; do
-  echo "waiting for dpkg..."
+  t; echo "waiting for dpkg..."
   sleep 2
 done
 
-cd /opt/radix/timberland/exec
+cd /opt/radix/timberland/exec || exit 1
 ./timberland enable all
 ./timberland disable elemental
 ./timberland disable runtime
@@ -45,18 +51,21 @@ cd /opt/radix/timberland/exec
 ./timberland disable nginx
 ./timberland start
 ./timberland enable nginx
+# this is necessary because terraform fills in the nginx template with the currently services
 
 TIMBERLAND_EXIT_CODE=$?
-echo "Timberland exit code: $TIMBERLAND_EXIT_CODE"
+t; echo "Timberland exit code: $TIMBERLAND_EXIT_CODE"
 
 sleep 3
 
-chmod +x /home/ubuntu/gather-results.sh
+chmod +x /home/ubuntu/gather-results.sh /home/ubuntu/service_test.py
+t
 /home/ubuntu/gather-results.sh | tee /tmp/results.log
+t
 /home/ubuntu/service_test.py | tee /tmp/service_test.log
 
 TEST_EXIT_CODE=${PIPESTATUS[0]}
-echo "Service test exit code: $TEST_EXIT_CODE"
+t; echo "Service test exit code: $TEST_EXIT_CODE"
 
 if [ "$TIMBERLAND_EXIT_CODE" -eq 0 ] && [ "$TEST_EXIT_CODE" -eq 0 ]; then
   EXIT_CODE=0

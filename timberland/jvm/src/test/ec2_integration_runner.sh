@@ -8,6 +8,7 @@
 # * CI_EC2_OS_FLAVOR (must be: {centos, ubuntu})
 
 set -ex
+# TODO: CI_EC2_AMI should pull the latest ci-timberland image with a packer/AWS image pipeline and triple-check security updates
 
 copy_logs() {
   set +e
@@ -72,8 +73,9 @@ if ! [ -x "$(command -v ssh)" ]; then
   echo "Please install ssh"
   exit 1
 fi
-
-AWS_RESULT=$(aws ec2 run-instances --image-id $CI_EC2_AMI --instance-type $CI_EC2_INSTANCE_SIZE --security-group-ids $CI_EC2_SECURITY_GROUP --associate-public-ip-address --key-name radix-ci --instance-initiated-shutdown-behavior terminate --output json)
+AWS_RESULT=$(aws ec2 run-instances --image-id $CI_EC2_AMI --instance-type $CI_EC2_INSTANCE_SIZE \
+  --security-group-ids $CI_EC2_SECURITY_GROUP --associate-public-ip-address --key-name radix-ci \
+  --instance-initiated-shutdown-behavior terminate --output json)
 AWS_INSTANCE_ID=$(echo $AWS_RESULT | jq -r .Instances[0].InstanceId)
 
 echo "Waiting for EC2 instance to become ready..."
@@ -112,7 +114,10 @@ scp -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $INSTALLATIO
 
 echo "@@@@@@@@ executing scripted install"
 
-trap copy_logs EXIT
+if [$(test_ssh) == 0]
+then
+  trap copy_logs EXIT
+fi
 
 ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP "chmod +x ~/$(basename $INSTALLATION_SCRIPT)"
 ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" $AWS_INSTANCE_SSH_USER@$AWS_INSTANCE_IP "sudo su -c ~/$(basename $INSTALLATION_SCRIPT)"

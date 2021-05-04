@@ -19,13 +19,13 @@ def get_digest(templatefile, imagename, image_available):
     # that alters the hash outcome.  Argh!
 
     if not image_available:
-        print("[TRACE] Pulling %s" % imagename)
+        #print("[TRACE] Pulling %s" % imagename)
         proc = subprocess.Popen(["docker", "pull", imagename], stdout=subprocess.PIPE).stdout.read()
         if not proc.splitlines(keepends=False):
             print("[ERROR] No output from docker for " + imagename + " on templatefile " + templatefile)
             return None
-        else:
-            print(["[TRACE] " + str(x) for x in proc.splitlines(keepends=False)])
+        #else:
+            #print(["[TRACE] " + str(x) for x in proc.splitlines(keepends=False)])
 
     shortname = imagename.split(':')[0]  # Looking for image name with version tag suppresses digest, for some reason?
     cmd = ['docker', 'images', '--digests', '--filter', 'reference=%s' % shortname, "--format", "{{.Digest}}"]
@@ -62,9 +62,10 @@ def annotate_images(templatefile, outputfile, dot_git_dir):
                 image_wdigest = get_digest(templatefile, imagename, image_local)
                 if image_wdigest:
                     text = text.replace(imagename, image_wdigest)
-                    print("[TRACE] Found and replaced version digest for " + imagename + " with " + image_wdigest)
+                    #print("[TRACE] Found and replaced version digest for " + imagename + " with " + image_wdigest)
                 elif imagename[:len("bazel")] == "bazel":
-                    print("[TRACE] skipping digesting of local build target %s" % imagename)
+                    pass
+                    #print("[TRACE] skipping digesting of local build target %s" % imagename)
                 else:
                     print("[WARN] Could not find version digest for %s" % imagename)
 
@@ -77,8 +78,8 @@ def annotate_images(templatefile, outputfile, dot_git_dir):
                                     stdout=subprocess.PIPE).stdout.read().decode('utf-8').strip().split('\n')
         branches = [x for x in branches if 'HEAD' not in x]
         branch_name = branches[0].strip(' *') if branches else ''
-        print("[TRACE] %s: git reports hash %s comes from branch %s (out of (%s))" %
-              (os.path.basename(templatefile), hash, branch_name, branches))
+        # print("[TRACE] %s: git reports hash %s comes from branch %s (out of (%s))" %
+        #       (os.path.basename(templatefile), hash, branch_name, branches))
     else:
         branch_name = branch_name.replace('ref: refs/heads/', '')
 
@@ -104,7 +105,7 @@ def annotate_images(templatefile, outputfile, dot_git_dir):
     with open(outputfile, 'w') as out:
         # print(text) this will print terraform template HCL files if you uncomment it
         out.write(text)
-    print("[TRACE] Done on %s" % templatefile)
+    # print("[TRACE] Done on %s" % templatefile)
 
 
 if __name__ == '__main__':

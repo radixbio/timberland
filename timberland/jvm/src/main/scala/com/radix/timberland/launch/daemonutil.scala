@@ -76,34 +76,13 @@ package object daemonutil {
     if (is_integration) RadPath.temp / "terraform" else os.root / "opt" / "radix" / "terraform"
   }
 
-  private val prefixFile = RadPath.runtime / "timberland" / "git-branch-workspace-status.txt"
-
-  def readPrefixFile: String = {
-    os.read(prefixFile).stripLineEnd
-  }
+  private val prefixFile = RadPath.runtime / "timberland" / "release-name.txt"
 
   def getPrefix(integration: Boolean): String = {
-    if (integration) "integration-" else sanitizePrefix(sys.env.getOrElse("NOMAD_PREFIX", readPrefixFile))
+    if (integration) "integration-" else os.read(prefixFile).stripLineEnd + "-"
   }
 
-  private def sanitizePrefix(rawPrefix: String): String = {
-    val cutPrefix = if (!rawPrefix.isEmpty) rawPrefix.substring(0, Math.min(rawPrefix.length, 25)) + "-" else rawPrefix
-    if (cutPrefix.matches("[a-zA-Z\\d-]*")) cutPrefix
-    else {
-      cutPrefix.replaceAll("_", "-").replaceAll("[^a-zA-Z\\d-]", "")
-    }
-  }
 
-  private def updatePrefixFile(prefix: Option[String]): Unit = {
-    prefix match {
-      case Some(str) => {
-        val sanitized = sanitizePrefix(str)
-        if (!str.equals(sanitized)) LogTUI.printAfter(s"The given prefix $str was invalid; used $sanitized instead.")
-        os.write.over(prefixFile, sanitized)
-      }
-      case None => ()
-    }
-  }
 
   /** Start up the specified daemons (or all or a combination) based upon the passed parameters. Will immediately exit
    * after submitting the job to Nomad via Terraform.
@@ -123,8 +102,6 @@ package object daemonutil {
       if (os.exists(RadPath.temp)) os.remove.all(RadPath.temp)
       os.makeDir.all(RadPath.temp / "terraform")
     })
-
-    updatePrefixFile(prefix)
 
     implicit val persistentDir: os.Path = RadPath.runtime / "timberland"
     implicit val tokensOption: Option[AuthTokens] = Some(tokens)

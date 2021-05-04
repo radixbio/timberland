@@ -55,11 +55,15 @@ job "${prefix}kibana" {
     network {
       mbits = 10
       mode = "bridge"
+      port "kibanax" {
+        to = 5601
+        static = 5601
+      }
     }
 
     service {
       name = "kibana"
-      port = "5601"
+      port = "kibanax"
       tags = ["kibana","http", "${prefix}", "user"]
       address_mode = "auto"
 

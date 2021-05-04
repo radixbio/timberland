@@ -86,14 +86,7 @@ job "${prefix}kc-daemons" {
         cap_add = []
         command = "bash"
         args = ["-c", "cp /etc/hosts /tmp/hosts; echo \"127.0.1.1 $(hostname)\" >> /tmp/hosts; cat /tmp/hosts > /etc/hosts; /etc/confluent/docker/run"]
-        mounts = [
-          {
-            type = "bind"
-            target = "/etc/kafka-connect/jars/osipi-sink-connector.jar"
-            source = "/opt/radix/kafka_connectors/kafka_connect_osipi-connector-patched.jar"
-            readonly = true
-          }
-        ]
+        volumes = ["/opt/radix/kafka_connectors:/etc/kafka-connect/plugins"]
       }
 
       driver = "docker"
@@ -114,7 +107,7 @@ job "${prefix}kc-daemons" {
         "KAFKA_REST_PROXY_URL" = "http://127.0.0.1:8083",
         "CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL" = "http://127.0.0.1:8081",
         "CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL" = "http://127.0.0.1:8081",
-        "CONNECT_PLUGIN_PATH" = "/usr/share/java,/etc/kafka-connect/jars",
+        "CONNECT_PLUGIN_PATH" = "/usr/share/java,/etc/kafka-connect/jars,/etc/kafka-connect/plugins",
         "CONNECT_LOG4J_LOGGERS" = "org.apache.kafka.connect.runtime.rest=INFO,org.reflections=ERROR",
         "CONNECT_LOG4J_ROOT_LOGLEVEL" = "INFO",
 

@@ -85,18 +85,30 @@ case object config {
         default = Some("radix-userdata-test")
       )
     ),
-    "elemental" -> List(
+    "elemental_bridge" -> List(
       FlagConfigEntry(
         key = "username",
         destination = Vault,
         prompt = "Elemental Machines Username",
-        optional = true
+        default = Some("elemental@radix.bio")
       ),
       FlagConfigEntry(
         key = "password",
         destination = Vault,
         prompt = "Elemental Machines Password",
-        optional = true
+        default = Some("Rad!xlabsens0rs")
+      ),
+      FlagConfigEntry(
+        key = "client_id",
+        destination = Vault,
+        prompt = "Elemental Machines Client ID",
+        default = Some("key-em-api-prod")
+      ),
+      FlagConfigEntry(
+        key = "client_secret",
+        destination = Vault,
+        prompt = "Elemental Machines Secret Key",
+        default = Some("secret-em-api-prod")
       )
     ),
     "osipi_connector" -> List(

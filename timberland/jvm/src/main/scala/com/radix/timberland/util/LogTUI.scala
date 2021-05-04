@@ -206,7 +206,7 @@ object Investigator {
       checks <- services.parTraverse(getHealthChecksForService).map(_.flatten)
       _ <- report(checks: _*)
       skipDNS = !checks.forall(check => check.Status == "passing")
-      dnsResults <- if (skipDNS) IO(Seq(false)) else services.parTraverse(name => waitForJobService(name, 5.minutes))
+      dnsResults <- if (skipDNS) IO(Seq(false)) else services.parTraverse(name => waitForJobService(name, 10.minutes))
       _ <- if (dnsResults.forall(identity))
         report(jobStatus.copy(Status = "Successful", StatusDescription = "all checks pass"))
       else {
@@ -278,7 +278,7 @@ case class HashistackStatus(service: String, status: String, statusDescription: 
 case class JobStatus(JobID: String, Status: String, StatusDescription: String) extends StatusUpdate { // hideChildren parameter?
   private val prefix = daemonutil.getPrefix(false)
   val jobName: String = if (JobID.startsWith(prefix)) JobID.slice(prefix.length, JobID.length) else JobID
-  override val toString = s"nomad job $jobName: $Status $StatusDescription"
+  override val toString = s"$jobName job status $Status, ($StatusDescription)"
   val key: String = jobName
   val spinner =  "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏" // https://github.com/helloIAmPau/node-spinner/blob/master/spinners.json
   def icon(): String =
@@ -288,15 +288,15 @@ case class JobStatus(JobID: String, Status: String, StatusDescription: String) e
     helpRender(s"${icon()} $jobName", "bold", Status, Map("Running" -> "bold", "Successful" -> "green"), StatusDescription)
   }
   case class ServiceStatus(serviceName: String, status: String, statusDescription: String = "") extends StatusUpdate {
-    override val toString = s"$jobName service $serviceName"
+    override val toString = s"$jobName service $serviceName: $status ($statusDescription)"
     val key = s"$jobName-$serviceName"
     val styleMap = Map("DNS Resolved" -> "green", "Fetching health checks from consul" -> "faint")
 
     val render: String = helpRender(" " * 4 + serviceName, "", status, styleMap, statusDescription)
 
     case class HealthCheckStatus(Name: String, Status: String) extends StatusUpdate {
-      override val toString = s"$jobName health check $Name: $Status"
-      val key: String = s"$JobID-$serviceName-$Name"
+      override val toString = s"$serviceName health check $Name: $Status"
+      val key: String = s"$jobName-$serviceName-$Name"
       val render: String = helpRender(" " * 8 + Name, "", Status, Map("Passing" -> "green", "Critical" -> "red"))
     }
   }

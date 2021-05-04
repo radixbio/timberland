@@ -1,4 +1,30 @@
-build --remote_cache=https://cache.aws.radix.bio
-test --remote_cache=https://cache.aws.radix.bio
+build --bes_results_url=https://app.buildbuddy.io/invocation/
+build --bes_backend=grpcs://cloud.buildbuddy.io
+build --remote_header=x-buildbuddy-api-key=hN1b37Jj95cNI4DwLBNb
+
+build --jobs=200 # should scale up autoscaling groups or buildbuddy k8
+build --remote_cache=grpcs://cloud.buildbuddy.io
+build --remote_timeout=900
+#build --remote_download_toplevel # Helps remove network bottleneck if caching is enabled
+build --noremote_upload_local_results # Uploads logs & artifacts without writing to cache
+build --remote_download_minimal
+
+
 build --workspace_status_command=./tools/workspace-status.sh
 run --workspace_status_command=./tools/workspace-status.sh
+
+test:integration --cache_test_results=no
+test:integration --remote_upload_local_results=false
+test:integration --show_progress_rate_limit=5
+test:integration --show_timestamps
+test:integration --verbose_failures
+test:integration --announce_rc
+test:integration --keep_going
+test:integration --action_env=AWS_WEB_IDENTITY_TOKEN_FILE
+test:integration --action_env=AWS_ROLE_ARN
+test:integration --action_env=CI_EC2_INSTANCE_SIZE
+test:integration --action_env=CI_EC2_SECURITY_GROUP
+test:integration --action_env=NEXUS_PASSWORD
+test:integration --action_env=CI_DOCKER_PASSWORD
+test:integration --test_output=streamed
+test:integration --build_tests_only

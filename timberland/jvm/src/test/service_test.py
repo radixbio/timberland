@@ -4,29 +4,17 @@ import requests
 import socket
 import sys
 import time
-import os
-import re
+import urllib3
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)  # spams CI logs
+
 
 def alt_print(*args):
     sys.stdout.write(" ".join(args)+"\n")
     sys.stdout.flush()
 
-def read_prefix_file():
-  file = open("/opt/radix/timberland/git-branch-workspace-status.txt", "r")
-  prefix = file.read().strip()
-  file.close()
-  return prefix
 
-def trim_prefix(original_prefix):
-  prefix = original_prefix
-  prefix = re.sub('_', '-', prefix)
-  prefix = re.sub("[^a-zA-Z\d-]", '', prefix)
-  prefix = prefix[:25]
-  if len(prefix) > 0:
-    prefix += "-"
-  return prefix
-
-prefix = trim_prefix(os.getenv("NOMAD_PREFIX", read_prefix_file()))
+prefix = open("/opt/radix/timberland/release-name.txt", "r").read().strip()
 
 services_to_test = set([service for service in [
 #   "apprise",
@@ -108,6 +96,7 @@ def get_service_check_health(service):
   checks = requests.get(f"https://consul.service.consul:8501/v1/health/checks/{service}", verify = False, cert=('/opt/radix/certs/cli/cert.pem', '/opt/radix/certs/cli/key.pem')).json()
   return [ { 'name': check['Name'], 'passing': check['Status'] == "passing" } for check in checks ]
 
+# this is terrifyingly nondeterministic 
 def wait_for_all_checks(max_retries):
   results = [ check for service in registered_services for check in get_service_check_health(service) ]
 
