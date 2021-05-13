@@ -1,4 +1,22 @@
 #!/bin/bash
-set -exu
-bazel query "kind(scala_library, //...) + kind(scala_binary, //...)" | egrep "^//" | grep -v "//3rdparty" | egrep -v "\.binary\$" | egrep -v ".*jmh_codegen" | egrep -v ".*jmh_generator" | egrep -v ".*-jmh" | xargs -I {} echo "{}.format" | xargs -I {} bazel run "{}"
 
+MONOREPO=$(dirname "$(dirname "$(readlink "$0")")")
+
+CFG=$(cat <<-'EOF'
+{
+    "query":"kind(scala_library, //...) + kind(scala_binary, //...)",
+    "function":"run",
+    "args":["--noremote_upload_local_results"],
+    "exclude": [
+        "//3rdparty.+",
+        ".+\\.binary$",
+        ".*jmh_codegen",
+        ".*jmh_generator",
+        ".*-jmh"
+    ],
+    "format": "{}.format"
+}
+EOF
+)
+
+eval $(python3 "$MONOREPO/scripts/bazel_query_applicator.py" "$CFG")
