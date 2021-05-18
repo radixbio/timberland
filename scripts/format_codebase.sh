@@ -5,7 +5,7 @@ MONOREPO=$(dirname "$(dirname "$(readlink "$0")")")
 CFG=$(cat <<-'EOF'
 {
     "query":"kind(scala_library, //...) + kind(scala_binary, //...)",
-    "function":"run",
+    "action":"run",
     "args":["--noremote_upload_local_results"],
     "exclude": [
         "//3rdparty.+",
@@ -14,7 +14,7 @@ CFG=$(cat <<-'EOF'
         ".*jmh_generator",
         ".*-jmh"
     ],
-    "format": "{}.format"
+    "target_template": "{}.format"
 }
 EOF
 )
