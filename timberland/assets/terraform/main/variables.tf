@@ -73,6 +73,11 @@ variable "prism_quorum_size" {
   default = 1
 }
 
+variable "rainbow_quorum_size" {
+  type = number
+  default = 1
+}
+
 variable "s3lts_quorum_size" {
   type = number
   default = 1

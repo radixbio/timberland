@@ -85,6 +85,16 @@ case object config {
         default = Some("radix-userdata-test")
       )
     ),
+    "rainbow" -> List(
+      FlagConfigEntry(
+        key = "quorum_size",
+        destination = Nowhere,
+        prompt = "Rainbow quorum size",
+        optional = true,
+        default = Some("1"),
+        terraformVar = Some("rainbow_quorum_size")
+      )
+    ),
     "elemental_bridge" -> List(
       FlagConfigEntry(
         key = "username",

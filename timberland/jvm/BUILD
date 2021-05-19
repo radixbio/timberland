@@ -844,6 +844,7 @@ terraform_deployment(
         "//device_drivers/tf-exactive/jvm:tf_exactive-terraform",
         "//runtime/jvm:runtime-terraform",
         "//utils/api/jvm:web-interface",
+        "//utils/rainbowuservice/jvm:rainbow-terraform",
         "//utils/bunny_uservice/jvm:bunny_uservice-terraform",
         "//utils/healthcheck:healthcheck-terraform",
         "//utils/prism-uservice/jvm:prism-terraform",
