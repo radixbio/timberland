@@ -1,34 +1,66 @@
-build:ci --bes_results_url=https://app.buildbuddy.io/invocation/
-build:ci --bes_backend=grpcs://cloud.buildbuddy.io
-build:ci --bes_timeout=600s
+### caching
+# we're now using buildbuddy's cache instead of self-hosting it. buildbuddy offers nice build profiling and cache stats
+# check out your builds at at https://app.buildbuddy.io/ (make an account with your radix email)
 build --remote_header=x-buildbuddy-api-key=hN1b37Jj95cNI4DwLBNb
-
-build:ci --jobs=200 # should scale up autoscaling groups or buildbuddy k8
 build --remote_cache=grpcs://cloud.buildbuddy.io
-build --remote_timeout=900
-build:user --remote_download_toplevel # Helps remove network bottleneck if caching is enabled
-build:user --noremote_upload_local_results # Uploads logs & artifacts without writing to cache
-build:user --remote_download_minimal
+
+# >Does not download any remote build outputs to the local machine. This flag is a shortcut for three flags:
+# > --experimental_inmemory_jdeps_files, --experimental_inmemory_dotd_files and --remote_download_outputs=minimal.
+# note that this can result in bazel not building a cached artifact, but not downloading it
+# you can use --remote_download_toplevel to avoid this
+build --remote_download_minimal
+
+# if CI uploads are taking too long, uncomment it so that CI doesn't have to populate the cache
+# build:ci --noremote_upload_local_results
+build:user --noremote_upload_local_results  
+
+### other remote/buildbuddy stuff
+build:user --remote_timeout=60
+build:ci --remote_timeout=900
+
+# uploading build events for buildbuddy results UI to enable profiling
+common:ci --bes_backend=grpcs://cloud.buildbuddy.io
+common:ci --bes_results_url=https://app.buildbuddy.io/invocation/
+
+# if bes_backend does end up being enabled for a user, this should prevent artifacts from being uploaded
+build:user --experimental_build_event_upload_strategy=local
 
 
-build --workspace_status_command=./tools/workspace-status.sh
-run --workspace_status_command=./tools/workspace-status.sh
+# this hopefully leads to better CPU utilization (and autoscaling) on our runners or remote builds on buildbuddy k8.
+build:ci --jobs=100
+test:ci --jobs=100
+build:user --jobs=auto
+
+common:ci --build_metadata=ROLE=CI
+
+
+### testing  (useful to avoid long lines in gitlab-ci.yml)
+test --show_progress_rate_limit=5
+test --show_timestamps
+test --keep_going
+test --build_tests_only
+
+test:unit --test_arg="-u" --test_arg="/tmp/junit"
 
 test:integration --cache_test_results=no
-test:integration --remote_upload_local_results=false
-test:integration --show_progress_rate_limit=5
-test:integration --show_timestamps
-test:integration --verbose_failures
-test:integration --announce_rc
-test:integration --keep_going
+test:integration --test_output=streamed
 test:integration --action_env=AWS_WEB_IDENTITY_TOKEN_FILE
 test:integration --action_env=AWS_ROLE_ARN
 test:integration --action_env=CI_EC2_INSTANCE_SIZE
 test:integration --action_env=CI_EC2_SECURITY_GROUP
-test:integration --action_env=NEXUS_PASSWORD
-test:integration --action_env=CI_DOCKER_PASSWORD
-test:integration --test_output=streamed
-test:integration --build_tests_only
 
-# expected to be one of common --config={ci,user} and maybe --config=remote
-import %workspace%/.user-bazelrc
+
+### other
+# grab git branch and commit message for packaging and namespacing
+build --workspace_status_command=./tools/workspace-status.sh
+run --workspace_status_command=./tools/workspace-status.sh
+
+# helps verify that bazel is using a reasonable config
+common:ci --announce_rc
+build --verbose_failures
+test --verbose_failures
+# expected to include one of common --config={ci,user}. occasionally common doesn't work and using build --config=
+# is more appropriate. feel free to add whatever personal config you use in user-bazelrc
+# you can use build:jane-doe --whatever; common --config=jane-doe so that others can see your config without having to
+# use it
+import %workspace%/user-bazelrc
