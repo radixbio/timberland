@@ -63,7 +63,8 @@ object featureFlags {
       "osipi_connector",
       "elemental_bridge",
       "eve",
-      "minifors2"
+      "minifors2",
+      "mock_bioreactor"
     ),
     "algs" -> Set(
       "algs_mega_uservice"
