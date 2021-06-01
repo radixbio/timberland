@@ -82,8 +82,6 @@ package object daemonutil {
     if (integration) "integration-" else os.read(prefixFile).stripLineEnd + "-"
   }
 
-
-
   /** Start up the specified daemons (or all or a combination) based upon the passed parameters. Will immediately exit
    * after submitting the job to Nomad via Terraform.
    *

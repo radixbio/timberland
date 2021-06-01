@@ -10,7 +10,7 @@ import java.util.UUID
 import java.util.concurrent.Executors
 
 import com.radix.timberland.runtime.Services.serviceController
-import com.radix.timberland.flags.hooks.{AWSAuthConfigFile, awsAuthConfig}
+import com.radix.timberland.flags.hooks.{awsAuthConfig, AWSAuthConfigFile}
 import com.radix.timberland.radixdefs.ACLTokens
 import com.radix.timberland.util._
 import com.radix.utils.tls.ConsulVaultSSLContext
@@ -139,16 +139,17 @@ class LinuxServiceControl extends ServiceControl {
    * Prevents this bug: https://github.com/hashicorp/nomad/issues/9558
    * If this isn't called, statically allocated ports and ingress gateways won't work
    */
-  private def clearStaleRules: IO[Unit] = for {
-    iptables <- Util.exec("iptables-save").map(_.stdout)
-    cleanedTables = iptables
-      .split("\n")
-      .filter(!_.contains("CNI-"))
-      .mkString("\n")
-    _ <- IO {
-      os.proc("iptables-restore").call(stdin = ProcessInput.makeSourceInput(cleanedTables))
-    }
-  } yield ()
+  private def clearStaleRules: IO[Unit] =
+    for {
+      iptables <- Util.exec("iptables-save").map(_.stdout)
+      cleanedTables = iptables
+        .split("\n")
+        .filter(!_.contains("CNI-"))
+        .mkString("\n")
+      _ <- IO {
+        os.proc("iptables-restore").call(stdin = ProcessInput.makeSourceInput(cleanedTables))
+      }
+    } yield ()
 }
 
 class WindowsServiceControl extends ServiceControl {

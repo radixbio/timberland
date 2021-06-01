@@ -96,10 +96,10 @@ object Investigator {
   }
 
   def genericWaitForDNS(
-                         service: String,
-                         timeoutDuration: FiniteDuration,
-                         reportDNS: (String, String) => IO[Unit]
-                       ): IO[Boolean] = {
+    service: String,
+    timeoutDuration: FiniteDuration,
+    reportDNS: (String, String) => IO[Unit]
+  ): IO[Boolean] = {
     def retry: IO[Boolean] = IO.sleep(2.seconds) *> genericWaitForDNS(service, timeoutDuration - 2.seconds, reportDNS)
 
     if (timeoutDuration <= 0.seconds) {
@@ -114,15 +114,17 @@ object Investigator {
         }.attempt
         success <- lookupResult match {
           case Left(_: UnknownHostException) => retry
-          case Left(err: Throwable) => reportDNS("DNS Error", err.toString) *> IO {
-            false
-          }
+          case Left(err: Throwable) =>
+            reportDNS("DNS Error", err.toString) *> IO {
+              false
+            }
           case Right(addresses: Array[InetAddress]) =>
             addresses match {
               case Array() => reportDNS("Empty", "DNS lookup resolved with empty results") *> retry
-              case _ => reportDNS("DNS Resolved", "") *> IO {
-                true
-              }
+              case _ =>
+                reportDNS("DNS Resolved", "") *> IO {
+                  true
+                }
             }
         }
       } yield success
@@ -231,26 +233,26 @@ object Investigator {
     } yield statuses
 
   def getHealthChecksForService(
-                                 service: JobStatus#ServiceStatus
-                               )(implicit get: String => IO[Json]): IO[List[JobStatus#ServiceStatus#HealthCheckStatus]] =
+    service: JobStatus#ServiceStatus
+  )(implicit get: String => IO[Json]): IO[List[JobStatus#ServiceStatus#HealthCheckStatus]] =
     for {
       checks <- get(s"https://consul.service.consul:8501/v1/health/checks/${service.serviceName}")
       _ = scribe.info(s"${!checks.isNull}: got a response for consul/health/checks${service.serviceName}")
     } yield root.each.as[service.HealthCheckStatus].getAll(checks)
 }
 
-trait StatusLine {val key: String; def toString: String; def render: String}
+trait StatusLine { val key: String; def toString: String; def render: String }
 
 case class StyleLine(key: String, render: String, override val toString: String = "") extends StatusLine
 
 abstract class StatusUpdate extends StatusLine {
   def helpRender(
-                  name: String,
-                  nameStyle: String,
-                  status: String,
-                  statusStyler: Map[String, String],
-                  maybeDesc: String = ""
-                ): String = {
+    name: String,
+    nameStyle: String,
+    status: String,
+    statusStyler: Map[String, String],
+    maybeDesc: String = ""
+  ): String = {
     val styledName = if (nameStyle.isEmpty) name else s"@|$nameStyle $name|@"
     val padding = "-" * (50 - name.length)
     val statusStyle = statusStyler.getOrElse(status.capitalize, "")
@@ -280,12 +282,19 @@ case class JobStatus(JobID: String, Status: String, StatusDescription: String) e
   val jobName: String = if (JobID.startsWith(prefix)) JobID.slice(prefix.length, JobID.length) else JobID
   override val toString = s"$jobName job status $Status, ($StatusDescription)"
   val key: String = jobName
-  val spinner =  "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏" // https://github.com/helloIAmPau/node-spinner/blob/master/spinners.json
+  val spinner = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏" // https://github.com/helloIAmPau/node-spinner/blob/master/spinners.json
   def icon(): String =
-    if (StatusDescription == "all checks pass") "✓" else spinner(((System.currentTimeMillis() / 500) % spinner.length).toInt).toString
+    if (StatusDescription == "all checks pass") "✓"
+    else spinner(((System.currentTimeMillis() / 500) % spinner.length).toInt).toString
 
   def render: String = {
-    helpRender(s"${icon()} $jobName", "bold", Status, Map("Running" -> "bold", "Successful" -> "green"), StatusDescription)
+    helpRender(
+      s"${icon()} $jobName",
+      "bold",
+      Status,
+      Map("Running" -> "bold", "Successful" -> "green"),
+      StatusDescription
+    )
   }
   case class ServiceStatus(serviceName: String, status: String, statusDescription: String = "") extends StatusUpdate {
     override val toString = s"$jobName service $serviceName: $status ($statusDescription)"
@@ -306,7 +315,7 @@ object LogTUI {
   val tuiExecutionContext: ExecutionContextExecutor = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(1))
   implicit val tuiTimer: Timer[IO] = IO.timer(tuiExecutionContext)
   implicit val tuiContextShift: ContextShift[IO] = IO.contextShift(tuiExecutionContext)
-  private val screen =  concurrent.MVar[IO].of(()).unsafeRunSync()
+  private val screen = concurrent.MVar[IO].of(()).unsafeRunSync()
   private val denouement = mutable.Queue.empty[String]
   var isActive = false
 
@@ -335,17 +344,19 @@ object LogTUI {
    * so that text-overwriting or lack-of-overwriting doesn't produce confusing displays
    * */
   def startTUI(consulExists: Boolean = false, nomadExists: Boolean = false, vaultExists: Boolean = false): IO[Unit] = {
-    if (isActive) IO.unit else for {
-      _ <- IO {isActive = true}
-      _ <- Investigator.reportHashiUpdate("Consul", if(consulExists) "Is active" else "Waiting")
-      _ <- Investigator.reportHashiUpdate("Nomad", if(nomadExists) "Is active" else "Waiting")
-      _ <- Investigator.reportHashiUpdate("Vault", if(vaultExists) "Is active" else "Waiting")
-      _ <- IO.shift
-      _ = AnsiConsole.systemInstall()
-      _ = print(ansi.eraseScreen().saveCursorPosition())
-      _ = os.write.over(os.root / "tmp" / "timberland_status_updates", "new run\n")
-      _ <- renderStatuses(startingState).start
-    } yield ()
+    if (isActive) IO.unit
+    else
+      for {
+        _ <- IO { isActive = true }
+        _ <- Investigator.reportHashiUpdate("Consul", if (consulExists) "Is active" else "Waiting")
+        _ <- Investigator.reportHashiUpdate("Nomad", if (nomadExists) "Is active" else "Waiting")
+        _ <- Investigator.reportHashiUpdate("Vault", if (vaultExists) "Is active" else "Waiting")
+        _ <- IO.shift
+        _ = AnsiConsole.systemInstall()
+        _ = print(ansi.eraseScreen().saveCursorPosition())
+        _ = os.write.over(os.root / "tmp" / "timberland_status_updates", "new run\n")
+        _ <- renderStatuses(startingState).start
+      } yield ()
   }
 
   /*
@@ -355,9 +366,10 @@ object LogTUI {
     for {
       wasActive <- IO.pure(isActive)
       _ = if (wasActive) writeLog("shutting down TUI")
-      _ <- IO {isActive = false}
+      _ <- IO { isActive = false }
       _ <- if (error.isEmpty) IO.sleep(2.seconds)(IO.timer(global)) else IO.unit
-      _ <- IO {if (wasActive) {
+      _ <- IO {
+        if (wasActive) {
           Console.flush()
           denouement.foreach(println)
           println()
@@ -404,7 +416,6 @@ object LogTUI {
     } yield ()
   }
 
-
   def writeLog(output: String): Unit = {
     if (!isActive) println(output)
     os.write.append(RadPath.runtime / "timberland.log", output + "\n")
@@ -416,7 +427,6 @@ object LogTUI {
   }
 
   def vault(stream: Array[Byte], len: Int): Unit = writeLogFromStream(stream, len)
-
 
   def stdErrs(source: String)(stream: Array[Byte], len: Int): Unit = {
     val str = new String(stream.take(len), StandardCharsets.UTF_8)
