@@ -88,6 +88,29 @@ cc_import(
     url = "https://github.com/Z3Prover/z3/releases/download/z3-4.8.7/z3-4.8.7-x64-ubuntu-16.04.zip",
 )
 
+http_file(
+    name = "tclkit",
+    downloaded_file_path = "tclkit",
+    executable = True,
+    sha256 = "15754d574bfbb389193574692ab81216869115cc953d688d5214088c46f1d02d",
+    urls = ["http://kitcreator.rkeene.org/kits/9b4cd5e5fc4b060215ceded44a3e08e2312d5137/tclkit"],
+)
+
+http_file(
+    name = "bitrock-unpacker",
+    downloaded_file_path = "bitrock-unpacker.tcl",
+    executable = True,
+    sha256 = "d76645a77a04f8f8968c9780fea393b7eea79eea25d824ab08fb8f2f9913982e",
+    urls = ["https://raw.githubusercontent.com/Harakku/bitrock-unpacker/master/bitrock-unpacker.tcl"],
+)
+
+http_file(
+    name = "ocean-omnidriver-linux",
+    downloaded_file_path = "omnidriver-2.56-linux64-installer.bin",
+    sha256 = "8a3ac3045a1cb898a3f94f3bc4cf1831036274c8fe678b254cf9ffd409a836a0",
+    urls = ["https://www.oceaninsight.com/globalassets/catalog-blocks-and-images/software-downloads-installers/omnidriver-2.56-linux64-installer.bin"],
+)
+
 http_archive(
     name = "or_tools-darwin",
     build_file_content = """
@@ -207,7 +230,6 @@ java_binary(
     url = "https://github.com/Guardsquare/proguard/releases/download/v7.0.1/proguard-7.0.1.tar.gz",
 )
 
-
 http_archive(
     name = "io_bazel_rules_scala",
     sha256 = "c75f3f6725369171f7a670767a28fd488190070fc9f31d882d9b7a61caffeb26",
@@ -255,6 +277,7 @@ load(
 )
 
 scala_register_toolchains()
+
 #uncomment this for a ton of linter output
 #register_toolchains("//tools:my_scala_toolchain")
 load(
@@ -334,7 +357,7 @@ load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 
 git_repository(
     name = "com_github_johnynek_bazel_jar_jar",
-    commit = "171f268569384c57c19474b04aebe574d85fde0d", # Latest commit SHA as at 2019/02/13
+    commit = "171f268569384c57c19474b04aebe574d85fde0d",  # Latest commit SHA as at 2019/02/13
     remote = "https://github.com/johnynek/bazel_jar_jar.git",
 )
 
@@ -342,6 +365,7 @@ load(
     "@com_github_johnynek_bazel_jar_jar//:jar_jar.bzl",
     "jar_jar_repositories",
 )
+
 jar_jar_repositories()
 
 http_archive(

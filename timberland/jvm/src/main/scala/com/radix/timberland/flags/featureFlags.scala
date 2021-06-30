@@ -65,6 +65,7 @@ object featureFlags {
       "eve",
       "minifors2",
       "mock_bioreactor",
+      "omnidriver",
       "ht91100"
     ),
     "algs" -> Set(
