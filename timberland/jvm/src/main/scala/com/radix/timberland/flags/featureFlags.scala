@@ -64,7 +64,8 @@ object featureFlags {
       "elemental_bridge",
       "eve",
       "minifors2",
-      "mock_bioreactor"
+      "mock_bioreactor",
+      "ht91100"
     ),
     "algs" -> Set(
       "algs_mega_uservice"

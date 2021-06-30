@@ -64,3 +64,4 @@ test --verbose_failures
 # you can use build:jane-doe --whatever; common --config=jane-doe so that others can see your config without having to
 # use it
 import %workspace%/user-bazelrc
+
