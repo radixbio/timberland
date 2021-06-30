@@ -97,4 +97,7 @@ exports_files([
     "terraform/nginx/main.tf",
     "terraform/nginx/outputs.tf",
     "terraform/nginx/variables.tf",
+
+    # AVAHI CUSTOM SCRIPTS
+    "avahi/avahi-autoipd.action",
 ])

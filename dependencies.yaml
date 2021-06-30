@@ -394,6 +394,11 @@ dependencies:
       lang: java
       version: "0.12"
 
+  org.jmdns:
+    jmdns:
+      lang: java
+      version: "3.5.1"
+
   org.mock-server:
     mockserver-client-java:
       lang: java

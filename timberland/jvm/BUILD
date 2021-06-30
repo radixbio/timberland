@@ -511,6 +511,14 @@ pkg_tar(
 )
 
 pkg_tar(
+    name = "timberland-avahi",
+    srcs = [
+        "//timberland/assets:avahi/avahi-autoipd.action",
+    ],
+    package_dir = "/opt/radix/timberland/avahi",
+)
+
+pkg_tar(
     name = "timberland-full-tar-proguard",
     deps = [
         ":timberland-services-proguard",
@@ -531,6 +539,7 @@ pkg_tar(
     deps = [
         ":release-name-tar",
         ":terraform-full-deploy",
+        ":timberland-avahi",
         ":timberland-cni-config",
         ":timberland-connectors",
         ":timberland-consul",
