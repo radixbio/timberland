@@ -74,8 +74,11 @@ object ConsulConnectSSLContext extends SSLContextBase {
         case Left(_: TimeoutException) =>
           scribe.debug(s"timeout while long-polling consul-connect leaf certificate")
           IO.unit
-        case Left(_) =>
+        case Left(err) =>
           scribe.warn(s"error querying consul connect for leaf certificates")
+          scribe.warn(s"error for leaf certs: ${err.getMessage}")
+          scribe.warn(s"error for leaf certs: ${err.getCause}")
+          scribe.warn(s"error for leaf certs: ${err.getStackTrace.map(_.toString).mkString("\n")}")
           IO.sleep(45.seconds)
         case Right((cert, index)) =>
           scribe.info(s"got new consul connect leaf certificate, i = $index")
@@ -103,7 +106,13 @@ object ConsulConnectSSLContext extends SSLContextBase {
     def parseResponse(resp: Response[IO]): IO[(T, Int)] = {
       for {
         respString <- resp.as[String]
-        respClass = decode[T](respString).right.get
+        decodedEither = decode[T](respString)
+        _ = if (decodedEither.isLeft) {
+          scribe.warn(s"get error: ${decodedEither.left.get.getMessage}")
+          scribe.warn(s"get error: ${decodedEither.left.get.getCause}")
+          scribe.warn(s"get error: ${decodedEither.left.get.getStackTrace.map(_.toString).mkString("\n")}")
+        }
+        respClass = decodedEither.right.get
 
         consulIndexHeader = resp.headers.get(CaseInsensitiveString("X-Consul-Index"))
         newConsulIndex = consulIndexHeader.map(_.value.toInt).getOrElse(1)

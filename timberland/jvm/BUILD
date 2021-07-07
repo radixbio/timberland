@@ -441,6 +441,7 @@ timberland_services = [
     "//utils/rainbowuservice/jvm:rainbow-uservice-bin_deploy.jar",
     "//utils/s3lts:syncer-bin_deploy.jar",
     "//vm/jvm:vm-bin_deploy.jar",
+    "//vm/jvm:vm-runner-bin_deploy.jar",
 ]
 
 services_pkg_tar(
@@ -918,6 +919,7 @@ terraform_deployment(
         "//utils/prism-uservice/jvm:prism-terraform",
         "//utils/rainbowuservice/jvm:rainbow-terraform",
         "//utils/s3lts:s3lts-terraform",
+        "//vm/jvm:vm-runner-terraform",
         "//vm/jvm:vm-terraform",
     ],
     terraform_source = select({
