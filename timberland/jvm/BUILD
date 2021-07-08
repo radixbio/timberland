@@ -458,6 +458,14 @@ services_pkg_tar(
     use_proguard = False,
 )
 
+pkg_tar(
+    name = "timberland-net-utils",
+    srcs = [
+        "//utils/tcp_tunnel:disco_tunnel_deploy.jar",
+    ],
+    package_dir = "/opt/radix/networking/",
+)
+
 # These jars are distinct from the ones on the devdrivers target above. While the deploy jars above
 #   are the main class for starting the monitor actor and triggering the connector to initialize,
 #   the final jars below are the ones containing the actual connector code, purged of all duplicate
@@ -511,6 +519,14 @@ pkg_tar(
     package_dir = "/opt/radix/timberland",
 )
 
+#pkg_tar(
+#    name = "timberland-tcp-tunnel",
+#    srcs = [
+#        "//external:jar/net/kanstren/tcptunnel/tcptunnel",
+#    ],
+#    package_dir = "/opt/radix/timberland",
+#)
+
 pkg_tar(
     name = "timberland-avahi",
     srcs = [
@@ -553,12 +569,14 @@ pkg_tar(
         ":timberland-consul-template-nomad",
         ":timberland-consul-template-vault",
         ":timberland-containernetworking-cni-plugin",
+        ":timberland-net-utils",
         ":timberland-exec",
         ":timberland-networkd",
         ":timberland-nomad",
         ":timberland-nomad-config",
         ":timberland-radix-ui",
         ":timberland-systemd-services",
+        #        ":timberland-tcp-tunnel",
         ":timberland-vault",
     ],
 )
