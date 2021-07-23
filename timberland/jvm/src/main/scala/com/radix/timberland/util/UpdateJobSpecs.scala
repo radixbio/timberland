@@ -43,8 +43,8 @@ object UpdateModules {
 
     def _parse(info: CloudModule, line: String): CloudModule = {
       line match {
-        case ORGNAME(name) => info.copy(orgname = name)
-        case MODULE(name) => info.copy(modname = name)
+        case ORGNAME(name)    => info.copy(orgname = name)
+        case MODULE(name)     => info.copy(modname = name)
         case PROVIDER(name)   => info.copy(provider = name)
         case API_TOKEN(token) => info.copy(api_token = token)
         case _                => info

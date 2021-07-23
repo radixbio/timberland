@@ -91,7 +91,11 @@ package object daemonutil {
    * @return Returns an IO of DaemonState and since the function is blocking/recursive, the only return value is
    *         AllDaemonsStarted
    */
-  def runTerraform(featureFlags: Map[String, Boolean], integrationTest: Boolean = false, namespace: Option[String] = None)(
+  def runTerraform(
+    featureFlags: Map[String, Boolean],
+    integrationTest: Boolean = false,
+    namespace: Option[String] = None
+  )(
     implicit serviceAddrs: ServiceAddrs = ServiceAddrs(),
     tokens: AuthTokens
   ): IO[Int] = {
