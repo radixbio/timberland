@@ -19,6 +19,35 @@ http_archive(
 rules_scala_version = "eabb1d28fb288fb5b15857260f87818dda5a97c8"  # update this as needed
 
 http_archive(
+    name = "rules_rust",
+    sha256 = "accb5a89cbe63d55dcdae85938e56ff3aa56f21eb847ed826a28a83db8500ae6",
+    strip_prefix = "rules_rust-9aa49569b2b0dacecc51c05cee52708b7255bd98",
+    urls = [
+        # Main branch as of 2021-02-19
+        "https://github.com/bazelbuild/rules_rust/archive/9aa49569b2b0dacecc51c05cee52708b7255bd98.tar.gz",
+    ],
+)
+
+load("@rules_rust//rust:repositories.bzl", "rust_repositories")
+
+rust_repositories()
+
+http_archive(
+    name = "cargo_raze",
+    sha256 = "0a7986b1a8ec965ee7aa317ac61e82ea08568cfdf36b7ccc4dd3d1aff3b36e0b",
+    strip_prefix = "cargo-raze-0.12.0",
+    url = "https://github.com/google/cargo-raze/archive/refs/tags/v0.12.0.tar.gz",
+)
+
+load("@cargo_raze//:repositories.bzl", "cargo_raze_repositories")
+
+cargo_raze_repositories()
+
+load("@cargo_raze//:transitive_deps.bzl", "cargo_raze_transitive_deps")
+
+cargo_raze_transitive_deps()
+
+http_archive(
     name = "z3-darwin",
     build_file_content = """
 package(default_visibility = ["//visibility:public"])
@@ -368,11 +397,12 @@ load(
 
 jar_jar_repositories()
 
+
 http_archive(
     name = "io_bazel_rules_docker",
-    sha256 = "dc97fccceacd4c6be14e800b2a00693d5e8d07f69ee187babfd04a80a9f8e250",
-    strip_prefix = "rules_docker-0.14.1",
-    urls = ["https://github.com/bazelbuild/rules_docker/releases/download/v0.14.1/rules_docker-v0.14.1.tar.gz"],
+    sha256 = "59d5b42ac315e7eadffa944e86e90c2990110a1c8075f1cd145f487e999d22b3",
+    strip_prefix = "rules_docker-0.17.0",
+    urls = ["https://github.com/bazelbuild/rules_docker/releases/download/v0.17.0/rules_docker-v0.17.0.tar.gz"],
 )
 
 load(

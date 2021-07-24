@@ -71,3 +71,6 @@ else
 fi
 
 $BAZEL_DEPS_PATH format-deps -d $REPO_ROOT/dependencies.yaml -o
+# Rust deps
+MANIFEST_PATH=$(realpath $REPO_ROOT/Cargo.toml)
+bazel run @cargo_raze//:raze -- --manifest-path=$MANIFEST_PATH

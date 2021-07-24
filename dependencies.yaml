@@ -50,7 +50,7 @@ dependencies:
     testcontainers:
       lang: scala
       modules: [ "scala", "scala-mockserver", "scala-vault" ]
-      version: "0.36.1"
+      version: "0.38.8"
 
   com.fazecast:
     jSerialComm:

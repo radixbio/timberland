@@ -1,4 +1,4 @@
-load("@rules_pkg//:pkg.bzl", "pkg_deb", "pkg_tar")
+load("@rules_pkg//:pkg.bzl", "pkg_tar")
 
 PROGUARD_DEFAULT = """-dontoptimize
                       -dontobfuscate
@@ -113,7 +113,7 @@ def proguardify(
         outs = [name + "_slim.jar"],
         srcs = srcs,
         cmd = """
-        echo \"""" + PROGUARD_DEFAULT.replace("$", "\$$") + """ " >> args.pro && """ +
+        echo \"""" + PROGUARD_DEFAULT.replace("$", "\\$$") + """ " >> args.pro && """ +
               "$(location @proguard//:proguard) @args.pro -injars $(SRCS) -outjars out.jar &&" +
               "mv out.jar $@",
         tools = ["@proguard//:proguard"],

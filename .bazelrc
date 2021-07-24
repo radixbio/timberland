@@ -8,7 +8,7 @@ build --remote_cache=grpcs://cloud.buildbuddy.io
 # > --experimental_inmemory_jdeps_files, --experimental_inmemory_dotd_files and --remote_download_outputs=minimal.
 # note that this can result in bazel not building a cached artifact, but not downloading it
 # you can use --remote_download_toplevel to avoid this
-build --remote_download_minimal
+#build --remote_download_minimal
 
 # if CI uploads are taking too long, uncomment it so that CI doesn't have to populate the cache
 # build:ci --noremote_upload_local_results
