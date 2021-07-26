@@ -438,6 +438,7 @@ timberland_services = [
     "//utils/bunny_uservice/jvm:bunny-uservice-bin_deploy.jar",
     "//utils/healthcheck:healthcheck-bin_deploy.jar",
     "//utils/rainbowuservice/jvm:rainbow-uservice-bin_deploy.jar",
+    "//utils/scheduleruservice/jvm:scheduler-uservice-bin_deploy.jar",  #TODO confirm this is right
     "//utils/s3lts:syncer-bin_deploy.jar",
     "//vm/jvm:vm-bin_deploy.jar",
     "//vm/jvm:vm-runner-bin_deploy.jar",
@@ -935,6 +936,7 @@ terraform_deployment(
         "//utils/healthcheck:healthcheck-terraform",
         "//utils/rainbowuservice/jvm:rainbow-terraform",
         "//utils/s3lts:s3lts-terraform",
+        "//utils/scheduleruservice/jvm:scheduler-terraform",  #TODO confirm this is right
         "//vm/jvm:vm-runner-terraform",
         "//vm/jvm:vm-terraform",
     ],

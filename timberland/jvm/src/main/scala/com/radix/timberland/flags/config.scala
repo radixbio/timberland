@@ -95,6 +95,16 @@ case object config {
         terraformVar = Some("rainbow_quorum_size")
       )
     ),
+    "scheduler" -> List(
+      FlagConfigEntry(
+        key = "quorum_size",
+        destination = Nowhere,
+        prompt = "Scheduler quorum size",
+        optional = true,
+        default = Some("1"),
+        terraformVar = Some("scheduler_quorum_size")
+      )
+    ),
     "elemental_bridge" -> List(
       FlagConfigEntry(
         key = "username",
