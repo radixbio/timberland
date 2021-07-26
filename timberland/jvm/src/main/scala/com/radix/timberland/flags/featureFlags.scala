@@ -72,7 +72,6 @@ object featureFlags {
       "algs_mega_uservice"
     ),
     "utils" -> Set(
-      "prism",
       "s3lts",
       "bunny_uservice"
     ),

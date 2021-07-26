@@ -68,11 +68,6 @@ variable "runtime_quorum_size" {
   default = 1
 }
 
-variable "prism_quorum_size" {
-  type = number
-  default = 1
-}
-
 variable "rainbow_quorum_size" {
   type = number
   default = 1
