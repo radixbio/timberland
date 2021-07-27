@@ -6,6 +6,7 @@ import cats.data.NonEmptyList
 import cats.effect.{Effect, Resource}
 import cats.implicits._
 import com.radix.utils.helm._
+import com.radix.utils.helm.http4s.{util => helmUtil}
 
 import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.duration._
@@ -25,7 +26,7 @@ import org.http4s.circe._
 
 final class Http4sConsulClient[F[_]](
   val baseUri: Uri,
-  override val accessToken: Option[String] = util.getTokenFromEnvVars(),
+  override val accessToken: Option[String] = helmUtil.getTokenFromEnvVars(),
   override val credentials: Option[(String, String)] = None
 )(implicit F: Effect[F], blaze: Resource[F, Client[F]])
     extends ConsulInterface[F] {

@@ -60,19 +60,22 @@ scala_toolchain(
         ":my_scala_xml_provider",
         ":my_parser_combinators_provider",
     ],
-    scalacopts = ["-Ywarn-unused"],
-    unused_dependency_checker_mode = "error",
-    dependency_tracking_method = "ast",
-    strict_deps_mode = "error",
     dependency_mode = "direct",
-    visibility = ["//visibility:public"]
+    dependency_tracking_method = "ast",
+    scalacopts = [
+        "-Ywarn-unused",
+        "-language:postfixOps",
+    ],
+    strict_deps_mode = "error",
+    unused_dependency_checker_mode = "error",
+    visibility = ["//visibility:public"],
 )
 
 toolchain(
     name = "my_scala_toolchain",
-    toolchain_type = "@io_bazel_rules_scala//scala:toolchain_type",
     toolchain = "my_toolchain_impl",
-    visibility = ["//visibility:public"]
+    toolchain_type = "@io_bazel_rules_scala//scala:toolchain_type",
+    visibility = ["//visibility:public"],
 )
 
 declare_deps_provider(
@@ -103,19 +106,18 @@ declare_deps_provider(
         "@io_bazel_rules_scala_scala_reflect",
     ],
 )
- 
+
 declare_deps_provider(
     name = "my_scala_xml_provider",
     deps_id = "scala_xml",
-    deps = ["@io_bazel_rules_scala_scala_xml//:io_bazel_rules_scala_scala_xml"],
+    deps = ["@io_bazel_rules_scala_scala_xml"],
 )
 
 declare_deps_provider(
     name = "my_parser_combinators_provider",
     deps_id = "parser_combinators",
-    deps = ["@io_bazel_rules_scala_scala_parser_combinators//:io_bazel_rules_scala_scala_parser_combinators"],
+    deps = ["@io_bazel_rules_scala_scala_parser_combinators"],
 )
-
 
 #genrule(
 #    name = "pushable-terraform-data",

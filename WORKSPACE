@@ -47,6 +47,10 @@ load("@cargo_raze//:transitive_deps.bzl", "cargo_raze_transitive_deps")
 
 cargo_raze_transitive_deps()
 
+load("//3rdparty:crates.bzl", "raze_fetch_remote_crates")
+
+raze_fetch_remote_crates()
+
 http_archive(
     name = "z3-darwin",
     build_file_content = """
@@ -259,23 +263,67 @@ java_binary(
     url = "https://github.com/Guardsquare/proguard/releases/download/v7.0.1/proguard-7.0.1.tar.gz",
 )
 
+rules_scala_version = "5df8033f752be64fbe2cedfd1bdbad56e2033b15"
+
 http_archive(
     name = "io_bazel_rules_scala",
-    sha256 = "c75f3f6725369171f7a670767a28fd488190070fc9f31d882d9b7a61caffeb26",
+    sha256 = "b7fa29db72408a972e6b6685d1bc17465b3108b620cb56d9b1700cf6f70f624a",
     strip_prefix = "rules_scala-%s" % rules_scala_version,
     type = "zip",
     url = "https://github.com/bazelbuild/rules_scala/archive/%s.zip" % rules_scala_version,
 )
 
+# Stores Scala version and other configuration
+# 2.12 is a default version, other versions can be use by passing them explicitly:
+# scala_config(scala_version = "2.11.12")
+load("@io_bazel_rules_scala//:scala_config.bzl", "scala_config")
+
+scala_config(scala_version = "2.13.6")
+
+load("@io_bazel_rules_scala//scala:scala.bzl", "scala_repositories")
+load("@io_bazel_rules_scala//scala:toolchains.bzl", "scala_register_toolchains")
+
+# optional: setup ScalaTest toolchain and dependencies
+load("@io_bazel_rules_scala//testing:scalatest.bzl", "scalatest_repositories", "scalatest_toolchain")
 load(
     "@io_bazel_rules_scala//scala/scalafmt:scalafmt_repositories.bzl",
     "scalafmt_default_config",
     "scalafmt_repositories",
 )
+load("@io_bazel_rules_scala//testing:scalatest.bzl", "scalatest_repositories", "scalatest_toolchain")
+
+#scala_repositories()
+scala_repositories(
+    overriden_artifacts = {
+        "io_bazel_rules_scala_scalatest": {
+            "artifact": "org.scalatest:scalatest_2.13:3.0.9",
+            "sha256": "6a0d2c3ee32a4010f95dc2cae084b95a1d8c4bc75491326bbbf1c173f1400b8b",
+        },
+        "io_bazel_rules_scala_scalactic": {
+            "artifact": "org.scalactic:scalactic_2.13:3.0.9",
+            "sha256": "93072ee4ed5e31e3d1e4e4cd159bfc6d0765a627a3c884234e30841555ad7c62",
+        },
+    },
+)
+
+scalafmt_default_config()
 
 scalafmt_repositories()
 
-scalafmt_default_config()
+scalatest_repositories()
+
+scalatest_toolchain()
+
+scala_register_toolchains()
+#uncomment this for a ton of linter output
+#register_toolchains("//tools:my_scala_toolchain")
+
+load(
+    "@io_bazel_rules_scala//jmh:jmh.bzl",
+    "jmh_repositories",
+)
+
+jmh_repositories()
 
 bind(
     name = "io_bazel_rules_scala_dependency_scalap_scalap",
@@ -300,59 +348,6 @@ git_repository(
 )
 
 load("@rules_pkg//:deps.bzl", "rules_pkg_dependencies")
-load(
-    "@io_bazel_rules_scala//scala:toolchains.bzl",
-    "scala_register_toolchains",
-)
-
-scala_register_toolchains()
-
-#uncomment this for a ton of linter output
-#register_toolchains("//tools:my_scala_toolchain")
-load(
-    "@io_bazel_rules_scala//scala:scala.bzl",
-    "scala_repositories",
-)
-load(
-    "@io_bazel_rules_scala//jmh:jmh.bzl",
-    "jmh_repositories",
-)
-
-jmh_repositories()
-
-scala_repositories(
-    scala_extra_jars = {
-        "2.12": {
-            "scalatest": {
-                "version": "3.0.8",
-                "sha256": "a4045cea66f3eaab525696f3000d7d610593778bd070e98349a7066f872844cd",
-            },
-            "scalactic": {
-                "version": "3.0.8",
-                "sha256": "5f9ad122f54e9a0112ff4fcaadfb2802d8796f5dde021caa4c831067fca68469",
-            },
-            "scala_xml": {
-                "version": "1.0.5",
-                "sha256": "035015366f54f403d076d95f4529ce9eeaf544064dbc17c2d10e4f5908ef4256",
-            },
-            "scala_parser_combinators": {
-                "version": "1.0.4",
-                "sha256": "282c78d064d3e8f09b3663190d9494b85e0bb7d96b0da05994fe994384d96111",
-            },
-        },
-    },
-    scala_version_shas = (
-        "2.12.8",
-        {
-            "scala_compiler": "f34e9119f45abd41e85b9e121ba19dd9288b3b4af7f7047e86dc70236708d170",
-            "scala_library": "321fb55685635c931eba4bc0d7668349da3f2c09aee2de93a70566066ff25c28",
-            "scala_reflect": "4d6405395c4599ce04cea08ba082339e3e42135de9aae2923c9f5367e957315a",
-            "scalajs_compiler": "fc54c1a5f08598c3aef8b4dd13cf482323b56cb416547da9944655d7c53eae32",
-        },
-    ),
-)
-
-#register_toolchains("//:scala_toolchain")
 
 protobuf_version = "3.11.3"
 
@@ -367,7 +362,7 @@ http_archive(
 
 load(
     "@io_bazel_rules_scala//scala:scala_cross_version.bzl",
-    "default_scala_major_version",
+    #    "default_scala_major_version",
     "scala_mvn_artifact",
 )
 load(
@@ -396,7 +391,6 @@ load(
 )
 
 jar_jar_repositories()
-
 
 http_archive(
     name = "io_bazel_rules_docker",
@@ -591,9 +585,9 @@ jvm_maven_import_external(
 
 git_repository(
     name = "scalaz3",
-    commit = "63c7674320e585ee686a1de805d3d868b2019106",
+    commit = "df09cb4aad89bd91c6e15a626771a89257418784",
     remote = "git@gitlab.com:radix-labs/scalaz3.git",
-    shallow_since = "1593227973 +0000",
+    #    shallow_since = "1626731854 -0400",
 )
 
 http_archive(

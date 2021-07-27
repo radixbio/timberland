@@ -9,7 +9,7 @@ scala_library(
         "SSLContextCreator.scala",
         "TrustEveryoneSSLContext.scala",
     ],
-    plugins = ["@third_party//3rdparty/jvm/org/typelevel:kind_projector"],
+    plugins = ["//external:jar/org/typelevel/kind_projector_2_13_6"],
     visibility = ["//visibility:public"],
     exports = [
         "//shared/shared/shared/jvm:shared-jvm",

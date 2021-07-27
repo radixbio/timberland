@@ -8,6 +8,7 @@ PROGUARD_DEFAULT = """-dontoptimize
                       -dontwarn
                       #-printmapping out.map
                       -libraryjars <java.home>/jmods/java.base.jmod(!**.jar;!module-info.class)
+                      -libraryjars <java.home>/jmods/java.xml.jmod
                       -renamesourcefileattribute SourceFile
                       -keepattributes SourceFile,LineNumberTable
 

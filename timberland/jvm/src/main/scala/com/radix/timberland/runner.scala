@@ -218,9 +218,9 @@ object runner {
                 nomadup <- Util.isPortUp(4646)
                 vaultup <- Util.isPortUp(8200)
                 _ <- LogTUI.startTUI(true, nomadup, vaultup) // Update is only run if consul is up
-              } yield Unit
+              } yield ()
             } else IO.unit
-          } yield Unit
+          } yield ()
 
           val consulExistsProc = for {
             serviceAddrs <- if (remoteAddress.isDefined) daemonutil.getServiceIps() else IO.pure(ServiceAddrs())

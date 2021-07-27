@@ -3,6 +3,7 @@ package com.radix.utils.helm.http4s
 import cats.effect.Effect
 import cats.implicits._
 import com.radix.utils.helm._
+import com.radix.utils.helm.http4s.{util => helmUtil}
 import org.http4s.Method.POST
 //import journal.Logger
 import logstage._
@@ -26,7 +27,7 @@ import org.http4s.client.Client
 final class Http4sNomadClient[F[_]](
   val baseUri: Uri,
   val client: Client[F],
-  override val accessToken: Option[String] = util.getTokenFromEnvVars(),
+  override val accessToken: Option[String] = helmUtil.getTokenFromEnvVars(),
   override val credentials: Option[(String, String)] = None
 )(implicit F: Effect[F])
     extends NomadInterface[F] {

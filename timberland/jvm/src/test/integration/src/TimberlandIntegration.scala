@@ -27,7 +27,7 @@ import scala.sys.process.Process
  * An abstract class that should act as the parent class for any integration tests. Note that any subclasses should
  * {@code override lazy val featureFlags = Map(...)} in order to bring up the appropriate services with Terraform.
  */
-trait TimberlandIntegration extends AsyncFlatSpec with Matchers with BeforeAndAfterAll {
+trait TimberlandIntegration extends AsyncFlatSpec with BeforeAndAfterAll {
 
   val consulPort = 8501
   val nomadPort = 4646

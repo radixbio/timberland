@@ -114,7 +114,6 @@ timberland_service_control_srcs = [
 scala_library(
     name = "timberland-service-control",
     srcs = timberland_service_control_srcs,
-    scalacopts = ["-Ypartial-unification"],
     visibility = [
         "//visibility:public",
     ],
@@ -135,7 +134,6 @@ scala_library(
         ],
         exclude = timberland_core_srcs + timberland_service_control_srcs,
     ),
-    scalacopts = ["-Ypartial-unification"],
     visibility = [
         "//timberland:__subpackages__",
     ],
@@ -957,6 +955,6 @@ scala_binary(
     main_class = "ammonite.Main",
     deps = [
         ":timberland-lib",
-        "@third_party//3rdparty/jvm/com/lihaoyi:ammonite_2_12_8",
+        "@third_party//3rdparty/jvm/com/lihaoyi:ammonite_2_13_6",
     ],
 )

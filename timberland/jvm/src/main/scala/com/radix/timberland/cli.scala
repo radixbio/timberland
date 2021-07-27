@@ -66,7 +66,7 @@ case class ScriptHead(cmd: RadixCMD)
 object cli {
 
   implicit class Weakener[F[_], A](fa: F[A])(implicit F: scalaz.Functor[F]) {
-    def weaken[B](implicit ev: A <:< B): F[B] = fa.map(identity(_))
+    def weaken[B](implicit ev: A <:< B): F[B] = F.map(fa)(identity(_))
   }
 
   private val oauthGoogleSheets = subparser[Oauth](

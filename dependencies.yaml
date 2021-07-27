@@ -1,7 +1,7 @@
 options:
   buildHeader: [ "load(\"@io_bazel_rules_scala//scala:scala_import.bzl\", \"scala_import\")",
     "load(\"@io_bazel_rules_scala//scala:scala.bzl\", \"scala_library\")" ]
-  languages: [ "java", "scala:2.12.8" ]
+  languages: [ "java", "scala:2.13.6" ]
   resolvers:
     - id: "mavencentral"
       type: "default"
@@ -9,6 +9,9 @@ options:
     - id: "confluent"
       type: "default"
       url: https://packages.confluent.io/maven/
+    - id: "jitpack"
+      type: "default"
+      url: https://jitpack.io
   strictVisibility: true
 
 dependencies:
@@ -41,11 +44,6 @@ dependencies:
       lang: scala
       version: "2.3.3"
 
-  com.codecommit:
-    shims:
-      lang: scala
-      version: "1.7.0"
-
   com.dimafeng:
     testcontainers:
       lang: scala
@@ -61,12 +59,6 @@ dependencies:
     websocket-scala-client:
       lang: scala
       version: "0.3.0"
-
-  com.github.ghik:
-    silencer:
-      lang: scala
-      modules: [ "lib", "plugin" ]
-      version: "1.2.1"
 
   com.github.ghostdogpr:
     caliban:
@@ -102,7 +94,7 @@ dependencies:
   com.github.xuwei-k:
     optparse-applicative:
       lang: scala
-      version: "0.8.0"
+      version: "0.9.0"
 
   com.google.guava:
     guava:
@@ -123,16 +115,13 @@ dependencies:
   com.lihaoyi:
     ammonite-ops:
       lang: scala
-      version: "2.2.0"
-    ammonite_2.12.8:
+      version: "2.4.0"
+    ammonite_2.13.6:
       lang: scala/unmangled
-      version: "2.2.0"
-    autowire:
-      lang: scala
-      version: "0.2.6"
+      version: "2.4.0"
     fansi:
       lang: scala
-      version: "0.2.7"
+      version: "0.2.14"
     fastparse:
       lang: scala
       version: "2.2.2"
@@ -158,15 +147,15 @@ dependencies:
   com.nrinaudo:
     kantan.codecs:
       lang: scala
-      version: "0.5.0"
+      version: "0.5.2"
     kantan.xpath:
       lang: scala
-      version: "0.5.0"
+      version: "0.5.2"
 
   com.outr:
     scribe:
       lang: scala
-      version: "2.7.3"
+      version: "2.7.12"
 
   com.pi4j:
     pi4j-core:
@@ -181,7 +170,7 @@ dependencies:
   com.propensive:
     contextual:
       lang: scala
-      version: "1.1.0"
+      version: "1.2.1"
     magnolia:
       lang: scala
       version: "0.16.0"
@@ -190,11 +179,6 @@ dependencies:
     avro4s-core:
       lang: scala
       version: "4.0.7"
-
-  com.slamdata:
-    matryoshka-core:
-      lang: scala
-      version: "0.21.3"
 
   com.typesafe:
     config:
@@ -268,17 +252,14 @@ dependencies:
   io.confluent:
     kafka:
       lang: java
-      modules: [ "connect-elasticsearch", "connect-jdbc" ]
-      version: "3.1.0"
-    kafka-avro-serializer:
-      lang: java
-      version: "5.3.1"
+      modules: [ "avro-serializer", "connect-elasticsearch", "connect-jdbc" ]
+      version: "5.5.1"
 
   io.getquill:
     quill:
       lang: scala
       modules: [ "core", "jdbc" ]
-      version: "3.4.2"
+      version: "3.5.2"
 
   io.github.cquiroz:
     scala-java-time:
@@ -288,7 +269,12 @@ dependencies:
   io.github.embeddedkafka:
     embedded-kafka-schema-registry:
       lang: scala
-      version: "5.3.1"
+      version: "5.5.1"
+
+  io.higherkindness:
+    droste-core:
+      lang: scala
+      version: "0.8.0"
 
   io.jvm.uuid:
     scala-uuid:
@@ -324,7 +310,7 @@ dependencies:
     scalapy:
       lang: scala
       modules: [ "core", "macros" ]
-      version: "0.3.0"
+      version: "0.3.0+15-598682f0"
 
   net.kanstren.tcptunnel:
     tcptunnel:
@@ -353,11 +339,11 @@ dependencies:
     connect:
       lang: java
       modules: [ "api", "json", "runtime" ]
-      version: "2.3.1"
+      version: "2.5.1"
     kafka:
       lang: scala
       modules: [ "", "streams-scala" ]
-      version: "2.3.1"
+      version: "2.5.1"
 
   org.apache.poi:
     poi:
@@ -410,12 +396,12 @@ dependencies:
       version: "5.5.4"
 
   org.scala-graph:
-    graph-core_2.12:
-      lang: java
-      version: "1.12.5"
-    graph-dot_2.12:
-      lang: java
-      version: "1.12.1"
+    graph-core:
+      lang: scala
+      version: "1.13.2"
+    graph-dot:
+      lang: scala
+      version: "1.13.0"
 
   org.scala-lang:
     scalap:
@@ -435,17 +421,17 @@ dependencies:
   org.scalactic:
     scalactic:
       lang: scala
-      version: "3.0.8"
+      version: "3.0.9"
 
   org.scalameta:
     scalameta:
       lang: scala
-      version: "4.1.0"
+      version: "4.3.20"
 
   org.scalatest:
     scalatest:
       lang: scala
-      version: "3.0.8"
+      version: "3.0.9"
 
   org.scalatestplus:
     scalatestplus-scalacheck:
@@ -455,7 +441,7 @@ dependencies:
   org.scalaz:
     scalaz-core:
       lang: scala
-      version: "7.2.29"
+      version: "7.3.4"
 
   org.scodec:
     scodec-core:
@@ -477,23 +463,23 @@ dependencies:
   org.typelevel:
     cats:
       lang: scala
-      modules: [ "core", "effect", "free", "kernel" ]
-      version: "2.2.0"
-    cats-macros:
+      modules: [ "core", "free", "kernel" ]
+      version: "2.6.1"
+    cats-effect:
       lang: scala
-      version: "2.1.0"
+      version: "2.5.1"
     cats-mtl-core:
       lang: scala
-      version: "0.7.0"
-    kind-projector:
-      lang: scala
-      version: "0.10.3"
+      version: "0.7.1"
+    kind-projector_2.13.6:
+      lang: java
+      version: "0.13.0"
     spire:
       lang: scala
-      version: "0.16.0"
+      version: "0.17.0-RC1"
     squants:
       lang: scala
-      version: "1.3.0"
+      version: "1.8.0"
 
   software.amazon.awssdk:
     auth:

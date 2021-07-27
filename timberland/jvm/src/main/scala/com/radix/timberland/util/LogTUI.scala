@@ -92,7 +92,7 @@ object Investigator {
    */
   def report(update: StatusUpdate*): IO[Unit] = IO {
     update.foreach(u => scribe.info(s"update: $u")) // wish this would have the caller's context for scribe
-    statusUpdateQueue.enqueue(update: _*)
+    update.foreach(up => statusUpdateQueue.enqueue(up))
   }
 
   def genericWaitForDNS(

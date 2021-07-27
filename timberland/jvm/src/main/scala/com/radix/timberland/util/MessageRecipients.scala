@@ -66,6 +66,6 @@ object MessageRecipients {
       })
       .map(conf => updateConfig(conf, identifier, encodeRecipientEntry(medium)))
       .flatMap(upconf => vault.createSecret(messaging_secret, CreateSecretRequest(None, upconf)))
-      .map(_ => Unit)
+      .map(_ => ())
   }
 }

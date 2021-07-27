@@ -1,8 +1,6 @@
 ### caching
 # we're now using buildbuddy's cache instead of self-hosting it. buildbuddy offers nice build profiling and cache stats
 # check out your builds at at https://app.buildbuddy.io/ (make an account with your radix email)
-build --remote_header=x-buildbuddy-api-key=hN1b37Jj95cNI4DwLBNb
-build --remote_cache=grpcs://cloud.buildbuddy.io
 
 # >Does not download any remote build outputs to the local machine. This flag is a shortcut for three flags:
 # > --experimental_inmemory_jdeps_files, --experimental_inmemory_dotd_files and --remote_download_outputs=minimal.

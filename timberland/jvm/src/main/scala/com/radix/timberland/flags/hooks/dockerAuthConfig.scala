@@ -17,7 +17,7 @@ object dockerAuthConfig extends FlagHook {
         options.getOrElse("TOKEN", None),
         options.getOrElse("URL", Some("registry.gitlab.com")).get
       )
-      _ <- if (success != 0) IO(scribe.warn("Container registry login was not successful!")) else IO(Unit)
+      _ <- if (success != 0) IO(scribe.warn("Container registry login was not successful!")) else IO()
     } yield ()
   }
 

@@ -171,7 +171,7 @@ object UpdateModules {
         fn <- exec_manifest.toSet.diff(module_manifest.toSet)
       } yield {
         if (fn == "modules") {
-          Unit
+          ()
         } else {
           println(s"Removing ${TemplateFiles.terraform_exec_dir / fn}")
           os.remove.all(TemplateFiles.terraform_exec_dir / fn)
