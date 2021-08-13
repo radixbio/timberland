@@ -1,4 +1,3 @@
-
 package com.radix.timberland.launch
 
 import cats.effect.IO
@@ -40,14 +39,15 @@ object dns {
           .head("$_.ServerAddresses")
         defaultDNSExists = os.exists(defaultDnsPath)
         _ = scribe.info(s"current servers: $currentServers; default exists: $defaultDNSExists")
-        _ <- if (!currentServers.contains("127.0.0.1")) for {
-          // don't update DNS if 127.0.0.1 is already present
-          _ <- IO(os.write(defaultDnsPath, currentServers))
-          setServerResp = ps.executeCommand(
-            s"Set-DnsClientServerAddress -InterfaceIndex $defaultInterfaceIndex -ServerAddresses '127.0.0.1 $currentServers'"
-          )
-        } yield setServerResp
-        else IO(scribe.info("DNS already setup, doing nothing."))
+        _ <-
+          if (!currentServers.contains("127.0.0.1")) for {
+            // don't update DNS if 127.0.0.1 is already present
+            _ <- IO(os.write(defaultDnsPath, currentServers))
+            setServerResp = ps.executeCommand(
+              s"Set-DnsClientServerAddress -InterfaceIndex $defaultInterfaceIndex -ServerAddresses '127.0.0.1 $currentServers'"
+            )
+          } yield setServerResp
+          else IO(scribe.info("DNS already setup, doing nothing."))
       } yield ()
 
     def reset(): IO[Unit] =
@@ -55,8 +55,9 @@ object dns {
         defaultInterfaceIndex <- IO(getDefaultInterfaceIndex())
         defaultDNSExists = os.exists(defaultDnsPath)
         // reset to defaults if the dns file doesn't exist
-        resettingCommand = if (defaultDNSExists) s"-ServerAddresses '${os.read(defaultDnsPath)}'"
-        else "-ResetServerAddresses"
+        resettingCommand =
+          if (defaultDNSExists) s"-ServerAddresses '${os.read(defaultDnsPath)}'"
+          else "-ResetServerAddresses"
         resetDefaultDNSServers <- IO(
           ps.executeCommand(s"Set-DnsClientServerAddress -InterfaceIndex $defaultInterfaceIndex $resettingCommand")
         )

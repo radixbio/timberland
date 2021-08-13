@@ -30,7 +30,8 @@ import scala.concurrent.ExecutionContext.global
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 
-/** TODO
+/**
+ * TODO
  * - fix: hashistack status lines mangling external reports and DNS; no DNS check for consul
  * - ideally padding should adjust to terminal size to avoid line wrapping
  * - context shifts could be more idiomatic
@@ -48,7 +49,8 @@ import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 case class LogTUIWriter() extends Writer {
   // consider: colour log for terminal but also optionally to a file
   // variety of debug topics and views. verbose logging to a separate file by default
-  val format = formatter"$time [$threadName] $level $position - $message$mdc" // not sure if this is best for general use
+  val format =
+    formatter"$time [$threadName] $level $position - $message$mdc" // not sure if this is best for general use
   // the best i've got for formatter docs is: https://github.com/outr/scribe/blob/master/core/shared/src/main/scala/scribe/format/package.scala
   // see also FormatBlocks, Formatter, and ../utils/Abbreviator... i would prefer just the last part of the class name
 
@@ -130,7 +132,8 @@ object Investigator {
       } yield success
   }
 
-  /** Wait for a DNS record to become available. Consul will not return a record for failing services.
+  /**
+   * Wait for a DNS record to become available. Consul will not return a record for failing services.
    *
    * @param service The Consul service to look up
    * @param timeout How long to wait before throwing an exception
@@ -209,13 +212,14 @@ object Investigator {
       _ <- report(checks: _*)
       skipDNS = !checks.forall(check => check.Status == "passing")
       dnsResults <- if (skipDNS) IO(Seq(false)) else services.parTraverse(name => waitForJobService(name, 10.minutes))
-      _ <- if (dnsResults.forall(identity))
-        report(jobStatus.copy(Status = "Successful", StatusDescription = "all checks pass"))
-      else {
+      _ <-
+        if (dnsResults.forall(identity))
+          report(jobStatus.copy(Status = "Successful", StatusDescription = "all checks pass"))
+        else {
 //        get(s"job/${jobId}/allocations")
 //        get("client/fs/logs/{alloc}?task={task???}&type=stderr&plain=true")
-        IO.unit
-      } // would be cool to hide child keys
+          IO.unit
+        } // would be cool to hide child keys
       _ <- investigationsInProgress.modify(x => (x - 1, x))
     } yield ()
     report(jobStatus) *> (if (shouldInvestigate) investigation else IO.unit)
@@ -335,13 +339,14 @@ object LogTUI {
     StyleLine("4", blank)
   )
 
-  /** *
+  /**
+   * *
    * Turns on the LogTUI display.
    *
    * NOTE - While the LogTUI is active, all terminal output should either be through LogTUI.printAfter()
    * or acquireScreen *> print *> releaseScreen
    * so that text-overwriting or lack-of-overwriting doesn't produce confusing displays
-   * */
+   */
   def startTUI(consulExists: Boolean = false, nomadExists: Boolean = false, vaultExists: Boolean = false): IO[Unit] = {
     if (isActive) IO.unit
     else
@@ -435,7 +440,7 @@ object LogTUI {
   /**
    * Collects print statements during LogTUI execution to be shown after the TUI display is terminated.
    * Use this for things like generated tokens or status output that the user will need to have post-startup.
-   * */
+   */
   def printAfter(str: String): Unit = {
     denouement.enqueue(str)
     writeLog(str)

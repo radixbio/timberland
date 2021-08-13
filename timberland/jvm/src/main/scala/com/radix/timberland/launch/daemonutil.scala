@@ -82,7 +82,8 @@ package object daemonutil {
     if (integration) "integration" else os.read(namespaceFile).stripLineEnd
   }
 
-  /** Start up the specified daemons (or all or a combination) based upon the passed parameters. Will immediately exit
+  /**
+   * Start up the specified daemons (or all or a combination) based upon the passed parameters. Will immediately exit
    * after submitting the job to Nomad via Terraform.
    *
    * @param featureFlags    A map specifying which modules to enable
@@ -95,15 +96,15 @@ package object daemonutil {
     featureFlags: Map[String, Boolean],
     integrationTest: Boolean = false,
     namespace: Option[String] = None
-  )(
-    implicit serviceAddrs: ServiceAddrs = ServiceAddrs(),
+  )(implicit
+    serviceAddrs: ServiceAddrs = ServiceAddrs(),
     tokens: AuthTokens
   ): IO[Int] = {
     val workingDir = getTerraformWorkDir(integrationTest)
-    val mkTmpDir = IO({
+    val mkTmpDir = IO {
       if (os.exists(RadPath.temp)) os.remove.all(RadPath.temp)
       os.makeDir.all(RadPath.temp / "terraform")
-    })
+    }
 
     implicit val persistentDir: os.Path = RadPath.runtime / "timberland"
     implicit val tokensOption: Option[AuthTokens] = Some(tokens)
@@ -163,8 +164,8 @@ package object daemonutil {
    * @param serviceAddrs       Contains addresses for consul and nomad
    * @return Nothing
    */
-  def initTerraform(integrationTest: Boolean, backendMasterToken: Option[String])(
-    implicit serviceAddrs: ServiceAddrs = ServiceAddrs()
+  def initTerraform(integrationTest: Boolean, backendMasterToken: Option[String])(implicit
+    serviceAddrs: ServiceAddrs = ServiceAddrs()
   ): IO[Unit] = {
     val backendVars =
       if (backendMasterToken.isDefined)

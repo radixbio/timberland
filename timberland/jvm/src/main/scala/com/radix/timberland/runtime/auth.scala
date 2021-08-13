@@ -90,7 +90,6 @@ object auth {
     }
 
   /**
-   *
    * @param persistentDir Usually /opt/radix/timberland/
    * @param consulToken This token is set as the superUser token for consul
    * @return Nothing
@@ -130,7 +129,6 @@ object auth {
   }
 
   /**
-   *
    * @param persistentDir Usually /opt/radix/timberland/
    * @param consulToken The token used to access consul
    * @return Nothing
@@ -146,8 +144,9 @@ object auth {
       defaultTokenRes <- setupConsulToken(persistentDir, consulToken, "default-policy", "Default-allow-DNS")
       actorTokenRes <- setupConsulToken(persistentDir, consulToken, "actor-policy", "akka-actors")
       setDefaultTokenCmd = s"$consul acl set-agent-token -token=$consulToken default ${defaultTokenRes.token}"
-      _ <- if (defaultTokenRes.cmdRes.exitCode == 0) Util.exec(setDefaultTokenCmd)
-      else IO(scribe.error(s"$defaultTokenCmd exited with ${defaultTokenRes.cmdRes.exitCode}"))
+      _ <-
+        if (defaultTokenRes.cmdRes.exitCode == 0) Util.exec(setDefaultTokenCmd)
+        else IO(scribe.error(s"$defaultTokenCmd exited with ${defaultTokenRes.cmdRes.exitCode}"))
     } yield actorTokenRes.token
   }
 
@@ -170,19 +169,21 @@ object auth {
       _ <- Util.waitForConsul(consulToken, 60.seconds, address = "http://127.0.0.1:8500")
       _ <- IO.sleep(30.seconds)
       policyCmdRes <- Util.exec(policyCmd)
-      checkPolicyCmdRes <- if (policyCmdRes.exitCode == 0) IO.pure(true)
-      else if (policyCmdRes.exitCode != 0 && policyCmdRes.stderr.contains("already exists")) {
-        for {
-          checkPolicyRes <- Util.exec(getPolicyCmd)
-          policyAlreadyThere = checkPolicyRes.stdout.contains(os.read(policyFile))
-        } yield policyAlreadyThere
-      } else IO.pure(false) //unknown error
+      checkPolicyCmdRes <-
+        if (policyCmdRes.exitCode == 0) IO.pure(true)
+        else if (policyCmdRes.exitCode != 0 && policyCmdRes.stderr.contains("already exists")) {
+          for {
+            checkPolicyRes <- Util.exec(getPolicyCmd)
+            policyAlreadyThere = checkPolicyRes.stdout.contains(os.read(policyFile))
+          } yield policyAlreadyThere
+        } else IO.pure(false) //unknown error
 
-      _ <- if (checkPolicyCmdRes) IO(scribe.info(s"$policyName policy already exists."))
-      else {
-        IO(scribe.error(s"Unknown error setting up $policyName Consul policy."))
-        IO(sys.exit(1))
-      }
+      _ <-
+        if (checkPolicyCmdRes) IO(scribe.info(s"$policyName policy already exists."))
+        else {
+          IO(scribe.error(s"Unknown error setting up $policyName Consul policy."))
+          IO(sys.exit(1))
+        }
 
       tokenCmdRes <- Util.exec(tokenCmd)
       token = parseToken(tokenCmdRes).getOrElse("")
@@ -190,7 +191,6 @@ object auth {
   }
 
   /**
-   *
    * @param persistentDir Usually /opt/radix/timberland/
    * @param consulToken The token used to access consul
    * @return The generated master token (works with both consul and nomad)
@@ -217,8 +217,9 @@ object auth {
       masterToken <- masterTokenOpt.map(IO.pure).getOrElse(getMasterToken)
 
       masterTokenCmd = s"$consul acl token create -secret=$masterToken -token=$consulToken -policy-id=$masterPolicy"
-      _ <- if (bootstrapCmdRes.exitCode == 0) Util.exec(masterTokenCmd)
-      else IO(scribe.error("Failed to parse token from ACL Bootstrap call!"))
+      _ <-
+        if (bootstrapCmdRes.exitCode == 0) Util.exec(masterTokenCmd)
+        else IO(scribe.error("Failed to parse token from ACL Bootstrap call!"))
 
       _ <- IO.pure(scribe.info(s"ADMIN TOKEN FOR CONSUL/NOMAD: $masterToken"))
       _ <- IO.pure(LogTUI.printAfter(s"ADMIN TOKEN FOR CONSUL/NOMAD: $masterToken"))

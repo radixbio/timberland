@@ -63,7 +63,7 @@ final class Http4sNomadClient[F[_]](
 
     case NomadOp.NomadListJobs(namespace, index, wait) =>
       nomadListJobs(namespace, index, wait)
-    case NomadOp.NomadReadRaftConfiguration(maxWait) => nomadCReadRaftConfiguration((maxWait))
+    case NomadOp.NomadReadRaftConfiguration(maxWait) => nomadCReadRaftConfiguration(maxWait)
     case NomadOp.NomadStopJob(job, purge)            => nomadStopJob(job, purge)
     case NomadOp.NomadListAllocations()              => nomadListAllocations()
   }
@@ -72,8 +72,8 @@ final class Http4sNomadClient[F[_]](
     accessToken.fold(req)(tok => req.putHeaders(Header("X-Nomad-Token", tok)))
 
   private def addCreds(req: Request[F]): Request[F] =
-    credentials.fold(req) {
-      case (un, pw) => req.putHeaders(Authorization(BasicCredentials(un, pw)))
+    credentials.fold(req) { case (un, pw) =>
+      req.putHeaders(Authorization(BasicCredentials(un, pw)))
     }
 
   private def handleNomadErrorResponse(response: Response[F]): F[Throwable] = {
@@ -165,7 +165,8 @@ final class Http4sNomadClient[F[_]](
       _ <- F.delay(log.debug(s"parsing nomad job: ${job.name}"))
       hclToJsonStr <- parseHCL(job, true)
 
-      body = s"""{"Job":$hclToJsonStr,"EnforceIndex":$enforceIndex,"JobModifyIndex":$jobModifyIndex,"PolicyOverride":$policyOverride}"""
+      body =
+        s"""{"Job":$hclToJsonStr,"EnforceIndex":$enforceIndex,"JobModifyIndex":$jobModifyIndex,"PolicyOverride":$policyOverride}"""
 
       jobUri = baseUri / "v1" / "jobs"
 
@@ -236,7 +237,7 @@ final class Http4sNomadClient[F[_]](
   }
 
   override def nomadListAllocations(): F[NomadListAllocationsResponse] = {
-    val listUri = (baseUri / "v1" / "allocations")
+    val listUri = baseUri / "v1" / "allocations"
     val req = Method.GET(listUri).map(addNomadToken _).map(addCreds _)
     client.expectOr[NomadListAllocationsResponse](req)(handleNomadErrorResponse)
   }

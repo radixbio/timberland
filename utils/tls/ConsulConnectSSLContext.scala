@@ -91,15 +91,14 @@ object ConsulConnectSSLContext extends SSLContextBase {
     } yield ()
 
   /**
-   *
    * @param path The api path to call
    * @param consulIndex Current index for blocking requests
    * @param decoder A Json decoder from http response to the desired type
    * @tparam T The desired return type
    * @return A tuple containing the response and it's associated X-Consul-Index header
    */
-  private def consulGet[T](path: String, consulIndex: Option[Int])(
-    implicit decoder: Decoder[T]
+  private def consulGet[T](path: String, consulIndex: Option[Int])(implicit
+    decoder: Decoder[T]
   ): IO[Either[Throwable, (T, Int)]] = {
     scribe.debug(s"""asking consul for connect cert at path "$path" where i > ${consulIndex.getOrElse(-1)}""")
 

@@ -15,10 +15,7 @@ import org.http4s.syntax.string.http4sStringSyntax
 
 import scala.reflect.ClassTag
 
-class Http4sConsulTests
-    extends FlatSpec
-    with Matchers
-    with TypeCheckedTripleEquals {
+class Http4sConsulTests extends FlatSpec with Matchers with TypeCheckedTripleEquals {
   import Http4sConsulTests._
 
   "kvGetRaw" should "succeed with some when the response is 200" in {
@@ -32,7 +29,8 @@ class Http4sConsulTests
       .unsafeRunSync
       .right
       .map(r => r.copy(value = r.value.map(new String(_)))) should ===(
-      Right(QueryResponse[Option[String]](Some("yay"), 999, false, 1)))
+      Right(QueryResponse[Option[String]](Some("yay"), 999, false, 1))
+    )
   }
 
   "kvGetRaw" should "succeed with none when the response is 404" in {
@@ -42,8 +40,7 @@ class Http4sConsulTests
     helm
       .run(csl, ConsulOp.kvGetRaw("foo", None, None))
       .attempt
-      .unsafeRunSync should ===(
-      Right(QueryResponse[Option[Array[Byte]]](None, 999, false, 1)))
+      .unsafeRunSync should ===(Right(QueryResponse[Option[Array[Byte]]](None, 999, false, 1)))
   }
 
   it should "fail when the response is 500" in {
@@ -72,8 +69,7 @@ class Http4sConsulTests
     helm
       .run(csl, ConsulOp.kvGet("foo", None, None, None, None, None))
       .attempt
-      .unsafeRunSync should ===(
-      Right(QueryResponse(List.empty[KVGetResult], 555, false, 2)))
+      .unsafeRunSync should ===(Right(QueryResponse(List.empty[KVGetResult], 555, false, 2)))
   }
 
   it should "fail when the response is 500" in {
@@ -104,9 +100,7 @@ class Http4sConsulTests
   }
 
   "healthListChecksForNode" should "succeed with the proper result when the response is 200" in {
-    val response = consulResponse(Status.Ok,
-                                  serviceHealthChecksReplyJson,
-                                  consulHeaders(1234, true, 0))
+    val response = consulResponse(Status.Ok, serviceHealthChecksReplyJson, consulHeaders(1234, true, 0))
     val csl = constantConsul(response)
     helm
       .run(csl, ConsulOp.healthListChecksForNode("localhost", None, None, None))
@@ -115,9 +109,7 @@ class Http4sConsulTests
   }
 
   it should "fail when the response is 500" in {
-    val response = consulResponse(Status.InternalServerError,
-                                  "error",
-                                  consulHeaders(1234, true, 0))
+    val response = consulResponse(Status.InternalServerError, "error", consulHeaders(1234, true, 0))
     val csl = constantConsul(response)
     helm
       .run(csl, ConsulOp.healthListChecksForNode("localhost", None, None, None))
@@ -126,80 +118,54 @@ class Http4sConsulTests
   }
 
   "healthListChecksInState" should "succeed with the proper result when the response is 200" in {
-    val response = consulResponse(Status.Ok,
-                                  serviceHealthChecksReplyJson,
-                                  consulHeaders(1234, true, 0))
+    val response = consulResponse(Status.Ok, serviceHealthChecksReplyJson, consulHeaders(1234, true, 0))
     val csl = constantConsul(response)
     helm
-      .run(csl,
-           ConsulOp.healthListChecksInState(HealthStatus.Passing,
-                                            None,
-                                            None,
-                                            None,
-                                            None,
-                                            None))
+      .run(csl, ConsulOp.healthListChecksInState(HealthStatus.Passing, None, None, None, None, None))
       .attempt
       .unsafeRunSync should ===(Right(healthStatusResponse))
   }
 
   it should "fail when the response is 500" in {
-    val response = consulResponse(Status.InternalServerError,
-                                  "error",
-                                  consulHeaders(1234, true, 0))
+    val response = consulResponse(Status.InternalServerError, "error", consulHeaders(1234, true, 0))
     val csl = constantConsul(response)
     helm
-      .run(csl,
-           ConsulOp.healthListChecksInState(HealthStatus.Passing,
-                                            None,
-                                            None,
-                                            None,
-                                            None,
-                                            None))
+      .run(csl, ConsulOp.healthListChecksInState(HealthStatus.Passing, None, None, None, None, None))
       .attempt
       .unsafeRunSync should be(consulErrorException)
   }
 
   "healthListChecksForService" should "succeed with the proper result when the response is 200" in {
-    val response = consulResponse(Status.Ok,
-                                  serviceHealthChecksReplyJson,
-                                  consulHeaders(1234, true, 0))
+    val response = consulResponse(Status.Ok, serviceHealthChecksReplyJson, consulHeaders(1234, true, 0))
     val csl = constantConsul(response)
     helm
-      .run(csl,
-           ConsulOp
-             .healthListChecksForService("test", None, None, None, None, None))
+      .run(
+        csl,
+        ConsulOp
+          .healthListChecksForService("test", None, None, None, None, None)
+      )
       .attempt
       .unsafeRunSync should ===(Right(healthStatusResponse))
   }
 
   it should "fail when the response is 500" in {
-    val response = consulResponse(Status.InternalServerError,
-                                  "error",
-                                  consulHeaders(1234, true, 0))
+    val response = consulResponse(Status.InternalServerError, "error", consulHeaders(1234, true, 0))
     val csl = constantConsul(response)
     helm
-      .run(csl,
-           ConsulOp
-             .healthListChecksForService("test", None, None, None, None, None))
+      .run(
+        csl,
+        ConsulOp
+          .healthListChecksForService("test", None, None, None, None, None)
+      )
       .attempt
       .unsafeRunSync should be(consulErrorException)
   }
 
   "healthListNodesForService" should "succeed with the proper result when the response is 200" in {
-    val response = consulResponse(Status.Ok,
-                                  healthNodesForServiceReplyJson,
-                                  consulHeaders(1234, true, 0))
+    val response = consulResponse(Status.Ok, healthNodesForServiceReplyJson, consulHeaders(1234, true, 0))
     val csl = constantConsul(response)
     helm
-      .run(csl,
-           ConsulOp.healthListNodesForService("test",
-                                              None,
-                                              None,
-                                              None,
-                                              None,
-                                              None,
-                                              None,
-                                              None))
+      .run(csl, ConsulOp.healthListNodesForService("test", None, None, None, None, None, None, None))
       .attempt
       .unsafeRunSync should ===(Right(healthNodesForServiceReturnValue))
   }
@@ -208,85 +174,49 @@ class Http4sConsulTests
     val response = consulResponse(
       Status.Ok,
       healthNodesForServiceReplyJson,
-      consulHeaders(1234, true, 0).filter(_.name != "X-Consul-Index".ci))
+      consulHeaders(1234, true, 0).filter(_.name != "X-Consul-Index".ci)
+    )
     val csl = constantConsul(response)
 
     helm
-      .run(csl,
-           ConsulOp.healthListNodesForService("test",
-                                              None,
-                                              None,
-                                              None,
-                                              None,
-                                              None,
-                                              None,
-                                              None))
+      .run(csl, ConsulOp.healthListNodesForService("test", None, None, None, None, None, None, None))
       .attempt
-      .unsafeRunSync should be(
-      consulHeaderException("Header not present in response: X-Consul-Index"))
+      .unsafeRunSync should be(consulHeaderException("Header not present in response: X-Consul-Index"))
   }
 
   "healthListNodesForService" should "fail if X-Consul-KnownLeader is omitted" in {
     val response = consulResponse(
       Status.Ok,
       healthNodesForServiceReplyJson,
-      consulHeaders(1234, true, 0).filter(_.name != "X-Consul-KnownLeader".ci))
+      consulHeaders(1234, true, 0).filter(_.name != "X-Consul-KnownLeader".ci)
+    )
     val csl = constantConsul(response)
 
     helm
-      .run(csl,
-           ConsulOp.healthListNodesForService("test",
-                                              None,
-                                              None,
-                                              None,
-                                              None,
-                                              None,
-                                              None,
-                                              None))
+      .run(csl, ConsulOp.healthListNodesForService("test", None, None, None, None, None, None, None))
       .attempt
-      .unsafeRunSync should be(
-      consulHeaderException(
-        "Header not present in response: X-Consul-KnownLeader"))
+      .unsafeRunSync should be(consulHeaderException("Header not present in response: X-Consul-KnownLeader"))
   }
 
   "healthListNodesForService" should "fail if X-Consul-LastContact is omitted" in {
     val response = consulResponse(
       Status.Ok,
       healthNodesForServiceReplyJson,
-      consulHeaders(1234, true, 0).filter(_.name != "X-Consul-LastContact".ci))
+      consulHeaders(1234, true, 0).filter(_.name != "X-Consul-LastContact".ci)
+    )
     val csl = constantConsul(response)
 
     helm
-      .run(csl,
-           ConsulOp.healthListNodesForService("test",
-                                              None,
-                                              None,
-                                              None,
-                                              None,
-                                              None,
-                                              None,
-                                              None))
+      .run(csl, ConsulOp.healthListNodesForService("test", None, None, None, None, None, None, None))
       .attempt
-      .unsafeRunSync should be(
-      consulHeaderException(
-        "Header not present in response: X-Consul-LastContact"))
+      .unsafeRunSync should be(consulHeaderException("Header not present in response: X-Consul-LastContact"))
   }
 
   it should "fail when the response is 500" in {
-    val response = consulResponse(Status.InternalServerError,
-                                  "error",
-                                  consulHeaders(1234, true, 0))
+    val response = consulResponse(Status.InternalServerError, "error", consulHeaders(1234, true, 0))
     val csl = constantConsul(response)
     helm
-      .run(csl,
-           ConsulOp.healthListNodesForService("test",
-                                              None,
-                                              None,
-                                              None,
-                                              None,
-                                              None,
-                                              None,
-                                              None))
+      .run(csl, ConsulOp.healthListNodesForService("test", None, None, None, None, None, None, None))
       .attempt
       .unsafeRunSync should be(consulErrorException)
   }
@@ -295,15 +225,7 @@ class Http4sConsulTests
     val response = consulResponse(Status.Ok, "yay")
     val csl = constantConsul(response)
     helm
-      .run(csl,
-           ConsulOp.agentRegisterService("testService",
-                                         Some("testId"),
-                                         None,
-                                         None,
-                                         None,
-                                         None,
-                                         None,
-                                         None))
+      .run(csl, ConsulOp.agentRegisterService("testService", Some("testId"), None, None, None, None, None, None))
       .attempt
       .unsafeRunSync should ===(Right(()))
   }
@@ -312,15 +234,7 @@ class Http4sConsulTests
     val response = consulResponse(Status.InternalServerError, "error")
     val csl = constantConsul(response)
     helm
-      .run(csl,
-           ConsulOp.agentRegisterService("testService",
-                                         Some("testId"),
-                                         None,
-                                         None,
-                                         None,
-                                         None,
-                                         None,
-                                         None))
+      .run(csl, ConsulOp.agentRegisterService("testService", Some("testId"), None, None, None, None, None, None))
       .attempt
       .unsafeRunSync should be(consulErrorException)
   }
@@ -367,22 +281,19 @@ class Http4sConsulTests
     helm.run(csl, ConsulOp.agentListServices).attempt.unsafeRunSync should ===(
       Right(
         Map(
-          "consul" -> ServiceResponse("consul",
-                                      "consul",
-                                      List.empty,
-                                      "",
-                                      8300,
-                                      false,
-                                      Map.empty[String, String]),
-          "test" -> ServiceResponse("testService",
-                                    "test",
-                                    List("testTag", "anotherTag"),
-                                    "127.0.0.1",
-                                    1234,
-                                    false,
-                                    Map.empty[String, String])
+          "consul" -> ServiceResponse("consul", "consul", List.empty, "", 8300, false, Map.empty[String, String]),
+          "test" -> ServiceResponse(
+            "testService",
+            "test",
+            List("testTag", "anotherTag"),
+            "127.0.0.1",
+            1234,
+            false,
+            Map.empty[String, String]
+          )
         )
-      ))
+      )
+    )
 
   }
 //
@@ -396,12 +307,8 @@ class Http4sConsulTests
 trait ConsulClient[F[_]] {
   case class ConsulResponse(status: Int, body: String, headers: ConsulHeaders)
   def constantConsul(response: ConsulResponse): ConsulOp ~> F
-  def consulHeaders(index: Long,
-                    knownLeader: Boolean,
-                    lastContact: Long): ConsulHeaders
-  def consulResponse(status: Int,
-                     s: String,
-                     headers: ConsulHeaders): Response[F]
+  def consulHeaders(index: Long, knownLeader: Boolean, lastContact: Long): ConsulHeaders
+  def consulResponse(status: Int, s: String, headers: ConsulHeaders): Response[F]
 }
 
 object Http4sConsulTests {
@@ -410,9 +317,7 @@ object Http4sConsulTests {
     new Http4sConsulClient(Uri.uri("http://localhost:8500/v1/kv/v1"), accessToken = None)
   }
 
-  def consulHeaders(index: Long,
-                    knownLeader: Boolean,
-                    lastContact: Long): Headers = {
+  def consulHeaders(index: Long, knownLeader: Boolean, lastContact: Long): Headers = {
     Headers(
       List(
         Header.Raw("X-Consul-Index".ci, index.toString),
@@ -422,9 +327,7 @@ object Http4sConsulTests {
     )
   }
 
-  def consulResponse(status: Status,
-                     s: String,
-                     headers: Headers = Headers.empty): Response[IO] = {
+  def consulResponse(status: Status, s: String, headers: Headers = Headers.empty): Response[IO] = {
     val responseBody = body(s)
     Response(status = status, body = responseBody, headers = headers)
   }
@@ -587,13 +490,7 @@ object Http4sConsulTests {
     QueryResponse(
       List(
         KVGetResult("foo", "bar", 0, None, 0, 43788, 43789),
-        KVGetResult("foo/baz",
-                    "quxx",
-                    1234,
-                    Some("adf4238a-882b-9ddc-4a9d-5b6758e4159e"),
-                    0,
-                    43790,
-                    43791)
+        KVGetResult("foo/baz", "quxx", 1234, Some("adf4238a-882b-9ddc-4a9d-5b6758e4159e"), 0, 43790, 43791)
       ),
       555,
       false,
@@ -614,13 +511,15 @@ object Http4sConsulTests {
             123455121311L,
             123455121347L
           ),
-          ServiceResponse("testService",
-                          "test",
-                          List("testTag", "anotherTag"),
-                          "127.0.0.1",
-                          1234,
-                          false,
-                          Map.empty[String, String]),
+          ServiceResponse(
+            "testService",
+            "test",
+            List("testTag", "anotherTag"),
+            "127.0.0.1",
+            1234,
+            false,
+            Map.empty[String, String]
+          ),
           List(
             HealthCheckResponse(
               "localhost",
@@ -695,16 +594,17 @@ object Http4sConsulTests {
   // It has handling for thrown exceptions, but not just straight-up comparison.
   // Who knows, maybe I missed something and this is just redundant. Ah well.
 
-  class LeftExceptionMatcher[E <: Exception: ClassTag](exception: E)
-      extends BeMatcher[Either[Throwable, _]] {
+  class LeftExceptionMatcher[E <: Exception: ClassTag](exception: E) extends BeMatcher[Either[Throwable, _]] {
     val expectedExceptionType = exception.getClass.getName
     val expectedMessage = exception.getMessage
     def apply(e: Either[Throwable, _]) =
       e match {
         case l @ Left(e: E) if e.getMessage == expectedMessage =>
-          MatchResult(true,
-                      s"$l was $expectedExceptionType($expectedMessage)",
-                      s"$l was not $expectedExceptionType($expectedMessage)")
+          MatchResult(
+            true,
+            s"$l was $expectedExceptionType($expectedMessage)",
+            s"$l was not $expectedExceptionType($expectedMessage)"
+          )
         case other =>
           MatchResult(
             false,
@@ -719,6 +619,5 @@ object Http4sConsulTests {
   def consulHeaderException(message: String) =
     leftException(new NoSuchElementException(message))
 
-  val consulErrorException = leftException(
-    new RuntimeException("Got error response from Consul: error"))
+  val consulErrorException = leftException(new RuntimeException("Got error response from Consul: error"))
 }

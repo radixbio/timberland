@@ -20,7 +20,8 @@ object Util {
   private[this] implicit val timer: Timer[IO] = IO.timer(global)
   private[this] implicit val cs: ContextShift[IO] = IO.contextShift(global)
 
-  /** Let a specified function run for a specified period of time before interrupting it and raising an error. This
+  /**
+   * Let a specified function run for a specified period of time before interrupting it and raising an error. This
    * function sets up the timeoutTo function.
    *
    * Taken from: https://typelevel.org/cats-effect/datatypes/io.html#race-conditions--race--racepair
@@ -34,11 +35,15 @@ object Util {
    */
   def timeout[A](fa: IO[A], after: FiniteDuration)(implicit timer: Timer[IO], cs: ContextShift[IO]): IO[A] = {
 
-    val error = new TimeoutException(after.toString) // this should give more info about what is being run, maybe a message argument?
+    val error =
+      new TimeoutException(
+        after.toString
+      ) // this should give more info about what is being run, maybe a message argument?
     timeoutTo(fa, after, IO.raiseError(error))
   }
 
-  /** Creates a race condition between two functions (fa and timer.sleep()) that will let a program run until the timer
+  /**
+   * Creates a race condition between two functions (fa and timer.sleep()) that will let a program run until the timer
    * expires
    *
    * Taken from: https://typelevel.org/cats-effect/datatypes/io.html#race-conditions--race--racepair
@@ -51,8 +56,8 @@ object Util {
    * @tparam A The type of our result
    * @return Returns the result of fa if it completes within @after or returns fallback (all IO[A])
    */
-  def timeoutTo[A](fa: IO[A], after: FiniteDuration, fallback: IO[A])(
-    implicit timer: Timer[IO],
+  def timeoutTo[A](fa: IO[A], after: FiniteDuration, fallback: IO[A])(implicit
+    timer: Timer[IO],
     cs: ContextShift[IO]
   ): IO[A] = {
 
@@ -63,7 +68,6 @@ object Util {
   }
 
   /**
-   *
    * @param port The port number to check (on localhost)
    * @return Whether the port is up
    */
@@ -84,9 +88,10 @@ object Util {
     def queryProg(): IO[Boolean] =
       for {
         portUp <- isPortUp(port)
-        _ <- if (!portUp) {
-          IO.sleep(1.second) *> queryProg
-        } else IO(portUp)
+        _ <-
+          if (!portUp) {
+            IO.sleep(1.second) *> queryProg
+          } else IO(portUp)
       } yield portUp
 
     timeout(queryProg, timeoutDuration)
@@ -182,7 +187,8 @@ object Util {
     output
   }
 
-  /***
+  /**
+   * *
    * Log (using scribe) the arguments to an os.proc call.
    * @param cmd, a list of os.Shellable
    * @return result of os.proc call, ready to be call()'d or spawn()'d

@@ -33,9 +33,12 @@ class VaultSpec extends fixture.FlatSpec with Matchers with TestContainerForAll 
   }
 
   "vault" should "be unsealed upon start" in { vault =>
-    vault.session.sealStatus().flatMap { sealStatus =>
-      IO(sealStatus should be(Right(SealStatusResponse(`sealed` = false, 1, 1, 0))))
-    }.unsafeRunSync()
+    vault.session
+      .sealStatus()
+      .flatMap { sealStatus =>
+        IO(sealStatus should be(Right(SealStatusResponse(`sealed` = false, 1, 1, 0))))
+      }
+      .unsafeRunSync()
   }
 
 }

@@ -43,7 +43,7 @@ class IntegrationSpec extends FlatSpec with Checkers with BeforeAndAfterAll with
 
   implicit val blaze = BlazeClientBuilder[IO](implicitly[ExecutionContext]).resource
   val i = new Http4sConsulClient[IO](baseUrl)
-  "consul" should "work" in check({ (k: String, v: Array[Byte]) =>
+  "consul" should "work" in check { (k: String, v: Array[Byte]) =>
     val testprog = for {
       _ <- helm.run(i, ConsulOp.kvSet(k, v))
       v1 <- helm.run(i, ConsulOp.kvGetRaw(k, None, None))
@@ -53,10 +53,10 @@ class IntegrationSpec extends FlatSpec with Checkers with BeforeAndAfterAll with
       _ <- helm.run(i, ConsulOp.kvDelete(k))
       ks2 <- helm.run(i, ConsulOp.kvListKeys(""))
       _ <- IO(assert(!ks2.contains(k)))
-    } yield (true)
+    } yield true
     assert(testprog.unsafeRunSync())
     true
-  })(
+  }(
     implicitly[PropertyCheckConfiguration],
     implicitly[Boolean => Prop],
     arb,

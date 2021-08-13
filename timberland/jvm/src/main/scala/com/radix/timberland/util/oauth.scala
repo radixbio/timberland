@@ -70,7 +70,8 @@ object OAuthController {
     }
   }
 
-  /** *
+  /**
+   * *
    * Initialize Google OAuth plugin if creds are provided via envvars.
    *
    * @param token

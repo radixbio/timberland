@@ -19,8 +19,8 @@ import org.http4s.CharsetRange.*
 case object ConnectNativeBlazeMiddleware {
   def middleware(service: HttpRoutes[IO]): HttpRoutes[IO] = Kleisli[OptionT[IO, *], Request[IO], Response[IO]] {
     (req: Request[IO]) =>
-      val reqIO: Option[IO[Request[IO]]] = req.attributes.lookup(ServerRequestKeys.SecureSession).flatten.map {
-        session =>
+      val reqIO: Option[IO[Request[IO]]] =
+        req.attributes.lookup(ServerRequestKeys.SecureSession).flatten.map { session =>
           val cert = session.X509Certificate.head
           val serialByteString = cert.getSerialNumber.toString(16).reverse.padTo(22, "0").reverse
           val byteStringWithColons = serialByteString.grouped(2).map(_.mkString).mkString(":")
@@ -34,7 +34,7 @@ case object ConnectNativeBlazeMiddleware {
             Uri.unsafeFromString("https://consul.service.consul:8501/v1/agent/connect/authorize"),
             Header("X-Consul-Token", System.getenv("ACCESS_TOKEN"))
           )
-      }
+        }
 
       val reqOption: OptionT[IO, Request[IO]] = OptionT(reqIO match {
         case Some(x) => x.map(Some(_))

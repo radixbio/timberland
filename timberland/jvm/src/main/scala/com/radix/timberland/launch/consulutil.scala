@@ -24,8 +24,8 @@ object consulutil {
     quorum: Int,
     fail: Boolean = false,
     statuses: NonEmptyList[HealthStatus] = NonEmptyList.of(HealthStatus.Passing)
-  )(
-    implicit poll_interval: FiniteDuration = 1.second,
+  )(implicit
+    poll_interval: FiniteDuration = 1.second,
     timer: Timer[IO]
   ): IO[List[CatalogListNodesForServiceResponse]] = {
     val interpreter = new Http4sConsulClient[IO](uri("https://consul.service.consul:8501"))
@@ -59,9 +59,9 @@ object consulutil {
                   .zip(serviceswithTags.map(_.toList))
                   .filter(
                     _._1.value
-                      .map({ service =>
+                      .map { service =>
                         statuses.toList.contains(service.status)
-                      })
+                      }
                       //                            .map(_.status == HealthStatus.Passing)
                       .reduce(_ && _)
                   )
@@ -104,7 +104,7 @@ object consulutil {
   }
   def getDomain(implicit service: String, tags: List[String]): OptionT[IO, Int] = //TODO: Generalize this code
     // There's an extra comma due to templating
-    OptionT({
+    OptionT {
       implicit val blaze: Resource[IO, Client[IO]] = BlazeClientBuilder[IO](global).resource
       val interpreter = new Http4sConsulClient[IO](uri("https://consul.service.consul:8501"))
       for {
@@ -116,13 +116,14 @@ object consulutil {
           )
           .map(zk => s"${zk.serviceAddress}:${zk.servicePort}")
         _ <- IO(scribe.debug(s"${service}: $runningTasks"))
-        res <- if (runningTasks.size > 0) {
-          IO.pure(Some(runningTasks.size))
-        } else {
-          IO.pure(None)
-        }
+        res <-
+          if (runningTasks.size > 0) {
+            IO.pure(Some(runningTasks.size))
+          } else {
+            IO.pure(None)
+          }
       } yield res
-    })
+    }
 
 //  srv.serviceTags.contains("zookeeper-client") && srv.serviceTags
 //    .contains("zookeeper-quorum") && srv.serviceName.contains("radix-daemons"))

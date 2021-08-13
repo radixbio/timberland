@@ -104,8 +104,8 @@ final class Http4sConsulClient[F[_]](
   }
 
   private def addCreds(req: Request[F]): Request[F] =
-    credentials.fold(req) {
-      case (un, pw) => req.putHeaders(Authorization(BasicCredentials(un, pw)))
+    credentials.fold(req) { case (un, pw) =>
+      req.putHeaders(Authorization(BasicCredentials(un, pw)))
     }
 
   /** A nice place to store the Consul response headers so we can pass them around */
@@ -187,8 +187,9 @@ final class Http4sConsulClient[F[_]](
             case status @ (Status.Ok | Status.NotFound) =>
               for {
                 headers <- extractConsulHeaders(response)
-                value <- if (status == Status.Ok) response.as[List[KVGetResult]]
-                else F.pure(List.empty)
+                value <-
+                  if (status == Status.Ok) response.as[List[KVGetResult]]
+                  else F.pure(List.empty)
               } yield {
                 QueryResponse(value, headers.index, headers.knownLeader, headers.lastContact)
               }
@@ -226,11 +227,12 @@ final class Http4sConsulClient[F[_]](
             case status @ (Status.Ok | Status.NotFound) =>
               for {
                 headers <- extractConsulHeaders(response)
-                value <- if (status == Status.Ok)
-                  response.body.compile.toVector
-                    .map(_.toArray)
-                    .map(Some(_)) //to[Array].map(Some(_))
-                else F.pure(None)
+                value <-
+                  if (status == Status.Ok)
+                    response.body.compile.toVector
+                      .map(_.toArray)
+                      .map(Some(_)) //to[Array].map(Some(_))
+                  else F.pure(None)
               } yield {
                 QueryResponse(value, headers.index, headers.knownLeader, headers.lastContact)
               }
@@ -304,8 +306,9 @@ final class Http4sConsulClient[F[_]](
   def kvList(prefix: Key): F[Set[Key]] = {
     val req = addCreds(
       addConsulToken(
-        Request(uri = (baseUri / "v1" / "kv" / prefix)
-          .withQueryParam(QueryParam.fromKey("keys"))
+        Request(uri =
+          (baseUri / "v1" / "kv" / prefix)
+            .withQueryParam(QueryParam.fromKey("keys"))
         )
       )
     )
@@ -421,8 +424,9 @@ final class Http4sConsulClient[F[_]](
       _ <- F.delay(log.debug(s"fetching service info from catalog for service: $service"))
       req = addCreds(
         addConsulToken(
-          Request(uri = (baseUri / "v1" / "catalog" / "service" / service)
-            .+??("tag", tag)
+          Request(uri =
+            (baseUri / "v1" / "catalog" / "service" / service)
+              .+??("tag", tag)
           )
         )
       )
@@ -507,14 +511,18 @@ final class Http4sConsulClient[F[_]](
       _ <- F.delay(log.debug(s"fetching nodes for service $service from health API"))
       req = addCreds(
         addConsulToken(
-          Request(uri = (baseUri / "v1" / "health" / "service" / service)
-            .+??("dc", datacenter)
-            .+??("near", near)
-            .+??("node-meta", nodeMeta)
-            .+??("tag", tag)
-            .+??("passing", passingOnly.filter(identity)) // all values of passing parameter are treated the same by Consul
-            .+??("index", index)
-            .+??("wait", wait.map(Interval.toString))
+          Request(uri =
+            (baseUri / "v1" / "health" / "service" / service)
+              .+??("dc", datacenter)
+              .+??("near", near)
+              .+??("node-meta", nodeMeta)
+              .+??("tag", tag)
+              .+??(
+                "passing",
+                passingOnly.filter(identity)
+              ) // all values of passing parameter are treated the same by Consul
+              .+??("index", index)
+              .+??("wait", wait.map(Interval.toString))
           )
         )
       )

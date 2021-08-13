@@ -15,8 +15,8 @@ import org.http4s.client.Client
 import com.radix.utils.helm.vault._
 import shapeless.the
 
-class Vault[F[_]: ConcurrentEffect](authToken: Option[String], baseUrl: Uri)(
-  implicit blazeResource: Resource[F, Client[F]]
+class Vault[F[_]: ConcurrentEffect](authToken: Option[String], baseUrl: Uri)(implicit
+  blazeResource: Resource[F, Client[F]]
 ) extends VaultInterface[F] {
   val baseHeaders: Headers = authToken
     .map { tok =>
@@ -24,7 +24,8 @@ class Vault[F[_]: ConcurrentEffect](authToken: Option[String], baseUrl: Uri)(
     }
     .getOrElse(Headers.of())
 
-  /** Note: This function is only called if we have a response (i.e. a successful connection to the server was established
+  /**
+   * Note: This function is only called if we have a response (i.e. a successful connection to the server was established
    * and we have a status code).
    */
   private def errorResponseHandler(response: Response[F]): F[Throwable] =
@@ -52,7 +53,8 @@ class Vault[F[_]: ConcurrentEffect](authToken: Option[String], baseUrl: Uri)(
         .map(_.leftMap(errorHandler))
     }
 
-  /** We're not expecting a response (we are expecting a 204 No Content). When I tried to decode to Unit I received
+  /**
+   * We're not expecting a response (we are expecting a 204 No Content). When I tried to decode to Unit I received
    * the following error at runtime:
    *
    * java.lang.NoSuchMethodError: fs2.Pull$.stream$extension(Lfs2/internal/FreeC;)Lfs2/internal/FreeC;
@@ -73,7 +75,8 @@ class Vault[F[_]: ConcurrentEffect](authToken: Option[String], baseUrl: Uri)(
       }
     }
 
-  /** This is needed for plugin paths containing a slash. Without it, the
+  /**
+   * This is needed for plugin paths containing a slash. Without it, the
    * path will be transformed from, say, "foo/bar" to foo%2Fbar", which is
    * not what we want.
    */
@@ -90,7 +93,7 @@ class Vault[F[_]: ConcurrentEffect](authToken: Option[String], baseUrl: Uri)(
 
   override def sysInitStatus: F[Either[VaultError, Boolean]] =
     submitRequest[io.circe.Json](Request[F](method = GET, uri = baseUrl / "v1" / "sys" / "init", headers = baseHeaders))
-      .map(_.flatMap(_.hcursor.downField(("initialized")).as[Boolean].leftMap(_ => VaultErrorMalformedResponse())))
+      .map(_.flatMap(_.hcursor.downField("initialized").as[Boolean].leftMap(_ => VaultErrorMalformedResponse())))
 
   override def unseal(req: UnsealRequest): F[Either[VaultError, UnsealResponse]] =
     submitRequest(

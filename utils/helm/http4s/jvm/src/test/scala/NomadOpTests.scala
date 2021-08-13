@@ -22,15 +22,17 @@ import com.radix.utils.helm.NomadHCL.syntax._
 
 // run: nomad agent -dev , to run nomad locally before running test from sbt command line.
 
-class NomadOpTests extends FlatSpec  with ForAllTestContainer {
+class NomadOpTests extends FlatSpec with ForAllTestContainer {
 
   override val container =
-    FixedHostPortGenericContainer("registry.gitlab.com/radix-labs/devops/nomad:latest",
-                                  exposedHostPort = 4646,
-                                  exposedContainerPort = 4646,
-                                  waitStrategy = Wait.forHttp("/"),
-                                  env = Map("NOMAD_LOCAL_CONFIG" -> """{"bind_addr": "0.0.0.0"}"""),
-                                  command = List("agent", "-dev"))
+    FixedHostPortGenericContainer(
+      "registry.gitlab.com/radix-labs/devops/nomad:latest",
+      exposedHostPort = 4646,
+      exposedContainerPort = 4646,
+      waitStrategy = Wait.forHttp("/"),
+      env = Map("NOMAD_LOCAL_CONFIG" -> """{"bind_addr": "0.0.0.0"}"""),
+      command = List("agent", "-dev")
+    )
   val baseUrl = Uri.fromString("http://127.0.0.1:4646").toOption.get
   implicit val cs = IO.contextShift(global)
 
@@ -55,22 +57,27 @@ class NomadOpTests extends FlatSpec  with ForAllTestContainer {
            |""".stripMargin
 
   val job2: JobShim = job("foo2") {
-    Job(group = List(group("bar") {
-      Group(
-        task = List(
-          task("arst")(Task(
-            config = Some(DockerConfig(image = "hello-world:latest"))
-          ))))
-    }), `type` = "batch")
+    Job(
+      group = List(group("bar") {
+        Group(
+          task = List(
+            task("arst")(
+              Task(
+                config = Some(DockerConfig(image = "hello-world:latest"))
+              )
+            )
+          )
+        )
+      }),
+      `type` = "batch"
+    )
   }
-
 
   "nomadCreateJobFromHCL" should "return the response after creating a job in Nomad" in {
 
     val runCreateJob = interp(NomadOp.NomadCreateJobFromHCL(job2)).unsafeRunSync
     assert(runCreateJob.value.head.evalId != "")
   }
-
 
   it should "return the description of jobs in Nomad that match namespace" in {
 

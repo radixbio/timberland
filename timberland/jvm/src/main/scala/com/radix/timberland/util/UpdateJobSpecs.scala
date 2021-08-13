@@ -116,7 +116,7 @@ object UpdateModules {
   }
 
   def swap_module(tarfile: String, backup_dir: os.Path): IO[Boolean] =
-    IO({
+    IO {
       println(s"Saving prior terraform templates to ${backup_dir.toString()}")
       os.move(TemplateFiles.module_dir, backup_dir)
       os.makeDir(TemplateFiles.module_dir)
@@ -150,21 +150,21 @@ object UpdateModules {
           false
         }
       }
-    })
+    }
 
   def walkback(module_backup: os.Path): IO[Unit] =
-    IO({
+    IO {
       scribe.warn(s"Restoring terraform config from ${module_backup}")
       os.remove(TemplateFiles.module_dir)
       os.move(module_backup, TemplateFiles.module_dir)
       println("Errors occurred during update.  Terraform has been restored to previous configuration.")
-    })
+    }
 
   // Terraform fails on replanning if there are fewer module configs in the new
   // main configuration directory than in terraform's working copy in /opt/radix/terraform.
   // This removes extraneous modules from the working copy.
   def auditExecDir(): IO[Unit] =
-    IO({
+    IO {
       val module_manifest = os.list(TemplateFiles.module_dir).map(_.baseName)
       val exec_manifest = os.list(TemplateFiles.terraform_exec_dir).map(_.baseName)
       for {
@@ -177,7 +177,7 @@ object UpdateModules {
           os.remove.all(TemplateFiles.terraform_exec_dir / fn)
         }
       }
-    })
+    }
 
   // TODO make version specifiable?
   def run(terraformTask: IO[Boolean], namespace: Option[String]): IO[Unit] = {
@@ -193,22 +193,24 @@ object UpdateModules {
     val update = BlazeClientBuilder[IO](global).resource.use(implicit client =>
       for {
         version <- getLatestVersion(modInfo, client)
-        _ <- if (versionUpToDate(version))
-          IO(println("Version is up to date."))
-        else {
-          for {
-            download_url <- getDownloadLink(modInfo, version, client)
-            downloaded <- downloadModuleTar(download_url, tar_file, client)
-            swap_successful <- swap_module(tar_file.toString(), module_backup)
-            _ <- auditExecDir()
-            ter_successful <- terraformTask
-            _ <- if (downloaded && swap_successful && ter_successful)
-              IO(os.write.over(TemplateFiles.version_file, version))
-            else
-              walkback(module_backup)
-            _ <- IO(os.remove(tar_file))
-          } yield ()
-        }
+        _ <-
+          if (versionUpToDate(version))
+            IO(println("Version is up to date."))
+          else {
+            for {
+              download_url <- getDownloadLink(modInfo, version, client)
+              downloaded <- downloadModuleTar(download_url, tar_file, client)
+              swap_successful <- swap_module(tar_file.toString(), module_backup)
+              _ <- auditExecDir()
+              ter_successful <- terraformTask
+              _ <-
+                if (downloaded && swap_successful && ter_successful)
+                  IO(os.write.over(TemplateFiles.version_file, version))
+                else
+                  walkback(module_backup)
+              _ <- IO(os.remove(tar_file))
+            } yield ()
+          }
       } yield ()
     )
     update

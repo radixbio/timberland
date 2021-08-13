@@ -99,8 +99,8 @@ object flagConfig {
    * @return A map of terraform variables and a list of defined config parameters
    *         in the form flagName.configName (e.g. minio.aws_access_key_id)
    */
-  def updateFlagConfig(flagMap: Map[String, Boolean])(
-    implicit serviceAddrs: ServiceAddrs = ServiceAddrs(),
+  def updateFlagConfig(flagMap: Map[String, Boolean])(implicit
+    serviceAddrs: ServiceAddrs = ServiceAddrs(),
     persistentDir: os.Path,
     tokens: Option[AuthTokens] = None
   ): IO[TerraformConfigVars] = {
@@ -119,8 +119,8 @@ object flagConfig {
   /**
    * Prompts for default flag configuration parameters and writes them to the local config file
    */
-  def promptForDefaultConfigs(
-    implicit serviceAddrs: ServiceAddrs = ServiceAddrs(),
+  def promptForDefaultConfigs(implicit
+    serviceAddrs: ServiceAddrs = ServiceAddrs(),
     persistentDir: os.Path
   ): IO[TerraformConfigVars] =
     updateFlagConfig(featureFlags.defaultFlagMap)
@@ -147,8 +147,8 @@ object flagConfig {
    *
    * @param flagList The list of flags to execute hooks for
    */
-  private def executeHooks(flagList: List[String], configs: FlagConfigs)(
-    implicit serviceAddrs: ServiceAddrs
+  private def executeHooks(flagList: List[String], configs: FlagConfigs)(implicit
+    serviceAddrs: ServiceAddrs
   ): IO[Unit] =
     flagList
       .map { flagName =>
@@ -182,8 +182,8 @@ object flagConfig {
    *                   data will only be read from the local config.json file
    * @return A flagConfig object containing the current accessible configuration
    */
-  def readFlagConfig(
-    implicit serviceAddrs: ServiceAddrs,
+  def readFlagConfig(implicit
+    serviceAddrs: ServiceAddrs,
     persistentDir: os.Path,
     authTokens: Option[AuthTokens]
   ): IO[FlagConfigs] = {
@@ -210,11 +210,12 @@ object flagConfig {
   )(implicit serviceAddrs: ServiceAddrs, persistentDir: os.Path, tokens: Option[AuthTokens]): IO[Unit] =
     for {
       shouldWriteRemote <- if (tokens.isDefined) featureFlags.isConsulUp() else IO.pure(false)
-      _ <- if (shouldWriteRemote) {
-        new RemoteConfig()(serviceAddrs, tokens.get).write(configs) *> new LocalConfig().clear()
-      } else {
-        new LocalConfig().write(configs)
-      }
+      _ <-
+        if (shouldWriteRemote) {
+          new RemoteConfig()(serviceAddrs, tokens.get).write(configs) *> new LocalConfig().clear()
+        } else {
+          new LocalConfig().write(configs)
+        }
     } yield ()
 
   /**

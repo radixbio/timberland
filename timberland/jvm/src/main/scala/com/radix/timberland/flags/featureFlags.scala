@@ -117,18 +117,20 @@ object featureFlags {
         case None    => IO.pure(false)
       }
       _ <- callNonpersistentFlagHooks(flagsToSet)
-      newFlags <- if (shouldUpdateConsul) {
-        for {
-          localFlags <- getLocalFlags(persistentDir)
-          totalFlags = localFlags ++ actualFlags
-          _ <- if (confirm) confirmFlags(persistentDir, shouldUpdateConsul, serviceAddrs, tokens, totalFlags)
-          else IO.unit
-          _ <- clearLocalFlagFile(persistentDir, totalFlags)
-          newFlags <- setConsulFlags(totalFlags)(serviceAddrs, tokens.get)
-        } yield newFlags
-      } else {
-        setLocalFlags(persistentDir, actualFlags)
-      }
+      newFlags <-
+        if (shouldUpdateConsul) {
+          for {
+            localFlags <- getLocalFlags(persistentDir)
+            totalFlags = localFlags ++ actualFlags
+            _ <-
+              if (confirm) confirmFlags(persistentDir, shouldUpdateConsul, serviceAddrs, tokens, totalFlags)
+              else IO.unit
+            _ <- clearLocalFlagFile(persistentDir, totalFlags)
+            newFlags <- setConsulFlags(totalFlags)(serviceAddrs, tokens.get)
+          } yield newFlags
+        } else {
+          setLocalFlags(persistentDir, actualFlags)
+        }
     } yield newFlags
   }
 
@@ -257,8 +259,8 @@ object featureFlags {
    * @param persistentDir Timberland directory. Usually /opt/radix/timberland
    * @return A list of valid flags
    */
-  private def getValidFlags(persistentDir: os.Path, tokens: Option[AuthTokens])(
-    implicit serviceAddrs: ServiceAddrs = ServiceAddrs()
+  private def getValidFlags(persistentDir: os.Path, tokens: Option[AuthTokens])(implicit
+    serviceAddrs: ServiceAddrs = ServiceAddrs()
   ): IO[Set[String]] = {
     val moduleFile = persistentDir / os.up / "terraform" / ".terraform" / "modules" / "modules.json"
     for {
@@ -301,7 +303,6 @@ object featureFlags {
   }
 
   /**
-   *
    * @param flagsToSet A list of changes to apply (e.g. all -> true)
    * @param validFlags A set of valid flags. Used when "all"
    * @return The resolved list of variables to change (e.g. kafka -> true, etc)
@@ -329,12 +330,14 @@ object featureFlags {
     for {
       pendingChangesExist <- printFlagInfo(persistentDir, consulIsUp, serviceAddrs, authTokens, extraFlags)
       _ <- LogTUI.acquireScreen()
-      _ <- if (pendingChangesExist) {
-        IO(Console.print("The above changes will be written to consul/vault. Continue? [Y/n] "))
-      } else IO.unit
-      userInput <- if (pendingChangesExist) {
-        Util.timeoutTo(IO(StdIn.readLine()), 30.seconds, IO.pure("y"))
-      } else IO.pure("y")
+      _ <-
+        if (pendingChangesExist) {
+          IO(Console.print("The above changes will be written to consul/vault. Continue? [Y/n] "))
+        } else IO.unit
+      userInput <-
+        if (pendingChangesExist) {
+          Util.timeoutTo(IO(StdIn.readLine()), 30.seconds, IO.pure("y"))
+        } else IO.pure("y")
       _ <- LogTUI.releaseScreen()
     } yield {
       if (userInput != null && userInput.nonEmpty && userInput.toLowerCase != "y") sys.exit(0) else ()
@@ -356,14 +359,16 @@ object featureFlags {
     for {
       localFlagFileContents <- featureFlags.getLocalFlags(persistentDir)
       localFlags = localFlagFileContents ++ extraFlags
-      remoteFlags <- if (consulIsUp) {
-        featureFlags.getConsulFlags(serviceAddrs, authTokens.get)
-      } else IO.pure(Map[String, Boolean]())
+      remoteFlags <-
+        if (consulIsUp) {
+          featureFlags.getConsulFlags(serviceAddrs, authTokens.get)
+        } else IO.pure(Map[String, Boolean]())
 
       localFlagConfig <- new LocalConfig()(persistentDir).read()
-      remoteFlagConfig <- if (consulIsUp) {
-        new RemoteConfig()(serviceAddrs, authTokens.get).read()
-      } else IO.pure(FlagConfigs())
+      remoteFlagConfig <-
+        if (consulIsUp) {
+          new RemoteConfig()(serviceAddrs, authTokens.get).read()
+        } else IO.pure(FlagConfigs())
 
       _ <- if (consulIsUp) printCurrentFlags(remoteFlags, remoteFlagConfig, persistentDir) else IO.unit
     } yield printPendingFlagChanges(remoteFlags, remoteFlagConfig, localFlags, localFlagConfig)

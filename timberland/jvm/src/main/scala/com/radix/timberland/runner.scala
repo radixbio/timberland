@@ -90,10 +90,11 @@ object runner {
               _ <- IO {
                 tfStatus match {
                   case 0 => true
-                  case code => {
-                    LogTUI.writeLog("runTerraform failed, exiting")
-                  }
-                  sys.exit(code)
+                  case code =>
+                    {
+                      LogTUI.writeLog("runTerraform failed, exiting")
+                    }
+                    sys.exit(code)
                 }
               }
               _ <- if (waitForQuorum) Investigator.waitForInvestigations() else IO.unit
@@ -167,18 +168,19 @@ object runner {
                 } yield authTokens
             }
             // flags already written to consul by leader (first node)
-            featureFlags <- if (!remoteJoin) for {
-              featureFlags <- featureFlags.updateFlags(RadPath.persistentDir, Some(authTokens), confirm = true)(
-                defaultServiceAddrs
-              )
-              _ <- startLogTuiAndRunTerraform(
-                featureFlags,
-                defaultServiceAddrs,
-                authTokens,
-                waitForQuorum = true
-              )
-            } yield featureFlags
-            else IO.unit
+            featureFlags <-
+              if (!remoteJoin) for {
+                featureFlags <- featureFlags.updateFlags(RadPath.persistentDir, Some(authTokens), confirm = true)(
+                  defaultServiceAddrs
+                )
+                _ <- startLogTuiAndRunTerraform(
+                  featureFlags,
+                  defaultServiceAddrs,
+                  authTokens,
+                  waitForQuorum = true
+                )
+              } yield featureFlags
+              else IO.unit
           } yield ()
 
           // Called when consul/vault/nomad are not on localhost
@@ -214,13 +216,14 @@ object runner {
 
           val startTUIOnFlag = for {
             localFlags <- featureFlags.getLocalFlags(RadPath.persistentDir)
-            _ <- if (localFlags.getOrElse("tui", true)) {
-              for {
-                nomadup <- Util.isPortUp(4646)
-                vaultup <- Util.isPortUp(8200)
-                _ <- LogTUI.startTUI(true, nomadup, vaultup) // Update is only run if consul is up
-              } yield ()
-            } else IO.unit
+            _ <-
+              if (localFlags.getOrElse("tui", true)) {
+                for {
+                  nomadup <- Util.isPortUp(4646)
+                  vaultup <- Util.isPortUp(8200)
+                  _ <- LogTUI.startTUI(true, nomadup, vaultup) // Update is only run if consul is up
+                } yield ()
+              } else IO.unit
           } yield ()
 
           val consulExistsProc = for {
@@ -302,11 +305,12 @@ object runner {
                   nomadup <- Util.isPortUp(4646)
                   vaultup <- Util.isPortUp(8200)
                   flagMap <- featureFlags.getLocalFlags(RadPath.persistentDir)
-                  _ <- if (flagMap.getOrElse("tui", true)) {
-                    LogTUI.startTUI(consulup, nomadup, vaultup) *>
-                      consulExistsProc.handleErrorWith(err => LogTUI.endTUI(Some(err))) *>
-                      LogTUI.endTUI()
-                  } else consulExistsProc
+                  _ <-
+                    if (flagMap.getOrElse("tui", true)) {
+                      LogTUI.startTUI(consulup, nomadup, vaultup) *>
+                        consulExistsProc.handleErrorWith(err => LogTUI.endTUI(Some(err))) *>
+                        LogTUI.endTUI()
+                    } else consulExistsProc
                 } yield ()
               case false => noConsulProc
             }
@@ -319,9 +323,10 @@ object runner {
           val io = for {
             serviceAddrs <- if (remoteAddress.isDefined) daemonutil.getServiceIps() else IO.pure(ServiceAddrs())
             consulIsUp <- featureFlags.isConsulUp()(serviceAddrs)
-            authTokens <- if (consulIsUp) {
-              auth.getAuthTokens(isRemote = remoteAddress.isDefined, serviceAddrs, username, password).map(Some(_))
-            } else IO.pure(None)
+            authTokens <-
+              if (consulIsUp) {
+                auth.getAuthTokens(isRemote = remoteAddress.isDefined, serviceAddrs, username, password).map(Some(_))
+              } else IO.pure(None)
             _ <- featureFlags.printFlagInfo(RadPath.persistentDir, consulIsUp, serviceAddrs, authTokens)
           } yield ()
           io.unsafeRunSync()

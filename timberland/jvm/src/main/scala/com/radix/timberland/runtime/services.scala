@@ -68,7 +68,9 @@ class LinuxServiceControl extends ServiceControl {
   override def configureConsul(parameters: String): IO[Unit] =
     for {
       consulArgStr <- IO.pure(s"CONSUL_CMD_ARGS=$parameters")
-      envFilePath = Paths.get((RadPath.persistentDir / "consul" / "consul.env.conf").toString()) // TODO make configurable
+      envFilePath = Paths.get(
+        (RadPath.persistentDir / "consul" / "consul.env.conf").toString()
+      ) // TODO make configurable
       _ <- IO(os.write.over(os.Path(envFilePath), consulArgStr))
     } yield ()
 
@@ -110,9 +112,9 @@ class LinuxServiceControl extends ServiceControl {
     for {
       envars <- IO {
         s"""CONSUL_TEMPLATE_CMD_ARGS=-config=${(RadPath.persistentDir / "consul-template" / "config.hcl")
-             .toString()} ${vaultAddress
-             .map(addr => s"-vault-addr=https://$addr:8200")
-             .getOrElse("")}
+          .toString()} ${vaultAddress
+          .map(addr => s"-vault-addr=https://$addr:8200")
+          .getOrElse("")}
            |CONSUL_TOKEN=$consulToken
            |VAULT_TOKEN=$vaultToken
            |""".stripMargin
@@ -247,10 +249,12 @@ class WindowsServiceControl extends ServiceControl {
   override def restartNomad(): IO[Util.ProcOut] = stopNomad *> startNomad
 
   override def configureTimberlandSvc(): IO[Unit] = {
-    val javaHome = sys.env.getOrElse("JAVA_HOME", {
-      scribe.error("JAVA_HOME not set, can't find location of java.exe")
-      sys.exit(1)
-    })
+    val javaHome = sys.env.getOrElse(
+      "JAVA_HOME", {
+        scribe.error("JAVA_HOME not set, can't find location of java.exe")
+        sys.exit(1)
+      }
+    )
     val javaLoc = (os.Path(javaHome) / "bin" / "java.exe").toString()
     val jarLoc = RadPath.persistentDir / "exec" / "timberland-svc-bin_deploy.jar"
     Util.execArr(
@@ -343,53 +347,60 @@ object Services {
       _ <- if (initialSetup) auth.writeVaultTokenConfigs(RadPath.persistentDir, consulToken) else IO.unit
 
       // START VAULT
-      _ <- if (!remoteJoin) for {
-        _ <- IO { os.makeDir.all(RadPath.runtime / "vault") } // need to manually make dir so vault can make raft db
-        _ <- startVault(finalBindAddr)
-        _ <- (new VaultStarter).initializeAndUnsealAndSetupVault(initialSetup)
-      } yield ()
-      else IO.unit
+      _ <-
+        if (!remoteJoin) for {
+          _ <- IO { os.makeDir.all(RadPath.runtime / "vault") } // need to manually make dir so vault can make raft db
+          _ <- startVault(finalBindAddr)
+          _ <- (new VaultStarter).initializeAndUnsealAndSetupVault(initialSetup)
+        } yield ()
+        else IO.unit
 
       vaultToken <- IO(VaultUtils.findVaultToken())
-      _ <- if (initialSetup) auth.writeConsulNomadTokenConfigs(RadPath.persistentDir, consulToken, vaultToken)
-      else IO.unit
+      _ <-
+        if (initialSetup) auth.writeConsulNomadTokenConfigs(RadPath.persistentDir, consulToken, vaultToken)
+        else IO.unit
 
       // START CONSUL TEMPLATE
       _ <- serviceController.configureConsulTemplate(consulToken, vaultToken, leaderNodeO)
       _ <- serviceController.startConsulTemplate()
       _ <- consulTemplateReplacementCerts.map(Util.waitForPathToExist(_, 30.seconds)).parSequence
-      _ <- if (!remoteJoin) for {
-        _ <- serviceController.restartVault()
-        _ <- serviceController.restartConsulTemplate()
-        _ <- IO.sleep(5.seconds)
-        _ = ConsulVaultSSLContext.refreshCerts()
-        _ <- (new VaultStarter)
-          .initializeAndUnsealVault(baseUrl = uri"https://127.0.0.1:8200", shouldBootstrapVault = false)
-      } yield ()
-      else IO.unit
+      _ <-
+        if (!remoteJoin) for {
+          _ <- serviceController.restartVault()
+          _ <- serviceController.restartConsulTemplate()
+          _ <- IO.sleep(5.seconds)
+          _ = ConsulVaultSSLContext.refreshCerts()
+          _ <- (new VaultStarter)
+            .initializeAndUnsealVault(baseUrl = uri"https://127.0.0.1:8200", shouldBootstrapVault = false)
+        } yield ()
+        else IO.unit
 
       // START CONSUL
       _ <- setupConsul(finalBindAddr, leaderNodeO, bootstrapExpect, clientJoin)
       _ <- Util.waitForSystemdString("consul", "agent: Synced node info", 60.seconds)
       actorToken <- if (initialSetup) auth.setupConsulTokens(RadPath.persistentDir, consulToken) else IO("")
-      _ <- if (!remoteJoin) Util.waitForSystemdString("consul", "Synced service: service=vault:", 30.seconds)
-      else IO.unit
+      _ <-
+        if (!remoteJoin) Util.waitForSystemdString("consul", "Synced service: service=vault:", 30.seconds)
+        else IO.unit
       _ <- if (initialSetup) addConsulIntention(consulToken) else IO.unit
 
       // START NOMAD
       _ <- setupNomad(finalBindAddr, leaderNodeO, bootstrapExpect, vaultToken, consulToken, serverJoin)
-      consulNomadToken <- if (initialSetup && !remoteJoin) {
-        auth.setupNomadMasterToken(RadPath.persistentDir, consulToken)
-      } else if (initialSetup && remoteJoin)
-        IO(consulToken)
-      else {
-        auth.getMasterToken
-      }
+      consulNomadToken <-
+        if (initialSetup && !remoteJoin) {
+          auth.setupNomadMasterToken(RadPath.persistentDir, consulToken)
+        } else if (initialSetup && remoteJoin)
+          IO(consulToken)
+        else {
+          auth.getMasterToken
+        }
       _ <- if (initialSetup) addNomadNamespace(consulNomadToken) else IO.unit
-      _ <- if (!remoteJoin) auth.storeTokensInVault(ACLTokens(masterToken = consulNomadToken, actorToken = actorToken))
-      else IO.unit
-      _ <- if (serverJoin) serviceController.appendParametersConsul("-server") // add -server to consul invocation
-      else IO.unit
+      _ <-
+        if (!remoteJoin) auth.storeTokensInVault(ACLTokens(masterToken = consulNomadToken, actorToken = actorToken))
+        else IO.unit
+      _ <-
+        if (serverJoin) serviceController.appendParametersConsul("-server") // add -server to consul invocation
+        else IO.unit
       _ <- IO(os.write.over(RadPath.persistentDir / ".bootstrap-complete", "\n"))
       _ <- IO(if (os.exists(intermediateAclTokenFile)) {
         val intermediateFile = new File(intermediateAclTokenFile.toString())
@@ -499,7 +510,7 @@ object Services {
         .waitForService("nomad", 30.seconds)
         .recoverWith(Function.unlift { _ =>
           scribe.warn("Nomad did not exit cleanly. Restarting nomad systemd service...")
-          Some(serviceController.restartNomad().map(_ => (false))) // not sure if that's right
+          Some(serviceController.restartNomad().map(_ => false)) // not sure if that's right
         })
       _ <- Investigator.reportHashiUpdate("Nomad", "Service started")
     } yield ()

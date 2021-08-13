@@ -18,19 +18,14 @@ import scala.reflect.ClassTag
 // Dummy tests that test the ability of http4sNomad client to parse the expected
 // response from nomad API calls without actually connecting to nomad.
 
-class Http4sNomadTests
-    extends FlatSpec
-    with Matchers
-    with TypeCheckedTripleEquals {
+class Http4sNomadTests extends FlatSpec with Matchers with TypeCheckedTripleEquals {
   import Http4sNomadTests._
 
   import com.radix.utils.helm.NomadHCL.syntax._
   import com.radix.utils.helm.NomadHCL.defs._
 
   "nomadCreateJobFromHCL" should "succeed with some when the response is 200" in {
-    val response = nomadResponse(Status.Ok,
-                                 nomadCreateJobFromHCLReplyJson,
-                                 nomadHeaders(555, false, 2))
+    val response = nomadResponse(Status.Ok, nomadCreateJobFromHCLReplyJson, nomadHeaders(555, false, 2))
     val nmd = constantNomad(response)
     helm
       .runNomad(nmd, NomadOp.nomadCreateJobFromHCL(JobShim("arst", Job(group = List.empty[GroupShim]))))
@@ -58,18 +53,14 @@ trait NomadClient[F[_]] {
                    lastContact: Long): NomadHeaders
   def nomadResponse(status: Int, s: String, headers: NomadHeaders): Response[F]
 }
-*/
+ */
 
 object Http4sNomadTests {
   def constantNomad(response: Response[IO]): NomadOp ~> IO = {
-    new Http4sNomadClient(Uri.uri("http://localhost:4646/v1/jobs"),
-                          constantResponseClient(response),
-                          None)
+    new Http4sNomadClient(Uri.uri("http://localhost:4646/v1/jobs"), constantResponseClient(response), None)
   }
 
-  def nomadHeaders(index: Long,
-                   knownLeader: Boolean,
-                   lastContact: Long): Headers = {
+  def nomadHeaders(index: Long, knownLeader: Boolean, lastContact: Long): Headers = {
     Headers(
       List(
         Header.Raw("X-Nomad-Index".ci, index.toString),
@@ -79,9 +70,7 @@ object Http4sNomadTests {
     )
   }
 
-  def nomadResponse(status: Status,
-                    s: String,
-                    headers: Headers = Headers.empty): Response[IO] = {
+  def nomadResponse(status: Status, s: String, headers: Headers = Headers.empty): Response[IO] = {
     val responseBody = body(s)
     Response(status = status, body = responseBody, headers = headers)
   }
@@ -120,16 +109,17 @@ object Http4sNomadTests {
   // It has handling for thrown exceptions, but not just straight-up comparison.
   // Who knows, maybe I missed something and this is just redundant. Ah well.
 
-  class LeftExceptionMatcher[E <: Exception: ClassTag](exception: E)
-      extends BeMatcher[Either[Throwable, _]] {
+  class LeftExceptionMatcher[E <: Exception: ClassTag](exception: E) extends BeMatcher[Either[Throwable, _]] {
     val expectedExceptionType = exception.getClass.getName
     val expectedMessage = exception.getMessage
     def apply(e: Either[Throwable, _]) =
       e match {
         case l @ Left(e: E) if e.getMessage == expectedMessage =>
-          MatchResult(true,
-                      s"$l was $expectedExceptionType($expectedMessage)",
-                      s"$l was not $expectedExceptionType($expectedMessage)")
+          MatchResult(
+            true,
+            s"$l was $expectedExceptionType($expectedMessage)",
+            s"$l was not $expectedExceptionType($expectedMessage)"
+          )
         case other =>
           MatchResult(
             false,
@@ -144,6 +134,5 @@ object Http4sNomadTests {
   def nomadHeaderException(message: String) =
     leftException(new NoSuchElementException(message))
 
-  val nomadErrorException = leftException(
-    new RuntimeException("Got error response from Nomad: error"))
+  val nomadErrorException = leftException(new RuntimeException("Got error response from Nomad: error"))
 }

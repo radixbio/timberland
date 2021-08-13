@@ -45,7 +45,7 @@ object VaultUtils {
 
   def storeVaultTokenKey(key: String, token: String): String = {
     // if HOME isn't set, use /tmp (file still owed / readable only by root)
-    val prefix = (RadPath.runtime / "timberland")
+    val prefix = RadPath.runtime / "timberland"
     val tokenPath = prefix / ".vault-token"
     val sealPath = prefix / ".vault-seal"
     val tokenFile = new File(tokenPath.toString())
@@ -226,10 +226,10 @@ object VaultUtils {
             env = env
           )
       val csr = parse(mkcsr.stdout.string) match {
-        case Left(x) => throw (x)
+        case Left(x) => throw x
         case Right(j) =>
           j.hcursor.downField("data").get[String]("csr") match {
-            case Left(x)  => throw (x)
+            case Left(x)  => throw x
             case Right(s) => s
           }
       }
@@ -250,10 +250,10 @@ object VaultUtils {
           env = env
         )
       val intcrt = parse(mkintcrt.stdout.string) match {
-        case Left(x) => throw (x)
+        case Left(x) => throw x
         case Right(j) =>
           j.hcursor.downField("data").get[String]("certificate") match {
-            case Left(x)  => throw (x)
+            case Left(x)  => throw x
             case Right(s) => s
           }
       }
@@ -368,7 +368,8 @@ class VaultStarter {
     } yield sealStatus
   }
 
-  /** *
+  /**
+   * *
    * Recursively attempts to initialize Vault with 1 master key and 1 share, calling itself on fail.
    * Returns a Monad representing the Master Key and Vault token as VaultInitialized or an error state.
    *
@@ -404,7 +405,8 @@ class VaultStarter {
     } yield vaultInitStatus
   }
 
-  /** *
+  /**
+   * *
    * Recursively attempts to unseal Vault, calling itself on fail.
    * Returns a Monad representing the Master Key and Vault token as VaultUnsealed or an error state.
    *
@@ -503,7 +505,8 @@ class VaultStarter {
     } yield status
   }
 
-  /** *
+  /**
+   * *
    * Initialize, unseal, and setup Vault in an idempotent manner, with error handling and logging.
    *
    * @return IO[String] - the Vault token.

@@ -248,8 +248,10 @@ case object config {
     )
 
   // The list of flags that are enabled by default - "tui" only enabled by default on linux/amd64
-  val flagDefaults
-    : List[String] = (List("ensure-supported", "core", "dev", "docker-auth") ++ (if (ensureSupported.osname == "linux" & ensureSupported.arch == "amd64")
-                                                                                   List("tui")
-                                                                                 else List()))
+  val flagDefaults: List[String] =
+    List("ensure-supported", "core", "dev", "docker-auth") ++ (if (
+                                                                 ensureSupported.osname == "linux" & ensureSupported.arch == "amd64"
+                                                               )
+                                                                 List("tui")
+                                                               else List())
 }
