@@ -72,6 +72,11 @@ fi
 
 $BAZEL_DEPS_PATH format-deps -d $REPO_ROOT/dependencies.yaml -o
 # Rust deps
+realpath() {
+    path=`eval echo "$1"`
+    folder=$(dirname "$path")
+    echo $(cd "$folder"; pwd)/$(basename "$path"); 
+}
 MANIFEST_PATH=$(realpath $REPO_ROOT/Cargo.toml)
 touch $REPO_ROOT/3rdparty/crates.bzl
 echo -e "def raze_fetch_remote_crates():\n    pass" > $REPO_ROOT/3rdparty/crates.bzl
