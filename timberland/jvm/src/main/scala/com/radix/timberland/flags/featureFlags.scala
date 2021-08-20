@@ -66,7 +66,9 @@ object featureFlags {
       "minifors2",
       "mock_bioreactor",
       "omnidriver",
-      "ht91100"
+      "ht91100",
+      "watlow96_thermal",
+      "octet"
     ),
     "algs" -> Set(
       "algs_mega_uservice"

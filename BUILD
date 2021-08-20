@@ -53,6 +53,7 @@ patchelf --set-rpath '$$ORIGIN' out/default/programfiles/OOI_HOME/libNatUSB.so &
 echo "$(OUTS)" | tr " " "\\n" | xargs -n 1 -I {} sh -c "echo \\"{}\\" | egrep -o \\"([^\\/]+\\$$)\\" | xargs echo | xargs -I {} -n 1 cp out/default/programfiles/OOI_HOME/{} bazel-out/k8-fastbuild/bin/"
     """,
     local = True,
+    tags = ["no-cache"],
     tools = [
         "@bitrock-unpacker//file",
         "@tclkit//file",

@@ -12,7 +12,8 @@ CFG=$(cat <<-'EOF'
         ".+\\.binary$",
         ".*jmh_codegen",
         ".*jmh_generator",
-        ".*-jmh"
+        ".*-jmh",
+        ".*\\-benchmark.*"
     ],
     "target_template": "{}.format"
 }
