@@ -67,8 +67,10 @@ object featureFlags {
       "mock_bioreactor",
       "omnidriver",
       "ht91100",
+      "eth_multitrons",
       "watlow96_thermal",
-      "octet"
+      "octet",
+      "tecan_driver"
     ),
     "algs" -> Set(
       "algs_mega_uservice"
