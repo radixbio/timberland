@@ -116,7 +116,7 @@ dependencies:
     ammonite-ops:
       lang: scala
       version: "2.4.0"
-    ammonite_2.13.6:
+    ammonite_2.13.3:
       lang: scala/unmangled
       version: "2.4.0"
     fansi:
@@ -124,7 +124,7 @@ dependencies:
       version: "0.2.14"
     fastparse:
       lang: scala
-      version: "2.2.2"
+      version: "2.3.3"
     os-lib:
       lang: scala
       version: "0.7.1"
@@ -136,13 +136,13 @@ dependencies:
       version: "0.7.0"
     sourcecode:
       lang: scala
-      version: "0.1.7"
+      version: "0.2.1"
     ujson:
       lang: scala
-      version: "1.2.0"
+      version: "1.4.2"
     upickle:
       lang: scala
-      version: "1.2.0"
+      version: "1.4.2"
 
   com.nrinaudo:
     kantan.codecs:

@@ -982,6 +982,6 @@ scala_binary(
     main_class = "ammonite.Main",
     deps = [
         ":timberland-lib",
-        "@third_party//3rdparty/jvm/com/lihaoyi:ammonite_2_13_6",
+        "@third_party//3rdparty/jvm/com/lihaoyi:ammonite_2_13_3",
     ],
 )
