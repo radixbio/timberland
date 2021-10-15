@@ -178,7 +178,7 @@ dependencies:
   com.sksamuel.avro4s:
     avro4s-core:
       lang: scala
-      version: "4.0.7"
+      version: "4.0.11"
 
   com.typesafe:
     config:
@@ -429,6 +429,11 @@ dependencies:
     scalameta:
       lang: scala
       version: "4.3.20"
+
+  org.scalamock:
+    scalamock:
+      lang: scala
+      version: "4.4.0"
 
   org.scalatest:
     scalatest:
