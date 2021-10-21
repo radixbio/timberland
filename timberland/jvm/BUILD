@@ -442,6 +442,7 @@ timberland_services = [
     "//utils/s3lts:syncer-bin_deploy.jar",
     "//vm/jvm:vm-bin_deploy.jar",
     "//vm/jvm:vm-runner-bin_deploy.jar",
+    "//vm/jvm:vm-test-runner-bin_deploy.jar",
 ]
 
 services_pkg_tar(
@@ -964,6 +965,7 @@ terraform_deployment(
         "//utils/scheduleruservice/jvm:scheduler-terraform",  #TODO confirm this is right
         "//vm/jvm:vm-runner-terraform",
         "//vm/jvm:vm-terraform",
+        "//vm/jvm:vm-test-runner-terraform",
     ],
     terraform_source = select({
         "aarch64": ["@terraform_arm//:terraform"],
