@@ -1,18 +1,10 @@
 scala_library(
     name = "consul-tls",
-    srcs = [
-        "ConnectNativeBlazeMiddleware.scala",
-        "ConsulConnectSSLContext.scala",
-        "ConsulConnectSSLEngineProvider.scala",
-        "ConsulVaultSSLContext.scala",
-        "SSLContextBase.scala",
-        "SSLContextCreator.scala",
-        "TrustEveryoneSSLContext.scala",
-    ],
+    srcs = glob(["src/main/scala/*.scala"]),
     plugins = ["//external:jar/org/typelevel/kind_projector_2_13_6"],
     visibility = ["//visibility:public"],
     exports = [
-        "//shared/shared/shared/jvm:shared-jvm",
+        "//shared/shared_jvm:shared-jvm",
         "@third_party//3rdparty/jvm/com/lihaoyi:os_lib",
         "@third_party//3rdparty/jvm/com/outr:scribe",
         "@third_party//3rdparty/jvm/com/typesafe/akka:akka_actor",
@@ -31,7 +23,7 @@ scala_library(
         "@third_party//3rdparty/jvm/org/typelevel:cats_effect",
     ],
     deps = [
-        "//shared/shared/shared/jvm:shared-jvm",
+        "//shared/shared_jvm:shared-jvm",
         "@third_party//3rdparty/jvm/com/lihaoyi:os_lib",
         "@third_party//3rdparty/jvm/com/outr:scribe",
         "@third_party//3rdparty/jvm/com/typesafe/akka:akka_actor",

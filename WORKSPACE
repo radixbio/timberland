@@ -34,9 +34,13 @@ rust_repositories()
 
 http_archive(
     name = "cargo_raze",
-    sha256 = "0a7986b1a8ec965ee7aa317ac61e82ea08568cfdf36b7ccc4dd3d1aff3b36e0b",
-    strip_prefix = "cargo-raze-0.12.0",
-    url = "https://github.com/google/cargo-raze/archive/refs/tags/v0.12.0.tar.gz",
+    patch_args = [
+        "-p1",
+    ],
+    patches = ["//tools:0001-patch-pcre-to-use-additional-URL.patch"],
+    sha256 = "e04a1982ce4f81ffe42066256cfcfc03732e4f1d646fd3253bcf3eabf45f45be",
+    strip_prefix = "cargo-raze-0.13.0",
+    url = "https://github.com/google/cargo-raze/archive/refs/tags/v0.13.0.tar.gz",
 )
 
 load("@cargo_raze//:repositories.bzl", "cargo_raze_repositories")
