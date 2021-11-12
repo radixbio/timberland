@@ -410,7 +410,7 @@ pkg_tar(
 )
 
 timberland_services = [
-    "//algs/common/algs_mega_uservice:algs-mega-uservice-terraform",
+    "//algs/common/algs_mega_uservice:algs-mega-uservice-bin_deploy.jar",
     "//device_drivers/elemental/gateway:elemental-gateway-bin_deploy.jar",
     "//device_drivers/elemental/kafka_bridge:elemental_bridge-bin_deploy.jar",
     "//device_drivers/eve:eve-bin_deploy.jar",
