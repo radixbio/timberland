@@ -480,13 +480,13 @@ pkg_tar(
     package_dir = "/opt/radix/kafka_connectors/",
 )
 
-# pkg_tar(
-#     name = "timberland-radix-ui",
-#     srcs = [
-#         "//interface:fronend-vite",
-#     ],
-#     package_dir = "/opt/radix/interface/",
-# )
+#pkg_tar(
+#    name = "timberland-radix-ui",
+#    srcs = [
+#        "//interface:fronend-vite",
+#    ],
+#    package_dir = "/opt/radix/interface/",
+#)
 
 pkg_tar(
     name = "timberland-cni-config",
