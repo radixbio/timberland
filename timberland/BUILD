@@ -410,7 +410,7 @@ pkg_tar(
 )
 
 timberland_services = [
-    "//algs/common/algs_mega_uservice:algs-mega-uservice-bin_deploy.jar",
+    "//algs/common/algs_mega_uservice:algs_mega_uservice-bin_deploy.jar",
     "//device_drivers/elemental/gateway:elemental-gateway-bin_deploy.jar",
     "//device_drivers/elemental/kafka_bridge:elemental_bridge-bin_deploy.jar",
     "//device_drivers/eve:eve-bin_deploy.jar",
@@ -936,7 +936,7 @@ terraform_deployment(
         ":nginx-terraform",
         ":yugabyte-terraform",
         ":zookeeper-terraform",
-        "//algs/common/algs_mega_uservice:algs-mega-uservice-terraform",
+        "//algs/common/algs_mega_uservice:algs_mega_uservice-terraform",
         "//device_drivers/elemental/kafka_bridge:elemental_bridge-terraform",
         "//device_drivers/eth_multitrons:eth_multitrons-terraform",
         "//device_drivers/ht91100:ht91100-terraform",

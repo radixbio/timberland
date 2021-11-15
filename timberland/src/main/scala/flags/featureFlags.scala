@@ -75,6 +75,9 @@ object featureFlags {
     "algs" -> Set(
       "algs_mega_uservice"
     ),
+    "mega" -> Set(
+      "mega_mega_uservice"
+    ),
     "utils" -> Set(
       "s3lts",
       "bunny_uservice"

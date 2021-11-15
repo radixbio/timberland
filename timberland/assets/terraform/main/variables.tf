@@ -63,6 +63,11 @@ variable "algs_quorum_size" {
   default = 1
 }
 
+variable "mega_quorum_size" {
+  type = number
+  default = 1
+}
+
 variable "runtime_quorum_size" {
   type = number
   default = 1
