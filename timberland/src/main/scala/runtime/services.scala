@@ -439,8 +439,8 @@ object Services {
   ): IO[Unit] = {
     val baseArgs =
       s"""-bind=$bindAddr -advertise=$bindAddr -client=\\\"127.0.0.1 $bindAddr\\\" """ +
-      s"""-config-dir=${(RadPath.persistentDir / "consul" / "config").toString} """ +
-      s"""-encrypt=$gossipKey"""
+        s"""-config-dir=${(RadPath.persistentDir / "consul" / "config").toString} """ +
+        s"""-encrypt=$gossipKey"""
     val clientJoin = leaderNodeO.isDefined && !serverJoin
     val remoteJoin = clientJoin || serverJoin
 

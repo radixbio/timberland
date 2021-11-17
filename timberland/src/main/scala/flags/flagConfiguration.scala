@@ -279,9 +279,10 @@ object flagConfig {
     implicit val timer: Timer[IO] = IO.timer(ExecutionContext.global)
     for {
       _ <- LogTUI.acquireScreen()
-      userInput <- if (shouldPrompt) {
-        Util.promptForString((if (entry.optional) "[Optional] " else "") + entry.prompt)
-      } else IO.pure(entry.default)
+      userInput <-
+        if (shouldPrompt) {
+          Util.promptForString((if (entry.optional) "[Optional] " else "") + entry.prompt)
+        } else IO.pure(entry.default)
       _ <- LogTUI.releaseScreen()
       maybeUserInput <- IO {
         userInput.orElse(entry.default).orElse {

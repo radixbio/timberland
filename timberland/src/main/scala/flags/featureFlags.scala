@@ -298,8 +298,9 @@ object featureFlags {
    * @param addrs      Service addresses
    * @return Nothing
    */
-  def callNonpersistentFlagHooks(flagsToSet: Map[String, Boolean], shouldPrompt: Boolean)
-                                (implicit addrs: ServiceAddrs): IO[Unit] = {
+  def callNonpersistentFlagHooks(flagsToSet: Map[String, Boolean], shouldPrompt: Boolean)(implicit
+    addrs: ServiceAddrs
+  ): IO[Unit] = {
     val flagList = flagsToSet.filter(_._2).keys.toList
     for {
       configResponses <- flagConfig.getMissingParams(
@@ -345,9 +346,10 @@ object featureFlags {
     for {
       pendingChangesExist <- printFlagInfo(persistentDir, consulIsUp, serviceAddrs, authTokens, extraFlags)
       _ <- LogTUI.acquireScreen()
-      shouldContinue <- if (pendingChangesExist) {
-        Util.promptForBool("The above changes will be written to consul/vault. Continue?")
-      } else IO.pure(true)
+      shouldContinue <-
+        if (pendingChangesExist) {
+          Util.promptForBool("The above changes will be written to consul/vault. Continue?")
+        } else IO.pure(true)
       _ <- LogTUI.releaseScreen()
     } yield {
       if (shouldContinue) () else sys.exit(0)

@@ -25,7 +25,7 @@ object Util {
       .flatMap { _ => timeoutTo(IO(StdIn.readLine()), timeout, IO.pure(null)) }
       .map {
         case null | "" => None
-        case str => Some(str)
+        case str       => Some(str)
       }
   }
 

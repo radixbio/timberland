@@ -19,13 +19,11 @@ object ConsulVaultSSLContext extends SSLContextBase {
   implicit def Fblaze[F[_]: ConcurrentEffect]: Resource[F, Client[F]] = {
     var fBlazeOpt: Option[Resource[F, Client[F]]] = None
 
-    fBlazeOpt.getOrElse({
+    fBlazeOpt.getOrElse {
       fBlazeOpt = Some(makeBlaze[F](None, None, None))
       fBlazeOpt.get
-    })
+    }
   }
-
-
 
   protected var blazeOption: Option[Resource[IO, Client[IO]]] = None
   def refreshCerts(
