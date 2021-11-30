@@ -152,6 +152,11 @@ dependencies:
       lang: scala
       version: "0.5.2"
 
+  com.olegpy:
+    better-monadic-for:
+      lang: scala
+      version: "0.3.1"
+
   com.outr:
     scribe:
       lang: scala
