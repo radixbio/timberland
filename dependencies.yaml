@@ -376,7 +376,7 @@ dependencies:
   org.graalvm.compiler:
     compiler:
       lang: java
-      version: "21.2.0"
+      version: "21.3.0"
 
   org.http4s:
     http4s:
