@@ -70,7 +70,8 @@ object featureFlags {
       "eth_multitrons",
       "watlow96_thermal",
       "octet",
-      "tecan_driver"
+      "tecan_driver",
+      "echo_csv"
     ),
     "algs" -> Set(
       "algs_mega_uservice"
