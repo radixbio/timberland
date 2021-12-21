@@ -598,7 +598,7 @@ jvm_maven_import_external(
 
 git_repository(
     name = "scalaz3",
-    commit = "df09cb4aad89bd91c6e15a626771a89257418784",
+    commit = "19016d1a5a2b59b8c4ee91a79049ad4266ab9455",
     remote = "git@gitlab.com:radix-labs/scalaz3.git",
     #    shallow_since = "1626731854 -0400",
 )
@@ -898,8 +898,6 @@ http_archive(
 )
 
 load("@build_bazel_rules_nodejs//:index.bzl", "node_repositories")
-
-
 
 node_repositories(package_json = ["//interface:package.json"])
 
