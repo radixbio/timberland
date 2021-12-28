@@ -144,6 +144,11 @@ dependencies:
       lang: scala
       version: "1.4.2"
 
+  com.michaelpollmeier:
+    gremlin-scala:
+      lang: scala
+      version: "3.4.7.17"
+
   com.nrinaudo:
     kantan.codecs:
       lang: scala
@@ -352,6 +357,15 @@ dependencies:
       lang: java
       modules: [ "", "ooxml", "ooxml-schemas" ]
       version: "4.1.1"
+
+  org.apache.tinkerpop:
+    gremlin:
+      lang: java
+      modules: [ "core", "driver", "groovy" ]
+      version: "3.5.1"
+    tinkergraph-gremlin:
+      lang: java
+      version: "3.5.1"
 
   org.bouncycastle:
     bcpkix-jdk15on:
