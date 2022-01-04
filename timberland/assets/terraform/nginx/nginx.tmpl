@@ -72,7 +72,6 @@ job "nginx" {
             server_name localhost;
             ssl_certificate /cert.pem;
             ssl_certificate_key /key.pem;
-
             location /check { return 200; }
 
             location / {
@@ -80,6 +79,7 @@ job "nginx" {
             }
 
             error_page   500 502 503 504  /50x.html;
+            error_page 497 301 =307 https://$host:$server_port$request_uri;
             location = /50x.html {
               root /usr/share/nginx/html;
             }

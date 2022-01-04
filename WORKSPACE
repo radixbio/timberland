@@ -7,6 +7,34 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file"
 load("@bazel_tools//tools/build_defs/repo:jvm.bzl", "jvm_maven_import_external")
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository", "new_git_repository")
 
+http_archive(
+    name = "io_bazel_rules_go",
+    sha256 = "2b1641428dff9018f9e85c0384f03ec6c10660d935b750e3fa1492a281a53b0f",
+    urls = [
+        "https://mirror.bazel.build/github.com/bazelbuild/rules_go/releases/download/v0.29.0/rules_go-v0.29.0.zip",
+        "https://github.com/bazelbuild/rules_go/releases/download/v0.29.0/rules_go-v0.29.0.zip",
+    ],
+)
+
+load("@io_bazel_rules_go//go:deps.bzl", "go_register_toolchains", "go_rules_dependencies")
+
+go_rules_dependencies()
+
+go_register_toolchains(go_version = "1.17.1")
+
+http_archive(
+    name = "bazel_gazelle",
+    sha256 = "de69a09dc70417580aabf20a28619bb3ef60d038470c7cf8442fafcf627c21cb",
+    urls = [
+        "https://mirror.bazel.build/github.com/bazelbuild/bazel-gazelle/releases/download/v0.24.0/bazel-gazelle-v0.24.0.tar.gz",
+        "https://github.com/bazelbuild/bazel-gazelle/releases/download/v0.24.0/bazel-gazelle-v0.24.0.tar.gz",
+    ],
+)
+
+load("@bazel_gazelle//:deps.bzl", "gazelle_dependencies")
+
+gazelle_dependencies()
+
 skylib_version = "1.0.3"
 
 http_archive(
@@ -418,7 +446,7 @@ container_pull(
     name = "msvc_winjdk",
     registry = "ghcr.io",
     repository = "radixbio/msvc-winjdk",
-    tag = "latest",
+    tag = "temp",
 )
 
 container_pull(
@@ -444,146 +472,6 @@ rules_pkg_dependencies()
 
 _scala_image_repos()
 
-scala_maven_import_external(
-    name = "org_scala_graph_graph_core_sjs0_6_2_12",
-    artifact = "org.scala-graph:graph-core_sjs0.6_2.12:1.12.5",
-    licenses = [],
-    server_urls = [
-        "https://repo1.maven.org/maven2/",
-        "https://oss.sonatype.org/content/repositories/releases",
-        "https://oss.sonatype.org/content/repositories/snapshots",
-        "https://packages.confluent.io/maven/",
-        "https://oss.sonatype.org/content/repositories/releases",
-        "https://oss.sonatype.org/content/repositories/snapshots",
-        "https://packages.confluent.io/maven/",
-    ],
-)
-
-bind(
-    name = "jar/org/scala/graph/graph_core_sjs0_6_2_12",
-    actual = "@org_scala_graph_graph_core_sjs0_6_2_12//jar",
-)
-
-scala_maven_import_external(
-    name = "org_scalaz_scalaz_core_sjs0_6_2_12",
-    artifact = "org.scalaz:scalaz-core_sjs0.6_2.12:7.2.15",
-    licenses = [],
-    server_urls = [
-        "https://repo1.maven.org/maven2/",
-        "https://oss.sonatype.org/content/repositories/releases",
-        "https://oss.sonatype.org/content/repositories/snapshots",
-        "https://packages.confluent.io/maven/",
-        "https://oss.sonatype.org/content/repositories/releases",
-        "https://oss.sonatype.org/content/repositories/snapshots",
-        "https://packages.confluent.io/maven/",
-    ],
-)
-
-bind(
-    name = "jar/org/scalaz/scalaz_core_sjs0_6_2_12",
-    actual = "@org_scalaz_scalaz_core_sjs0_6_2_12//jar",
-)
-
-scala_maven_import_external(
-    name = "org_typelevel_cats_core_sjs0_6_2_12",
-    artifact = "org.typelevel:cats-core_sjs0.6_2.12:1.1.0",
-    licenses = [],
-    server_urls = [
-        "https://repo1.maven.org/maven2/",
-        "https://oss.sonatype.org/content/repositories/releases",
-        "https://oss.sonatype.org/content/repositories/snapshots",
-        "https://packages.confluent.io/maven/",
-        "https://oss.sonatype.org/content/repositories/releases",
-        "https://oss.sonatype.org/content/repositories/snapshots",
-        "https://packages.confluent.io/maven/",
-    ],
-)
-
-bind(
-    name = "jar/org/typelevel/cats_core_sjs0_6_2_12",
-    actual = "@org_typelevel_cats_core_sjs0_6_2_12//jar",
-)
-
-scala_maven_import_external(
-    name = "org_typelevel_cats_kernel_sjs0_6_2_12",
-    artifact = "org.typelevel:cats-kernel_sjs0.6_2.12:1.1.0",
-    licenses = [],
-    server_urls = [
-        "https://repo1.maven.org/maven2/",
-        "https://oss.sonatype.org/content/repositories/releases",
-        "https://oss.sonatype.org/content/repositories/snapshots",
-        "https://packages.confluent.io/maven/",
-        "https://oss.sonatype.org/content/repositories/releases",
-        "https://oss.sonatype.org/content/repositories/snapshots",
-        "https://packages.confluent.io/maven/",
-    ],
-)
-
-bind(
-    name = "jar/org/typelevel/cats_kernel_sjs0_6_2_12",
-    actual = "@org_typelevel_cats_kernel_sjs0_6_2_12//jar",
-)
-
-scala_maven_import_external(
-    name = "org_typelevel_cats_macros_sjs0_6_2_12",
-    artifact = "org.typelevel:cats-macros_sjs0.6_2.12:1.1.0",
-    licenses = [],
-    server_urls = [
-        "https://repo1.maven.org/maven2/",
-        "https://oss.sonatype.org/content/repositories/releases",
-        "https://oss.sonatype.org/content/repositories/snapshots",
-        "https://packages.confluent.io/maven/",
-        "https://oss.sonatype.org/content/repositories/releases",
-        "https://oss.sonatype.org/content/repositories/snapshots",
-        "https://packages.confluent.io/maven/",
-    ],
-)
-
-bind(
-    name = "jar/org/typelevel/cats_macros_sjs0_6_2_12",
-    actual = "@org_typelevel_cats_macros_sjs0_6_2_12//jar",
-)
-
-scala_maven_import_external(
-    name = "org_typelevel_machinist_sjs0_6_2_12",
-    artifact = "org.typelevel:machinist_sjs0.6_2.12:0.6.2",
-    licenses = [],
-    server_urls = [
-        "https://repo1.maven.org/maven2/",
-        "https://oss.sonatype.org/content/repositories/releases",
-        "https://oss.sonatype.org/content/repositories/snapshots",
-        "https://packages.confluent.io/maven/",
-        "https://oss.sonatype.org/content/repositories/releases",
-        "https://oss.sonatype.org/content/repositories/snapshots",
-        "https://packages.confluent.io/maven/",
-    ],
-)
-
-bind(
-    name = "jar/org/typelevel/machinist_sjs0_6_2_12",
-    actual = "@org_typelevel_machinist_sjs0_6_2_12//jar",
-)
-
-scala_maven_import_external(
-    name = "org_typelevel_squants_sjs0_6_2_12",
-    artifact = "org.typelevel:squants_sjs0.6_2.12:1.3.0",
-    licenses = [],
-    server_urls = [
-        "https://repo1.maven.org/maven2/",
-        "https://oss.sonatype.org/content/repositories/releases",
-        "https://oss.sonatype.org/content/repositories/snapshots",
-        "https://packages.confluent.io/maven/",
-        "https://oss.sonatype.org/content/repositories/releases",
-        "https://oss.sonatype.org/content/repositories/snapshots",
-        "https://packages.confluent.io/maven/",
-    ],
-)
-
-bind(
-    name = "jar/org/typelevel/squants_sjs0_6_2_12",
-    actual = "@org_typelevel_squants_sjs0_6_2_12//jar",
-)
-
 jvm_maven_import_external(
     name = "scalajs_ir",
     artifact = "org.scala-js:scalajs-ir_2.12:0.6.28",
@@ -603,12 +491,6 @@ git_repository(
     #    shallow_since = "1626731854 -0400",
 )
 
-http_archive(
-    name = "sbt",
-    build_file_content = """filegroup(name = "all", srcs = glob(["**"]), visibility = ["//visibility:public"])""",
-    sha256 = "4ea0b6fe056fd521eb6f785ee2e4694a2a0128b5de362e233cab0c1a20eb04eb",
-    url = "https://github.com/sbt/sbt/releases/download/v1.4.2/sbt-1.4.2.zip",
-)
 
 http_archive(
     name = "consul",
@@ -893,13 +775,18 @@ rules_jmh_maven_deps()
 
 http_archive(
     name = "build_bazel_rules_nodejs",
-    sha256 = "4501158976b9da216295ac65d872b1be51e3eeb805273e68c516d2eb36ae1fbb",
-    urls = ["https://github.com/bazelbuild/rules_nodejs/releases/download/4.4.1/rules_nodejs-4.4.1.tar.gz"],
+    sha256 = "f0f76a06fd6c10e8fb9a6cb9389fa7d5816dbecd9b1685063f89fb20dc6822f3",
+    urls = ["https://github.com/bazelbuild/rules_nodejs/releases/download/4.5.1/rules_nodejs-4.5.1.tar.gz"],
 )
 
 load("@build_bazel_rules_nodejs//:index.bzl", "node_repositories")
 
-node_repositories(package_json = ["//interface:package.json"])
+
+
+node_repositories(
+    package_json = ["//interface:package.json"],
+    node_version = "16.5.0",
+)
 
 load("@build_bazel_rules_nodejs//:index.bzl", "npm_install")
 

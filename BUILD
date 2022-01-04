@@ -58,4 +58,8 @@ echo "$(OUTS)" | tr " " "\\n" | xargs -n 1 -I {} sh -c "echo \\"{}\\" | egrep -o
         "@bitrock-unpacker//file",
         "@tclkit//file",
     ],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ]
 )

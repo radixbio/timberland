@@ -74,7 +74,7 @@ dependencies:
   com.github.mmarquee:
     ui-automation:
       lang: java
-      version: "0.4.3"
+      version: "0.6.0"
 
   com.github.oshi:
     oshi-core:

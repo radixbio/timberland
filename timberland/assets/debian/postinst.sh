@@ -11,6 +11,7 @@ mkdir -p /opt/radix/kafka_data
 mkdir -p /opt/radix/ybmaster_data
 mkdir -p /opt/radix/ybtserver_data
 mkdir -p /opt/radix/elasticsearch_data
+mkdir -p /opt/radix/interface/build
 
 if [ -f /opt/radix/timberland/exec/timberland ]; then
     cd /opt/radix/timberland/exec/
