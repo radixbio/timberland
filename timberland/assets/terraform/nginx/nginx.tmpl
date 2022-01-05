@@ -31,7 +31,7 @@ job "nginx" {
           {
             type = "bind"
             target = "/var/www/radix-ui"
-            source = "/opt/radix/interface/build"
+            source = "/opt/radix/interface"
             readonly = true
           }
         ]
@@ -47,6 +47,7 @@ job "nginx" {
         server_names_hash_bucket_size 128;
 
         %{ for i in range(length(services)) ~}
+        %{ if services[i] != "nginx" ~}
         server {
           listen 8080 ssl;
           server_name ${services[i]}.service.consul;
@@ -54,6 +55,10 @@ job "nginx" {
           ssl_certificate_key /key.pem;
           location / {
             proxy_pass http://localhost:${ 5000 + i };
+            %{ if services[i] == "web-interface-graphql" }
+            proxy_hide_header 'Access-Control-Allow-Origin';
+            add_header Access-Control-Allow-Origin "https://nginx.service.consul:8080";
+            %{ endif }
           }
 
           %{ if services[i] == "web-interface-graphql" }
@@ -66,6 +71,7 @@ job "nginx" {
           }
           %{ endif }
         }
+        %{ endif ~}
         %{ endfor ~}
         server {
             listen 8080 default_server;
