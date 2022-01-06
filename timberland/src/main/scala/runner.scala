@@ -355,6 +355,39 @@ object runner {
           }
           proc.unsafeRunSync()
 
+        case Env(fish) =>
+          val aclToken = os.read(RadPath.persistentDir / ".acl-token")
+          val envVars = Map(
+            "NOMAD_ADDR" -> "https://nomad.service.consul:4646",
+            "NOMAD_CACERT" -> RadPath.runtime / "certs" / "ca" / "cert.pem",
+            "NOMAD_CLIENT_CERT" -> RadPath.runtime / "certs" / "nomad" / "cli-cert.pem",
+            "NOMAD_CLIENT_KEY" -> RadPath.runtime / "certs" / "nomad" / "cli-key.pem",
+            "NOMAD_TOKEN" -> aclToken,
+            "CONSUL_HTTP_ADDR" -> "https://consul.service.consul:8501",
+            "CONSUL_HTTP_SSL" -> "true",
+            "CONSUL_CACERT" -> RadPath.runtime / "certs" / "ca" / "cert.pem",
+            "CONSUL_CLIENT_CERT" -> RadPath.runtime / "certs" / "cli" / "cert.pem",
+            "CONSUL_CLIENT_KEY" -> RadPath.runtime / "certs" / "cli" / "key.pem",
+            "CONSUL_HTTP_TOKEN" -> aclToken,
+            "VAULT_ADDR" -> "https://vault.service.consul:8200",
+            "VAULT_CACERT" -> RadPath.runtime / "certs" / "ca" / "cert.pem",
+            "VAULT_CLIENT_CERT" -> RadPath.runtime / "certs" / "cli" / "cert.pem",
+            "VAULT_CLIENT_KEY" -> RadPath.runtime / "certs" / "cli" / "key.pem",
+            "VAULT_TOKEN" -> os.read(RadPath.persistentDir / ".vault-token"),
+            "TF_VAR_TLS_CA_FILE" -> RadPath.runtime / "certs" / "ca" / "cert.pem",
+            "TF_VAR_TLS_CERT_FILE" -> RadPath.runtime / "certs" / "cli" / "cert.pem",
+            "TF_VAR_TLS_KEY_FILE" -> RadPath.runtime / "certs" / "cli" / "key.pem",
+            "TF_VAR_TLS_NOMAD_CERT_FILE" -> RadPath.runtime / "certs" / "nomad" / "cli-cert.pem",
+            "TF_VAR_TLS_NOMAD_KEY_FILE" -> RadPath.runtime / "certs" / "nomad" / "cli-key.pem",
+            "TF_VAR_ACL_TOKEN" -> aclToken
+          )
+          for (envVar <- envVars) if (fish) {
+            println(s"set ${envVar._1} ${envVar._2};")
+          } else {
+            println(s"export ${envVar._1}=${envVar._2}")
+          }
+          sys.exit(0)
+
         case AfterStartup =>
           if (!os.exists(RadPath.persistentDir / ".bootstrap-complete")) {
             Console.err.println("Timberland not yet initialized")

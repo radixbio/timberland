@@ -20,6 +20,8 @@ case class Start(
   serverMode: Boolean = false
 ) extends RadixCMD
 
+case class Env(fish: Boolean) extends RadixCMD
+
 case object AfterStartup extends RadixCMD
 
 case object Stop extends RadixCMD
@@ -89,6 +91,17 @@ object cli {
       info(
         oauthGoogleSheets,
         progDesc("Configure OAuth tokens")
+      )
+    )
+  )
+
+  private val env = subparser[Env](
+    metavar("env"),
+    command(
+      "env",
+      info(
+        switch(long("fish"), help("Output script for fish rather than POSIX-compliant shells")).map(Env),
+        progDesc("Print a shell script that puts timberland, nomad, consul, vault, and terraform in $PATH")
       )
     )
   )
@@ -515,6 +528,7 @@ object cli {
     start,
     stop,
     nuke,
+    env,
     startNomad,
     afterStartup,
     dns,
@@ -556,6 +570,11 @@ object cli {
             Doc.text("To view information about the current system configuration, run:"),
             Doc.linebreak,
             Doc.indent(2, Doc.text("timberland query")),
+            Doc.linebreak,
+            Doc.linebreak,
+            Doc.text("To print shell commands for including timberland and hashicorp services in $PATH, run:"),
+            Doc.linebreak,
+            Doc.indent(2, Doc.text("timberland runtime env")),
             Doc.linebreak,
             Doc.linebreak,
             Doc.text("To update the components in the Radix runtime, run:"),
