@@ -487,7 +487,7 @@ jvm_maven_import_external(
 git_repository(
     name = "scalaz3",
     commit = "19016d1a5a2b59b8c4ee91a79049ad4266ab9455",
-    remote = "git@gitlab.com:radix-labs/scalaz3.git",
+    remote = "git@github.com:radixbio/scalaz3.git",
     #    shallow_since = "1626731854 -0400",
 )
 
