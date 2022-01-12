@@ -7,7 +7,8 @@ import com.radix.utils.helm.http4s.Http4sNomadClient
 import org.http4s.Uri
 import org.http4s.client.blaze.BlazeClientBuilder
 import org.scalactic.TypeCheckedTripleEquals
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 import org.testcontainers.containers.wait.strategy.Wait
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -22,7 +23,7 @@ import com.radix.utils.helm.NomadHCL.syntax._
 
 // run: nomad agent -dev , to run nomad locally before running test from sbt command line.
 
-class NomadOpTests extends FlatSpec with ForAllTestContainer {
+class NomadOpTests extends AnyFlatSpec with ForAllTestContainer {
 
   override val container =
     FixedHostPortGenericContainer(

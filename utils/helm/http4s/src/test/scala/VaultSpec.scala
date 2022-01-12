@@ -12,8 +12,10 @@ import com.radix.utils.helm.vault._
 import scala.concurrent.ExecutionContext
 import com.dimafeng.testcontainers.{ContainerDef, VaultContainer}
 import org.http4s.client.Client
+import org.scalatest.funspec.FixtureAnyFunSpec
+import org.scalatest.matchers.should.Matchers
 
-class VaultSpec extends fixture.FlatSpec with Matchers with TestContainerForAll {
+class VaultSpec extends FixtureAnyFunSpec with Matchers with TestContainerForAll {
   val rootToken: Option[String] = Some("radix")
   case class FixtureParam(session: Vault[IO])
   override val containerDef: ContainerDef = VaultContainer.Def("vault:latest", rootToken)

@@ -17,6 +17,8 @@ import org.http4s.Uri
 import org.http4s.client.Client
 import org.http4s.client.blaze.BlazeClientBuilder
 import org.scalatest._
+import org.scalatest.flatspec.AsyncFlatSpec
+import org.scalatest.matchers.should.Matchers
 import com.radix.utils.tls.ConsulVaultSSLContext._
 
 import scala.concurrent.ExecutionContext
@@ -27,7 +29,7 @@ import scala.sys.process.Process
  * An abstract class that should act as the parent class for any integration tests. Note that any subclasses should
  * {@code override lazy val featureFlags = Map(...)} in order to bring up the appropriate services with Terraform.
  */
-trait TimberlandIntegration extends AsyncFlatSpec with BeforeAndAfterAll {
+trait TimberlandIntegration extends AsyncFlatSpec with BeforeAndAfterAll with Matchers {
 
   val consulPort = 8501
   val nomadPort = 4646
