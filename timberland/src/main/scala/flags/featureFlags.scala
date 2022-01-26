@@ -71,7 +71,8 @@ object featureFlags {
       "watlow96_thermal",
       "octet",
       "tecan_driver",
-      "echo_csv"
+      "echo_csv",
+      "entris2"
     ),
     "algs" -> Set(
       "algs_mega_uservice"
