@@ -57,7 +57,9 @@ object timberlandService extends IOApp {
 
   private def routesWithCORS: Http[IO, IO] = CORS(routes.orNotFound, CORSConfig(
     anyOrigin = false,
-    allowedOrigins = Set("https://localhost:1337", "http://localhost:1337"),
+    allowedOrigins = Set("https://localhost:1337", "http://localhost:1337", 
+                         "https://nginx.service.consul:8080", 
+                         "http://nginx.service.consul:8080"),
     allowCredentials = false,
     maxAge = 1.day.toSeconds))
 

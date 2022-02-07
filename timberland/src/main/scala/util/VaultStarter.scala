@@ -87,7 +87,12 @@ object VaultUtils {
     val vaultToken = findVaultToken()
     blaze.use { client =>
       val req = PUT(
-        json"""{ "allowed_origins": ["https://localhost:1337"] }""",
+        json"""{ "allowed_origins": ["https://localhost:1337", 
+                                     "http://localhost:1337", 
+                                     "https://nginx.service.consul:8080", 
+                                     "http://nginx.service.consul:8080",
+                                     "https://vault.service.consul:8200",
+                                     "https://localhost:8200"] }""",
         Uri.unsafeFromString(s"https://$vaultAddr:8200/v1/sys/config/cors"),
         Header("X-Vault-Token", vaultToken)
       )
