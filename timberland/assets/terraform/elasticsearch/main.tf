@@ -1,15 +1,15 @@
 resource "nomad_job" "elasticsearch" {
   count = var.enable ? 1 : 0
-  jobspec = templatefile("/opt/radix/timberland/terraform/modules/elasticsearch/elasticsearch.tmpl", {quorum_size = var.quorum_size, dev = var.dev, namespace = var.namespace, test = var.test})
+  jobspec = templatefile("/opt/radix/timberland/terraform/modules/elasticsearch/elasticsearch.tmpl", {config = var.config, dev = var.dev, namespace = var.namespace})
 }
 
 resource "nomad_job" "kibana" {
   count = var.enable ? 1 : 0
-  jobspec = templatefile("/opt/radix/timberland/terraform/modules/elasticsearch/kibana.tmpl", {namespace = var.namespace, test = var.test, dev = var.dev, quorum_size = var.quorum_size})
+  jobspec = templatefile("/opt/radix/timberland/terraform/modules/elasticsearch/kibana.tmpl", {namespace = var.namespace, dev = var.dev, config = var.config})
 }
 
 data "consul_service_health" "es_health" {
-  count = var.enable ? (var.dev ? 1 : var.quorum_size) : 0
+  count = var.enable ? (var.dev ? 1 : var.config.quorum_size) : 0
   //TODO rest or transport?
   name = "es-transport-${count.index}"
   passing = true

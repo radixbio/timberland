@@ -1,9 +1,8 @@
 package com.radix.timberland.runtime
 
 import cats.effect.{ContextShift, IO, Timer}
-import cats.implicits._
 import com.radix.timberland.radixdefs.{ACLTokens, ServiceAddrs}
-import com.radix.timberland.util.{Investigator, LogTUI, RadPath, Util, VaultUtils}
+import com.radix.timberland.util.{RadPath, Util, VaultUtils}
 import com.radix.utils.helm.http4s.vault.Vault
 import com.radix.utils.helm.vault.{CreateSecretRequest, KVGetResult, LoginResponse}
 import com.radix.utils.tls.ConsulVaultSSLContext.blaze
@@ -69,7 +68,7 @@ object auth {
     import com.radix.utils.tls.TrustEveryoneSSLContext.insecureBlaze
     implicit val blaze = insecureBlaze
     val vaultUri = Uri.fromString(s"https://${serviceAddrs.vaultAddr}:8200").toOption.get
-    scribe.info(s"connecting to Vault with provided u/p at $vaultUri")
+    scribe.debug(s"connecting to Vault with provided u/p at $vaultUri")
 
     val unauthenticatedVault = new Vault[IO](authToken = None, baseUrl = vaultUri)(IO.ioConcurrentEffect, insecureBlaze)
     for {
@@ -209,7 +208,7 @@ object auth {
         } else IO.pure(false) //unknown error
 
       _ <-
-        if (checkPolicyCmdRes) IO(scribe.info(s"$policyName policy already exists."))
+        if (checkPolicyCmdRes) IO(scribe.warn(s"$policyName policy already exists."))
         else {
           IO(scribe.error(s"Unknown error setting up $policyName Consul policy."))
           IO(sys.exit(1))
@@ -236,7 +235,7 @@ object auth {
     val masterPolicy = "00000000-0000-0000-0000-000000000001"
 
     for {
-      nomadResolves <- Investigator.waitForService("nomad", 60.seconds)
+      nomadResolves <- Util.waitForServiceDNS("nomad", 60.seconds)
       nomadUp <- Util.waitForPortUp(4646, 60.seconds)
       _ <- Util.waitForNomad(30.seconds)
       _ <- IO.pure(scribe.info(s"nomad resolves: $nomadResolves, nomad listening on 4646: $nomadUp"))
@@ -251,8 +250,7 @@ object auth {
         if (bootstrapCmdRes.exitCode == 0) Util.exec(masterTokenCmd)
         else IO(scribe.error("Failed to parse token from ACL Bootstrap call!"))
 
-      _ <- IO.pure(scribe.info(s"ADMIN TOKEN FOR CONSUL/NOMAD: $masterToken"))
-      _ <- IO.pure(LogTUI.printAfter(s"ADMIN TOKEN FOR CONSUL/NOMAD: $masterToken"))
+      _ <- IO.pure(scribe.debug(s"ADMIN TOKEN FOR CONSUL/NOMAD: $masterToken"))
     } yield masterToken
   }
 

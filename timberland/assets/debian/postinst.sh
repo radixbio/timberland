@@ -16,6 +16,7 @@ mkdir -p /opt/radix/interface/build
 if [ -f /opt/radix/timberland/exec/timberland ]; then
     cd /opt/radix/timberland/exec/
     ./timberland dns up
+    ./timberland make_config
 fi
 
 # WARNING: This following actions are not idempotent!

@@ -15,7 +15,7 @@ job "yugabyte-tservers" {
 
   datacenters = ["dc1"]
 
-%{ for i in range(dev ? 1 : quorum_size) ~}
+%{ for i in range(dev ? 1 : config.quorum_size) ~}
   group "yb-tservers-group-${i}" {
     count = 1
 
@@ -47,12 +47,12 @@ set -m
   --rpc_bind_addresses=0.0.0.0:${ 9100 + i } \
   --server_broadcast_addresses=127.0.0.1:${ 9100 + i } \
   --start_pgsql_proxy \
-  --tserver_master_addrs=%{ for j in range(dev ? 1 : quorum_size) }$${NOMAD_UPSTREAM_ADDR_yb_masters_rpc_${j}},%{ endfor } \
+  --tserver_master_addrs=%{ for j in range(dev ? 1 : config.quorum_size) }$${NOMAD_UPSTREAM_ADDR_yb_masters_rpc_${j}},%{ endfor } \
   &
 
 setup_yedis_cmd() {
   /home/yugabyte/bin/yb-admin \
-    --master_addresses %{ for j in range(dev ? 1 : quorum_size) }$${NOMAD_UPSTREAM_ADDR_yb_masters_rpc_${j}},%{ endfor } \
+    --master_addresses %{ for j in range(dev ? 1 : config.quorum_size) }$${NOMAD_UPSTREAM_ADDR_yb_masters_rpc_${j}},%{ endfor } \
     setup_redis_table
 }
 
@@ -149,7 +149,7 @@ EOH
         sidecar_service {
           proxy {
 
-%{ for j in range(dev ? 1 : quorum_size) ~}
+%{ for j in range(dev ? 1 : config.quorum_size) ~}
             upstreams {
               destination_name = "yb-masters-rpc-${j}"
               local_bind_port = ${ 7100 + j }
@@ -172,7 +172,7 @@ ${ i == j ? "" : <<-EOT
         task = "yb-tserver-task"
         command = "bash"
         // use all the master addresses to list all the tablet servers, and make sure that this node's port is the same as one of the servers in the listing
-        args = ["-c", "/home/yugabyte/bin/yb-admin -master_addresses %{ for j in range(dev ? 1 : quorum_size) }127.0.0.1:${ 7100 + j},%{ endfor } list_all_tablet_servers | tr ':' ' ' | awk '{print $3}' | grep -v UUID | grep ${ 9100 + i}"]
+        args = ["-c", "/home/yugabyte/bin/yb-admin -master_addresses %{ for j in range(dev ? 1 : config.quorum_size) }127.0.0.1:${ 7100 + j},%{ endfor } list_all_tablet_servers | tr ':' ' ' | awk '{print $3}' | grep -v UUID | grep ${ 9100 + i}"]
         interval = "30s"
         timeout = "5s"
       }

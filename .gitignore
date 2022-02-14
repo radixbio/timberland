@@ -8,6 +8,7 @@
 /bazel-*
 **/bazel-*
 /cargo
+Cargo.lock
 
 ### Intellij ###
 # Covers JetBrains IDEs: IntelliJ, RubyMine, PhpStorm, AppCode, PyCharm, CLion, Android Studio and Webstorm
@@ -18,6 +19,7 @@
 .idea/**/tasks.xml
 .idea/dictionaries
 .direnv/
+.vscode/
 
 # Sensitive or high-churn files:
 .idea/**/dataSources/
@@ -664,3 +666,4 @@ deploy_rsa.pub
 
 # Web stuff
 interface/yarn.lock
+package-lock.json

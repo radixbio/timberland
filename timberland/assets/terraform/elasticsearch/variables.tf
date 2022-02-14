@@ -4,12 +4,6 @@ variable "namespace" {
   default = ""
 }
 
-variable "test" {
-  description = "Whether the runtime is being launched inside an integration test"
-  type = bool
-  default = false
-}
-
 variable "enable" {
   description = "Whether or not to create all the resources in this module"
   type = bool
@@ -22,7 +16,12 @@ variable "dev" {
   default = true //false
 }
 
-variable "quorum_size" {
-  type = number
-  default = 1
+variable "config" {
+  type = object({
+    quorum_size = number
+  })
+  description = ""
+  default = {
+    quorum_size = 3
+  }
 }

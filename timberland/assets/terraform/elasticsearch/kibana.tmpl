@@ -25,7 +25,7 @@ job "kibana" {
       config {
         image = "registry.gitlab.com/radix-labs/kibana-gantt"
         // it wants the elasticsearch hosts in json format: ["host1","host2",...]
-        args = ["--elasticsearch.hosts=[%{ for i in range(dev ? 1 : quorum_size) }\"http://$${NOMAD_UPSTREAM_ADDR_es-rest-${i}}\"${ i == (dev ? 1 : quorum_size) - 1 ? "" : ","}%{ endfor }]","--server.host=0.0.0.0","--path.data=/alloc/data","--elasticsearch.preserveHost=false","--xpack.apm.ui.enabled=false","--xpack.graph.enabled=false","--xpack.ml.enabled=false"]
+        args = ["--elasticsearch.hosts=[%{ for i in range(dev ? 1 : config.quorum_size) }\"http://$${NOMAD_UPSTREAM_ADDR_es-rest-${i}}\"${ i == (dev ? 1 : config.quorum_size) - 1 ? "" : ","}%{ endfor }]","--server.host=0.0.0.0","--path.data=/alloc/data","--elasticsearch.preserveHost=false","--xpack.apm.ui.enabled=false","--xpack.graph.enabled=false","--xpack.ml.enabled=false"]
         auth_soft_fail = false
         command = "kibana"
         ulimit = {
@@ -71,7 +71,7 @@ job "kibana" {
       connect {
         sidecar_service {
           proxy {
-          %{ for i in range(dev ? 1 : quorum_size) ~}
+          %{ for i in range(dev ? 1 : config.quorum_size) ~}
             upstreams {
               destination_name = "es-rest-${i}"
               local_bind_port = ${ 9200 + i }

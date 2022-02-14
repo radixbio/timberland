@@ -15,7 +15,7 @@ job "yugabyte-masters" {
 
   datacenters = ["dc1"]
 
-%{ for i in range(dev ? 1 : quorum_size) ~}
+%{ for i in range(dev ? 1 : config.quorum_size) ~}
   group "yb-masters-group-${i}" {
 
     count = 1
@@ -39,7 +39,7 @@ job "yugabyte-masters" {
         command = "bash"
         // we hardcode 127.0.0.1:xxxx for the master addresses so that they're in the same order on every yugabyte node so they can agree on a leader
         // we need to increment the rpc bind port and advertised port because yugabyte gets sad if multiple nodes have the same advertised address
-        args = ["-c", "/home/yugabyte/bin/yb-master --fs_data_dirs=/ybmaster_data --replication_factor=${ dev ? 1 : quorum_size} --rpc_bind_addresses=0.0.0.0:${7100 + i} --server_broadcast_addresses=127.0.0.1:${ 7100 + i} --use_private_ip=never --master_addresses=%{ for j in range(dev ? 1 : quorum_size) ~}127.0.0.1:${ 7100 + j },%{ endfor ~}"]
+        args = ["-c", "/home/yugabyte/bin/yb-master --fs_data_dirs=/ybmaster_data --replication_factor=${ dev ? 1 : config.quorum_size} --rpc_bind_addresses=0.0.0.0:${7100 + i} --server_broadcast_addresses=127.0.0.1:${ 7100 + i} --use_private_ip=never --master_addresses=%{ for j in range(dev ? 1 : config.quorum_size) ~}127.0.0.1:${ 7100 + j },%{ endfor ~}"]
         auth_soft_fail = false
         privileged = false
         cap_add = []
@@ -98,9 +98,9 @@ job "yugabyte-masters" {
           proxy {
 
 
-%{ for j in range(dev ? 1 : quorum_size) ~}
+%{ for j in range(dev ? 1 : config.quorum_size) ~}
           // we list the master addresses as 127.0.0.1:${7100 + j } (7100 + j), so we need to make sure all the masters are accessible at
-          // ports in the range [7100, 7100 + quorum_size]. this node is already bound to ${ 7100 + i} (7100 + j),
+          // ports in the range [7100, 7100 + config.quorum_size]. this node is already bound to ${ 7100 + i} (7100 + j),
           // so bind the rest of the yugabyte nodes (via local_bind_port) to each port in the rest of the range
             upstreams {
               destination_name = "yb-tserver-connect-${j}"
@@ -124,7 +124,7 @@ ${ i == j ? "" : <<-EOT
         task = "yb-master-task"
         command = "bash"
         // make sure that a master on this node's port exists in the list of all masters
-        args = ["-c", "/home/yugabyte/bin/yb-admin -master_addresses %{ for j in range(dev ? 1 : quorum_size) }127.0.0.1:${ 7100 + j },%{ endfor } list_all_masters | tr ':' ' ' | awk '{print $3}' | grep -v RPC | grep ${ 7100 + i }"]
+        args = ["-c", "/home/yugabyte/bin/yb-admin -master_addresses %{ for j in range(dev ? 1 : config.quorum_size) }127.0.0.1:${ 7100 + j },%{ endfor } list_all_masters | tr ':' ' ' | awk '{print $3}' | grep -v RPC | grep ${ 7100 + i }"]
         interval = "30s"
         timeout = "5s"
       }

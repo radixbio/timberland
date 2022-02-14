@@ -32,10 +32,10 @@ job "kc-daemons" {
 
       driver = "docker"
       env = {
-        //"SCHEMA_REGISTRY_KAFKASTORE_TOPIC_REPLICATION_FACTOR" = "${ dev ? 1 : min(quorum_size, 3) }",
+        //"SCHEMA_REGISTRY_KAFKASTORE_TOPIC_REPLICATION_FACTOR" = "${ dev ? 1 : min(config.quorum_size, 3) }",
         // this is a bug! we should be able to use OUTSIDE https://github.com/confluentinc/schema-registry/issues/648
         // a trailing comma in the list of bootstrap servers makes schema registry crash. I removed the trailing comma from all BOOTSTRAP_SERVERS env vars just for symmetry
-        "SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS" = "%{ for j in range(dev ? 1 : quorum_size) ~}PLAINTEXT://$${NOMAD_UPSTREAM_ADDR_kafka-${j}}${ j == (dev ? 1 : quorum_size) - 1 ? "" : ","}%{ endfor ~}",
+        "SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS" = "%{ for j in range(dev ? 1 : config.quorum_size) ~}PLAINTEXT://$${NOMAD_UPSTREAM_ADDR_kafka-${j}}${ j == (dev ? 1 : config.quorum_size) - 1 ? "" : ","}%{ endfor ~}",
         "SCHEMA_REGISTRY_HOST_NAME" = "kc-schema-registry-service-0.service.consul",
         "SCHEMA_REGISTRY_LISTENERS" = "http://0.0.0.0:8081",
       }
@@ -62,7 +62,7 @@ job "kc-daemons" {
 
       driver = "docker"
       env = {
-        "KAFKA_REST_BOOTSTRAP_SERVERS" = "%{ for j in range(dev ? 1 : quorum_size) ~}OUTSIDE://$${NOMAD_UPSTREAM_ADDR_kafka-${j}}${ j == (dev ? 1 : quorum_size) - 1 ? "" : ","}%{ endfor ~}",
+        "KAFKA_REST_BOOTSTRAP_SERVERS" = "%{ for j in range(dev ? 1 : config.quorum_size) ~}OUTSIDE://$${NOMAD_UPSTREAM_ADDR_kafka-${j}}${ j == (dev ? 1 : config.quorum_size) - 1 ? "" : ","}%{ endfor ~}",
         "KAFKA_REST_SCHEMA_REGISTRY_URL" = "http://127.0.0.1:8081",
         "KAFKA_REST_HOST_NAME" = "kc-rest-service-0.service.consul",
         "KAFKA_REST_LISTENERS" = "http://0.0.0.0:8082",
@@ -92,7 +92,7 @@ job "kc-daemons" {
 
       driver = "docker"
       env = {
-        "CONNECT_BOOTSTRAP_SERVERS" = "%{ for j in range(dev ? 1 : quorum_size) ~}OUTSIDE://$${NOMAD_UPSTREAM_ADDR_kafka-${j}}${ j == (dev ? 1 : quorum_size) - 1 ? "" : ","}%{ endfor ~}",
+        "CONNECT_BOOTSTRAP_SERVERS" = "%{ for j in range(dev ? 1 : config.quorum_size) ~}OUTSIDE://$${NOMAD_UPSTREAM_ADDR_kafka-${j}}${ j == (dev ? 1 : config.quorum_size) - 1 ? "" : ","}%{ endfor ~}",
         "CONNECT_GROUP_ID" = "kafka-daemons-connect-group",
         "CONNECT_CONFIG_STORAGE_TOPIC" = "kafka-connect-daemons-connect-configs",
         "CONNECT_OFFSET_STORAGE_TOPIC" = "kafka-connect-daemons-connect-offsets",
@@ -112,9 +112,9 @@ job "kc-daemons" {
         "CONNECT_LOG4J_LOGGERS" = "org.apache.kafka.connect.runtime.rest=INFO,org.reflections=ERROR",
         "CONNECT_LOG4J_ROOT_LOGLEVEL" = "INFO",
 
-        "CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR" = ${ dev ? 1 : min(quorum_size, 3) },
-        "CONNECT_STATUS_STORAGE_REPLICATION_FACTOR" = ${ dev ? 1 : min(quorum_size, 3) },
-        "CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR" = ${ dev ? 1 : min(quorum_size, 3) },
+        "CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR" = ${ dev ? 1 : min(config.quorum_size, 3) },
+        "CONNECT_STATUS_STORAGE_REPLICATION_FACTOR" = ${ dev ? 1 : min(config.quorum_size, 3) },
+        "CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR" = ${ dev ? 1 : min(config.quorum_size, 3) },
       }
       kill_timeout = "5s"
       kill_signal = "SIGINT"
@@ -142,7 +142,7 @@ job "kc-daemons" {
         "KSQL_KQSL_SERVICE_ID" = "ksql-server",
         "KAFKA_REST_PROXY_URL" = "http://127.0.0.1:8082",
         "KSQL_LISTENERS" = "http://0.0.0.0:8000",
-        "KSQL_BOOTSTRAP_SERVERS" = "%{ for j in range(dev ? 1 : quorum_size) ~}OUTSIDE://$${NOMAD_UPSTREAM_ADDR_kafka-${j}}${ j == (dev ? 1 : quorum_size) - 1 ? "" : ","}%{ endfor ~}"
+        "KSQL_BOOTSTRAP_SERVERS" = "%{ for j in range(dev ? 1 : config.quorum_size) ~}OUTSIDE://$${NOMAD_UPSTREAM_ADDR_kafka-${j}}${ j == (dev ? 1 : config.quorum_size) - 1 ? "" : ","}%{ endfor ~}"
       }
       kill_timeout = "5s"
       kill_signal = "SIGINT"
@@ -169,7 +169,7 @@ job "kc-daemons" {
       connect {
         sidecar_service {
           proxy {
-          %{ for j in range(0, dev ? 1 : quorum_size, 4) ~}
+          %{ for j in range(0, dev ? 1 : config.quorum_size, 4) ~}
             upstreams {
               destination_name = "kafka-${j - (j % 4)}"
               local_bind_port = ${ 9092 + j }
@@ -199,7 +199,7 @@ job "kc-daemons" {
       connect {
         sidecar_service {
           proxy {
-          %{ for j in range(1, 1 + (dev ? 1 : quorum_size), 4) ~}
+          %{ for j in range(1, 1 + (dev ? 1 : config.quorum_size), 4) ~}
             upstreams {
               destination_name = "kafka-${j - (j % 4)}"
               local_bind_port = ${ 9092 + j }
@@ -229,7 +229,7 @@ job "kc-daemons" {
       connect {
         sidecar_service {
           proxy {
-          %{ for j in range(2, 1 + (dev ? 1 : quorum_size), 4) ~}
+          %{ for j in range(2, 1 + (dev ? 1 : config.quorum_size), 4) ~}
             upstreams {
               destination_name = "kafka-${j - (j % 4)}"
               local_bind_port = ${ 9092 + j }
@@ -263,7 +263,7 @@ job "kc-daemons" {
       connect {
         sidecar_service {
           proxy {
-          %{ for j in range(3, 2 + (dev ? 1 : quorum_size), 4) ~}
+          %{ for j in range(3, 2 + (dev ? 1 : config.quorum_size), 4) ~}
             upstreams {
               destination_name = "kafka-${j - (j % 4)}"
               local_bind_port = ${ 9092 + j }

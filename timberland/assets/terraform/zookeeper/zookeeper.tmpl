@@ -15,7 +15,7 @@ job "zookeeper-daemons" {
 
   datacenters = ["dc1"]
 
-%{ for i in range(dev ? 1 : quorum_size) ~}
+%{ for i in range(dev ? 1 : config.quorum_size) ~}
   group "zookeeper-${i}" {
     count = 1
 
@@ -86,7 +86,7 @@ maxClientCnxns=60
 standaloneEnabled=false
 4lw.commands.whitelist=*
 server.${i+1}=127.0.0.1:${ 2888 + i }:${ 3888 + i }
-%{ for j in range(dev ? 1 : quorum_size) ~}
+%{ for j in range(dev ? 1 : config.quorum_size) ~}
 ${ i == j ? "" : <<-EOT
 server.${j+1}={{ env "NOMAD_UPSTREAM_ADDR_zookeeper-follower-${j}" }}:{{ env "NOMAD_UPSTREAM_PORT_zookeeper-othersrvs-${j}" }}
 EOT
@@ -218,7 +218,7 @@ EOH
       connect {
         sidecar_service {
           proxy {
-            %{ for j in range(dev ? 1 : quorum_size) ~}
+            %{ for j in range(dev ? 1 : config.quorum_size) ~}
             ${ i == j ? "" : <<-EOT
             upstreams {
               destination_name = "zookeeper-client-${j}"
@@ -253,7 +253,7 @@ EOH
       connect {
         sidecar_service {
           proxy {
-            %{ for j in range(dev ? 1 : quorum_size) }
+            %{ for j in range(dev ? 1 : config.quorum_size) }
               ${ i == j ? "" : <<-EOT
               upstreams {
                 destination_name = "zookeeper-follower-${j}"
@@ -277,7 +277,7 @@ EOH
       connect {
         sidecar_service {
           proxy {
-            %{ for j in range(dev ? 1 : quorum_size) }
+            %{ for j in range(dev ? 1 : config.quorum_size) }
             ${ i == j ? "" : <<-EOT
             upstreams {
               destination_name = "zookeeper-othersrvs-${j}"

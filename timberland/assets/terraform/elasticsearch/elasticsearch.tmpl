@@ -15,7 +15,7 @@ job "elasticsearch" {
 
   datacenters = ["dc1"]
 
-%{ for i in range(dev ? 1 : quorum_size) ~}
+%{ for i in range(dev ? 1 : config.quorum_size) ~}
   group "elasticsearch-${i}" {
     count = 1
 
@@ -39,7 +39,7 @@ job "elasticsearch" {
         // we need to set transport.port because otherwise, all the elasticsearch nodes will bind to and advertise 9300,
         // and they won't like that they're all advertising the same address
         // we need to set the host.name because it defaults to the docker container's hostname
-        args = ["-c","ln -s /local/unicast_hosts.txt /usr/share/elasticsearch/config/unicast_hosts.txt; elasticsearch -Ecluster.name=radix-es -Ediscovery.seed_providers=file -Enetwork.host=127.0.0.1 -Etransport.port=${ 9300 + i } -Enode.name=es${i} -Ecluster.initial_master_nodes=%{ for i in range(dev ? 1 : quorum_size) }es${i}${ i == (dev ? 1 : quorum_size) - 1  ? "" : "," }%{ endfor }"]
+        args = ["-c","ln -s /local/unicast_hosts.txt /usr/share/elasticsearch/config/unicast_hosts.txt; elasticsearch -Ecluster.name=radix-es -Ediscovery.seed_providers=file -Enetwork.host=127.0.0.1 -Etransport.port=${ 9300 + i } -Enode.name=es${i} -Ecluster.initial_master_nodes=%{ for i in range(dev ? 1 : config.quorum_size) }es${i}${ i == (dev ? 1 : config.quorum_size) - 1  ? "" : "," }%{ endfor }"]
         auth_soft_fail = false
         command = "bash"
         ulimit = {
@@ -76,7 +76,7 @@ job "elasticsearch" {
         right_delimiter = "}}"
         data = <<EOH
 127.0.0.1:${ 9300 + i }
-%{ for j in range(dev ? 1 : quorum_size) ~}
+%{ for j in range(dev ? 1 : config.quorum_size) ~}
 ${ i == j ? "" : <<-EOT
 {{ env "NOMAD_UPSTREAM_ADDR_es-transport-${j}" }}
 EOT
@@ -103,7 +103,7 @@ EOH
         sidecar_service {
           proxy {
 
-%{ for j in range(dev ? 1 : quorum_size) ~}
+%{ for j in range(dev ? 1 : config.quorum_size) ~}
 ${ i == j ? "" : <<-EOT
             upstreams {
               destination_name = "es-transport-${j}"

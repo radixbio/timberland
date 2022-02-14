@@ -1,7 +1,6 @@
 package com.radix.timberland
 
 import com.radix.timberland.launch.daemonutil
-import com.radix.timberland.util.{EmailRecipient, MTeamsRecipient, MessageKind, SlackRecipient}
 import io.circe.{Parser => _}
 import optparse_applicative._
 import optparse_applicative.types.{Doc, Parser}
@@ -26,15 +25,21 @@ case object AfterStartup extends RadixCMD
 
 case object Stop extends RadixCMD
 
-case object Nuke extends RadixCMD
-
-case object StartNomad extends RadixCMD
-
 sealed trait DNS extends RadixCMD
 
 case object DNSUp extends DNS
 
 case object DNSDown extends DNS
+
+case object MakeConfig extends RadixCMD
+
+case class FlagConfig(
+  flags: List[String],
+  all: Boolean,
+  remoteAddress: Option[String],
+  username: Option[String],
+  password: Option[String]
+) extends RadixCMD
 
 case class FlagSet(
   flags: List[String],
@@ -44,34 +49,49 @@ case class FlagSet(
   password: Option[String]
 ) extends RadixCMD
 
-case class FlagQuery(
-  remoteAddress: Option[String],
-  username: Option[String],
-  password: Option[String]
-) extends RadixCMD
-
-case class Update(
-  remoteAddress: Option[String] = None,
-  namespace: Option[String] = None,
-  username: Option[String] = None,
-  password: Option[String] = None
-) extends RadixCMD
+case object FlagQuery extends RadixCMD
 
 case class AddUser(name: String, roles: List[String]) extends RadixCMD
-
-case class AddRecipient(identifier: String, medium: MessageKind) extends RadixCMD
 
 sealed trait Oauth extends RadixCMD
 
 case object GoogleSheets extends Oauth
-
-case class ScriptHead(cmd: RadixCMD)
 
 object cli {
 
   implicit class Weakener[F[_], A](fa: F[A])(implicit F: scalaz.Functor[F]) {
     def weaken[B](implicit ev: A <:< B): F[B] = F.map(fa)(identity(_))
   }
+
+  private def FlagArgs[T]: ((List[String], Option[String], Option[String], Option[String]) => T) => Parser[T] = ^^^(
+    many(
+      strArgument(
+        metavar("FLAGS"),
+        help("List of features/components")
+      )
+    ),
+    optional(
+      strOption(
+        metavar("ADDR"),
+        long("remote-address"),
+        help("Address to remote Consul instance")
+      )
+    ),
+    optional(
+      strOption(
+        metavar("USERNAME"),
+        long("username"),
+        help("Remote username (set locally with add_user cmd)")
+      )
+    ),
+    optional(
+      strOption(
+        metavar("PASSWORD"),
+        long("password"),
+        help("Remote password (set locally with add_user cmd)")
+      )
+    )
+  )(_)
 
   private val oauthGoogleSheets = subparser[Oauth](
     metavar("google-sheets"),
@@ -262,28 +282,6 @@ object cli {
     )
   )
 
-  private val nuke = subparser[Nuke.type](
-    metavar("nuke"),
-    command(
-      "nuke",
-      info(
-        pure(Nuke),
-        progDesc("Remove radix core services from the this node")
-      )
-    )
-  )
-
-  private val startNomad = subparser[StartNomad.type](
-    metavar("start_nomad"),
-    command(
-      "start_nomad",
-      info(
-        pure(StartNomad),
-        progDesc("Start a nomad job")
-      )
-    )
-  )
-
   private val dnsDown = subparser[DNSDown.type](
     metavar("down"),
     command("down", info(pure(DNSDown), progDesc("Remove Consul DNS from system DNS configuration")))
@@ -325,40 +323,41 @@ object cli {
     )
   )
 
+  private val makeConfig = subparser[MakeConfig.type](
+    metavar("make_config"),
+    command(
+      "make_config",
+      info(
+        pure(MakeConfig),
+        progDesc("Generates any missing module configuration files")
+      )
+    )
+  )
+
+  private val config = subparser[FlagConfig](
+    metavar("config"),
+    command(
+      "config",
+      info(
+        FlagArgs[FlagConfig](FlagConfig(_, false, _, _, _)) <*> optional(
+          switch(
+            long("all"),
+            help("Reconfigure all values, including the ones that already have a value")
+          )
+        ).map(all => {
+          exist: FlagConfig => exist.copy(all = all.getOrElse(false))
+        }),
+        progDesc("Enable components or features of the Radix runtime")
+      )
+    )
+  )
+
   private val enable = subparser[FlagSet](
     metavar("enable"),
     command(
       "enable",
       info(
-        ^^^(
-          many(
-            strArgument(
-              metavar("FLAGS"),
-              help("List of features/components to enable")
-            )
-          ),
-          optional(
-            strOption(
-              metavar("ADDR"),
-              long("remote-address"),
-              help("Address to remote Consul instance")
-            )
-          ),
-          optional(
-            strOption(
-              metavar("USERNAME"),
-              long("username"),
-              help("Remote username (set locally with add_user cmd)")
-            )
-          ),
-          optional(
-            strOption(
-              metavar("PASSWORD"),
-              long("password"),
-              help("Remote password (set locally with add_user cmd)")
-            )
-          )
-        )(FlagSet(_, true, _, _, _)),
+        FlagArgs[FlagSet](FlagSet(_, true, _, _, _)),
         progDesc("Enable components or features of the Radix runtime")
       )
     )
@@ -369,156 +368,19 @@ object cli {
     command(
       "disable",
       info(
-        ^^^(
-          many(
-            strArgument(
-              metavar("FLAGS"),
-              help("List of features/components to disable")
-            )
-          ),
-          optional(
-            strOption(
-              metavar("ADDR"),
-              long("remote-address"),
-              help("Address to remote Consul instance")
-            )
-          ),
-          optional(
-            strOption(
-              metavar("USERNAME"),
-              long("username"),
-              help("Remote username (set locally with add_user cmd)")
-            )
-          ),
-          optional(
-            strOption(
-              metavar("PASSWORD"),
-              long("password"),
-              help("Remote password (set locally with add_user cmd)")
-            )
-          )
-        )(FlagSet(_, false, _, _, _)),
+        FlagArgs[FlagSet](FlagSet(_, false, _, _, _)),
         progDesc("Disable components or features of the Radix runtime")
       )
     )
   )
 
-  private val query = subparser[FlagQuery](
+  private val query = subparser[FlagQuery.type](
     metavar("query"),
     command(
       "query",
       info(
-        ^^(
-          optional(
-            strOption(
-              metavar("ADDR"),
-              long("remote-address"),
-              help("Address to remote Consul instance")
-            )
-          ),
-          optional(
-            strOption(
-              metavar("USERNAME"),
-              long("username"),
-              help("Remote username (set locally with add_user cmd)")
-            )
-          ),
-          optional(
-            strOption(
-              metavar("PASSWORD"),
-              long("password"),
-              help("Remote password (set locally with add_user cmd)")
-            )
-          )
-        )(FlagQuery),
+        pure(FlagQuery),
         progDesc("Check which features or components are enabled and view their configuration")
-      )
-    )
-  )
-
-  private val update = subparser[Update](
-    metavar("update"),
-    command(
-      "update",
-      info(
-        pure(Update()) <*>
-          optional(
-            strOption(
-              metavar("ADDR"),
-              long("remote-address"),
-              help("Address to remote Consul instance")
-            )
-          ).map(ra => {
-            exist: Update => exist.copy(remoteAddress = ra)
-          }) <*>
-
-          optional(
-            strOption(
-              metavar("NAMESPACE"),
-              long("namespace"),
-              help("Namespace for Nomad jobs")
-            )
-          ).map(namespace => {
-            exist: Update =>
-              namespace match {
-                case Some(_) => exist.copy(namespace = namespace)
-                case None    => exist.copy(namespace = Some(daemonutil.getNamespace(false)))
-              }
-          }) <*>
-
-          optional(
-            strOption(
-              metavar("USERNAME"),
-              long("username"),
-              help("Remote username (set locally with add_user cmd)")
-            )
-          ).map(username => {
-            exist: Update =>
-              username match {
-                case Some(_) => exist.copy(username = username)
-                case None    => exist
-              }
-          }) <*>
-
-          optional(
-            strOption(
-              metavar("PASSWORD"),
-              long("password"),
-              help("Remote password (set locally with add_user cmd)")
-            )
-          ).map(password => {
-            exist: Update =>
-              password match {
-                case Some(_) => exist.copy(password = password)
-                case None    => exist
-              }
-          })
-      )
-    )
-  )
-
-  private val addMessageRecipients = subparser[AddRecipient](
-    command(
-      "slack",
-      info(
-        ^(strArgument(metavar("ID")), strArgument(metavar("WEBHOOK")))((id, h) => AddRecipient(id, SlackRecipient(h)))
-      )
-    ),
-    command(
-      "mteams",
-      info(
-        ^(strArgument(metavar("ID")), strArgument(metavar("WEBHOOK")))((id, h) => AddRecipient(id, MTeamsRecipient(h)))
-      )
-    ),
-    command(
-      "email",
-      info(
-        ^^^(
-          strArgument(metavar("ID")),
-          strArgument(metavar("USERNAME")),
-          strArgument(metavar("DOMAIN")),
-          strArgument(metavar("PASSWORD"))
-        )((id, un, dom, pwd) => AddRecipient(id, EmailRecipient(un, dom, pwd)))
       )
     )
   )
@@ -527,16 +389,15 @@ object cli {
     oauth,
     start,
     stop,
-    nuke,
     env,
-    startNomad,
     afterStartup,
     dns,
+    makeConfig,
     addUser,
+    config,
     enable,
     disable,
-    query,
-    update
+    query
   ).map(_.weaken[RadixCMD])
 
   val opts: ParserInfo[RadixCMD] = info(
@@ -572,19 +433,29 @@ object cli {
             Doc.indent(2, Doc.text("timberland query")),
             Doc.linebreak,
             Doc.linebreak,
+            Doc.text("To configure parameters for enabled timberland flags, run:"),
+            Doc.linebreak,
+            Doc.indent(2, Doc.text("timberland config")),
+            Doc.linebreak,
+            Doc.linebreak,
             Doc.text("To print shell commands for including timberland and hashicorp services in $PATH, run:"),
             Doc.linebreak,
             Doc.indent(2, Doc.text("timberland runtime env")),
             Doc.linebreak,
             Doc.linebreak,
-            Doc.text("To update the components in the Radix runtime, run:"),
-            Doc.linebreak,
-            Doc.indent(2, Doc.text("timberland update")),
-            Doc.linebreak,
-            Doc.linebreak,
             Doc.text("To make this Radix installation controllable from a remote machine, run:"),
             Doc.linebreak,
             Doc.indent(2, Doc.text("timberland add_user")),
+            Doc.linebreak,
+            Doc.linebreak,
+            Doc.text("To generate any missing module configuration files, run:"),
+            Doc.linebreak,
+            Doc.indent(2, Doc.text("timberland make_config")),
+            Doc.linebreak,
+            Doc.linebreak,
+            Doc.text("To manually start timberland back up after a reboot, run:"),
+            Doc.linebreak,
+            Doc.indent(2, Doc.text("timberland after_startup")),
             Doc.linebreak,
             Doc.linebreak,
             Doc.text("To configure this machine's DNS for the Radix runtime, run:"),
@@ -601,19 +472,11 @@ object cli {
               )(Doc.append)
             ),
             Doc.linebreak,
-            Doc.text("To stop or reset an existing Radix runtime installation, run:"),
+            Doc.text("To stop an existing Radix runtime installation, run:"),
             Doc.linebreak,
-            Doc.indent(
-              2,
-              Doc.foldDoc(
-                Seq(
-                  Doc.text("timberland stop"),
-                  Doc.linebreak,
-                  Doc.text("timberland nuke"),
-                  Doc.linebreak
-                )
-              )(Doc.append)
-            ),
+            Doc.indent(2, Doc.text("timberland stop")),
+            Doc.linebreak,
+            Doc.linebreak,
             Doc.text("To view info about setting up oauth, run:"),
             Doc.linebreak,
             Doc.indent(2, Doc.text("timberland oauth"))

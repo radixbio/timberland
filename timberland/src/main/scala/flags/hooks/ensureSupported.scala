@@ -3,6 +3,7 @@ package com.radix.timberland.flags.hooks
 import cats.effect.IO
 import cats.implicits._
 import com.radix.timberland.radixdefs.ServiceAddrs
+import com.radix.timberland.runtime.AuthTokens
 
 object ensureSupported extends FlagHook {
   val osname = System.getProperty("os.name").toLowerCase match {
@@ -40,5 +41,6 @@ object ensureSupported extends FlagHook {
     }
   )
 
-  override def run(options: Map[String, Option[String]], addrs: ServiceAddrs): IO[Unit] = checks.sequence.map(_ => ())
+  override def run(options: Map[String, String], addrs: ServiceAddrs, _tokens: AuthTokens): IO[Unit] =
+    checks.sequence.map(_ => ())
 }

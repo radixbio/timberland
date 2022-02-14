@@ -15,7 +15,7 @@ job "kafka-daemons" {
 
   datacenters = ["dc1"]
 
-%{ for i in range(dev ? 1 : quorum_size) ~}
+%{ for i in range(dev ? 1 : config.quorum_size) ~}
   group "kafka-${i}" {
 
     count = 1
@@ -56,11 +56,11 @@ job "kafka-daemons" {
         // KAFKA_LISTENERS actually tells kafka what host:port to bind to
         "KAFKA_LISTENERS" = "INSIDE://0.0.0.0:${interbroker_port + i},OUTSIDE://0.0.0.0:${9092 + i}",
         // kafka wants to be able to talk to all the zookeepers
-        "KAFKA_ZOOKEEPER_CONNECT" = "%{ for j in range(dev ? 1 : zookeeper_quorum_size) ~}$${NOMAD_UPSTREAM_ADDR_zookeeper-client-${j}},%{ endfor ~}",
+        "KAFKA_ZOOKEEPER_CONNECT" = "%{ for j in range(dev ? 1 : config.quorum_size) ~}$${NOMAD_UPSTREAM_ADDR_zookeeper-client-${j}},%{ endfor ~}",
         "KAFKA_LISTENER_SECURITY_PROTOCOL_MAP" = "INSIDE:PLAINTEXT,OUTSIDE:PLAINTEXT",
         "TOPIC_AUTO_CREATE" = "true",
         "KAFKA_INTER_BROKER_LISTENER_NAME" = "OUTSIDE",
-        "KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR" = "${ dev ? 1 : min(quorum_size, 3) }",
+        "KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR" = "${ dev ? 1 : min(config.quorum_size, 3) }",
         //TODO read meta.properties here and use that if it exists
       }
       kill_timeout = "5s"
@@ -90,14 +90,14 @@ job "kafka-daemons" {
         sidecar_service {
           proxy {
 
-            %{ for j in range(dev ? 1 : zookeeper_quorum_size) ~}
+            %{ for j in range(dev ? 1 : config.quorum_size) ~}
             upstreams {
               destination_name = "zookeeper-client-${j}"
               local_bind_port = ${ 2181 + j }
             }
             %{ endfor ~}
 
-            %{ for j in range(dev ? 1 : quorum_size) ~}
+            %{ for j in range(dev ? 1 : config.quorum_size) ~}
             ${ i == j ? "" : <<-EOT
             upstreams {
               destination_name = "kafka-${j}"

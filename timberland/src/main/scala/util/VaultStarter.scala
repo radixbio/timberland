@@ -1,22 +1,19 @@
 package com.radix.timberland.util
 
 import java.io.{File, PrintWriter}
-
 import cats.effect.{ContextShift, IO, Timer}
-import cats.implicits._
 import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.utils.helm.http4s.vault.{Vault => VaultSession}
 import com.radix.utils.helm.vault._
 import com.radix.utils.tls.ConsulVaultSSLContext.blaze
-import io.circe.generic.auto._
 import io.circe.parser._
 import io.circe.literal._
-import io.circe.syntax._
 import org.http4s.{Header, Uri}
 import org.http4s.client.dsl.io._
 import org.http4s.circe._
 import org.http4s.Method.PUT
 import org.http4s.implicits._
+import scribe.Level
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
@@ -96,7 +93,7 @@ object VaultUtils {
         Uri.unsafeFromString(s"https://$vaultAddr:8200/v1/sys/config/cors"),
         Header("X-Vault-Token", vaultToken)
       )
-      client.expect[String](req).map(println)
+      client.expect[String](req).map(scribe.trace(_))
     } *> IO {
       val caPath = RadPath.runtime / "certs" / "ca"
       val env = Map(
@@ -110,8 +107,8 @@ object VaultUtils {
       Util
         .proc(vault, "auth", "enable", "userpass")
         .call(
-          stdout = os.ProcessOutput(LogTUI.vault),
-          stderr = os.ProcessOutput(LogTUI.vault),
+          stdout = Util.scribePipe(),
+          stderr = Util.scribePipe(Level.Error),
           env = env
         )
 
@@ -124,8 +121,8 @@ object VaultUtils {
           "@" + (vaultPath / "tls-cert-role.json").toString
         )
         .call(
-          stdout = os.ProcessOutput(LogTUI.vault),
-          stderr = os.ProcessOutput(LogTUI.vault),
+          stdout = Util.scribePipe(),
+          stderr = Util.scribePipe(Level.Error),
           env = env
         )
 
@@ -139,8 +136,8 @@ object VaultUtils {
           "kv"
         )
         .call(
-          stdout = os.ProcessOutput(LogTUI.vault),
-          stderr = os.ProcessOutput(LogTUI.vault),
+          stdout = Util.scribePipe(),
+          stderr = Util.scribePipe(Level.Error),
           env = env
         )
       Util
@@ -152,8 +149,8 @@ object VaultUtils {
           "pki"
         )
         .call(
-          stdout = os.ProcessOutput(LogTUI.vault),
-          stderr = os.ProcessOutput(LogTUI.vault),
+          stdout = Util.scribePipe(),
+          stderr = Util.scribePipe(Level.Error),
           env = env
         )
       Util
@@ -166,8 +163,8 @@ object VaultUtils {
           "pki"
         )
         .call(
-          stdout = os.ProcessOutput(LogTUI.vault),
-          stderr = os.ProcessOutput(LogTUI.vault),
+          stdout = Util.scribePipe(),
+          stderr = Util.scribePipe(Level.Error),
           env = env
         )
       Util
@@ -180,8 +177,8 @@ object VaultUtils {
           "pki"
         )
         .call(
-          stdout = os.ProcessOutput(LogTUI.vault),
-          stderr = os.ProcessOutput(LogTUI.vault),
+          stdout = Util.scribePipe(),
+          stderr = Util.scribePipe(Level.Error),
           env = env
         )
       Util
@@ -194,8 +191,8 @@ object VaultUtils {
           "pki_int"
         )
         .call(
-          stdout = os.ProcessOutput(LogTUI.vault),
-          stderr = os.ProcessOutput(LogTUI.vault),
+          stdout = Util.scribePipe(),
+          stderr = Util.scribePipe(Level.Error),
           env = env
         )
 
@@ -211,7 +208,7 @@ object VaultUtils {
         )
         .call(
           stdout = caPath / "root.pem",
-          stderr = os.ProcessOutput(LogTUI.vault),
+          stderr = Util.scribePipe(Level.Error),
           env = env
         )
       val mkcsr =
@@ -227,7 +224,7 @@ object VaultUtils {
             "ttl=43800h"
           )
           .spawn(
-            stderr = os.ProcessOutput(LogTUI.vault),
+            stderr = Util.scribePipe(Level.Error),
             env = env
           )
       val csr = parse(mkcsr.stdout.string) match {
@@ -251,7 +248,7 @@ object VaultUtils {
           "ttl=43800h"
         )
         .spawn(
-          stderr = os.ProcessOutput(LogTUI.vault),
+          stderr = Util.scribePipe(Level.Error),
           env = env
         )
       val intcrt = parse(mkintcrt.stdout.string) match {
@@ -273,8 +270,8 @@ object VaultUtils {
           s"certificate=@${vaultPath / "intermediate.cert.pem"}"
         )
         .call(
-          stdout = os.ProcessOutput(LogTUI.vault),
-          stderr = os.ProcessOutput(LogTUI.vault),
+          stdout = Util.scribePipe(),
+          stderr = Util.scribePipe(Level.Error),
           env = env
         )
       Util
@@ -290,8 +287,8 @@ object VaultUtils {
           "generate_lease=true"
         )
         .call(
-          stdout = os.ProcessOutput(LogTUI.vault),
-          stderr = os.ProcessOutput(LogTUI.vault),
+          stdout = Util.scribePipe(),
+          stderr = Util.scribePipe(Level.Error),
           env = env
         )
 
@@ -304,8 +301,8 @@ object VaultUtils {
           "aws"
         )
         .call(
-          stdout = os.ProcessOutput(LogTUI.vault),
-          stderr = os.ProcessOutput(LogTUI.vault),
+          stdout = Util.scribePipe(),
+          stderr = Util.scribePipe(Level.Error),
           env = env
         )
 
@@ -319,8 +316,8 @@ object VaultUtils {
           s"policy_document=@${vaultPath / "aws-cred-role.json"}"
         )
         .call(
-          stdout = os.ProcessOutput(LogTUI.vault),
-          stderr = os.ProcessOutput(LogTUI.vault),
+          stdout = Util.scribePipe(),
+          stderr = Util.scribePipe(Level.Error),
           env = env
         )
       List("tls-cert", "remote-access", "read-flag-config", "actor-acl-token", "read-message-targets")
@@ -335,8 +332,8 @@ object VaultUtils {
               (vaultPath / s"$policy-policy.hcl").toString
             )
             .call(
-              stdout = os.ProcessOutput(LogTUI.vault),
-              stderr = os.ProcessOutput(LogTUI.vault),
+              stdout = Util.scribePipe(),
+              stderr = Util.scribePipe(Level.Error),
               env = env
             )
         )
@@ -464,10 +461,10 @@ class VaultStarter {
   def initializeAndUnsealVault(baseUrl: Uri, shouldBootstrapVault: Boolean): IO[VaultSealStatus] = {
     def getResult(implicit vaultSession: VaultSession[IO]): IO[VaultSealStatus] =
       for {
-        _ <- IO(scribe.trace("Checking Vault Status..."))
-        _ <- IO(scribe.trace(s"VAULT BASE URL: $baseUrl"))
+        _ <- IO(scribe.debug("Checking Vault Status..."))
+        _ <- IO(scribe.debug(s"VAULT BASE URL: $baseUrl"))
         vaultInit <- waitOnVaultInit
-        _ <- IO(scribe.info(s"vault init: $vaultInit"))
+        _ <- IO(scribe.debug(s"vault init: $vaultInit"))
         finalState <- vaultInit match {
           case VaultNotInitalized => IO.pure(VaultSealed)
           case VaultInitialized(key, root_token) => {
@@ -528,7 +525,7 @@ class VaultStarter {
       // waitForDns(vault.service.consul)
       _ <- OAuthController.vaultOauthBootstrap(vaultUnseal, vaultBaseUrl)
 
-      _ <- IO(scribe.info(s"VAULT STATUS: ${vaultUnseal}"))
+      _ <- IO(scribe.debug(s"VAULT STATUS: ${vaultUnseal}"))
       vaultToken <- IO(vaultUnseal match {
         case VaultUnsealed(key: String, token: String) => VaultUtils.storeVaultTokenKey(key, token)
         case VaultAlreadyUnsealed                      => VaultUtils.findVaultToken()

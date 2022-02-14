@@ -39,6 +39,11 @@ dependencies:
       lang: scala
       version: "1.5.13"
 
+  com.bertramlabs.plugins:
+    hcl4j:
+      lang: java
+      version: "0.4.4"
+
   com.chuusai:
     shapeless:
       lang: scala

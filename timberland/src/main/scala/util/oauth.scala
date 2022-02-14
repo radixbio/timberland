@@ -2,18 +2,11 @@ package com.radix.timberland.util
 
 import cats.data.EitherT
 import cats.effect.{Blocker, ContextShift, IO, Timer}
-import org.http4s.Uri.uri
-import org.http4s.client.blaze.BlazeClientBuilder
 import com.radix.utils.helm.http4s.vault.{Vault => VaultSession}
 import com.radix.utils.helm.vault._
 import com.typesafe.config.{Config, ConfigFactory}
-import cats.effect.implicits._
-import cats.implicits._
 import io.circe.syntax._
 import io.circe.generic.auto._
-import io.circe.parser.decode
-import com.radix.timberland.flags.hooks.{awsAuthConfig, AWSAuthConfigFile}
-import com.radix.timberland.runtime.AuthTokens
 import com.radix.utils.tls.ConsulVaultSSLContext.blaze
 
 import scala.concurrent.duration._
@@ -41,7 +34,7 @@ object OAuthController {
       val T = Timer[IO]
 
       res.value.flatMap({
-        case Left(err)   => T.sleep(1.second) *> IO(scribe.info(s"-----Credential error: ${err}")) *> creds
+        case Left(err)   => T.sleep(1.second) *> IO(scribe.error(s"-----Credential error: ${err}")) *> creds
         case Right(succ) => IO.pure(succ)
       })
     }
@@ -57,13 +50,13 @@ object OAuthController {
         initializeGoogleOauthPlugin(token, vaultBaseUrl)
       case VaultUnsealed(_, _) =>
         IO(
-          scribe.info(
+          scribe.warn(
             "GOOGLE_OAUTH_ID and/or GOOGLE_OAUTH_SECRET are not set. The Google oauth plugin will not be initialized."
           )
         )
       case VaultSealed =>
         IO(
-          scribe.info(
+          scribe.warn(
             "Vault remains sealed. Please check your configuration."
           )
         )

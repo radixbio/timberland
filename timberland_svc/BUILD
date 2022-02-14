@@ -1,4 +1,4 @@
-load("//tools:terraform.bzl", "terraform_module")
+load("@rules_pkg//:pkg.bzl", "pkg_tar")
 
 scala_library(
     name = "timberland-svc-lib",

@@ -3,14 +3,13 @@ package com.radix.timberland.runtime
 import cats.data._
 import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
-import java.io.{File, FileWriter}
+import java.io.File
 import java.net.{InetAddress, InetSocketAddress, Socket}
 import java.nio.file.Paths
 import java.util.UUID
 import java.util.concurrent.Executors
 
 import com.radix.timberland.runtime.Services.serviceController
-import com.radix.timberland.flags.hooks.{awsAuthConfig, AWSAuthConfigFile}
 import com.radix.timberland.radixdefs.ACLTokens
 import com.radix.timberland.util._
 import com.radix.utils.tls.ConsulVaultSSLContext
@@ -18,7 +17,6 @@ import org.http4s.{Header, Uri}
 import org.http4s.Method.POST
 import org.http4s.client.dsl.io._
 import org.http4s.implicits._
-import io.circe.syntax._
 
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext
@@ -132,8 +130,7 @@ class LinuxServiceControl extends ServiceControl {
                              |VAULT_TOKEN=$vaultToken
                              |PATH=${sys.env("PATH")}:${(RadPath.persistentDir / "consul").toString()}
                              |""".stripMargin)
-      _ = Investigator.reportHashiUpdate("Nomad", "Starting")
-      _ = LogTUI.writeLog("spawning nomad via systemd")
+      _ = scribe.info("spawning nomad via systemd")
       _ = os.write.over(RadPath.persistentDir / "nomad" / "nomad.env.conf", args)
       _ <- clearStaleRules
     } yield ()
@@ -333,11 +330,6 @@ object Services {
       hasPartiallyBootstrapped <- IO(os.exists(intermediateAclTokenFile))
       consulToken <- makeOrGetIntermediateToken
       _ <- IO {
-        if (initialSetup && !os.exists(awsAuthConfig.configFile)) {
-          os.write(awsAuthConfig.configFile, AWSAuthConfigFile(credsExistInVault = false).asJson.toString)
-        }
-      }
-      _ <- IO {
         consulTemplateReplacementCerts.foreach { certBakPath =>
           if (os.exists(certBakPath)) os.remove(certBakPath)
         }
@@ -468,16 +460,13 @@ object Services {
     val consulConfigFile = consulDir / (if (remoteJoin) "consul-client.json" else "consul-server.json")
     for {
       _ <- serviceController.configureConsul(baseArgsWithSeedsAndServer)
-      _ <- Investigator.reportHashiUpdate("Consul", "Starting")
       _ <- IO(os.copy.over(consulConfigFile, consulConfigDir / "consul.json"))
       _ <- serviceController.restartConsul()
       _ <- Util.waitForPortUp(8500, 10.seconds)
       _ <- Util.waitForPortUp(8501, 10.seconds)
-      _ <- Investigator.reportHashiUpdate("Consul", "Service started")
     } yield ()
   }
 
-//  def startNomad(bindAddr: String, bootstrapExpect: Int, vaultToken: String, remoteJoin: Boolean = false): IO[Unit] = {
   def setupNomad(
     bindAddr: String,
     gossipKey: String,
@@ -511,13 +500,12 @@ object Services {
     for {
       configureNomad <- serviceController.configureNomad(parameters, vaultToken, consulToken)
       procOut <- serviceController.restartNomad()
-      _ <- Investigator
-        .waitForService("nomad", 30.seconds)
+      _ <- Util
+        .waitForServiceDNS("nomad", 30.seconds)
         .recoverWith(Function.unlift { _ =>
           scribe.warn("Nomad did not exit cleanly. Restarting nomad systemd service...")
           Some(serviceController.restartNomad().map(_ => false)) // not sure if that's right
         })
-      _ <- Investigator.reportHashiUpdate("Nomad", "Service started")
     } yield ()
   }
 
@@ -526,13 +514,11 @@ object Services {
       s"""VAULT_CMD_ARGS=-address=https://${bindAddr}:8200 -config=${RadPath.persistentDir}/vault/vault_config.conf""".stripMargin
     for {
       _ <- IO {
-        Investigator.reportHashiUpdate("Vault", "Starting")
-        LogTUI.writeLog("spawning vault via systemd")
+        scribe.info("spawning vault via systemd")
         os.write.over(RadPath.persistentDir / "vault" / "vault.env.conf", args)
       }
       restartProc <- serviceController.restartVault()
       _ <- Util.waitForPortUp(8200, 30.seconds)
-      _ <- Investigator.reportHashiUpdate("Vault", "Service started")
     } yield ()
 
   }
@@ -621,13 +607,6 @@ object Services {
       os.move.over(certDir / s"$fileName.pem", certDir / folder / "cert.pem")
       os.move.over(certDir / s"$fileName-key.pem", certDir / folder / "key.pem")
     }
-
-  def startWeave(hosts: List[String]): IO[Unit] =
-    for {
-      disableProc <- Util.exec("/usr/bin/docker plugin disable weaveworks/net-plugin:latest_release")
-      setProc <- Util.exec("/usr/bin/docker plugin set weaveworks/net-plugin:latest_release IPALLOC_RANGE=10.32.0.0/12")
-      enableProc <- Util.exec("/usr/bin/docker plugin disable weaveworks/net-plugin:latest_release")
-    } yield ()
 
   def stopServices(): IO[Unit] =
     serviceController.stopNomad() *> serviceController.stopConsulTemplate() *> serviceController

@@ -1,39 +1,26 @@
 package com.radix.timberland.util
 
-import java.io.{File, FileInputStream, FileNotFoundException, FileOutputStream, IOException}
-import java.net.{InetAddress, NetworkInterface, ServerSocket, UnknownHostException}
+import java.io.{FileNotFoundException, IOException}
+import java.net.{InetAddress, ServerSocket, UnknownHostException}
 import ammonite.ops._
-import cats.effect.{ContextShift, IO, Resource, Timer}
+import cats.effect.{ContextShift, IO, Timer}
 import com.radix.utils.tls.ConsulVaultSSLContext.blaze
 import org.http4s.Header
 import org.http4s.Method._
 import org.http4s.client.dsl.io._
 import org.http4s.implicits._
+import org.log4s.LogLevel
+import os.ProcessOutput
+import scribe.Level
 
-import scala.collection.JavaConverters._
+import java.nio.charset.StandardCharsets
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.TimeoutException
 import scala.concurrent.duration._
-import scala.io.StdIn
 
 object Util {
   private[this] implicit val timer: Timer[IO] = IO.timer(global)
   private[this] implicit val cs: ContextShift[IO] = IO.contextShift(global)
-
-  def promptForString(prompt: String, timeout: FiniteDuration = 30.seconds): IO[Option[String]] = {
-    IO(Console.print(prompt + "> "))
-      .flatMap { _ => timeoutTo(IO(StdIn.readLine()), timeout, IO.pure(null)) }
-      .map {
-        case null | "" => None
-        case str       => Some(str)
-      }
-  }
-
-  def promptForBool(prompt: String, default: Boolean = true): IO[Boolean] = {
-    IO(Console.print(prompt + (if (default) " [Y/n] " else " [y/N] ")))
-      .flatMap { _ => timeoutTo(IO(StdIn.readLine()), 30.seconds, IO.pure(if (default) "y" else "n")) }
-      .map(res => res != null && res.nonEmpty && res.toLowerCase != "y")
-  }
 
   /**
    * Let a specified function run for a specified period of time before interrupting it and raising an error. This
@@ -99,7 +86,7 @@ object Util {
   }
 
   def waitForPortUp(port: Int, timeoutDuration: FiniteDuration): IO[Boolean] = {
-    scribe.info(s"waiting for $port be up, a maximum of $timeoutDuration")
+    scribe.debug(s"waiting for $port be up, a maximum of $timeoutDuration")
     def queryProg(): IO[Boolean] =
       for {
         portUp <- isPortUp(port)
@@ -118,20 +105,20 @@ object Util {
     address: String = "https://consul.service.consul:8501"
   ): IO[Unit] = {
     import com.radix.utils.tls.TrustEveryoneSSLContext.insecureBlaze
-    scribe.info(s"waiting for Consul (@ 8501) to be leader, a max of $timeoutDuration.")
+    scribe.debug(s"waiting for Consul (@ 8501) to be leader, a max of $timeoutDuration.")
     val pollUrl = s"$address/v1/status/leader"
     import org.http4s.Uri
-    val request = GET(
+    val requestIO = GET(
       Uri.fromString(pollUrl).getOrElse(uri"https://127.0.0.1:8501/v1/status/leader"),
       Header("X-Consul-Token", consulToken)
     )
     // there's a few hundred milliseconds between when consul has a leader and when the single-leader node syncs ACLs... add a silly 2 second sleep after leader to soak up this tiny race
-    def queryConsul: IO[Unit] = {
+    def queryConsul: IO[Unit] = requestIO.map { request =>
       insecureBlaze
-        .use(_.expect[String](request))
+        .use(_.expectOption[String](request))
         .flatMap({
-          case "\"\""    => IO.sleep(1 second) *> queryConsul
-          case _ @leader => IO(scribe.info(s"Consul has leader: $leader")) *> IO.sleep(2.second) *> IO.unit
+          case Some("\"\"") | None => IO.sleep(1 second) *> queryConsul
+          case Some(_ @leader) => IO(scribe.debug(s"Consul has leader: $leader")) *> IO.sleep(2.second) *> IO.unit
         })
 
     }
@@ -139,17 +126,16 @@ object Util {
   }
 
   def waitForNomad(timeoutDuration: FiniteDuration): IO[Unit] = {
-    scribe.info(s"waiting for Nomad (@ 4647) to be leader, a max of $timeoutDuration.")
-    val request = GET(uri"https://nomad.service.consul:4646/v1/status/leader")
+    scribe.debug(s"waiting for Nomad (@ 4647) to be leader, a max of $timeoutDuration.")
+    val requestIO = GET(uri"https://nomad.service.consul:4646/v1/status/leader")
 
-    def queryNomad: IO[Unit] = {
+    def queryNomad: IO[Unit] = requestIO.map { request =>
       blaze
-        .use(_.expect[String](request))
+        .use(_.expectOption[String](request))
         .flatMap({
-          case "\"\""    => IO.sleep(1 second) *> queryNomad
-          case _ @leader => IO(scribe.info(s"Nomad has leader: $leader")) *> IO.unit
+          case Some("\"\"") | None => IO.sleep(1 second) *> queryNomad
+          case Some(_ @leader) => IO(scribe.debug(s"Nomad has leader: $leader")) *> IO.unit
         })
-
     }
     timeout(queryNomad, timeoutDuration)
   }
@@ -170,7 +156,7 @@ object Util {
   }
 
   def waitForPathToExist(checkPath: os.Path, timeoutDuration: FiniteDuration): IO[Unit] = {
-    scribe.info(s"waiting for path $checkPath to exist, a max of $timeoutDuration.")
+    scribe.debug(s"waiting for path $checkPath to exist, a max of $timeoutDuration.")
     def queryLoop(): IO[Boolean] =
       for {
         exists <- IO(os.exists(checkPath))
@@ -182,22 +168,43 @@ object Util {
     timeout(queryLoop, timeoutDuration) *> IO.unit
   }
 
+  def waitForServiceDNS(service: String, timeoutDuration: FiniteDuration): IO[Boolean] = {
+    def retry: IO[Boolean] = IO.sleep(2.seconds) *> waitForServiceDNS(service, timeoutDuration - 2.seconds)
+
+    for {
+      lookupResult <- IO {
+        InetAddress.getAllByName(s"$service.service.consul")
+      }.attempt
+      success <- lookupResult match {
+        case Left(_: UnknownHostException) => retry
+        case Left(_: Throwable) => retry
+        case Right(_: Array[InetAddress]) => IO.pure(true)
+      }
+    } yield success
+  }
+
   // needed because CommandResult can't be redirected and read, or even read multiple times...
   case class ProcOut(exitCode: Int, stdout: String, stderr: String)
+
+  def scribePipe(level: Level = Level.Trace): ProcessOutput.ReadBytes = os.ProcessOutput(
+    (stream: Array[Byte], len: Int) => scribe.log(level, new String(stream.take(len), StandardCharsets.UTF_8), None)
+  )
 
   def exec(command: String, cwd: Path = os.root, env: Map[String, String] = Map.empty): IO[ProcOut] =
     execArr(command.split(" "), cwd, env)
 
   def execArr(command: Seq[String], cwd: Path = os.root, env: Map[String, String] = Map.empty): IO[ProcOut] = IO {
-    scribe.info(s"Calling: $command")
+    scribe.debug(s"Calling: $command")
     val res = os
       .proc(command)
       .call(cwd = cwd, env = env, check = false, stdout = os.Pipe, stderr = os.Pipe)
     val stdout: String = res.out.text
     val stderr: String = res.err.text
     val output = ProcOut(res.exitCode, stdout, stderr)
-    scribe.info(
-      s" got result code: ${res.exitCode}, stderr: $stderr (${stderr.length}), stdout: $stdout (${stdout.length})"
+    scribe.log(
+      if (res.exitCode == 0) Level.Trace else Level.Debug,
+      s" got result code: ${res.exitCode}, stderr: $stderr (${stderr.length}), stdout: $stdout (${stdout.length})",
+      None
     )
     output
   }
@@ -210,46 +217,8 @@ object Util {
    */
   def proc(cmd: os.Shellable*): os.proc = {
     val cmdString = s"${cmd.value.reduce((a, b) => s"$a $b")}"
-    scribe.info(s"Calling: $cmdString")
+    scribe.debug(s"Calling: $cmdString")
     os.proc(cmd)
-  }
-
-  //This is lazy since this environment variable only should exist when
-  lazy val monorepoDir: Path = sys.env.get("RADIX_MONOREPO_DIR").map(Path(_)).getOrElse(os.pwd)
-
-  def nioCopyFile(from: File, to: File): IO[File] =
-    for {
-      _ <- IO {
-        scribe.trace(s"copying ${from.toPath.toAbsolutePath.toString} to ${to.toPath.toAbsolutePath.toString}")
-      }
-      fis <- IO { new FileInputStream(from) }
-      fos <- IO { new FileOutputStream(to) }
-      xfered <- IO { fos.getChannel.transferFrom(fis.getChannel, 0, Long.MaxValue) }
-      _ <- IO { fos.flush() }
-      _ <- IO { fos.close() }
-      _ <- IO { fis.close() }
-      _ <- IO {
-        scribe.trace(s"xfered $xfered ${from.toPath.toAbsolutePath.toString} to ${to.toPath.toAbsolutePath.toString}")
-      }
-      done <- IO { to }
-    } yield done
-
-  def getDefaultGateway: String = {
-    val sock = new java.net.DatagramSocket()
-    sock.connect(InetAddress.getByName("8.8.8.8"), 10002)
-    sock.getLocalAddress.getHostAddress
-  }
-  def getIfFromIP(ip: String): String = {
-    NetworkInterface
-      .getByInetAddress(InetAddress.getByAddress("localhost", ip.split('.').map(_.toInt.toByte)))
-      .getName
-  }
-  def getNetworkInterfaces: IO[List[String]] = IO {
-    NetworkInterface.getNetworkInterfaces.asScala.toList
-      .flatMap(_.getInetAddresses.asScala)
-      .filter(_.getAddress.length == 4) // only ipv4
-      .map(_.getHostAddress)
-      .distinct
   }
 
   def addWindowsFirewallRules(): IO[Unit] = {
@@ -320,7 +289,9 @@ object RadPath {
     runtime / "kafka_data",
     runtime / "ybmaster_data",
     runtime / "ybtserver_data",
-    runtime / "elasticsearch_data"
+    runtime / "elasticsearch_data",
+    runtime / "config",
+    runtime / "config" / "modules"
   )
   (minioFolders ++ otherFolders).map(path => os.makeDir.all(path))
 

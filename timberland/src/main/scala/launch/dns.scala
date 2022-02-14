@@ -38,7 +38,7 @@ object dns {
           .filter(line => line.get("AddressFamily").contains("2") & line("InterfaceIndex") == defaultInterfaceIndex)
           .head("$_.ServerAddresses")
         defaultDNSExists = os.exists(defaultDnsPath)
-        _ = scribe.info(s"current servers: $currentServers; default exists: $defaultDNSExists")
+        _ = scribe.debug(s"current servers: $currentServers; default exists: $defaultDNSExists")
         _ <-
           if (!currentServers.contains("127.0.0.1")) for {
             // don't update DNS if 127.0.0.1 is already present
@@ -47,7 +47,7 @@ object dns {
               s"Set-DnsClientServerAddress -InterfaceIndex $defaultInterfaceIndex -ServerAddresses '127.0.0.1 $currentServers'"
             )
           } yield setServerResp
-          else IO(scribe.info("DNS already setup, doing nothing."))
+          else IO(scribe.trace("DNS already setup, doing nothing."))
       } yield ()
 
     def reset(): IO[Unit] =
@@ -265,7 +265,7 @@ object dns {
       dns.Resolved().set()
       val ret = os.proc(Seq("/usr/bin/sudo", "systemctl", "restart", "NetworkManager")).call()
       if (!(ret.exitCode == 0)) {
-        println(s"NetworkManager config error codes: ${ret.exitCode}")
+        scribe.error(s"NetworkManager config error codes: ${ret.exitCode}")
       }
       Thread.sleep(1000) // DNS will still fail for a second as NM comes back up
       IO.unit
@@ -274,7 +274,7 @@ object dns {
       dns.Resolved().reset()
       val ret = os.proc(Seq("/usr/bin/sudo", "systemctl", "restart", "NetworkManager")).call()
       if (!(ret.exitCode == 0)) {
-        println(s"NetworkManager config error codes: ${ret.exitCode}")
+        scribe.error(s"NetworkManager config error codes: ${ret.exitCode}")
       }
       IO.unit
     }
@@ -298,19 +298,19 @@ object dns {
     val resolvconf_path = os.root / "etc" / "resolv.conf"
     val resolvconf_text = if (os.exists(resolvconf_path)) os.read(resolvconf_path) else ""
     if (resolvconf_text.contains(NM_string)) {
-      scribe.info("Detected NetworkManager DNS control.")
+      scribe.debug("Detected NetworkManager DNS control.")
       NetworkManager()
     } else if (resolvconf_text.contains(dhclient_string)) {
-      scribe.info("Detected dhclient DNS control.")
+      scribe.debug("Detected dhclient DNS control.")
       Dhclient()
     } else if (resolvconf_text.contains(resolved_string)) {
-      scribe.info("Detected systemd-resolve DNS control")
+      scribe.debug("Detected systemd-resolve DNS control")
       Resolved()
     } else if (System.getProperty("os.name").toLowerCase.contains("windows")) {
-      scribe.info("Detected Windows DNS control")
+      scribe.debug("Detected Windows DNS control")
       Windows()
     } else {
-      scribe.info("Did not successfully detect DNS control!")
+      scribe.warn("Did not successfully detect DNS control!")
       NoMethod()
     }
   }

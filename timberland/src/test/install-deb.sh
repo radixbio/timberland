@@ -44,7 +44,6 @@ cd /opt/radix/timberland/exec || exit 1
 ./timberland disable algs
 ./timberland disable utils
 ./timberland disable device_drivers
-./timberland disable tui
 ./timberland disable retool
 ./timberland disable elasticsearch
 ./timberland disable nginx
