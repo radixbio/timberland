@@ -2,3 +2,7 @@
 path "secret/tokens/actor-token" {
   capabilities = ["read"]
 }
+
+path "secret/tokens/nomad-actor-token" {
+  capabilities = ["read"]
+}

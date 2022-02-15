@@ -51,6 +51,26 @@ client {
     read_only = false
   }
 
+  host_volume "ipfs_binaries" {
+    path = "/opt/radix/ipfs_binaries"
+    read_only = true
+  }
+
+  host_volume "ipfs_data" {
+    path = "/opt/radix/ipfs_data"
+    read_only = false
+  }
+
+  host_volume "ipfs_shared" {
+    path = "/opt/radix/ipfs_shared"
+    read_only = false
+  }
+
+  host_volume "service_jars" {
+    path = "/opt/radix/minio_data/service-jars"
+    read_only = true
+  }
+
   chroot_env {
     "/bin" = "/bin",
     "/opt/radix/timberland/resolv.conf" = "/etc/resolv.conf",
@@ -61,6 +81,7 @@ client {
     "/etc/sudoers" = "/etc/sudoers",
     "/etc/hosts" = "/etc/hosts",
     "/etc/java-11-openjdk" = "/etc/java-11-openjdk",
+    "/etc/ssl/certs" = "/etc/ssl/certs",
     "/lib" = "/lib",
     "/lib32" = "/lib32",
     "/lib64" = "/lib64",

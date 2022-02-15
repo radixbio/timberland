@@ -40,20 +40,19 @@ gazelle_dependencies()
 skylib_version = "1.0.3"
 
 http_archive(
-    name="bazel_skylib",
-    sha256="1c531376ac7e5a180e0237938a2536de0c54d93f5c278634818e0efc952dd56c",
-    type="tar.gz",
-    url="https://github.com/bazelbuild/bazel-skylib/releases/download/{}/bazel-skylib-{}.tar.gz".format(
-        skylib_version, skylib_version),
+    name = "bazel_skylib",
+    sha256 = "1c531376ac7e5a180e0237938a2536de0c54d93f5c278634818e0efc952dd56c",
+    type = "tar.gz",
+    url = "https://github.com/bazelbuild/bazel-skylib/releases/download/{}/bazel-skylib-{}.tar.gz".format(skylib_version, skylib_version),
 )
 
 rules_scala_version = "eabb1d28fb288fb5b15857260f87818dda5a97c8"  # update this as needed
 
 http_archive(
-    name="rules_rust",
-    sha256="accb5a89cbe63d55dcdae85938e56ff3aa56f21eb847ed826a28a83db8500ae6",
-    strip_prefix="rules_rust-9aa49569b2b0dacecc51c05cee52708b7255bd98",
-    urls=[
+    name = "rules_rust",
+    sha256 = "accb5a89cbe63d55dcdae85938e56ff3aa56f21eb847ed826a28a83db8500ae6",
+    strip_prefix = "rules_rust-9aa49569b2b0dacecc51c05cee52708b7255bd98",
+    urls = [
         # Main branch as of 2021-02-19
         "https://github.com/bazelbuild/rules_rust/archive/9aa49569b2b0dacecc51c05cee52708b7255bd98.tar.gz",
     ],
@@ -61,17 +60,17 @@ http_archive(
 
 load("@rules_rust//rust:repositories.bzl", "rust_repositories")
 
-rust_repositories()
+rust_repositories(edition = "2018")
 
 http_archive(
-    name="cargo_raze",
-    patch_args=[
+    name = "cargo_raze",
+    patch_args = [
         "-p1",
     ],
-    patches=["//tools:0001-patch-pcre-to-use-additional-URL.patch"],
-    sha256="e04a1982ce4f81ffe42066256cfcfc03732e4f1d646fd3253bcf3eabf45f45be",
-    strip_prefix="cargo-raze-0.13.0",
-    url="https://github.com/google/cargo-raze/archive/refs/tags/v0.13.0.tar.gz",
+    patches = ["//tools:0001-patch-pcre-to-use-additional-URL.patch"],
+    sha256 = "e04a1982ce4f81ffe42066256cfcfc03732e4f1d646fd3253bcf3eabf45f45be",
+    strip_prefix = "cargo-raze-0.13.0",
+    url = "https://github.com/google/cargo-raze/archive/refs/tags/v0.13.0.tar.gz",
 )
 
 load("@cargo_raze//:repositories.bzl", "cargo_raze_repositories")
@@ -115,16 +114,16 @@ cc_import(
     shared_library =  "z3-4.8.7-x64-osx-10.14.6/bin/libz3java.dylib"
 )
     """,
-    patch_cmds=[
+    patch_cmds = [
         "install_name_tool -change libz3.dylib @loader_path/libz3.dylib z3-4.8.7-x64-osx-10.14.6/bin/libz3java.dylib",
     ],
-    sha256="49fa41210ff572ae56476befafbeb4a82bbf921f843daf73ef5451f7bcd6d2c5",
-    url="https://github.com/Z3Prover/z3/releases/download/z3-4.8.7/z3-4.8.7-x64-osx-10.14.6.zip",
+    sha256 = "49fa41210ff572ae56476befafbeb4a82bbf921f843daf73ef5451f7bcd6d2c5",
+    url = "https://github.com/Z3Prover/z3/releases/download/z3-4.8.7/z3-4.8.7-x64-osx-10.14.6.zip",
 )
 
 http_archive(
-    name="z3-linux",
-    build_file_content="""
+    name = "z3-linux",
+    build_file_content = """
 package(default_visibility = ["//visibility:public"])
 java_import(
     name = "z3-jar",
@@ -151,38 +150,37 @@ cc_import(
     shared_library =  "z3-4.8.7-x64-ubuntu-16.04/bin/libz3java.so"
 )
     """,
-    patch_cmds=[
-        "patchelf --set-rpath '$ORIGIN' z3-4.8.7-x64-ubuntu-16.04/bin/libz3java.so"],
-    sha256="fcde3273ba88e291fe93db4b9d39957274700caeebba8aefbae28796da0dc0b7",
-    url="https://github.com/Z3Prover/z3/releases/download/z3-4.8.7/z3-4.8.7-x64-ubuntu-16.04.zip",
+    patch_cmds = ["patchelf --set-rpath '$ORIGIN' z3-4.8.7-x64-ubuntu-16.04/bin/libz3java.so"],
+    sha256 = "fcde3273ba88e291fe93db4b9d39957274700caeebba8aefbae28796da0dc0b7",
+    url = "https://github.com/Z3Prover/z3/releases/download/z3-4.8.7/z3-4.8.7-x64-ubuntu-16.04.zip",
 )
 
 http_file(
-    name="tclkit",
-    downloaded_file_path="tclkit",
-    executable=True,
-    sha256="15754d574bfbb389193574692ab81216869115cc953d688d5214088c46f1d02d",
-    urls=["http://kitcreator.rkeene.org/kits/9b4cd5e5fc4b060215ceded44a3e08e2312d5137/tclkit"],
+    name = "tclkit",
+    downloaded_file_path = "tclkit",
+    executable = True,
+    sha256 = "15754d574bfbb389193574692ab81216869115cc953d688d5214088c46f1d02d",
+    urls = ["http://kitcreator.rkeene.org/kits/9b4cd5e5fc4b060215ceded44a3e08e2312d5137/tclkit"],
 )
 
 http_file(
-    name="bitrock-unpacker",
-    downloaded_file_path="bitrock-unpacker.tcl",
-    executable=True,
-    sha256="d76645a77a04f8f8968c9780fea393b7eea79eea25d824ab08fb8f2f9913982e",
-    urls=["https://raw.githubusercontent.com/Harakku/bitrock-unpacker/master/bitrock-unpacker.tcl"],
+    name = "bitrock-unpacker",
+    downloaded_file_path = "bitrock-unpacker.tcl",
+    executable = True,
+    sha256 = "d76645a77a04f8f8968c9780fea393b7eea79eea25d824ab08fb8f2f9913982e",
+    urls = ["https://raw.githubusercontent.com/Harakku/bitrock-unpacker/master/bitrock-unpacker.tcl"],
 )
 
 http_file(
-    name="ocean-omnidriver-linux",
-    downloaded_file_path="omnidriver-2.56-linux64-installer.bin",
-    sha256="8a3ac3045a1cb898a3f94f3bc4cf1831036274c8fe678b254cf9ffd409a836a0",
-    urls=["https://www.oceaninsight.com/globalassets/catalog-blocks-and-images/software-downloads-installers/omnidriver-2.56-linux64-installer.bin"],
+    name = "ocean-omnidriver-linux",
+    downloaded_file_path = "omnidriver-2.56-linux64-installer.bin",
+    sha256 = "8a3ac3045a1cb898a3f94f3bc4cf1831036274c8fe678b254cf9ffd409a836a0",
+    urls = ["https://www.oceaninsight.com/globalassets/catalog-blocks-and-images/software-downloads-installers/omnidriver-2.56-linux64-installer.bin"],
 )
 
 http_archive(
-    name="or_tools-darwin",
-    build_file_content="""
+    name = "or_tools-darwin",
+    build_file_content = """
 package(default_visibility = ["//visibility:public"])
 
 java_import(
@@ -220,14 +218,14 @@ java_library(
     visibility = ["//visibility:public"]
 )
     """,
-    patch_cmds=["mv or-tools_MacOsX-10.14.4_v7.0.6546/lib/libjniortools.jnilib or-tools_MacOsX-10.14.4_v7.0.6546/lib/libjniortools.dylib"],
-    sha256="b924ea29619598282a31b74e8012c58f391985fb26f025b147c13fa7985d88fd",
-    url="https://github.com/google/or-tools/releases/download/v7.0/or-tools_MacOsX-10.14.4_v7.0.6546.tar.gz",
+    patch_cmds = ["mv or-tools_MacOsX-10.14.4_v7.0.6546/lib/libjniortools.jnilib or-tools_MacOsX-10.14.4_v7.0.6546/lib/libjniortools.dylib"],
+    sha256 = "b924ea29619598282a31b74e8012c58f391985fb26f025b147c13fa7985d88fd",
+    url = "https://github.com/google/or-tools/releases/download/v7.0/or-tools_MacOsX-10.14.4_v7.0.6546.tar.gz",
 )
 
 http_archive(
-    name="or_tools-linux",
-    build_file_content="""
+    name = "or_tools-linux",
+    build_file_content = """
 package(default_visibility = ["//visibility:public"])
 
 java_import(
@@ -265,13 +263,13 @@ java_library(
     visibility = ["//visibility:public"]
 )
     """,
-    sha256="98157fafddacd33d8360cdfd36d1bcb8d8fe056d8d70f5947caf1e4ddc4257d5",
-    url="https://github.com/google/or-tools/releases/download/v7.0/or-tools_debian-9_v7.0.6546.tar.gz",
+    sha256 = "98157fafddacd33d8360cdfd36d1bcb8d8fe056d8d70f5947caf1e4ddc4257d5",
+    url = "https://github.com/google/or-tools/releases/download/v7.0/or-tools_debian-9_v7.0.6546.tar.gz",
 )
 
 http_archive(
-    name="proguard",
-    build_file_content="""
+    name = "proguard",
+    build_file_content = """
 package(default_visibility = ["//visibility:public"])
 
 java_import(
@@ -295,18 +293,18 @@ java_binary(
 )
 
     """,
-    sha256="b7fd1ee6da650b392ab9fe619f0bfd01f1fe8272620d9471fcfc7908b5216d71",
-    url="https://github.com/Guardsquare/proguard/releases/download/v7.0.1/proguard-7.0.1.tar.gz",
+    sha256 = "b7fd1ee6da650b392ab9fe619f0bfd01f1fe8272620d9471fcfc7908b5216d71",
+    url = "https://github.com/Guardsquare/proguard/releases/download/v7.0.1/proguard-7.0.1.tar.gz",
 )
 
 rules_scala_version = "5df8033f752be64fbe2cedfd1bdbad56e2033b15"
 
 http_archive(
-    name="io_bazel_rules_scala",
-    sha256="b7fa29db72408a972e6b6685d1bc17465b3108b620cb56d9b1700cf6f70f624a",
-    strip_prefix="rules_scala-%s" % rules_scala_version,
-    type="zip",
-    url="https://github.com/bazelbuild/rules_scala/archive/%s.zip" % rules_scala_version,
+    name = "io_bazel_rules_scala",
+    sha256 = "b7fa29db72408a972e6b6685d1bc17465b3108b620cb56d9b1700cf6f70f624a",
+    strip_prefix = "rules_scala-%s" % rules_scala_version,
+    type = "zip",
+    url = "https://github.com/bazelbuild/rules_scala/archive/%s.zip" % rules_scala_version,
 )
 
 # Stores Scala version and other configuration
@@ -314,25 +312,23 @@ http_archive(
 # scala_config(scala_version = "2.11.12")
 load("@io_bazel_rules_scala//:scala_config.bzl", "scala_config")
 
-scala_config(scala_version="2.13.6")
+scala_config(scala_version = "2.13.6")
 
 load("@io_bazel_rules_scala//scala:scala.bzl", "scala_repositories")
 load("@io_bazel_rules_scala//scala:toolchains.bzl", "scala_register_toolchains")
 
 # optional: setup ScalaTest toolchain and dependencies
-load("@io_bazel_rules_scala//testing:scalatest.bzl",
-     "scalatest_repositories", "scalatest_toolchain")
+load("@io_bazel_rules_scala//testing:scalatest.bzl", "scalatest_repositories", "scalatest_toolchain")
 load(
     "@io_bazel_rules_scala//scala/scalafmt:scalafmt_repositories.bzl",
     "scalafmt_default_config",
     "scalafmt_repositories",
 )
-load("@io_bazel_rules_scala//testing:scalatest.bzl",
-     "scalatest_repositories", "scalatest_toolchain")
+load("@io_bazel_rules_scala//testing:scalatest.bzl", "scalatest_repositories", "scalatest_toolchain")
 
-# scala_repositories()
+#scala_repositories()
 scala_repositories(
-    overriden_artifacts={
+    overriden_artifacts = {
         "io_bazel_rules_scala_scalatest": {
             "artifact": "org.scalatest:scalatest_2.13:3.1.4",
             "sha256": "60ec218647411a9262e40bd50433db67d4ab97fd01c56b7e281872951f7bfcc7",
@@ -364,25 +360,25 @@ load(
 jmh_repositories()
 
 bind(
-    name="io_bazel_rules_scala_dependency_scalap_scalap",
-    actual="//3rdparty/jvm/org/scala-lang:scalap",
+    name = "io_bazel_rules_scala_dependency_scalap_scalap",
+    actual = "//3rdparty/jvm/org/scala-lang:scalap",
 )
 
 bind(
-    name="io_bazel_rules_scala_dependency_scalatest_scalatest",
-    actual="//3rdparty/jvm/org/scalatest:scalatest",
+    name = "io_bazel_rules_scala_dependency_scalatest_scalatest",
+    actual = "//3rdparty/jvm/org/scalatest:scalatest",
 )
 
 bind(
-    name="io_bazel_rules_scala_dependency_scala_scalactic_scalactic",
-    actual="//3rdparty/jvm/org/scalactic:scalactic",
+    name = "io_bazel_rules_scala_dependency_scala_scalactic_scalactic",
+    actual = "//3rdparty/jvm/org/scalactic:scalactic",
 )
 
 git_repository(
-    name="rules_pkg",
-    commit="7636b7dc2e14bf198a6c21c01e33847f3863e572",
-    patch_cmds=["mv pkg/* ."],
-    remote="https://github.com/itdaniher/rules_pkg.git",
+    name = "rules_pkg",
+    commit = "7636b7dc2e14bf198a6c21c01e33847f3863e572",
+    patch_cmds = ["mv pkg/* ."],
+    remote = "https://github.com/itdaniher/rules_pkg.git",
 )
 
 load("@rules_pkg//:deps.bzl", "rules_pkg_dependencies")
@@ -392,10 +388,10 @@ protobuf_version = "3.11.3"
 protobuf_version_sha256 = "cf754718b0aa945b00550ed7962ddc167167bd922b842199eeb6505e6f344852"
 
 http_archive(
-    name="com_google_protobuf",
-    sha256=protobuf_version_sha256,
-    strip_prefix="protobuf-%s" % protobuf_version,
-    url="https://github.com/protocolbuffers/protobuf/archive/v%s.tar.gz" % protobuf_version,
+    name = "com_google_protobuf",
+    sha256 = protobuf_version_sha256,
+    strip_prefix = "protobuf-%s" % protobuf_version,
+    url = "https://github.com/protocolbuffers/protobuf/archive/v%s.tar.gz" % protobuf_version,
 )
 
 load(
@@ -499,6 +495,12 @@ git_repository(
     #    shallow_since = "1626731854 -0400",
 )
 
+http_archive(
+    name = "ipfs",
+    build_file_content = "exports_files([\"go-ipfs/ipfs\"])",
+    sha256 = "aff633d271f642e1c57ce7d1fb3cbf11e50e7e05b35ee17f7373cbb06e519133",
+    url = "https://dist.ipfs.io/go-ipfs/v0.9.1/go-ipfs_v0.9.1_linux-amd64.tar.gz",
+)
 
 http_archive(
     name="consul",
@@ -689,6 +691,14 @@ exports_files([
 )
 
 # Windows binaries
+
+http_archive(
+    name = "ipfs_win",
+    build_file_content = "exports_files([\"go-ipfs/ipfs.exe\"])",
+    sha256 = "17f324a85de057aefe805e882b42dc3e274768ae59fc9f93e5dc89ca92f7e9c0",
+    url = "https://dist.ipfs.io/go-ipfs/v0.9.1/go-ipfs_v0.9.1_windows-amd64.zip",
+)
+
 
 http_archive(
     name="consul_win",

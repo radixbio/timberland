@@ -221,6 +221,16 @@ pkg_tar(
 )
 
 pkg_tar(
+    name = "timberland-ipfs",
+    srcs = ["//utils/ipfs:ipfs-service"] + select({
+        "aarch64": ["@ipfs_arm//:go-ipfs/ipfs"],
+        "windows": ["@ipfs_win//:go-ipfs/ipfs.exe"],
+        "//conditions:default": ["@ipfs//:go-ipfs/ipfs"],
+    }),
+    package_dir = "/opt/radix/ipfs_binaries",
+)
+
+pkg_tar(
     name = "timberland-consul",
     srcs = [
         "assets/consul/actor-policy.hcl",
@@ -565,8 +575,9 @@ pkg_tar(
         ":timberland-consul-template-nomad",
         ":timberland-consul-template-vault",
         ":timberland-containernetworking-cni-plugin",
-        ":timberland-exec",
         ":timberland-net-utils",
+        ":timberland-ipfs",
+        ":timberland-exec",
         ":timberland-networkd",
         ":timberland-nomad",
         ":timberland-nomad-config",
@@ -784,6 +795,7 @@ pkg_tar(
         "//utils/api:web-interface",
         "//utils/bunny_uservice:bunny_uservice-terraform",
         "//utils/healthcheck:healthcheck-terraform",
+#        "//utils/ipfs:ipfs-terraform",
         "//utils/rainbowuservice:rainbow-terraform",
         "//utils/s3lts:s3lts-terraform",
         "//utils/scheduleruservice:scheduler-terraform",  #TODO confirm this is right

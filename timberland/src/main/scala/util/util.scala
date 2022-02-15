@@ -290,9 +290,12 @@ object RadPath {
     runtime / "ybmaster_data",
     runtime / "ybtserver_data",
     runtime / "elasticsearch_data",
+    runtime / "ipfs_data",
+    runtime / "ipfs_shared",
     runtime / "config",
     runtime / "config" / "modules"
   )
   (minioFolders ++ otherFolders).map(path => os.makeDir.all(path))
+  os.perms.set(runtime / "ipfs_data", os.PermSet.fromInt(755))
 
 }

@@ -139,7 +139,7 @@ def services_pkg_tar(name, srcs, package_dir, use_proguard = False):
     remap_paths = {}
     for src in proguarded_srcs:
         src_file = src.split(":")[-1]
-        dest_file = src_file.replace("-pro_slim", "").replace("_deploy", "")
+        dest_file = src_file.replace("-pro_slim", "").replace("_deploy", "").replace("_module", "")
         remap_paths["/" + src_file] = dest_file
 
     pkg_tar(
