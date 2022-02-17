@@ -667,3 +667,9 @@ deploy_rsa.pub
 # Web stuff
 interface/yarn.lock
 package-lock.json
+
+# Make artifacts
+/build
+/core
+/srcs.md5
+
