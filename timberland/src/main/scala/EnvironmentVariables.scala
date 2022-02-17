@@ -18,11 +18,17 @@ object EnvironmentVariables {
     "VAULT_CLIENT_CERT" -> ConstPaths.certDir / "cli" / "cert.pem",
     "VAULT_CLIENT_KEY" -> ConstPaths.certDir / "cli" / "key.pem",
     "VAULT_TOKEN" -> os.read(RadPath.persistentDir / ".vault-token"),
-    "TF_VAR_TLS_CA_FILE" -> os.Path(sys.env.getOrElse("TLS_CA", (ConstPaths.certDir / "ca" / "cert.pem" ).toString)),
-    "TF_VAR_TLS_CERT_FILE" -> os.Path(sys.env.getOrElse("TLS_CERT", (ConstPaths.certDir / "cli" / "cert.pem").toString)),
+    "TF_VAR_TLS_CA_FILE" -> os.Path(sys.env.getOrElse("TLS_CA", (ConstPaths.certDir / "ca" / "cert.pem").toString)),
+    "TF_VAR_TLS_CERT_FILE" -> os.Path(
+      sys.env.getOrElse("TLS_CERT", (ConstPaths.certDir / "cli" / "cert.pem").toString)
+    ),
     "TF_VAR_TLS_KEY_FILE" -> os.Path(sys.env.getOrElse("TLS_KEY", (ConstPaths.certDir / "cli" / "key.pem").toString)),
-    "TF_VAR_TLS_NOMAD_CERT_FILE" -> os.Path(sys.env.getOrElse("TLS_NOMAD_CERT", (ConstPaths.certDir / "nomad" / "cli-cert.pem").toString)),
-    "TF_VAR_TLS_NOMAD_KEY_FILE" -> os.Path(sys.env.getOrElse("TLS_NOMAD_KEY", (ConstPaths.certDir / "nomad" / "cli-key.pem").toString)),
+    "TF_VAR_TLS_NOMAD_CERT_FILE" -> os.Path(
+      sys.env.getOrElse("TLS_NOMAD_CERT", (ConstPaths.certDir / "nomad" / "cli-cert.pem").toString)
+    ),
+    "TF_VAR_TLS_NOMAD_KEY_FILE" -> os.Path(
+      sys.env.getOrElse("TLS_NOMAD_KEY", (ConstPaths.certDir / "nomad" / "cli-key.pem").toString)
+    )
   )
   def envToken(token: String) = envVars ++ Map(
     "NOMAD_TOKEN" -> token,
@@ -37,7 +43,6 @@ object ConstPaths {
   val certDir: os.Path = RadPath.runtime / "certs"
 
   val persistentDir: os.Path = RadPath.runtime / "timberland"
-
 
   // this path has the terraform directory that timberland ships with...
   val execDir = RadPath.runtime / "timberland" / "terraform"

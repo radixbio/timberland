@@ -25,8 +25,13 @@ object oauthConfig extends FlagHook {
       data = RegisterProvider("google", options("google_oauth_id"), options("google_oauth_secret")).asJson,
       cas = None
     )
-    vaultSession.createOauthSecret("oauth2/google/config", oauthConfigRequest).map { _.left.map { err =>
-      scribe.error("Error enabling oauth: " + err)
-    }}.map(_ => ())
+    vaultSession
+      .createOauthSecret("oauth2/google/config", oauthConfigRequest)
+      .map {
+        _.left.map { err =>
+          scribe.error("Error enabling oauth: " + err)
+        }
+      }
+      .map(_ => ())
   }
 }

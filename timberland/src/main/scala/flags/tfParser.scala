@@ -22,9 +22,10 @@ object tfParser {
     for {
       varMap <- parseVars(moduleName)
       userConfig <- configGen.getConfig(moduleName)
-      cfgVars = if (featureFlags.HOOKS.contains(moduleName)) {
-        featureFlags.HOOKS(moduleName).possibleOptions
-      } else varMap.keySet
+      cfgVars =
+        if (featureFlags.HOOKS.contains(moduleName)) {
+          featureFlags.HOOKS(moduleName).possibleOptions
+        } else varMap.keySet
       definedCfgVars = userConfig.filter(!_._2.isNull).keySet
       missingCfgVars = cfgVars -- definedCfgVars
     } yield missingCfgVars
@@ -76,17 +77,17 @@ object tfParser {
 
   // Given a string and a HCL4J type, returns a json representation of that string
   def stringToJson(value: String, valueType: PrimitiveType): Json = valueType match {
-    case _: NumberPrimitiveType => value.toDouble.asJson
+    case _: NumberPrimitiveType  => value.toDouble.asJson
     case _: BooleanPrimitiveType => value.toBoolean.asJson
-    case _: StringPrimitiveType => value.asJson
-    case _ => throw new Exception(s"Invalid config subtype found in variables.tf when parsing $value: $valueType")
+    case _: StringPrimitiveType  => value.asJson
+    case _                       => throw new Exception(s"Invalid config subtype found in variables.tf when parsing $value: $valueType")
   }
 
   // Given a Java object of unknown type and a HCL4J type, returns a json representation of that object
   private def primitiveToJson(value: Object, valueType: PrimitiveType) = valueType match {
-    case _: NumberPrimitiveType => value.asInstanceOf[Double].asJson
+    case _: NumberPrimitiveType  => value.asInstanceOf[Double].asJson
     case _: BooleanPrimitiveType => value.asInstanceOf[Boolean].asJson
-    case _: StringPrimitiveType => value.asInstanceOf[String].asJson
-    case _ => throw new Exception(s"Invalid config subtype found in variables.tf when parsing $value: $valueType")
+    case _: StringPrimitiveType  => value.asInstanceOf[String].asJson
+    case _                       => throw new Exception(s"Invalid config subtype found in variables.tf when parsing $value: $valueType")
   }
 }

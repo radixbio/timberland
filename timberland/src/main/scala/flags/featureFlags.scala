@@ -24,9 +24,14 @@ case object featureFlags {
 
   // A list of flags that should be enabled by default
   val DEFAULT_FLAG_NAMES = List(
-    "ensure-supported", "dev",
-    "kafka", "kafka_companions", "zookeeper",
-    "minio", "nginx", "runtime"
+    "ensure-supported",
+    "dev",
+    "kafka",
+    "kafka_companions",
+    "zookeeper",
+    "minio",
+    "nginx",
+    "runtime"
   )
 
   private val FLAGS_JSON = RadPath.runtime / "config" / "flags.json"
@@ -40,12 +45,16 @@ case object featureFlags {
   // Returns the contents of flags.json as a Map
   def flags: IO[Map[String, Boolean]] = for {
     flagStr <- IO(os.read(FLAGS_JSON))
-    flagMap = parse(flagStr).flatMap { json =>
-      json.hcursor.downField("feature_flags").as[Map[String, Boolean]]
-    }.left.map { err =>
-      scribe.error(err.toString)
-      sys.exit(1)
-    }.merge
+    flagMap = parse(flagStr)
+      .flatMap { json =>
+        json.hcursor.downField("feature_flags").as[Map[String, Boolean]]
+      }
+      .left
+      .map { err =>
+        scribe.error(err.toString)
+        sys.exit(1)
+      }
+      .merge
   } yield flagMap
 
   // Sets the passed flags to either true or false depending on the $enable variable and writes the new file to disk

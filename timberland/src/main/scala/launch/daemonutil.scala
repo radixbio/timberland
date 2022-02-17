@@ -16,7 +16,6 @@ package object daemonutil {
   private[this] implicit val timer: Timer[IO] = IO.timer(global)
   private[this] implicit val cs: ContextShift[IO] = IO.contextShift(global)
 
-
   def getServiceIps: IO[ServiceAddrs] = {
     // this goes through the JVM and the host btw
     def queryDns(host: String) = IO {
@@ -139,7 +138,9 @@ package object daemonutil {
     val initFirstCommand = initAgainCommand ++ Seq("-from-module", s"${ConstPaths.execDir / "modules"}")
 
     for {
-      alreadyInitialized <- IO(if (os.exists(ConstPaths.workingDir)) os.list(ConstPaths.workingDir).nonEmpty else false) // culprit
+      alreadyInitialized <- IO(
+        if (os.exists(ConstPaths.workingDir)) os.list(ConstPaths.workingDir).nonEmpty else false
+      ) // culprit
       initCommand = if (alreadyInitialized) initAgainCommand else initFirstCommand
       _ <- IO(
         if (!System.getProperty("os.name").toLowerCase.contains("windows"))

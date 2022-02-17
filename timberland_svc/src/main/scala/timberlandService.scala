@@ -38,22 +38,30 @@ object timberlandService extends IOApp {
     BlazeServerBuilder[IO]
       .bindHttp(7777, "localhost")
       .withHttpApp(routesWithCORS)
-      .resource.use(_ => IO.never)
+      .resource
+      .use(_ => IO.never)
       .start
       .flatMap(_.join)
 
-  private def routesWithCORS: Http[IO, IO] = CORS(routes.orNotFound, CORSConfig(
-    anyOrigin = false,
-    allowedOrigins = Set("https://localhost:1337", "http://localhost:1337", 
-                         "https://nginx.service.consul:8080", 
-                         "http://nginx.service.consul:8080"),
-    allowCredentials = false,
-    maxAge = 1.day.toSeconds))
+  private def routesWithCORS: Http[IO, IO] = CORS(
+    routes.orNotFound,
+    CORSConfig(
+      anyOrigin = false,
+      allowedOrigins = Set(
+        "https://localhost:1337",
+        "http://localhost:1337",
+        "https://nginx.service.consul:8080",
+        "http://nginx.service.consul:8080"
+      ),
+      allowCredentials = false,
+      maxAge = 1.day.toSeconds
+    )
+  )
 
   private def routes: HttpRoutes[IO] = HttpRoutes.of[IO] {
-    case GET -> Root => getConfig()
+    case GET -> Root        => getConfig()
     case req @ POST -> Root => setConfig(req)
-    case _ -> Root => MethodNotAllowed(Allow(GET, POST))
+    case _ -> Root          => MethodNotAllowed(Allow(GET, POST))
   }
 
   private def getConfig(): IO[Response[IO]] = ???

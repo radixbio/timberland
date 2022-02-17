@@ -13,7 +13,6 @@ import scala.concurrent.ExecutionContext
 import scala.io.StdIn
 import com.radix.timberland.ConstPaths
 
-
 object configGen {
 
   private val ec = ExecutionContext.global
@@ -26,11 +25,12 @@ object configGen {
 
   // Create a config file in config/modules for a specific terraform module
   private def writeConfigFile(moduleName: String): IO[Unit] = for {
-    defaults <- if (featureFlags.HOOKS.contains(moduleName)) {
-      IO.pure(featureFlags.HOOKS(moduleName).possibleOptions.map(_ -> Json.Null).toMap)
-    } else {
-      tfParser.parseVars(moduleName)
-    }
+    defaults <-
+      if (featureFlags.HOOKS.contains(moduleName)) {
+        IO.pure(featureFlags.HOOKS(moduleName).possibleOptions.map(_ -> Json.Null).toMap)
+      } else {
+        tfParser.parseVars(moduleName)
+      }
     curConfig <- getConfig(moduleName)
     newConfig = defaults ++ curConfig
     configFile = ConstPaths.TF_CONFIG_DIR / s"$moduleName.json"
@@ -54,16 +54,20 @@ object configGen {
   def setConfigValues(moduleName: String, onlyMissing: Boolean): IO[Unit] = for {
     curConfigMap <- getConfig(moduleName)
     hclCfg <- tfParser.getHclCfg(moduleName)
-    types = if (featureFlags.HOOKS.contains(moduleName)) {
-      featureFlags.HOOKS(moduleName).possibleOptions.map(_ -> new StringPrimitiveType(0,0,0)).toMap
-    } else {
-      hclCfg.map(_.get("type").asInstanceOf[JavaMap[String, PrimitiveType]].asScala.toMap).getOrElse(Map.empty)
-    }
+    types =
+      if (featureFlags.HOOKS.contains(moduleName)) {
+        featureFlags.HOOKS(moduleName).possibleOptions.map(_ -> new StringPrimitiveType(0, 0, 0)).toMap
+      } else {
+        hclCfg.map(_.get("type").asInstanceOf[JavaMap[String, PrimitiveType]].asScala.toMap).getOrElse(Map.empty)
+      }
     cfgValuesToSet <- if (onlyMissing) tfParser.getMissingCfgVars(moduleName) else IO.pure(types.keySet)
-    _ <- cfgValuesToSet.map { missingKey =>
-      val fallback = curConfigMap.get(missingKey).filterNot(_.isNull).map(_.toString())
-      stdinPrompt(missingKey, fallback).flatMap(setConfigValue(moduleName, types, missingKey, _))
-    }.toSeq.sequence
+    _ <- cfgValuesToSet
+      .map { missingKey =>
+        val fallback = curConfigMap.get(missingKey).filterNot(_.isNull).map(_.toString())
+        stdinPrompt(missingKey, fallback).flatMap(setConfigValue(moduleName, types, missingKey, _))
+      }
+      .toSeq
+      .sequence
   } yield ()
 
   /**
@@ -86,15 +90,19 @@ object configGen {
     val configFile = ConstPaths.TF_CONFIG_DIR / s"$moduleName.json"
     for {
       configExists <- IO(os.exists(configFile))
-      config <- if (configExists) {
-        IO(os.read(configFile)).map { parse(_)
-          .flatMap(_.hcursor.downField(s"config_$moduleName").as[Map[String, Json]])
-          .left.map { err =>
-            scribe.error(s"Error parsing $moduleName.json: $err")
-            sys.exit(1)
-          }.merge
-        }
-      } else IO.pure(Map.empty[String, Json])
+      config <-
+        if (configExists) {
+          IO(os.read(configFile)).map {
+            parse(_)
+              .flatMap(_.hcursor.downField(s"config_$moduleName").as[Map[String, Json]])
+              .left
+              .map { err =>
+                scribe.error(s"Error parsing $moduleName.json: $err")
+                sys.exit(1)
+              }
+              .merge
+          }
+        } else IO.pure(Map.empty[String, Json])
     } yield config
   }
 

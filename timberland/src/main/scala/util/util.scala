@@ -118,7 +118,7 @@ object Util {
         .use(_.expectOption[String](request))
         .flatMap({
           case Some("\"\"") | None => IO.sleep(1 second) *> queryConsul
-          case Some(_ @leader) => IO(scribe.debug(s"Consul has leader: $leader")) *> IO.sleep(2.second) *> IO.unit
+          case Some(_ @leader)     => IO(scribe.debug(s"Consul has leader: $leader")) *> IO.sleep(2.second) *> IO.unit
         })
 
     }
@@ -134,7 +134,7 @@ object Util {
         .use(_.expectOption[String](request))
         .flatMap({
           case Some("\"\"") | None => IO.sleep(1 second) *> queryNomad
-          case Some(_ @leader) => IO(scribe.debug(s"Nomad has leader: $leader")) *> IO.unit
+          case Some(_ @leader)     => IO(scribe.debug(s"Nomad has leader: $leader")) *> IO.unit
         })
     }
     timeout(queryNomad, timeoutDuration)
@@ -177,8 +177,8 @@ object Util {
       }.attempt
       success <- lookupResult match {
         case Left(_: UnknownHostException) => retry
-        case Left(_: Throwable) => retry
-        case Right(_: Array[InetAddress]) => IO.pure(true)
+        case Left(_: Throwable)            => retry
+        case Right(_: Array[InetAddress])  => IO.pure(true)
       }
     } yield success
   }
@@ -186,9 +186,10 @@ object Util {
   // needed because CommandResult can't be redirected and read, or even read multiple times...
   case class ProcOut(exitCode: Int, stdout: String, stderr: String)
 
-  def scribePipe(level: Level = Level.Trace): ProcessOutput.ReadBytes = os.ProcessOutput(
-    (stream: Array[Byte], len: Int) => scribe.log(level, new String(stream.take(len), StandardCharsets.UTF_8), None)
-  )
+  def scribePipe(level: Level = Level.Trace): ProcessOutput.ReadBytes =
+    os.ProcessOutput((stream: Array[Byte], len: Int) =>
+      scribe.log(level, new String(stream.take(len), StandardCharsets.UTF_8), None)
+    )
 
   def exec(command: String, cwd: Path = os.root, env: Map[String, String] = Map.empty): IO[ProcOut] =
     execArr(command.split(" "), cwd, env)
