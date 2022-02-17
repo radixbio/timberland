@@ -50,17 +50,18 @@ rules_scala_version = "eabb1d28fb288fb5b15857260f87818dda5a97c8"  # update this 
 
 http_archive(
     name = "rules_rust",
-    sha256 = "accb5a89cbe63d55dcdae85938e56ff3aa56f21eb847ed826a28a83db8500ae6",
-    strip_prefix = "rules_rust-9aa49569b2b0dacecc51c05cee52708b7255bd98",
+    sha256 = "531bdd470728b61ce41cf7604dc4f9a115983e455d46ac1d0c1632f613ab9fc3",
+    strip_prefix = "rules_rust-d8238877c0e552639d3e057aadd6bfcf37592408",
     urls = [
-        # Main branch as of 2021-02-19
-        "https://github.com/bazelbuild/rules_rust/archive/9aa49569b2b0dacecc51c05cee52708b7255bd98.tar.gz",
+        # `main` branch as of 2021-08-23
+        "https://github.com/bazelbuild/rules_rust/archive/d8238877c0e552639d3e057aadd6bfcf37592408.tar.gz",
     ],
 )
 
+
 load("@rules_rust//rust:repositories.bzl", "rust_repositories")
 
-rust_repositories(edition = "2018")
+rust_repositories(version = "1.53.0", edition = "2018")
 
 http_archive(
     name = "cargo_raze",
