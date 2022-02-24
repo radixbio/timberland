@@ -1,6 +1,7 @@
 package com.radix.utils.helm.http4s.vault
 
 import com.radix.utils.helm.vault._
+import io.circe.{Decoder, Json}
 
 trait VaultInterface[F[_]] {
 
@@ -36,7 +37,7 @@ trait VaultInterface[F[_]] {
   def createSecret(name: String, req: CreateSecretRequest): F[Either[VaultError, Unit]]
 
   // https://www.vaultproject.io/api/secret/kv/kv-v2.html#read-secret-version
-  def getSecret(name: String): F[Either[VaultError, KVGetResult]]
+  def getSecret[R](name: String)(implicit d: Decoder[R]): F[Either[VaultError, KVGetResult[R]]]
 
   def createOauthSecret(name: String, req: CreateSecretRequest): F[Either[VaultError, Unit]]
 

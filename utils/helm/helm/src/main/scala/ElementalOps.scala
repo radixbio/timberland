@@ -8,6 +8,7 @@ import com.radix.utils.helm.vault.CreateSecretRequest
 import scala.concurrent.ExecutionContext.Implicits.global
 import io.circe.syntax._
 import com.radix.utils.tls.ConsulVaultSSLContext.blaze
+import io.circe.Json
 
 sealed trait VaultResult
 case object UPSet extends VaultResult
@@ -40,7 +41,7 @@ class ElementalOps(authToken: String) {
     val vaultSession =
       new VaultSession[IO](authToken = Some(authToken), baseUrl = uri("https://vault.service.consul:8200"))
     for {
-      vaultResult <- vaultSession.getSecret("elemental-credentials")
+      vaultResult <- vaultSession.getSecret[Json]("elemental-credentials")
       result <- vaultResult match {
         case Right(up) => {
           (up.data.hcursor.downField("username").as[String], up.data.hcursor.downField("password").as[String]) match {

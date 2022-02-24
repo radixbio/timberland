@@ -155,8 +155,8 @@ class Vault[F[_]: ConcurrentEffect](authToken: Option[String], baseUrl: Uri)(imp
       Request[F](method = POST, uri = baseUrl / "v1" / "secret" / name, headers = baseHeaders).withEntity(req.asJson)
     )
 
-  override def getSecret(name: String): F[Either[VaultError, KVGetResult]] = {
-    submitRequest(Request[F](method = GET, uri = baseUrl / "v1" / "secret" / name, headers = baseHeaders))
+  override def getSecret[R](name: String)(implicit d: Decoder[R]): F[Either[VaultError, KVGetResult[R]]] = {
+    submitRequest[KVGetResult[R]](Request[F](method = GET, uri = baseUrl / "v1" / "secret" / name, headers = baseHeaders))
   }
 
   override def createOauthSecret(name: String, req: CreateSecretRequest): F[Either[VaultError, Unit]] =

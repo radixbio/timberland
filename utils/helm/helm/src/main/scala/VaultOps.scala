@@ -154,13 +154,13 @@ object CreateSecretRequest {
 }
 
 // https://www.vaultproject.io/api/secret/kv/kv-v2.html#read-secret-version
-final case class KVGetResult(metadata: Option[KVMetadata], data: Json)
+final case class KVGetResult[R](metadata: Option[KVMetadata], data: R)
 object KVGetResult {
-  implicit val kvGetResultDecoder: Decoder[KVGetResult] = (c: HCursor) => {
+  implicit def kvGetResultDecoder[R](implicit d: Decoder[R]): Decoder[KVGetResult[R]] = (c: HCursor) => {
     val data: ACursor = c.downField("data")
     for {
       metadata <- data.downField("metadata").as[Option[KVMetadata]]
-      innerData <- data.downField("data").as[Json]
+      innerData <- data.downField("data").as[R]
     } yield KVGetResult(metadata, innerData)
   }
 }

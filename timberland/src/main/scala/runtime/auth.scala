@@ -6,6 +6,7 @@ import com.radix.timberland.util.{RadPath, Util, VaultUtils}
 import com.radix.utils.helm.http4s.vault.Vault
 import com.radix.utils.helm.vault.{CreateSecretRequest, KVGetResult, LoginResponse}
 import com.radix.utils.tls.ConsulVaultSSLContext.blaze
+import io.circe.Json
 import io.circe.syntax._
 import org.http4s.Uri
 import org.http4s.implicits._
@@ -37,7 +38,7 @@ object auth {
   def getGossipKey(vaultToken: String, vaultAddress: String): IO[String] = {
     val vaultUri = Uri.fromString(s"https://$vaultAddress:8200").toOption.get
     val vault = new Vault[IO](authToken = Some(vaultToken), baseUrl = vaultUri)
-    val gossipKeyOption = vault.getSecret(s"gossip-key").map {
+    val gossipKeyOption = vault.getSecret[Json](s"gossip-key").map {
       case Right(KVGetResult(_, data)) =>
         data.hcursor.get[String]("key").toOption
       case Left(err) =>
@@ -106,7 +107,7 @@ object auth {
   }
 
   private def getTokenFromVault(vault: Vault[IO], name: String): IO[String] =
-    vault.getSecret(s"tokens/$name").map {
+    vault.getSecret[Json](s"tokens/$name").map {
       case Right(KVGetResult(_, data)) =>
         data.hcursor.get[String]("token").toOption.getOrElse {
           scribe.error(s"Error parsing $name token from vault secret")
