@@ -4,14 +4,16 @@ import java.time.OffsetDateTime
 
 import io.circe.{ACursor, Decoder, Encoder, HCursor, Json, JsonObject}
 import io.circe.generic.semiauto._
+import org.http4s.Status
 
 sealed trait VaultError extends Throwable
 final case class VaultConnectionError() extends VaultError
 final case class VaultErrorMalformedResponse() extends VaultError
-final case class VaultErrorResponse(errors: Vector[String]) extends VaultError
-object VaultErrorResponse {
-  implicit val vaultErrorResponseDecoder: Decoder[VaultErrorResponse] =
-    deriveDecoder[VaultErrorResponse]
+final case class VaultErrorResponse(body: VaultErrorResponseBody, status: Status) extends VaultError
+final case class VaultErrorResponseBody(errors: Vector[String])
+object VaultErrorResponseBody {
+  implicit val vaultErrorResponseDecoder: Decoder[VaultErrorResponseBody] =
+    deriveDecoder[VaultErrorResponseBody]
 }
 
 final case class InitRequest(

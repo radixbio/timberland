@@ -31,9 +31,10 @@ class Vault[F[_]: ConcurrentEffect](authToken: Option[String], baseUrl: Uri)(imp
   private def errorResponseHandler(response: Response[F]): F[Throwable] =
     response.body
       .through(byteStreamParser)
-      .through(decoder[F, VaultErrorResponse])
+      .through(decoder[F, VaultErrorResponseBody])
       .compile
       .last
+      .map(_.map(body => VaultErrorResponse(body, response.status)))
       .map(_.getOrElse(VaultErrorMalformedResponse()))
 
   /** This is always evaluated when a failure occurs (irrespective of whether we have a response from the server). */
