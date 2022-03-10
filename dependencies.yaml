@@ -255,7 +255,7 @@ dependencies:
   io.circe:
     circe:
       lang: scala
-      modules: [ "core", "fs2", "generic", "generic-extras", "literal", "optics", "parser" ]
+      modules: [ "core", "fs2", "generic", "generic-extras", "literal", "optics", "parser", "yaml" ]
       version: "0.13.0"
     circe-derivation:
       lang: scala
