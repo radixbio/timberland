@@ -17,7 +17,7 @@ imagename_pat = r'source\s*=\s*"(?:{0}|{1})"'.format(
 
 def annotate_images(templatefile, outputfile, commit_hash_file):
     text = open(templatefile).read()
-    commit_hash = rstrip(open(commit_hash_file).read())
+    commit_hash = open(commit_hash_file).read().rstrip()
     imagenames = [
         item
         for sublist in re.findall(imagename_pat, text)
