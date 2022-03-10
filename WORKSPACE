@@ -602,6 +602,13 @@ http_archive(
 # AArch64 binaries
 
 http_archive(
+    name = "ipfs_arm",
+    build_file_content = "exports_files([\"go-ipfs/ipfs\"])",
+    sha256 = "b380dc2573659c23a633bbf15fa1dd06e606f37c2fb36bc26d93eb175661ca7f",
+    url = "https://dist.ipfs.io/go-ipfs/v0.9.1/go-ipfs_v0.9.1_linux-arm64.tar.gz",
+)
+
+http_archive(
     name="consul_arm",
     build_file_content="exports_files([\"consul\"])",
     sha256="ffdbeffcdb9865e0c84472c5098d5e1654c14d26e94f9e7e4bcefa6679a181a7",

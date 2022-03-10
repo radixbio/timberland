@@ -293,11 +293,6 @@ dependencies:
       lang: scala
       version: "0.3.1"
 
-  io.minio:
-    minio:
-      lang: java
-      version: "7.0.2"
-
   javax.activation:
     activation:
       lang: java

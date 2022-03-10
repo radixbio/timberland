@@ -1,6 +1,7 @@
 package com.radix.timberland.runtime
 
 import cats.effect.{ContextShift, IO, Timer}
+import cats.implicits._
 import com.radix.timberland.radixdefs.{ACLTokens, ServiceAddrs}
 import com.radix.timberland.util.{RadPath, Util, VaultUtils}
 import com.radix.utils.helm.http4s.vault.Vault
@@ -292,9 +293,34 @@ object auth {
     val vaultToken = VaultUtils.findVaultToken()
     val vaultUri = uri"https://127.0.0.1:8200"
     val vault = new Vault[IO](authToken = Some(vaultToken), baseUrl = vaultUri)
-    List((tokens.masterToken, "consul-ui-token"), (tokens.actorToken, "actor-token"))
-      .map {
-        case (token, name) => {
+
+    val addr = "https://nomad.service.consul:4646"
+    val connectionArgs = List(
+      s"-ca-cert=${RadPath.runtime / "certs" / "ca" / "cert.pem"}",
+      s"-client-cert=${RadPath.runtime / "certs" / "nomad" / "cli-cert.pem"}",
+      s"-client-key=${RadPath.runtime / "certs" / "nomad" / "cli-key.pem"}",
+      s"-address=$addr",
+      s"-token=${tokens.masterToken}",
+    ).mkString(" ")
+
+    val actorPolicyFile = RadPath.persistentDir / "nomad" / "actor-policy.hcl"
+    val nomadActorPolicyCmd =
+      s"""${RadPath.nomadExec} acl policy apply $connectionArgs actor-policy $actorPolicyFile"""
+    for {
+      nomadActorPolicyCmdRes <- Util.exec(nomadActorPolicyCmd)
+      _ <- IO(scribe.info(nomadActorPolicyCmdRes.toString))
+      nomadActorTokenCmd =
+        s"${RadPath.nomadExec} acl token create $connectionArgs -type=client -policy=actor-policy"
+      nomadActorTokenCmdRes <- Util.exec(nomadActorTokenCmd)
+      _ <- IO(scribe.info(nomadActorTokenCmdRes.toString))
+      nomadActorToken = parseToken(nomadActorTokenCmdRes)
+      tokenMap = Map(
+        "consul-ui-token" -> tokens.masterToken,
+        "actor-token" -> tokens.actorToken,
+        "nomad-actor-token" -> nomadActorToken.getOrElse(""),
+      )
+      _ <- tokenMap.toList.map {
+        case (name, token) =>
           val payload = CreateSecretRequest(data = Map("token" -> token).asJson, cas = None)
           vault.createSecret(s"tokens/${name}", payload).map {
             case Left(err) =>
@@ -302,11 +328,9 @@ object auth {
               scribe.warn(s"This is most likely because the token already exists")
             case Right(_) => ()
           }
-        }
-      }
-      .reduce(_ *> _) *> IO(
-      os.write.over(RadPath.runtime / "timberland" / ".acl-token", tokens.masterToken, os.PermSet(400))
-    )
+      }.parSequence
+      _ <- IO(os.write.over(RadPath.runtime / "timberland" / ".acl-token", tokens.masterToken, os.PermSet(400)))
+    } yield ()
   }
 
   private def parseToken(cmdResult: Util.ProcOut): Option[String] = {

@@ -16,7 +16,6 @@ case object featureFlags {
 
   // A map from flag name to a FlagHook object who's run function will run when that flag is enabled
   val HOOKS = Map(
-    "minio" -> awsAuthConfig,
     "google-oauth" -> oauthConfig,
     "okta-auth" -> oktaAuthConfig,
     "ensure-supported" -> ensureSupported
@@ -29,8 +28,7 @@ case object featureFlags {
     "kafka",
     "kafka_companions",
     "zookeeper",
-    "minio",
-    "nginx",
+    "ipfs",
     "runtime"
   )
 

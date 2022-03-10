@@ -279,12 +279,7 @@ object RadPath {
   if (!os.exists(nomadExec)) {
     throw new FileNotFoundException(s"Could not find ${nomadExec.toString()}")
   }
-  private val minioFolders = List(
-    persistentDir / "nginx",
-    persistentDir / "minio_data",
-    persistentDir / "minio_data" / "userdata"
-  )
-  private val otherFolders = List(
+  List(
     runtime / "terraform",
     runtime / "zookeeper_data",
     runtime / "kafka_data",
@@ -295,8 +290,7 @@ object RadPath {
     runtime / "ipfs_shared",
     runtime / "config",
     runtime / "config" / "modules"
-  )
-  (minioFolders ++ otherFolders).map(path => os.makeDir.all(path))
+  ).foreach(os.makeDir.all)
   os.perms.set(runtime / "ipfs_data", os.PermSet.fromInt(755))
 
 }

@@ -67,7 +67,7 @@ client {
   }
 
   host_volume "service_jars" {
-    path = "/opt/radix/minio_data/service-jars"
+    path = "/opt/radix/services"
     read_only = true
   }
 

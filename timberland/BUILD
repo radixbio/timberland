@@ -1,4 +1,5 @@
 load("@rules_pkg//:pkg.bzl", "pkg_deb", "pkg_tar")
+load("//tools:timberland.bzl", "timberland_module")
 load("@io_bazel_rules_docker//docker/util:run.bzl", "container_run_and_commit", "container_run_and_extract")
 load("@io_bazel_rules_docker//container:container.bzl", "container_image", "container_layer", "container_load", "container_push")
 load("//tools:workspace_status.bzl", "workspace_status")
@@ -79,7 +80,6 @@ timberland_core_srcs = [
     "src/main/scala/flags/configGen.scala",
     "src/main/scala/flags/tfGen.scala",
     "src/main/scala/flags/tfParser.scala",
-    "src/main/scala/flags/hooks/awsAuthConfig.scala",
     "src/main/scala/flags/hooks/oktaAuthConfig.scala",
     "src/main/scala/flags/hooks/ensureSupported.scala",
     "src/main/scala/flags/hooks/FlagHook.scala",
@@ -421,35 +421,34 @@ timberland_services = [
     "//device_drivers/elemental/gateway:elemental-gateway-bin_deploy.jar",
     "//device_drivers/elemental/kafka_bridge:elemental_bridge-bin_deploy.jar",
     "//monolith/mega_service:mega-mega-uservice-bin_deploy.jar",
-    "//device_drivers/eve:eve-bin_deploy.jar",
-    "//device_drivers/oceanoptics:oceanoptics-bin_deploy.jar",
-    "//device_drivers/hw_discovery:hw-discovery-bin_deploy.jar",
-    "//device_drivers/kafka_connectors/elastic:kafka_connect_elastic-bin_deploy.jar",
-    "//device_drivers/kafka_connectors/osipi:kafka_connect_osipi-bin_deploy.jar",
-    "//device_drivers/kafka_connectors/yugabyte:kafka_connect_yugabyte-bin_deploy.jar",
-    "//device_drivers/ln2:ln2-bin_deploy.jar",
-    "//device_drivers/messaging:messaging-bin_deploy.jar",
-    "//device_drivers/mock_bioreactor:mock-bioreactor-bin_deploy.jar",
-    "//device_drivers/minifors2:minifors2-bin_deploy.jar",
-    "//device_drivers/multitrons:multitrons-bin_deploy.jar",
-    "//device_drivers/olditrons:olditrons-bin_deploy.jar",
-    "//device_drivers/eth_multitrons:eth_multitrons-bin_deploy.jar",
-    "//device_drivers/opentrons:opentrons-bin_deploy.jar",
-    "//device_drivers/quantstudio:quantstudio-bin_deploy.jar",
-    "//device_drivers/tecan:tecan-bin_deploy.jar",
-    "//device_drivers/ht91100:ht91100-bin_deploy.jar",
-    "//device_drivers/tfexactive:tfexactive-bin_deploy.jar",
-    "//device_drivers/watlow96_thermal:watlow96_thermal-bin_deploy.jar",
-    "//device_drivers/echo/csv:echo_csv-bin_deploy.jar",
-    "//device_drivers/octet:octet-bin_deploy.jar",
-    "//device_drivers/entris2:entris2-bin_deploy.jar",
+    #"//device_drivers/eve:eve-bin_deploy.jar",
+    #"//device_drivers/oceanoptics:oceanoptics-bin_deploy.jar",
+    #"//device_drivers/hw_discovery:hw-discovery-bin_deploy.jar",
+    #"//device_drivers/kafka_connectors/elastic:kafka_connect_elastic-bin_deploy.jar",
+    #"//device_drivers/kafka_connectors/osipi:kafka_connect_osipi-bin_deploy.jar",
+    #"//device_drivers/kafka_connectors/yugabyte:kafka_connect_yugabyte-bin_deploy.jar",
+    #"//device_drivers/ln2:ln2-bin_deploy.jar",
+    #"//device_drivers/messaging:messaging-bin_deploy.jar",
+    #"//device_drivers/mock_bioreactor:mock-bioreactor-bin_deploy.jar",
+    #"//device_drivers/minifors2:minifors2-bin_deploy.jar",
+    #"//device_drivers/multitrons:multitrons-bin_deploy.jar",
+    #"//device_drivers/olditrons:olditrons-bin_deploy.jar",
+    #"//device_drivers/eth_multitrons:eth_multitrons-bin_deploy.jar",
+    #"//device_drivers/opentrons:opentrons-bin_deploy.jar",
+    #"//device_drivers/quantstudio:quantstudio-bin_deploy.jar",
+    #"//device_drivers/tecan:tecan-bin_deploy.jar",
+    #"//device_drivers/ht91100:ht91100-bin_deploy.jar",
+    #"//device_drivers/tfexactive:tfexactive-bin_deploy.jar",
+    #"//device_drivers/watlow96_thermal:watlow96_thermal-bin_deploy.jar",
+    #"//device_drivers/echo/csv:echo_csv-bin_deploy.jar",
+    #"//device_drivers/octet:octet-bin_deploy.jar",
+    #"//device_drivers/entris2:entris2-bin_deploy.jar",
     "//runtime:runtime-bootstrap_deploy.jar",
     "//utils/api:api-bin_deploy.jar",
     "//utils/bunny_uservice:bunny-uservice-bin_deploy.jar",
     "//utils/healthcheck:healthcheck-bin_deploy.jar",
     "//utils/rainbowuservice:rainbow-uservice-bin_deploy.jar",
     "//utils/scheduleruservice:scheduler-uservice-bin_deploy.jar",  #TODO confirm this is right
-    "//utils/s3lts:syncer-bin_deploy.jar",
     "//vm:vm-bin_deploy.jar",
     "//vm:vm-runner-bin_deploy.jar",
     "//vm:vm-test-runner-bin_deploy.jar",
@@ -458,14 +457,14 @@ timberland_services = [
 services_pkg_tar(
     name = "timberland-services-proguard",
     srcs = timberland_services,
-    package_dir = "/opt/radix/minio_data/service-jars/",
+    package_dir = "/opt/radix/services",
     use_proguard = True,
 )
 
 services_pkg_tar(
     name = "timberland-services",
     srcs = timberland_services,
-    package_dir = "/opt/radix/minio_data/service-jars/",
+    package_dir = "/opt/radix/services",
     use_proguard = False,
 )
 
@@ -521,6 +520,12 @@ workspace_status(
     variable = "STABLE_RELEASE_NAME",
 )
 
+workspace_status(
+    name = "commit-hash",
+    variable = "COMMIT_HASH",
+    visibility = ["//visibility:public"],
+)
+
 pkg_tar(
     name = "release-name-tar",
     srcs = [
@@ -528,6 +533,14 @@ pkg_tar(
         "release-name",
     ],
     package_dir = "/opt/radix/timberland",
+)
+
+pkg_tar(
+    name = "commit-hash-tar",
+    srcs = [
+        "commit-hash",
+    ],
+    package_dir = "/opt/radix/services/",
 )
 
 pkg_tar(
@@ -558,6 +571,7 @@ pkg_tar(
 pkg_tar(
     name = "timberland-slim-tar",
     deps = [
+        ":commit-hash-tar",
         ":release-name-tar",
         ":terraform-deps",
         ":terraform-main",
@@ -575,9 +589,9 @@ pkg_tar(
         ":timberland-consul-template-nomad",
         ":timberland-consul-template-vault",
         ":timberland-containernetworking-cni-plugin",
-        ":timberland-net-utils",
-        ":timberland-ipfs",
         ":timberland-exec",
+        ":timberland-ipfs",
+        ":timberland-net-utils",
         ":timberland-networkd",
         ":timberland-nomad",
         ":timberland-nomad-config",
@@ -679,83 +693,66 @@ sh_test(
     tags = ["no-sandbox"],
 )
 
-pkg_tar(
-    name = "elasticsearch-terraform",
-    srcs = [
+timberland_module(
+    name = "elasticsearch",
+    terraform_srcs = [
         "assets/terraform/elasticsearch/elasticsearch.tmpl",
         "assets/terraform/elasticsearch/kibana.tmpl",
         "assets/terraform/elasticsearch/main.tf",
         "assets/terraform/elasticsearch/outputs.tf",
         "assets/terraform/elasticsearch/variables.tf",
     ],
-    package_dir = "/opt/radix/timberland/terraform/modules/elasticsearch",
 )
 
-pkg_tar(
-    name = "nginx-terraform",
-    srcs = [
+timberland_module(
+    name = "nginx",
+    terraform_srcs = [
         "assets/terraform/nginx/main.tf",
         "assets/terraform/nginx/nginx.tmpl",
         "assets/terraform/nginx/outputs.tf",
         "assets/terraform/nginx/variables.tf",
     ],
-    package_dir = "/opt/radix/timberland/terraform/modules/nginx",
 )
 
-pkg_tar(
-    name = "kafka-terraform",
-    srcs = [
+timberland_module(
+    name = "kafka",
+    terraform_srcs = [
         "assets/terraform/kafka/kafka.tmpl",
         "assets/terraform/kafka/main.tf",
         "assets/terraform/kafka/outputs.tf",
         "assets/terraform/kafka/variables.tf",
     ],
-    package_dir = "/opt/radix/timberland/terraform/modules/kafka",
 )
 
-pkg_tar(
-    name = "kafka_companions-terraform",
-    srcs = [
+timberland_module(
+    name = "kafka_companions",
+    terraform_srcs = [
         "assets/terraform/kafka_companions/kafka_companions.tmpl",
         "assets/terraform/kafka_companions/main.tf",
         "assets/terraform/kafka_companions/outputs.tf",
         "assets/terraform/kafka_companions/variables.tf",
     ],
-    package_dir = "/opt/radix/timberland/terraform/modules/kafka_companions",
 )
 
-pkg_tar(
-    name = "minio-terraform",
-    srcs = [
-        "assets/terraform/minio/main.tf",
-        "assets/terraform/minio/minio.tmpl",
-        "assets/terraform/minio/outputs.tf",
-        "assets/terraform/minio/variables.tf",
-    ],
-    package_dir = "/opt/radix/timberland/terraform/modules/minio",
-)
-
-pkg_tar(
-    name = "yugabyte-terraform",
-    srcs = [
+timberland_module(
+    name = "yugabyte",
+    terraform_srcs = [
         "assets/terraform/yugabyte/main.tf",
         "assets/terraform/yugabyte/outputs.tf",
         "assets/terraform/yugabyte/variables.tf",
         "assets/terraform/yugabyte/yb_masters.tmpl",
         "assets/terraform/yugabyte/yb_tservers.tmpl",
     ],
-    package_dir = "/opt/radix/timberland/terraform/modules/yugabyte",
 )
 
-pkg_tar(
-    name = "zookeeper-terraform",
-    srcs = [
+timberland_module(
+    name = "zookeeper",
+    terraform_srcs = [
         "assets/terraform/zookeeper/main.tf",
         "assets/terraform/zookeeper/outputs.tf",
         "assets/terraform/zookeeper/variables.tf",
         "assets/terraform/zookeeper/zookeeper.tmpl",
     ],
-    package_dir = "/opt/radix/timberland/terraform/modules/zookeeper",
 )
 
 pkg_tar(
@@ -764,7 +761,6 @@ pkg_tar(
         ":elasticsearch-terraform",
         ":kafka-terraform",
         ":kafka_companions-terraform",
-        ":minio-terraform",
         ":nginx-terraform",
         ":yugabyte-terraform",
         ":zookeeper-terraform",
@@ -795,9 +791,8 @@ pkg_tar(
         "//utils/api:web-interface",
         "//utils/bunny_uservice:bunny_uservice-terraform",
         "//utils/healthcheck:healthcheck-terraform",
-#        "//utils/ipfs:ipfs-terraform",
+        "//utils/ipfs:ipfs-terraform",
         "//utils/rainbowuservice:rainbow-terraform",
-        "//utils/s3lts:s3lts-terraform",
         "//utils/scheduleruservice:scheduler-terraform",  #TODO confirm this is right
         "//vm:vm-runner-terraform",
         "//vm:vm-terraform",

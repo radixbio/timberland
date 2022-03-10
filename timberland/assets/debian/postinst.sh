@@ -12,7 +12,7 @@ mkdir -p /opt/radix/ybmaster_data
 mkdir -p /opt/radix/ybtserver_data
 mkdir -p /opt/radix/elasticsearch_data
 mkdir -p /opt/radix/interface/build
-mkdir -p /opt/radix/minio_data/service-jars
+mkdir -p /opt/radix/services
 
 if [ -f /opt/radix/timberland/exec/timberland ]; then
     cd /opt/radix/timberland/exec/

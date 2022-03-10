@@ -15,27 +15,15 @@ imagename_pat = r'source\s*=\s*"(?:{0}|{1})"'.format(
 )
 
 
-def get_commit_hash():
-    return (
-        subprocess.Popen(
-            ["git", "rev-parse", "--short", "HEAD"],
-            stdout=subprocess.PIPE,
-        )
-        .stdout.read()
-        .decode("utf-8")
-        .strip()
-    )
-
-
-def annotate_images(templatefile, outputfile, dot_git_dir):
+def annotate_images(templatefile, outputfile, commit_hash_file):
     text = open(templatefile).read()
+    commit_hash = rstrip(open(commit_hash_file).read())
     imagenames = [
         item
         for sublist in re.findall(imagename_pat, text)
         for item in sublist
         if item
     ]
-    commit_hash = get_commit_hash()
 
     for imagename in imagenames:
         image_wdigest = imagename.replace(".jar", "_" + commit_hash + ".jar")

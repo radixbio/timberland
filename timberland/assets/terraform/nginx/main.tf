@@ -3,9 +3,6 @@ resource "nomad_job" "nginx" {
   jobspec = templatefile("/opt/radix/timberland/terraform/modules/nginx/nginx.tmpl", {
     namespace = var.namespace,
     services = var.dev ? data.consul_services.svc_list.names : [
-      "minio-remote-service",
-      "minio-local-service",
-      "messaging-slack-button-callback"
       # "kibana",
       # "ui",
       # "api"
