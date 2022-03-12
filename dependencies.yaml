@@ -346,6 +346,9 @@ dependencies:
     commons-lang3:
       lang: java
       version: "3.8.1"
+    commons-math3:
+      lang: java
+      version: "3.6.1"
 
   org.apache.kafka:
     connect:
