@@ -319,6 +319,11 @@ dependencies:
       modules: [ "core", "macros" ]
       version: "0.3.0+15-598682f0"
 
+  net.imagej:
+    ij:
+      lang: java
+      version: "1.53j"
+
   net.kanstren.tcptunnel:
     tcptunnel:
       lang: java
