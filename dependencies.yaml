@@ -12,6 +12,9 @@ options:
     - id: "jitpack"
       type: "default"
       url: https://jitpack.io
+    - id: "scijava"
+      type: "default"
+      url: https://maven.scijava.org/content/groups/public
   strictVisibility: true
 
 dependencies:
@@ -320,9 +323,9 @@ dependencies:
       version: "0.3.0+15-598682f0"
 
   net.imagej:
-    ij:
+    imagej-legacy:
       lang: java
-      version: "1.53j"
+      version: "0.38.1"
 
   net.kanstren.tcptunnel:
     tcptunnel:
