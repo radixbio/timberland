@@ -8,8 +8,6 @@ import requests
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 services_to_test = {  # this whole list seems a little weird to me but what do i know
-    #   "apprise",
-    #   "apprise-sidecar-proxy",
     #   "es-rest-0",
     #   "es-rest-0-sidecar-proxy",
     #   "es-transport-0",

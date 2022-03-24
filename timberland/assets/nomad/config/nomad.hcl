@@ -78,6 +78,7 @@ client {
     "/etc/ld.so.conf" = "/etc/ld.so.conf",
     "/etc/ld.so.conf.d" = "/etc/ld.so.conf.d",
     "/etc/passwd" = "/etc/passwd",
+    "/etc/ssl" = "/etc/ssl",
     "/etc/sudoers" = "/etc/sudoers",
     "/etc/hosts" = "/etc/hosts",
     "/etc/java-11-openjdk" = "/etc/java-11-openjdk",

@@ -198,6 +198,12 @@ dependencies:
       lang: scala
       version: "4.0.11"
 
+  com.slack.api:
+    bolt:
+      lang: java
+      modules: [ "", "socket-mode" ]
+      version: "1.18.0"
+
   com.typesafe:
     config:
       lang: java
@@ -306,6 +312,11 @@ dependencies:
       lang: java
       version: "1.1"
 
+  javax.websocket:
+    javax.websocket-api:
+      lang: java
+      version: "1.1"
+
   javax.xml.bind:
     jaxb-api:
       lang: java
@@ -398,6 +409,11 @@ dependencies:
       lang: java
       version: "1.8"
 
+  org.glassfish.tyrus.bundles:
+    tyrus-standalone-client:
+      lang: java
+      version: "1.17"
+
   org.graalvm.compiler:
     compiler:
       lang: java
@@ -449,6 +465,9 @@ dependencies:
     scala-parser-combinators:
       lang: scala
       version: "1.1.2"
+    scala-xml:
+      lang: scala
+      version: "2.0.1"
 
   org.scalacheck:
     scalacheck:

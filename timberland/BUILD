@@ -187,7 +187,7 @@ pkg_tar(
 pkg_tar(
     name = "timberland-vault",
     srcs = [
-               "assets/vault/read-message-targets-policy.hcl",
+               "assets/vault/messaging-policy.hcl",
                "assets/systemd/vault.env.conf",
                "assets/vault/actor-acl-token-policy.hcl",
                "assets/vault/read-flag-config-policy.hcl",
@@ -775,7 +775,7 @@ pkg_tar(
         "//device_drivers/kafka_connectors/osipi:kafka_connect_osipi-terraform",
         "//device_drivers/kafka_connectors/yugabyte:kafka_connect_yugabyte-terraform",
         "//device_drivers/ln2:ln2-terraform",
-        "//device_drivers/messaging:apprise-terraform",
+        "//device_drivers/messaging:messaging-terraform",
         "//device_drivers/minifors2:minifors2-terraform",
         "//device_drivers/mock_bioreactor:mock-bioreactor-terraform",
         "//device_drivers/multitrons:multitrons-terraform",

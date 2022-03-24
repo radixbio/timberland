@@ -1,7 +1,6 @@
 package com.radix.utils.helm.http4s.vault
 
 import java.net.ConnectException
-
 import cats.Applicative
 import cats.implicits._
 import cats.effect.{ConcurrentEffect, Resource}
@@ -16,7 +15,7 @@ import com.radix.utils.helm.vault._
 import shapeless.the
 
 class Vault[F[_]: ConcurrentEffect](authToken: Option[String], baseUrl: Uri)(implicit
-  blazeResource: Resource[F, Client[F]]
+                                                                             blazeResource: Resource[F, Client[F]]
 ) extends VaultInterface[F] {
   val baseHeaders: Headers = authToken
     .map { tok =>
