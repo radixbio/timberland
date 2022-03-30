@@ -2,18 +2,17 @@ package com.radix.timberland_svc.timberlandService
 
 import scala.concurrent.duration._
 import cats.effect.{IO, IOApp}
+import com.radix.timberland.ConstPaths
+import com.radix.timberland.flags.{configGen, featureFlags}
 import com.radix.timberland.launch.daemonutil
 import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.timberland.runtime._
-import com.radix.timberland.util.RadPath
-import io.circe.{Decoder, Encoder}
+import io.circe.Json
 import io.circe.syntax._
-import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import org.http4s._
 import org.http4s.circe.CirceEntityCodec.circeEntityDecoder
 import org.http4s.dsl.io._
 import org.http4s.circe._
-import org.http4s.headers._
 import org.http4s.server.blaze.BlazeServerBuilder
 import org.http4s.server.middleware.{CORS, CORSConfig}
 import org.http4s.syntax.all._
@@ -59,12 +58,40 @@ object timberlandService extends IOApp {
   )
 
   private def routes: HttpRoutes[IO] = HttpRoutes.of[IO] {
-    case GET -> Root        => getConfig()
-    case req @ POST -> Root => setConfig(req)
-    case _ -> Root          => MethodNotAllowed(Allow(GET, POST))
+    case GET -> Root / "config" / module        => getConfig(module)
+    case req @ POST -> Root / "config" / module => setConfig(module, req)
+    case GET -> Root / "flags"                  => getFlags
+    case req @ POST -> Root / "flags"           => setFlags(req)
+    case POST -> Root / "run"                   => runTimberland()
+    case _ -> Root                              => NotFound()
   }
 
-  private def getConfig(): IO[Response[IO]] = ???
-  private def setConfig(req: Request[IO]): IO[Response[IO]] = ???
+  private def getConfig(module: String): IO[Response[IO]] = configGen.getConfig(module).flatMap(cfg => Ok(cfg.asJson))
+  private def setConfig(module: String, req: Request[IO]): IO[Response[IO]] = for {
+    configChanges <- req.as[Map[String, Json]]
+    oldConfig <- configGen.getConfig(module)
+    newConfig = oldConfig ++ configChanges
+    newJson = Map(s"config_$module" -> newConfig)
+    configFile = ConstPaths.TF_CONFIG_DIR / s"$module.json"
+    _ <- IO(os.write.over(configFile, newJson.asJson.toString()))
+    ok <- Ok()
+  } yield  ok
+
+  private def getFlags: IO[Response[IO]] = featureFlags.flags.flatMap(flags => Ok(flags.asJson))
+  private def setFlags(req: Request[IO]): IO[Response[IO]] = for {
+    flagChanges <- req.as[Map[String, Boolean]]
+    oldFlagMap <- featureFlags.flags
+    newFlagMap = oldFlagMap ++ flagChanges
+    newJson = Map("feature_flags" -> newFlagMap)
+    _ <- IO(os.write.over(featureFlags.FLAGS_JSON, newJson.asJson.toString()))
+    ok <- Ok()
+  } yield ok
+
+  private def runTimberland(): IO[Response[IO]] = {
+    auth.getAuthTokens().flatMap { implicit authTokens =>
+      implicit val serviceAddrs: ServiceAddrs = ServiceAddrs()
+      featureFlags.runHooks *> daemonutil.runTerraform() *> Ok()
+    }
+  }
 
 }

@@ -32,7 +32,7 @@ case object featureFlags {
     "runtime"
   )
 
-  private val FLAGS_JSON = RadPath.runtime / "config" / "flags.json"
+  val FLAGS_JSON = RadPath.runtime / "config" / "flags.json"
 
   // Generates all the files which dynamically depend on the modules present in timberland/terraform
   def generateAllTfAndConfigFiles: IO[Unit] = writeFlagsJson *>

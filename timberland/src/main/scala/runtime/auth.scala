@@ -22,10 +22,10 @@ object auth {
   implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.Implicits.global)
 
   def getAuthTokens(
-    isRemote: Boolean,
-    serviceAddrs: ServiceAddrs,
-    usernameOption: Option[String],
-    passwordOption: Option[String]
+    isRemote: Boolean = false,
+    serviceAddrs: ServiceAddrs = ServiceAddrs(),
+    usernameOption: Option[String] = None,
+    passwordOption: Option[String] = None
   ): IO[AuthTokens] = {
     if (isRemote) {
       for {
