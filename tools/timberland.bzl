@@ -68,6 +68,6 @@ def timberland_module(name, terraform_srcs = [], jars = []):
 
     pkg_tar(
         name = name + "-uservice",
-        deps = [name + "-jars", name + "-tffiles"],
+        deps = [name + "-jars", name + "-terraform"],
         visibility = ["//visibility:public"],
     )
