@@ -3,7 +3,7 @@ package com.radix.timberland.util
 import java.io.{FileNotFoundException, IOException}
 import java.net.{InetAddress, ServerSocket, UnknownHostException}
 import ammonite.ops._
-import cats.effect.{ContextShift, IO, Timer}
+import cats.effect.{ContextShift, IO, Sync, Timer}
 import com.radix.utils.tls.ConsulVaultSSLContext.blaze
 import org.http4s.Header
 import org.http4s.Method._
@@ -14,6 +14,8 @@ import os.ProcessOutput
 import scribe.Level
 
 import java.nio.charset.StandardCharsets
+import java.nio.file.{Files, Path}
+import java.security.MessageDigest
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.TimeoutException
 import scala.concurrent.duration._
@@ -191,10 +193,10 @@ object Util {
       scribe.log(level, new String(stream.take(len), StandardCharsets.UTF_8), None)
     )
 
-  def exec(command: String, cwd: Path = os.root, env: Map[String, String] = Map.empty): IO[ProcOut] =
+  def exec(command: String, cwd: os.Path = os.root, env: Map[String, String] = Map.empty): IO[ProcOut] =
     execArr(command.split(" "), cwd, env)
 
-  def execArr(command: Seq[String], cwd: Path = os.root, env: Map[String, String] = Map.empty): IO[ProcOut] = IO {
+  def execArr(command: Seq[String], cwd: os.Path = os.root, env: Map[String, String] = Map.empty): IO[ProcOut] = IO {
     scribe.debug(s"Calling: $command")
     val res = os
       .proc(command)
@@ -242,6 +244,14 @@ object Util {
       _ <- addFirewallRule("Nomad_HTTP", port = 4646)
       _ <- addFirewallRule("Nomad_RCP", port = 4747)
     } yield ()
+  }
+
+  def hashFile[F[_]: Sync](file: Path): F[String] = {
+    Sync[F].delay {
+      val digester = MessageDigest.getInstance("SHA-256")
+      val hash = digester.digest(Files.readAllBytes(file))
+      hash.map(b => String.format("%02X", b)).mkString.toLowerCase // convert to hex
+    }
   }
 }
 

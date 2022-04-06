@@ -528,9 +528,9 @@ http_archive(
     name="vault-plugin-secrets-oauthapp",
     build_file_content="exports_files([\"vault-plugin-secrets-oauthapp\"])",
     patch_cmds=[
-        "mv vault-plugin-secrets-oauthapp-v1.3.0-linux-amd64 vault-plugin-secrets-oauthapp"],
-    sha256="5ed0f0df011ede9426fbe59c11ac9d16d0d769c5ed14878ddcf8b931c87fc119",
-    url="https://github.com/puppetlabs/vault-plugin-secrets-oauthapp/releases/download/v1.3.0/vault-plugin-secrets-oauthapp-v1.3.0-linux-amd64.tar.xz",
+        "mv vault-plugin-secrets-oauthapp-v3.0.0-linux-amd64 vault-plugin-secrets-oauthapp"],
+    sha256="ceb4b6ab2b54d48b5e34766a09e76c4067bd1a578b93a23d287cd71b9071b7e6",
+    url="https://github.com/puppetlabs/vault-plugin-secrets-oauthapp/releases/download/v3.0.0/vault-plugin-secrets-oauthapp-v3.0.0-linux-amd64.tar.xz",
 )
 
 http_archive(
@@ -633,9 +633,9 @@ http_archive(
     name="vault-plugin-secrets-oauthapp_arm",
     build_file_content="exports_files([\"vault-plugin-secrets-oauthapp\"])",
     patch_cmds=[
-        "mv vault-plugin-secrets-oauthapp-v1.3.0-linux-arm64 vault-plugin-secrets-oauthapp"],
-    sha256="d3d2bb70972d5279a11b6f873d47a65f6221f1ff4637e88644f627ce9c05dd8f",
-    url="https://github.com/puppetlabs/vault-plugin-secrets-oauthapp/releases/download/v1.3.0/vault-plugin-secrets-oauthapp-v1.3.0-linux-arm64.tar.xz",
+        "mv vault-plugin-secrets-oauthapp-v3.0.0-linux-arm64 vault-plugin-secrets-oauthapp"],
+    sha256="fd2501509119560516ad6ea7480847857cbf44b21279dee6c8b791fad587ecfd",
+    url="https://github.com/puppetlabs/vault-plugin-secrets-oauthapp/releases/download/v3.0.0/vault-plugin-secrets-oauthapp-v3.0.0-linux-arm64.tar.xz",
 )
 
 http_archive(
@@ -733,9 +733,9 @@ http_archive(
     name="vault-plugin-secrets-oauthapp_win",
     build_file_content="exports_files([\"vault-plugin-secrets-oauthapp.exe\"])",
     patch_cmds=[
-        "mv vault-plugin-secrets-oauthapp-v1.3.0-windows-amd64.exe vault-plugin-secrets-oauthapp.exe"],
-    sha256="2301d04913dc861f7e0375ae63782ecdf63438c25c4c1616e7e906121c557780",
-    url="https://github.com/puppetlabs/vault-plugin-secrets-oauthapp/releases/download/v1.3.0/vault-plugin-secrets-oauthapp-v1.3.0-windows-amd64.zip",
+        "mv vault-plugin-secrets-oauthapp-v3.0.0-windows-amd64.exe vault-plugin-secrets-oauthapp.exe"],
+    sha256="cd96942dd7495a9b9af3ae20e00510e7862923124cf9ec4d8f0d5e327bd18d61",
+    url="https://github.com/puppetlabs/vault-plugin-secrets-oauthapp/releases/download/v3.0.0/vault-plugin-secrets-oauthapp-v3.0.0-windows-amd64.zip",
 )
 
 http_archive(

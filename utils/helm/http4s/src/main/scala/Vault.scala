@@ -1,18 +1,20 @@
 package com.radix.utils.helm.http4s.vault
 
-import java.net.ConnectException
 import cats.Applicative
-import cats.implicits._
+import cats.data.EitherT
 import cats.effect.{ConcurrentEffect, Resource}
-import io.circe.syntax._
-import org.http4s._
-import org.http4s.Method.{GET, POST, PUT}
-import org.http4s.circe._
-import io.circe.{Decoder, ParsingFailure}
-import io.circe.fs2.{byteStreamParser, decoder}
-import org.http4s.client.Client
+import cats.implicits._
 import com.radix.utils.helm.vault._
+import io.circe.fs2.{byteStreamParser, decoder}
+import io.circe.syntax._
+import io.circe.{Decoder, ParsingFailure}
+import org.http4s.Method.{GET, POST, PUT}
+import org.http4s._
+import org.http4s.circe._
+import org.http4s.client.Client
 import shapeless.the
+
+import java.net.ConnectException
 
 class Vault[F[_]: ConcurrentEffect](authToken: Option[String], baseUrl: Uri)(implicit
                                                                              blazeResource: Resource[F, Client[F]]
@@ -27,7 +29,7 @@ class Vault[F[_]: ConcurrentEffect](authToken: Option[String], baseUrl: Uri)(imp
    * Note: This function is only called if we have a response (i.e. a successful connection to the server was established
    * and we have a status code).
    */
-  private def errorResponseHandler(response: Response[F]): F[Throwable] =
+  private def errorResponseHandler(response: Response[F]): F[Throwable] = {
     response.body
       .through(byteStreamParser)
       .through(decoder[F, VaultErrorResponseBody])
@@ -35,6 +37,7 @@ class Vault[F[_]: ConcurrentEffect](authToken: Option[String], baseUrl: Uri)(imp
       .last
       .map(_.map(body => VaultErrorResponse(body, response.status)))
       .map(_.getOrElse(VaultErrorMalformedResponse()))
+  }
 
   /** This is always evaluated when a failure occurs (irrespective of whether we have a response from the server). */
   private def errorHandler(exception: Throwable): VaultError = exception match {
@@ -128,7 +131,7 @@ class Vault[F[_]: ConcurrentEffect](authToken: Option[String], baseUrl: Uri)(imp
       ).withEntity(req.asJson)
     )
 
-  override def updateCredential(
+  override def updateOauthCredential(
     pluginPath: String,
     credentialName: String,
     req: UpdateCredentialRequest
@@ -141,7 +144,7 @@ class Vault[F[_]: ConcurrentEffect](authToken: Option[String], baseUrl: Uri)(imp
       ).withEntity(req.asJson)
     )
 
-  override def getCredential(pluginPath: String, credentialName: String): F[Either[VaultError, CredentialResponse]] =
+  override def getOauthCredential(pluginPath: String, credentialName: String): F[Either[VaultError, CredentialResponse]] =
     submitRequest(
       Request[F](
         method = GET,
@@ -159,14 +162,11 @@ class Vault[F[_]: ConcurrentEffect](authToken: Option[String], baseUrl: Uri)(imp
     submitRequest[KVGetResult[R]](Request[F](method = GET, uri = baseUrl / "v1" / "secret" / name, headers = baseHeaders))
   }
 
-  override def createOauthSecret(name: String, req: CreateSecretRequest): F[Either[VaultError, Unit]] =
+  def createOauthServer(pluginPath: String, name: String, req: CreateOauthServerRequest): F[Either[VaultError, Unit]] = {
     submitRequestNoResponse(
-      Request[F](method = PUT, uri = appendPath(baseUrl / "v1", name), headers = baseHeaders)
-        .withEntity(req.data.asJson)
+      Request[F](method = PUT, uri = appendPath(baseUrl / "v1", pluginPath) / "servers" / name, headers = baseHeaders)
+        .withEntity(req.asJson)
     )
-
-  override def getOauthSecret(name: String): F[Either[VaultError, KVOauthGetResult]] = {
-    submitRequest(Request[F](method = GET, uri = appendPath(baseUrl / "v1", name), headers = baseHeaders))
   }
 
   override def createUser(name: String, password: String, policies: List[String]): F[Either[VaultError, Unit]] = {

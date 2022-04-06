@@ -5,7 +5,7 @@ import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.timberland.runtime.AuthTokens
 import com.radix.timberland.util.RegisterProvider
 import com.radix.utils.helm.http4s.vault.Vault
-import com.radix.utils.helm.vault.CreateSecretRequest
+import com.radix.utils.helm.vault.{CreateOauthServerRequest, CreateSecretRequest}
 import com.radix.utils.tls.ConsulVaultSSLContext._
 import org.http4s.Uri
 import io.circe.generic.auto._
@@ -21,12 +21,13 @@ object oauthConfig extends FlagHook {
   def run(options: Map[String, String], serviceAddrs: ServiceAddrs, tokens: AuthTokens): IO[Unit] = {
     val vaultUri = Uri.fromString(s"https://${serviceAddrs.vaultAddr}:8200").toOption.get
     val vaultSession = new Vault[IO](authToken = Some(tokens.vaultToken), baseUrl = vaultUri)
-    val oauthConfigRequest = CreateSecretRequest(
-      data = RegisterProvider("google", options("google_oauth_id"), options("google_oauth_secret")).asJson,
-      cas = None
+    val oauthConfigRequest = CreateOauthServerRequest(
+      client_id = options("google_oauth_id"),
+      client_secrets = List(options("google_oauth_secret")),
+      provider = "google",
     )
     vaultSession
-      .createOauthSecret("oauth2/google/config", oauthConfigRequest)
+      .createOauthServer("oauth2/google", "google", oauthConfigRequest)
       .map {
         _.left.map { err =>
           scribe.error("Error enabling oauth: " + err)

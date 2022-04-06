@@ -1,10 +1,11 @@
 package com.radix.utils.helm.vault
 
-import java.time.OffsetDateTime
-
-import io.circe.{ACursor, Decoder, Encoder, HCursor, Json, JsonObject}
+import io.circe._
 import io.circe.generic.semiauto._
+import io.circe.syntax.EncoderOps
 import org.http4s.Status
+
+import java.time.OffsetDateTime
 
 sealed trait VaultError extends Throwable
 final case class VaultConnectionError() extends VaultError
@@ -108,9 +109,29 @@ object AuthCodeUrlResponse {
 }
 
 // https://github.com/puppetlabs/vault-plugin-secrets-oauthapp#put-write-2
-final case class UpdateCredentialRequest(code: String, redirect_url: String)
+sealed trait UpdateCredentialRequest {
+  val server: String
+  val grant_type: String
+  val provider_options: Map[String, String]
+}
+final case class UpdateCredentialAuthorizationCodeRequest(server: String, code: String, redirect_url: String, provider_options: Map[String, String] = Map()) extends UpdateCredentialRequest {
+  override val grant_type: String = "authorization_code"
+}
+final case class UpdateCredentialRefreshTokenRequest(server: String, refresh_token: String, provider_options: Map[String, String] = Map()) extends UpdateCredentialRequest {
+  override val grant_type: String = "refresh_token"
+}
 object UpdateCredentialRequest {
-  implicit val updateCredentialRequestEncoder: Encoder[UpdateCredentialRequest] = deriveEncoder[UpdateCredentialRequest]
+  implicit val updateCredentialRequestEncoder: Encoder[UpdateCredentialRequest] = {
+    Encoder.instance { req =>
+      val baseObject = req match {
+        case authCode: UpdateCredentialAuthorizationCodeRequest =>
+          deriveEncoder[UpdateCredentialAuthorizationCodeRequest].encodeObject(authCode)
+        case refreshToken: UpdateCredentialRefreshTokenRequest =>
+          deriveEncoder[UpdateCredentialRefreshTokenRequest].encodeObject(refreshToken)
+      }
+      baseObject.add("grant_type", req.grant_type.asJson).asJson
+    }
+  }
 }
 
 // https://github.com/puppetlabs/vault-plugin-secrets-oauthapp#get-read-1
@@ -124,6 +145,17 @@ object CredentialResponse {
         expiration <- data.downField("expire_time").as[OffsetDateTime]
       } yield CredentialResponse(token, expiration)
     }
+}
+
+final case class CreateOauthServerRequest(
+  client_id: String,
+  client_secrets: List[String] = List(),
+  auth_url_params: Map[String, String] = Map(),
+  provider: String,
+  provider_params: Map[String, String] = Map(),
+)
+object CreateOauthServerRequest {
+  implicit val createOauthServerRequest: Encoder[CreateOauthServerRequest] = deriveEncoder[CreateOauthServerRequest]
 }
 
 // https://www.vaultproject.io/api/secret/kv/kv-v2.html#read-secret-version

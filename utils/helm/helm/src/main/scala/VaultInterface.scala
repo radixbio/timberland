@@ -25,13 +25,13 @@ trait VaultInterface[F[_]] {
   def authCodeUrl(pluginPath: String, req: AuthCodeUrlRequest): F[Either[VaultError, AuthCodeUrlResponse]]
 
   // https://github.com/puppetlabs/vault-plugin-secrets-oauthapp#put-write-2
-  def updateCredential(
+  def updateOauthCredential(
     pluginPath: String,
     credentialName: String,
     req: UpdateCredentialRequest
   ): F[Either[VaultError, Unit]]
   // https://github.com/puppetlabs/vault-plugin-secrets-oauthapp#get-read-1
-  def getCredential(pluginPath: String, credentialName: String): F[Either[VaultError, CredentialResponse]]
+  def getOauthCredential(pluginPath: String, credentialName: String): F[Either[VaultError, CredentialResponse]]
 
   // https://www.vaultproject.io/api/secret/kv/kv-v2.html#create-update-secret
   def createSecret(name: String, req: CreateSecretRequest): F[Either[VaultError, Unit]]
@@ -39,9 +39,7 @@ trait VaultInterface[F[_]] {
   // https://www.vaultproject.io/api/secret/kv/kv-v2.html#read-secret-version
   def getSecret[R](name: String)(implicit d: Decoder[R]): F[Either[VaultError, KVGetResult[R]]]
 
-  def createOauthSecret(name: String, req: CreateSecretRequest): F[Either[VaultError, Unit]]
-
-  def getOauthSecret(name: String): F[Either[VaultError, KVOauthGetResult]]
+  def createOauthServer(pluginPath: String, name: String, req: CreateOauthServerRequest): F[Either[VaultError, Unit]]
 
   def createUser(username: String, password: String, policies: List[String]): F[Either[VaultError, Unit]]
 

@@ -101,6 +101,14 @@ object VaultUtils {
         "VAULT_CACERT" -> (caPath / "cert.pem").toString
       )
 
+      // Symlink ca cert to system cert store since vault plugins only check against public root certs in /etc/ssl/certs
+      // This directory is the same on basically all Linux distros and is hardcoded into golang
+      val radixCertSymlink = os.root / "etc" / "ssl" / "certs" / "radix.pem"
+      if (
+        System.getProperty("os.name").toLowerCase.contains("linux") &&
+        !os.exists(radixCertSymlink, followLinks = false)
+      ) os.symlink(radixCertSymlink, caPath / "combined.pem")
+
       val vaultPath = RadPath.runtime / "timberland" / "vault"
       val vault = vaultPath / "vault"
 

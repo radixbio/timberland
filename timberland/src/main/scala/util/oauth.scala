@@ -1,7 +1,7 @@
 package com.radix.timberland.util
 
 import cats.data.EitherT
-import cats.effect.{Blocker, ContextShift, IO, Timer}
+import cats.effect.{Blocker, ContextShift, IO, Sync, Timer}
 import com.radix.utils.helm.http4s.vault.{Vault => VaultSession}
 import com.radix.utils.helm.vault._
 import com.typesafe.config.{Config, ConfigFactory}
@@ -15,6 +15,8 @@ import com.radix.util.sheets.interp.GoogleOAuth
 import gsheets4s.model.Credentials
 import org.http4s.Uri
 
+import java.nio.file.{Files, Path}
+import java.security.MessageDigest
 import scala.concurrent.ExecutionContext
 
 object OAuthController {
@@ -78,8 +80,11 @@ object OAuthController {
     for {
       _ <- IO.sleep(2.seconds)
 
+      pluginBinaryName = "vault-plugin-secrets-oauthapp"
+      pluginBinary = RadPath.persistentDir.toNIO.resolve("vault").resolve(pluginBinaryName)
+      pluginHash <- Util.hashFile[IO](pluginBinary)
       registerPluginRequest = RegisterPluginRequest(
-        "aece93ff2302b7ee5f90eebfbe8fe8296f1ce18f084c09823dbb3d3f0050b107",
+        pluginHash,
         "vault-plugin-secrets-oauthapp"
       )
       _ <- vaultSession.registerPlugin(Secret(), "oauth2", registerPluginRequest)
@@ -87,15 +92,12 @@ object OAuthController {
       enableEngineRequest = EnableSecretsEngine("oauth2")
       _ <- vaultSession.enableSecretsEngine("oauth2/google", enableEngineRequest)
 
-      oauthConfigRequest = CreateSecretRequest(
-        data = RegisterProvider(
-          "google",
-          sys.env.getOrElse("GOOGLE_OAUTH_ID", ""),
-          sys.env.getOrElse("GOOGLE_OAUTH_SECRET", "")
-        ).asJson,
-        cas = None
+      oauthConfigRequest = CreateOauthServerRequest(
+        client_id = sys.env.getOrElse("GOOGLE_OAUTH_ID", ""),
+        client_secrets = sys.env.get("GOOGLE_OAUTH_SECRET").map(List(_)).getOrElse(Nil),
+        provider = "google",
       )
-      _ <- vaultSession.createOauthSecret("oauth2/google/config", oauthConfigRequest)
+      _ <- vaultSession.createOauthServer("oauth2/google", "google", oauthConfigRequest)
       _ <- IO(scribe.info("OAuth plugin installed"))
     } yield ()
   }

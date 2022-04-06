@@ -18,7 +18,8 @@ case object featureFlags {
   val HOOKS = Map(
     "google-oauth" -> oauthConfig,
     "okta-auth" -> oktaAuthConfig,
-    "ensure-supported" -> ensureSupported
+    "messaging" -> messagingConfig,
+    "ensure-supported" -> ensureSupported,
   )
 
   // A list of flags that should be enabled by default

@@ -84,6 +84,7 @@ timberland_core_srcs = [
     "src/main/scala/flags/hooks/ensureSupported.scala",
     "src/main/scala/flags/hooks/FlagHook.scala",
     "src/main/scala/flags/hooks/oauthConfig.scala",
+    "src/main/scala/flags/hooks/messagingConfig.scala",
     "src/main/scala/runtime/services.scala",
     "src/main/scala/util/VaultStarter.scala",
     "src/main/scala/util/oauth.scala",
