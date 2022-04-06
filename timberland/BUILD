@@ -788,7 +788,7 @@ pkg_tar(
         "//device_drivers/watlow96_thermal:watlow96_thermal-terraform",
         "//monolith/mega_service:mega-mega-uservice-terraform",
         "//runtime:runtime-terraform",
-        "//utils/api:web-interface",
+        "//utils/api:web-interface-terraform",
         "//utils/bunny_uservice:bunny_uservice-terraform",
         "//utils/healthcheck:healthcheck-terraform",
         "//utils/ipfs:ipfs-terraform",
