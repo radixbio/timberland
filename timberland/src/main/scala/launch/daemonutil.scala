@@ -64,7 +64,8 @@ package object daemonutil {
    *         AllDaemonsStarted
    */
   def runTerraform(
-    namespace: Option[String] = None
+    namespace: Option[String] = None,
+    shouldStop: Boolean = false
   )(implicit
     serviceAddrs: ServiceAddrs = ServiceAddrs(),
     tokens: AuthTokens
@@ -82,7 +83,8 @@ package object daemonutil {
         s"-var='vault_address=${serviceAddrs.vaultAddr}' " +
         s"-var-file='${RadPath.runtime / "config" / "flags.json"}' "
 
-    val apply = for {
+    val cmdName = if (shouldStop) "destroy" else "apply"
+    val cmd = for {
       configFiles <- IO(os.list(ConstPaths.TF_CONFIG_DIR))
       moduleDefArgs = configFiles.map(path => s"-var-file='$path' ").mkString
       tlsVars = terraformTLSVars().mkString(" ")
@@ -90,7 +92,7 @@ package object daemonutil {
       applyCommand = Seq(
         "bash",
         "-c",
-        s"${ConstPaths.execDir / "terraform"} apply -no-color -auto-approve " + variables + configStr
+        s"${ConstPaths.execDir / "terraform"} $cmdName -no-color -auto-approve " + variables + configStr
       )
       applyExitCode <- IO(
         if (!System.getProperty("os.name").toLowerCase.contains("windows"))
@@ -106,7 +108,8 @@ package object daemonutil {
       )
     } yield applyExitCode
 
-    featureFlags.runHooks *> initTerraform(Some(tokens.consulNomadToken)) *> apply
+    val preCmds = if (shouldStop) IO.unit else featureFlags.runHooks *> initTerraform(Some(tokens.consulNomadToken))
+    preCmds *> cmd
   }
 
   /**
@@ -154,12 +157,5 @@ package object daemonutil {
             )
       )
     } yield ()
-  }
-
-  def stopTerraform(): IO[Int] = {
-    val cmd = Seq("bash", "-c", s"${ConstPaths.execDir / "terraform"} destroy -auto-approve")
-    scribe.trace(s"Destroy command ${cmd.mkString(" ")}")
-    val ret = Util.proc(cmd).call(stdout = os.Inherit, stderr = os.Inherit, cwd = ConstPaths.workingDir)
-    IO(ret.exitCode)
   }
 }

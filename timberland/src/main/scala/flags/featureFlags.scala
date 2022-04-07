@@ -9,6 +9,8 @@ import com.radix.timberland.util.RadPath
 import io.circe.parser._
 import io.circe.syntax._
 
+import scala.io.AnsiColor
+
 case object featureFlags {
 
   // A list of flags that will be passed as terraform input vars to each module
@@ -55,6 +57,14 @@ case object featureFlags {
       }
       .merge
   } yield flagMap
+
+  def query: IO[Unit] = flags.map { flagMap =>
+    flagMap.toList
+      .foreach { case (flag, enabled) =>
+        val enableStr = if (enabled) AnsiColor.GREEN_B + "ENABLED" else AnsiColor.RED_B + "DISABLED"
+        println(s"$flag: $enableStr${AnsiColor.RESET}")
+      }
+  }
 
   // Sets the passed flags to either true or false depending on the $enable variable and writes the new file to disk
   def setFlags(flagNames: List[String], enable: Boolean): IO[Unit] = for {

@@ -160,9 +160,12 @@ object runner {
           sys.exit(0)
 
         case Stop =>
-          (daemonutil.stopTerraform() *>
-            Services.stopServices() *>
-            IO(scribe.info("Stopped."))).unsafeRunSync
+          (for {
+            tokens <- auth.getAuthTokens()
+            _ <- daemonutil.runTerraform(shouldStop = true)(tokens = tokens)
+            _ <- Services.stopServices()
+            _ <- IO(scribe.info("Stopped."))
+          } yield ()).unsafeRunSync
           sys.exit(0)
 
         case dns: DNS =>
@@ -198,7 +201,7 @@ object runner {
             cmdEval(Start(remoteAddress = remoteAddress, username = username, password = password))
           }
 
-        case FlagQuery => ???
+        case FlagQuery => featureFlags.query.unsafeRunSync()
 
         case AddUser(name, policies) =>
           if (!os.exists(ConstPaths.bootstrapComplete)) {
