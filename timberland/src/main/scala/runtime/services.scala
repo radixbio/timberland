@@ -28,58 +28,40 @@ import os.ProcessInput
 
 trait ServiceControl {
   def restartConsul(): IO[Util.ProcOut] = ???
-  def restartConsulTemplate(): IO[Util.ProcOut] = ???
-  def startConsulTemplate(): IO[Util.ProcOut] = ???
   def restartNomad(): IO[Util.ProcOut] = ???
   def restartTimberlandSvc(): IO[Util.ProcOut] = ???
   def restartVault(): IO[Util.ProcOut] = ???
   def refreshConsul()(implicit timer: Timer[IO]): IO[Util.ProcOut] = ???
   def refreshVault()(implicit timer: Timer[IO]): IO[Util.ProcOut] = ???
   def stopConsul(): IO[Util.ProcOut] = ???
-  def stopConsulTemplate(): IO[Util.ProcOut] = ???
   def stopNomad(): IO[Util.ProcOut] = ???
   def stopTimberlandSvc(): IO[Util.ProcOut] = ???
   def stopVault(): IO[Util.ProcOut] = ???
-  def configureConsul(parameters: String): IO[Unit] = ???
-  def appendParametersConsul(parameters: String): IO[Unit] = ???
-  def configureConsulTemplate(parameters: String): IO[Unit] = ??? // this throws an error on linux
-  def configureConsulTemplate(consulToken: String, vaultToken: String, vaultAddress: Option[String]): IO[Unit] = ???
-  def configureNomad(parameters: String, vaultToken: String, consulToken: String): IO[Unit] = ???
+  def configureConsul(parameters: List[String]): IO[Unit] = ???
+  def runConsulTemplate(consulToken: String, vaultToken: String, vaultAddress: Option[String]): IO[Unit] = ???
+  def configureNomad(parameters: List[String], vaultToken: String, consulToken: String): IO[Unit] = ???
   def configureTimberlandSvc(): IO[Unit] = ???
   def configureVault(parameters: String): IO[Unit] = ???
 }
 
 class LinuxServiceControl extends ServiceControl {
   override def restartConsul(): IO[Util.ProcOut] = Util.exec("systemctl restart consul")
-  override def restartConsulTemplate(): IO[Util.ProcOut] =
-    Util.exec("killall -9 consul-template") *> // Sometimes consul-template hangs for a minute when restarted
-      Util.exec("systemctl restart consul-template")
   override def restartNomad(): IO[Util.ProcOut] = Util.exec("systemctl restart nomad")
   override def restartTimberlandSvc(): IO[Util.ProcOut] = Util.exec("systemctl restart timberland-svc")
   override def restartVault(): IO[Util.ProcOut] = Util.exec("systemctl restart vault")
   override def stopConsul(): IO[Util.ProcOut] = Util.exec("systemctl stop consul")
-  override def stopConsulTemplate(): IO[Util.ProcOut] = Util.exec("systemctl stop consul-connect")
   override def stopNomad(): IO[Util.ProcOut] = Util.exec("systemctl stop nomad")
   override def stopVault(): IO[Util.ProcOut] = Util.exec("systemctl stop vault")
   override def stopTimberlandSvc(): IO[Util.ProcOut] = Util.exec("systemctl stop timberland-svc")
 
-  override def configureConsul(parameters: String): IO[Unit] =
+  override def configureConsul(parameters: List[String]): IO[Unit] =
     for {
-      consulArgStr <- IO.pure(s"CONSUL_CMD_ARGS=$parameters")
+      consulArgStr <- IO.pure(s"CONSUL_CMD_ARGS=${parameters.mkString(" ")}")
       envFilePath = Paths.get(
         (RadPath.persistentDir / "consul" / "consul.env.conf").toString()
       ) // TODO make configurable
       _ <- IO(os.write.over(os.Path(envFilePath), consulArgStr))
     } yield ()
-
-  override def appendParametersConsul(parameters: String): IO[Unit] = {
-    val consulEnvFilePath = RadPath.runtime / "timberland" / "consul" / "consul.env.conf"
-    for {
-      consulArgStr <- IO(os.read(consulEnvFilePath))
-      _ <- IO(os.write.over(consulEnvFilePath, s"$consulArgStr $parameters"))
-      _ <- serviceController.restartConsul()
-    } yield ()
-  }
 
   //Util.exec("systemctl reload consul")
   override def refreshConsul()(implicit timer: Timer[IO]): IO[Util.ProcOut] =
@@ -101,32 +83,26 @@ class LinuxServiceControl extends ServiceControl {
       _ = ConsulVaultSSLContext.refreshCerts()
     } yield hupProcOut
 
-  override def configureConsulTemplate(
+  override def runConsulTemplate(
     consulToken: String,
     vaultToken: String,
     vaultAddress: Option[String]
-  ): IO[Unit] = {
-    val envFilePath = RadPath.persistentDir / "consul-template" / "consul-template.env.conf"
-    for {
-      envars <- IO {
-        s"""CONSUL_TEMPLATE_CMD_ARGS=-config=${(RadPath.persistentDir / "consul-template" / "config.hcl")
-          .toString()} ${vaultAddress
-          .map(addr => s"-vault-addr=https://$addr:8200")
-          .getOrElse("")}
-           |CONSUL_TOKEN=$consulToken
-           |VAULT_TOKEN=$vaultToken
-           |""".stripMargin
-      }
-      _ <- IO(os.write.over(envFilePath, envars))
-    } yield ()
-  }
+  ): IO[Unit] =
+    Util.execArr(
+      List(
+        (RadPath.persistentDir / "consul-template" / "consul-template").toString, "-once",
+        "-config", (RadPath.persistentDir / "consul-template" / "config.hcl").toString,
+        "-vault-token", vaultToken,
+        "-consul-token", consulToken,
+      ) ++ vaultAddress.map(addr => List("-vault-addr", s"https://$addr:8200")).getOrElse(List.empty),
+      spawn = true
+    ) *> IO.unit
 
   override def configureTimberlandSvc(): IO[Unit] = IO.unit
 
-  override def startConsulTemplate(): IO[Util.ProcOut] = restartConsulTemplate()
-  override def configureNomad(parameters: String, vaultToken: String, consulToken: String): IO[Unit] =
+  override def configureNomad(parameters: List[String], vaultToken: String, consulToken: String): IO[Unit] =
     for {
-      args <- IO(s"""NOMAD_CMD_ARGS=$parameters -config=${RadPath.persistentDir}/nomad/config -consul-token=$consulToken
+      args <- IO(s"""NOMAD_CMD_ARGS=${parameters.mkString(" ")} -config=${RadPath.persistentDir}/nomad/config -consul-token=$consulToken
                              |VAULT_TOKEN=$vaultToken
                              |PATH=${sys.env("PATH")}:${(RadPath.persistentDir / "consul").toString()}
                              |""".stripMargin)
@@ -155,57 +131,36 @@ class LinuxServiceControl extends ServiceControl {
 
 class WindowsServiceControl extends ServiceControl {
   implicit val timer: Timer[IO] = IO.timer(global)
-  override def configureConsul(parameters: String): IO[Unit] =
-    Util.execArr(
-      "sc.exe create consul binpath="
-        .split(" ") :+ s"${(RadPath.persistentDir / "consul" / "consul.exe").toString}"
-    ) *>
-      Util.execArr(
-        "sc.exe config consul"
-          .split(
-            " "
-          ) :+ "DisplayName=" :+ "Radix: Consul for Timberland" :+ "binPath=" :+ s"""\"${(RadPath.persistentDir / "consul" / "consul.exe").toString} agent $parameters -log-file ${(RadPath.persistentDir / "consul" / "consul.log").toString}\""""
-      ) *> IO.unit
+  private val nssm = RadPath.persistentDir / "nssm.exe"
 
-  override def appendParametersConsul(parameters: String): IO[Unit] =
-    for {
-      commandOut <- Util.exec("sc.exe qc consul 5000")
-      origParameters <- IO(
-        commandOut.stdout.split("\n").filter(line => line.contains("BINARY_PATH_NAME")).head.split(" : ").tail.head
-      )
-      _ <- configureConsul(s"$origParameters $parameters")
-    } yield ()
+  override def configureConsul(parameters: List[String]): IO[Unit] =
+    Util.execArr(List(nssm.toString, "remove", "consul", "confirm")) *>
+      Util.execArr((List(
+        nssm.toString, "install", "consul",
+        (RadPath.persistentDir / "consul" / "consul.exe").toString, "agent",
+        "-log-file", (RadPath.persistentDir / "consul" / "consul.log").toString,
+      ) ++ parameters).map(_.replaceAll("\"", "\\\\\""))) *> IO.unit
 
-  override def configureConsulTemplate(
+  override def runConsulTemplate(
     consulToken: String,
     vaultToken: String,
     vaultAddress: Option[String]
   ): IO[Unit] =
     Util.execArr(
-      "sc.exe create consul-template binpath="
-        .split(" ") :+ s"${(RadPath.persistentDir / "consul-template" / "consul-template.exe").toString}"
-    ) *>
-      Util.execArr(
-        "sc.exe config consul-template"
-          .split(
-            " "
-          ) :+ "DisplayName=" :+ "Radix: Consul-Template for Timberland" :+ "binPath=" :+ s"${(RadPath.persistentDir / "consul-template" / "consul-template.exe").toString} -config=${(RadPath.persistentDir / "consul-template" / "config-windows.hcl")
-          .toString()} -vault-token=$vaultToken -consul-token=$consulToken -once ${vaultAddress
-          .map(addr => s"-vault-addr=https://$addr:8200")
-          .getOrElse("")}"
-      ) *> IO.unit
+      List(
+        (RadPath.persistentDir / "consul-template" / "consul-template.exe").toString, "-once",
+        "-config", (RadPath.persistentDir / "consul-template" / "config-windows.hcl").toString,
+        "-vault-token", vaultToken,
+        "-consul-token", consulToken,
+      ) ++ vaultAddress.map(addr => List("-vault-addr", s"https://$addr:8200")).getOrElse(List.empty),
+      spawn = true
+    ) *> IO.unit
 
   override def restartConsul(): IO[Util.ProcOut] = stopConsul *> startConsul
 
-  override def stopConsul(): IO[Util.ProcOut] = Util.exec("sc.exe stop consul") *> flushDNS
+  override def stopConsul(): IO[Util.ProcOut] = Util.exec(s"$nssm stop consul") *> flushDNS
 
-  def startConsul(): IO[Util.ProcOut] = flushDNS *> Util.exec("sc.exe start consul")
-
-  override def restartConsulTemplate(): IO[Util.ProcOut] = flushDNS *> stopConsulTemplate() *> startConsulTemplate()
-
-  override def startConsulTemplate(): IO[Util.ProcOut] =
-    flushDNS *>
-      Util.exec("sc.exe start consul-template") *> refreshConsul
+  def startConsul(): IO[Util.ProcOut] = flushDNS *> Util.exec(s"$nssm start consul")
 
   def flushDNS(): IO[Util.ProcOut] = Util.exec("ipconfig.exe /flushdns")
 
@@ -220,29 +175,24 @@ class WindowsServiceControl extends ServiceControl {
       _ <- IO(ConsulVaultSSLContext.refreshCerts())
     } yield procOut
 
-  override def configureNomad(parameters: String, vaultToken: String, consulToken: String): IO[Unit] =
+  override def configureNomad(parameters: List[String], vaultToken: String, consulToken: String): IO[Unit] =
     IO(
       os.copy.over(
         RadPath.runtime / "timberland" / "nomad" / "nomad-windows.hcl",
         RadPath.runtime / "timberland" / "nomad" / "config" / "nomad.hcl"
       )
     ) *>
-      Util.execArr(
-        "sc.exe create nomad binpath="
-          .split(" ") :+ s"${(RadPath.persistentDir / "nomad" / "nomad.exe").toString}"
-      ) *>
-      Util.execArr(
-        "sc.exe config nomad"
-          .split(
-            " "
-          ) :+ "DisplayName=" :+ "Radix: Nomad for Timberland" :+ "binPath=" :+ s"${(RadPath.persistentDir / "nomad" / "nomad.exe").toString} agent $parameters  -config=${(RadPath.persistentDir / "nomad" / "config").toString} -vault-token=$vaultToken -consul-token=$consulToken -path=${sys
-          .env("PATH")}:${(RadPath.persistentDir / "consul").toString()}:${RadPath.cni
-          .toString()}:${sys.env.get("JAVA_HOME").map(os.Path(_) / "bin").getOrElse("").toString}"
-        // include Consul, CNI, and JVM paths so Nomad will be able to find everything it needs
-      ) *> IO.unit
-  override def stopNomad(): IO[Util.ProcOut] = Util.exec("sc.exe stop nomad")
+      Util.execArr(List(nssm.toString, "remove", "nomad", "confirm")) *>
+      Util.execArr((List(
+        nssm.toString, "install", "nomad",
+        (RadPath.persistentDir / "nomad" / "nomad.exe").toString, "agent",
+        s"""-config="${RadPath.persistentDir / "nomad" / "config"}"""",
+        s"""-vault-token="$vaultToken"""",
+        s"""-consul-token="$consulToken""""
+      ) ++ parameters).map(_.replaceAll("\"", "\\\\\""))) *> IO.unit
+  override def stopNomad(): IO[Util.ProcOut] = Util.exec(s"$nssm stop nomad")
 
-  def startNomad(): IO[Util.ProcOut] = Util.exec("sc.exe start nomad")
+  def startNomad(): IO[Util.ProcOut] = Util.exec(s"$nssm start nomad")
   override def restartNomad(): IO[Util.ProcOut] = stopNomad *> startNomad
 
   override def configureTimberlandSvc(): IO[Unit] = {
@@ -252,22 +202,17 @@ class WindowsServiceControl extends ServiceControl {
         sys.exit(1)
       }
     )
-    val javaLoc = (os.Path(javaHome) / "bin" / "java.exe").toString()
+    val javaLoc = (os.Path(javaHome) / "bin" / "java.exe").toString
     val jarLoc = RadPath.persistentDir / "exec" / "timberland-svc-bin_deploy.jar"
-    Util.execArr(
-      "sc.exe create timberland-svc binpath="
-        .split(" ") :+ javaLoc
-    ) *>
-      Util.execArr(
-        "sc.exe config timberland-svc"
-          .split(
-            " "
-          ) :+ "DisplayName=" :+ "Radix: Timberland Service" :+ "binPath=" :+ s"""\"$javaLoc -jar $jarLoc\""""
-      ) *> IO.unit
+    Util.execArr(List(nssm.toString, "remove", "timberland-svc", "confirm")) *>
+      Util.execArr(List(
+        nssm.toString, "install", "timberland-svc",
+        javaLoc, "-jar", jarLoc.toString
+      )) *> IO.unit
   }
 
-  def startTimberlandSvc(): IO[Util.ProcOut] = Util.exec("sc.exe start timberland-svc")
-  override def stopTimberlandSvc(): IO[Util.ProcOut] = Util.exec("sc.exe stop timberland-svc")
+  def startTimberlandSvc(): IO[Util.ProcOut] = Util.exec(s"$nssm start timberland-svc")
+  override def stopTimberlandSvc(): IO[Util.ProcOut] = Util.exec(s"$nssm stop timberland-svc")
   override def restartTimberlandSvc(): IO[Util.ProcOut] = stopTimberlandSvc *> startTimberlandSvc
 }
 class DarwinServiceControl extends ServiceControl {}
@@ -354,13 +299,12 @@ object Services {
       gossipKey <- auth.getGossipKey(vaultToken, leaderNodeO.getOrElse("127.0.0.1"))
 
       // START CONSUL TEMPLATE
-      _ <- serviceController.configureConsulTemplate(consulToken, vaultToken, leaderNodeO)
-      _ <- serviceController.startConsulTemplate()
+      _ <- serviceController.runConsulTemplate(consulToken, vaultToken, leaderNodeO)
       _ <- consulTemplateReplacementCerts.map(Util.waitForPathToExist(_, 30.seconds)).parSequence
       _ <-
         if (!remoteJoin) for {
           _ <- serviceController.restartVault()
-          _ <- serviceController.restartConsulTemplate()
+          _ <- serviceController.runConsulTemplate(consulToken, vaultToken, leaderNodeO)
           _ <- IO.sleep(5.seconds)
           _ = ConsulVaultSSLContext.refreshCerts()
           _ <- (new VaultStarter)
@@ -378,7 +322,8 @@ object Services {
       _ <- if (initialSetup) addConsulIntention(consulToken) else IO.unit
 
       // START NOMAD
-      _ <- setupNomad(finalBindAddr, gossipKey, leaderNodeO, bootstrapExpect, vaultToken, consulToken, serverJoin)
+      _ <- setupNomad("0.0.0.0", gossipKey, leaderNodeO, bootstrapExpect, vaultToken, consulToken, serverJoin)
+      _ <- Util.waitForPortUp(4646, 30.seconds)
       consulNomadToken <-
         if (initialSetup && !remoteJoin) {
           auth.setupNomadMasterToken(RadPath.persistentDir, consulToken)
@@ -390,9 +335,6 @@ object Services {
       _ <- if (initialSetup) addNomadNamespace(consulNomadToken) else IO.unit
       _ <-
         if (!remoteJoin) auth.storeTokensInVault(ACLTokens(masterToken = consulNomadToken, actorToken = actorToken))
-        else IO.unit
-      _ <-
-        if (serverJoin) serviceController.appendParametersConsul("-server") // add -server to consul invocation
         else IO.unit
       _ <- IO(os.write.over(RadPath.persistentDir / ".bootstrap-complete", "\n"))
       _ <- IO(if (os.exists(intermediateAclTokenFile)) {
@@ -429,29 +371,27 @@ object Services {
     bootstrapExpect: Int,
     serverJoin: Boolean = false
   ): IO[Unit] = {
-    val baseArgs =
-      s"""-bind=$bindAddr -advertise=$bindAddr -client=\\\"127.0.0.1 $bindAddr\\\" """ +
-        s"""-config-dir=${(RadPath.persistentDir / "consul" / "config").toString} """ +
-        s"""-encrypt=$gossipKey"""
+    val baseArgs = List(
+      s"""-bind="$bindAddr"""", s"""-advertise="$bindAddr"""", s"""-client="127.0.0.1 $bindAddr"""",
+      s"""-config-dir="${(RadPath.persistentDir / "consul" / "config").toString}"""",
+      s"""-encrypt="$gossipKey""""
+    )
     val clientJoin = leaderNodeO.isDefined && !serverJoin
     val remoteJoin = clientJoin || serverJoin
 
     val baseArgsWithSeeds = leaderNodeO match {
       case Some(seedString) =>
-        seedString
+        baseArgs ++ seedString
           .split(',')
           .map { host =>
-            s"-retry-join=$host"
-          }
-          .foldLeft(baseArgs) { (currentArgs, arg) =>
-            currentArgs + ' ' + arg
+            s"""-retry-join="$host""""
           }
 
       case None => baseArgs
     }
 
     val baseArgsWithSeedsAndServer = remoteJoin match {
-      case false => s"$baseArgsWithSeeds -bootstrap-expect=$bootstrapExpect -server"
+      case false => baseArgsWithSeeds ++ List(s"""-bootstrap-expect="$bootstrapExpect"""", "-server")
       case true  => baseArgsWithSeeds
     }
 
@@ -478,25 +418,21 @@ object Services {
   ): IO[Unit] = {
     val clientJoin = leaderNodeO.isDefined & !serverJoin
     val baseArgs = (clientJoin, serverJoin) match {
-      case (false, false) => s"-bootstrap-expect=$bootstrapExpect -server"
-      case (true, _)      => "-consul-client-auto-join"
-      case (false, true)  => s"-server"
+      case (false, false) => List(s"""-bootstrap-expect="$bootstrapExpect"""", "-server")
+      case (true, _)      => List("-consul-client-auto-join")
+      case (false, true)  => List(s"-server")
     }
 
     val baseArgsWithSeeds = leaderNodeO match {
       case Some(seedString) =>
-        seedString
+        baseArgs ++ seedString
           .split(',')
           .map { host =>
-            s"-retry-join=$host"
+            s"""-retry-join="$host""""
           }
-          .foldLeft(baseArgs) { (currentArgs, arg) =>
-            currentArgs + ' ' + arg
-          }
-
       case None => baseArgs
     }
-    val parameters: String = s"$baseArgsWithSeeds -bind=$bindAddr -encrypt=$gossipKey"
+    val parameters = baseArgsWithSeeds ++ List(s"""-bind="$bindAddr"""", s"""-encrypt="$gossipKey"""")
     for {
       configureNomad <- serviceController.configureNomad(parameters, vaultToken, consulToken)
       procOut <- serviceController.restartNomad()
@@ -529,7 +465,7 @@ object Services {
       namespace = namespaceRaw.stripSuffix("\n")
       req = POST(
         Map("Name" -> namespace).asJson.toString(),
-        Uri.unsafeFromString("https://nomad.service.consul:4646/v1/namespace/" + namespace),
+        Uri.unsafeFromString("https://127.0.0.1:4646/v1/namespace/" + namespace),
         Header("X-Nomad-Token", aclToken)
       )
       status <- ConsulVaultSSLContext.blaze.use(_.status(req))
@@ -542,7 +478,7 @@ object Services {
   private def addConsulIntention(consulToken: String): IO[Unit] = {
     val req = POST(
       Map("SourceName" -> "*", "DestinationName" -> "*", "Action" -> "allow").asJson.toString(),
-      uri"https://consul.service.consul:8501/v1/connect/intentions",
+      uri"http://consul.service.consul:8500/v1/connect/intentions",
       Header("X-Consul-Token", consulToken)
     )
 
@@ -609,7 +545,6 @@ object Services {
     }
 
   def stopServices(): IO[Unit] =
-    serviceController.stopNomad() *> serviceController.stopConsulTemplate() *> serviceController
-      .stopVault() *> serviceController.stopNomad() *> IO.unit
+    serviceController.stopNomad() *> serviceController.stopVault() *> serviceController.stopNomad() *> IO.unit
 
 }

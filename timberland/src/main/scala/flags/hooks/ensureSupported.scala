@@ -22,8 +22,8 @@ object ensureSupported extends FlagHook {
 
   val checks: List[IO[Unit]] = List(
     // ensure JDK 11
-    if (!jreVersion.startsWith("11.")) {
-      IO.raiseError(new RuntimeException("JRE 11 is the only supported runtime environment."))
+    if (!jreVersion.startsWith("11.") && !jreVersion.startsWith("1.8.")) {
+      IO.raiseError(new RuntimeException("JRE 8 or 11 are the only supported runtime environments."))
     } else {
       IO.unit
     },

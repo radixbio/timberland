@@ -10,20 +10,17 @@ object ConsulVaultSSLContext extends SSLContextBase {
   private val caPath = sys.env.get("TLS_CA").map(os.Path(_)).getOrElse(certsPath / "ca" / "cert.pem")
   private val certPath = sys.env.get("TLS_CERT").map(os.Path(_)).getOrElse(certsPath / "cli" / "cert.pem")
   private val keyPath = sys.env.get("TLS_KEY").map(os.Path(_)).getOrElse(certsPath / "cli" / "key.pem")
+  private val isLinux: Boolean = System.getProperty("os.name").toLowerCase.contains("linux")
 
-  implicit def blaze: Resource[IO, Client[IO]] = blazeOption.getOrElse {
-    refreshCerts()
-    blazeOption.get
-  }
-
-  implicit def Fblaze[F[_]: ConcurrentEffect]: Resource[F, Client[F]] = {
-    var fBlazeOpt: Option[Resource[F, Client[F]]] = None
-
-    fBlazeOpt.getOrElse {
-      fBlazeOpt = Some(makeBlaze[F](None, None, None))
-      fBlazeOpt.get
+  implicit def blaze: Resource[IO, Client[IO]] = if (isLinux) {
+    blazeOption.getOrElse {
+      refreshCerts()
+      blazeOption.get
     }
-  }
+  } else TrustEveryoneSSLContext.insecureBlaze
+
+  implicit def Fblaze[F[_]: ConcurrentEffect]: Resource[F, Client[F]] =
+    if (isLinux) makeBlaze[F](None, None, None) else TrustEveryoneSSLContext.Fblaze[F]
 
   protected var blazeOption: Option[Resource[IO, Client[IO]]] = None
   def refreshCerts(

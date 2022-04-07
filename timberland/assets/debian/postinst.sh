@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 systemctl daemon-reload
-systemctl enable nomad consul consul-template vault timberland-svc timberland-after-startup
+systemctl enable nomad consul vault timberland-svc timberland-after-startup
 
 sysctl -w vm.max_map_count=262144
 

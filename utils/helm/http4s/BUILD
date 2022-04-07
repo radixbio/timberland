@@ -28,6 +28,7 @@ scala_library(
     deps = [
         "//utils/helm/helm:helm-core-lib",
         "//utils/helm/helm:helm-interfaces",
+        "//utils/tls:consul-tls",
         "@third_party//3rdparty/jvm/co/fs2:fs2_core",
         "@third_party//3rdparty/jvm/co/fs2:fs2_io",
         "@third_party//3rdparty/jvm/co/fs2:fs2_reactive_streams",

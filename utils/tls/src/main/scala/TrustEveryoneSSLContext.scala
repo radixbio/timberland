@@ -1,8 +1,9 @@
 package com.radix.utils.tls
 
 import java.security.cert.X509Certificate
+import cats.effect.{ConcurrentEffect, ContextShift, IO, Resource}
+import com.radix.utils.tls.ConsulVaultSSLContext.makeBlaze
 
-import cats.effect.{ContextShift, IO, Resource}
 import javax.net.ssl.{HostnameVerifier, SSLContext, SSLSession, X509TrustManager}
 import org.http4s.client.Client
 import org.http4s.client.blaze.BlazeClientBuilder
@@ -28,8 +29,12 @@ object TrustEveryoneSSLContext {
   val sslContext: SSLContext = SSLContext.getInstance("SSL")
   sslContext.init(null, Array(TrustAll), new java.security.SecureRandom())
 
-  val insecureBlaze: Resource[IO, Client[IO]] = BlazeClientBuilder[IO](global)
-    .withCheckEndpointAuthentication(false)
-    .withSslContext(sslContext)
-    .resource
+  implicit def Fblaze[F[_]: ConcurrentEffect]: Resource[F, Client[F]] = {
+    BlazeClientBuilder[F](global)
+      .withCheckEndpointAuthentication(false)
+      .withSslContext(sslContext)
+      .resource
+  }
+
+  val insecureBlaze: Resource[IO, Client[IO]] = Fblaze[IO]
 }

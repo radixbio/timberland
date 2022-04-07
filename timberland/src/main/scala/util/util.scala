@@ -24,6 +24,8 @@ object Util {
   private[this] implicit val timer: Timer[IO] = IO.timer(global)
   private[this] implicit val cs: ContextShift[IO] = IO.contextShift(global)
 
+  val isLinux: Boolean = System.getProperty("os.name").toLowerCase.contains("linux")
+
   /**
    * Let a specified function run for a specified period of time before interrupting it and raising an error. This
    * function sets up the timeoutTo function.
@@ -127,9 +129,12 @@ object Util {
     timeout(queryConsul, timeoutDuration)
   }
 
+  /**
+   * This function should only be used during the bootstrap process since it doesn't take ServiceAddrs into account
+   */
   def waitForNomad(timeoutDuration: FiniteDuration): IO[Unit] = {
     scribe.debug(s"waiting for Nomad (@ 4647) to be leader, a max of $timeoutDuration.")
-    val requestIO = GET(uri"https://nomad.service.consul:4646/v1/status/leader")
+    val requestIO = GET(uri"https://127.0.0.1:4646/v1/status/leader")
 
     def queryNomad: IO[Unit] = requestIO.map { request =>
       blaze
@@ -143,18 +148,23 @@ object Util {
   }
 
   def waitForSystemdString(serviceName: String, stringToFind: String, timeoutDuration: FiniteDuration): IO[Unit] = {
-    def queryLoop(): IO[Boolean] =
+    def queryLoop: IO[Boolean] =
       for {
         timestampOutput <- exec(s"systemctl show -p ActiveEnterTimestamp $serviceName").map(_.stdout)
-        timestamp = timestampOutput.split(" ").slice(1, 3).mkString(" ")
-        journalctlLog <- execArr(List("journalctl", "-e", "-u", serviceName, "--since", timestamp))
+        timestamp = timestampOutput.split(' ').slice(1, 3).mkString(" ")
+        journalctlLog <- if (timestamp.nonEmpty) {
+          execArr(List("journalctl", "-e", "-u", serviceName, "--since", timestamp))
+        } else {
+          execArr(List("journalctl", "-u", serviceName))
+        }
         lookupResult <- IO(journalctlLog.stdout.contains(stringToFind))
         _ <- lookupResult match {
           case false => IO.sleep(2.seconds) *> queryLoop
           case true  => IO.pure(true)
         }
       } yield lookupResult
-    timeout(queryLoop, timeoutDuration) *> IO.unit
+
+    if (isLinux) timeout(queryLoop, timeoutDuration) *> IO.unit else IO.sleep(timeoutDuration)
   }
 
   def waitForPathToExist(checkPath: os.Path, timeoutDuration: FiniteDuration): IO[Unit] = {
@@ -196,20 +206,24 @@ object Util {
   def exec(command: String, cwd: os.Path = os.root, env: Map[String, String] = Map.empty): IO[ProcOut] =
     execArr(command.split(" "), cwd, env)
 
-  def execArr(command: Seq[String], cwd: os.Path = os.root, env: Map[String, String] = Map.empty): IO[ProcOut] = IO {
+  def execArr(command: Seq[String], cwd: os.Path = os.root, env: Map[String, String] = Map.empty, spawn: Boolean = false): IO[ProcOut] = IO {
     scribe.debug(s"Calling: $command")
-    val res = os
-      .proc(command)
-      .call(cwd = cwd, env = env, check = false, stdout = os.Pipe, stderr = os.Pipe)
-    val stdout: String = res.out.text
-    val stderr: String = res.err.text
-    val output = ProcOut(res.exitCode, stdout, stderr)
-    scribe.log(
-      if (res.exitCode == 0) Level.Trace else Level.Debug,
-      s" got result code: ${res.exitCode}, stderr: $stderr (${stderr.length}), stdout: $stdout (${stdout.length})",
-      None
-    )
-    output
+    val cmd = os.proc(command)
+    if (spawn) {
+      cmd.spawn(cwd = cwd, env = env, stdout = scribePipe(), stderr = scribePipe())
+      ProcOut(0, "", "")
+    } else {
+      val res = cmd.call(cwd = cwd, env = env, check = false, stdout = os.Pipe, stderr = os.Pipe)
+      val stdout: String = res.out.text
+      val stderr: String = res.err.text
+      val output = ProcOut(res.exitCode, stdout, stderr)
+      scribe.log(
+        if (res.exitCode == 0) Level.Trace else Level.Debug,
+        s" got result code: ${res.exitCode}, stderr: $stderr (${stderr.length}), stdout: $stdout (${stdout.length})",
+        None
+      )
+      output
+    }
   }
 
   /**
@@ -301,6 +315,6 @@ object RadPath {
     runtime / "config",
     runtime / "config" / "modules"
   ).foreach(os.makeDir.all)
-  os.perms.set(runtime / "ipfs_data", os.PermSet.fromInt(755))
+  if (Util.isLinux) os.perms.set(runtime / "ipfs_data", os.PermSet.fromInt(755))
 
 }

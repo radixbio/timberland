@@ -29,7 +29,8 @@ object timberlandService extends IOApp {
   private def reloadTemplateLoop(): IO[Nothing] =
     for {
       _ <- IO.sleep(1.hour)
-      _ <- serviceController.restartConsulTemplate()
+      tokens <- auth.getAuthTokens(isRemote = false, serviceAddrs, None, None)
+      _ <- serviceController.runConsulTemplate(tokens.consulNomadToken, tokens.vaultToken, None)
       nothing <- reloadTemplateLoop()
     } yield nothing
 

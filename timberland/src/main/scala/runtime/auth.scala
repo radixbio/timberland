@@ -233,7 +233,7 @@ object auth {
     val tlsCa = certDir / "ca" / "cert.pem"
     val tlsCert = certDir / "nomad" / "cli-cert.pem"
     val tlsKey = certDir / "nomad" / "cli-key.pem"
-    val addr = "https://nomad.service.consul:4646"
+    val addr = "https://127.0.0.1:4646"
     val masterPolicy = "00000000-0000-0000-0000-000000000001"
 
     for {

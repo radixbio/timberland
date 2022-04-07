@@ -701,6 +701,13 @@ exports_files([
 # Windows binaries
 
 http_archive(
+    name = "nssm",
+    build_file_content = "exports_files([\"nssm-2.24/win32/nssm.exe\"])",
+    sha256 = "727d1e42275c605e0f04aba98095c38a8e1e46def453cdffce42869428aa6743",
+    url = "https://nssm.cc/release/nssm-2.24.zip",
+)
+
+http_archive(
     name = "ipfs_win",
     build_file_content = "exports_files([\"go-ipfs/ipfs.exe\"])",
     sha256 = "17f324a85de057aefe805e882b42dc3e274768ae59fc9f93e5dc89ca92f7e9c0",

@@ -207,6 +207,7 @@ pkg_tar(
                "windows": ["@vault-plugin-secrets-oauthapp_win//:vault-plugin-secrets-oauthapp.exe"],
                "//conditions:default": ["@vault-plugin-secrets-oauthapp"],
            }),
+    mode = "0755",
     package_dir = "/opt/radix/timberland/vault",
 )
 
@@ -300,6 +301,7 @@ pkg_tar(
         "assets/consul/consul-client.json",
         "assets/consul/consul-server.json",
     ],
+    mode = "0755",
     package_dir = "/opt/radix/timberland/consul",
 )
 
@@ -308,7 +310,6 @@ pkg_tar(
     srcs = [
         "assets/consul-template/config.hcl",
         "assets/consul-template/config-windows.hcl",
-        "assets/systemd/consul-template.env.conf",
     ] + select({
         "aarch64": ["@consul-template_arm//:consul-template"],
         "windows": ["@consul-template_win//:consul-template.exe"],
@@ -384,6 +385,7 @@ pkg_tar(
         ],
         "//conditions:default": ["@nomad"],
     }),
+    mode = "0755",
     package_dir = "/opt/radix/timberland/nomad",
 )
 
@@ -392,6 +394,7 @@ pkg_tar(
     srcs = [
         "assets/nomad/config/nomad.hcl",
     ],
+    mode = "0755",
     package_dir = "/opt/radix/timberland/nomad/config",
 )
 
@@ -399,7 +402,6 @@ pkg_tar(
     name = "timberland-systemd-services",
     srcs = [
         "assets/systemd/consul.service",
-        "assets/systemd/consul-template.service",
         "assets/systemd/nomad.service",
         "assets/systemd/timberland-after-startup.service",
         "assets/systemd/timberland-svc.service",
@@ -528,6 +530,12 @@ workspace_status(
 )
 
 pkg_tar(
+    name = "nssm-tar",
+    srcs = ["@nssm//:nssm-2.24/win32/nssm.exe"],
+    package_dir = "/opt/radix/timberland",
+)
+
+pkg_tar(
     name = "release-name-tar",
     srcs = [
         "commit-message",
@@ -573,6 +581,7 @@ pkg_tar(
     name = "timberland-slim-tar",
     deps = [
         ":commit-hash-tar",
+        ":nssm-tar",
         ":release-name-tar",
         ":terraform-deps",
         ":terraform-main",
@@ -611,6 +620,18 @@ pkg_msi(
     package = "radix-timberland",
     package_guid = "{eabaa8a7-e277-46ed-8602-4e4212afa5ec}",
     post_install_script = "assets/windows/postinst.bat",
+    version = "0.1",
+)
+
+pkg_msi(
+    name = "timberland-windows-slim",
+    data = ":timberland-slim-tar",
+    data_base_dir = "./opt/radix",
+    description = "Radix_Timberland_deployment",
+    manufacturer = "Radix_Labs",
+    package = "radix-timberland",
+    package_guid = "{eabaa8a7-e277-46ed-8602-4e4212afa5ec}",
+    post_install_script = "//timberland/assets:windows/postinst.bat",
     version = "0.1",
 )
 
@@ -654,6 +675,13 @@ rpm_package(
     name = "timberland-rpm",
     data = ":timberland-full-tar",
     rpm_file = "timberland-rpm-all.rpm",
+    spec_template = "assets/redhat/rpm.spec",
+)
+
+rpm_package(
+    name = "timberland-slim-rpm",
+    data = ":timberland-slim-tar",
+    rpm_file = "timberland-rpm-slim.rpm",
     spec_template = "assets/redhat/rpm.spec",
 )
 
