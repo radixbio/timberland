@@ -114,10 +114,19 @@ sealed trait UpdateCredentialRequest {
   val grant_type: String
   val provider_options: Map[String, String]
 }
-final case class UpdateCredentialAuthorizationCodeRequest(server: String, code: String, redirect_url: String, provider_options: Map[String, String] = Map()) extends UpdateCredentialRequest {
+final case class UpdateCredentialAuthorizationCodeRequest(
+  server: String,
+  code: String,
+  redirect_url: String,
+  provider_options: Map[String, String] = Map()
+) extends UpdateCredentialRequest {
   override val grant_type: String = "authorization_code"
 }
-final case class UpdateCredentialRefreshTokenRequest(server: String, refresh_token: String, provider_options: Map[String, String] = Map()) extends UpdateCredentialRequest {
+final case class UpdateCredentialRefreshTokenRequest(
+  server: String,
+  refresh_token: String,
+  provider_options: Map[String, String] = Map()
+) extends UpdateCredentialRequest {
   override val grant_type: String = "refresh_token"
 }
 object UpdateCredentialRequest {
@@ -152,7 +161,7 @@ final case class CreateOauthServerRequest(
   client_secrets: List[String] = List(),
   auth_url_params: Map[String, String] = Map(),
   provider: String,
-  provider_params: Map[String, String] = Map(),
+  provider_params: Map[String, String] = Map()
 )
 object CreateOauthServerRequest {
   implicit val createOauthServerRequest: Encoder[CreateOauthServerRequest] = deriveEncoder[CreateOauthServerRequest]

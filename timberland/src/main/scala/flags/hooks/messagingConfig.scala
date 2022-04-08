@@ -31,15 +31,17 @@ object messagingConfig extends FlagHook {
       registrationResult <- vault.registerPlugin(Secret(), "oauthapp", registerRequest)
 
       // log the results
-      _ <- registrationResult.left.toOption.map { error =>
-        IO {
-          scribe.error(s"Error registering oauth plugin: ${error.getMessage}")
+      _ <- registrationResult.left.toOption
+        .map { error =>
+          IO {
+            scribe.error(s"Error registering oauth plugin: ${error.getMessage}")
+          }
         }
-      }.getOrElse {
-        IO {
-          scribe.info("oauth plugin registered")
+        .getOrElse {
+          IO {
+            scribe.info("oauth plugin registered")
+          }
         }
-      }
     } yield ()
   }
 }

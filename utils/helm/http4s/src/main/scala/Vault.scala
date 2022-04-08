@@ -17,7 +17,7 @@ import shapeless.the
 import java.net.ConnectException
 
 class Vault[F[_]: ConcurrentEffect](authToken: Option[String], baseUrl: Uri)(implicit
-                                                                             blazeResource: Resource[F, Client[F]]
+  blazeResource: Resource[F, Client[F]]
 ) extends VaultInterface[F] {
   val baseHeaders: Headers = authToken
     .map { tok =>
@@ -144,7 +144,10 @@ class Vault[F[_]: ConcurrentEffect](authToken: Option[String], baseUrl: Uri)(imp
       ).withEntity(req.asJson)
     )
 
-  override def getOauthCredential(pluginPath: String, credentialName: String): F[Either[VaultError, CredentialResponse]] =
+  override def getOauthCredential(
+    pluginPath: String,
+    credentialName: String
+  ): F[Either[VaultError, CredentialResponse]] =
     submitRequest(
       Request[F](
         method = GET,
@@ -159,10 +162,16 @@ class Vault[F[_]: ConcurrentEffect](authToken: Option[String], baseUrl: Uri)(imp
     )
 
   override def getSecret[R](name: String)(implicit d: Decoder[R]): F[Either[VaultError, KVGetResult[R]]] = {
-    submitRequest[KVGetResult[R]](Request[F](method = GET, uri = baseUrl / "v1" / "secret" / name, headers = baseHeaders))
+    submitRequest[KVGetResult[R]](
+      Request[F](method = GET, uri = baseUrl / "v1" / "secret" / name, headers = baseHeaders)
+    )
   }
 
-  def createOauthServer(pluginPath: String, name: String, req: CreateOauthServerRequest): F[Either[VaultError, Unit]] = {
+  def createOauthServer(
+    pluginPath: String,
+    name: String,
+    req: CreateOauthServerRequest
+  ): F[Either[VaultError, Unit]] = {
     submitRequestNoResponse(
       Request[F](method = PUT, uri = appendPath(baseUrl / "v1", pluginPath) / "servers" / name, headers = baseHeaders)
         .withEntity(req.asJson)

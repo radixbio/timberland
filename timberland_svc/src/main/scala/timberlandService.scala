@@ -76,7 +76,7 @@ object timberlandService extends IOApp {
     configFile = ConstPaths.TF_CONFIG_DIR / s"$module.json"
     _ <- IO(os.write.over(configFile, newJson.asJson.toString()))
     ok <- Ok()
-  } yield  ok
+  } yield ok
 
   private def getFlags: IO[Response[IO]] = featureFlags.flags.flatMap(flags => Ok(flags.asJson))
   private def setFlags(req: Request[IO]): IO[Response[IO]] = for {

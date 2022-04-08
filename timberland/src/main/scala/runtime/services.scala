@@ -90,10 +90,14 @@ class LinuxServiceControl extends ServiceControl {
   ): IO[Unit] =
     Util.execArr(
       List(
-        (RadPath.persistentDir / "consul-template" / "consul-template").toString, "-once",
-        "-config", (RadPath.persistentDir / "consul-template" / "config.hcl").toString,
-        "-vault-token", vaultToken,
-        "-consul-token", consulToken,
+        (RadPath.persistentDir / "consul-template" / "consul-template").toString,
+        "-once",
+        "-config",
+        (RadPath.persistentDir / "consul-template" / "config.hcl").toString,
+        "-vault-token",
+        vaultToken,
+        "-consul-token",
+        consulToken
       ) ++ vaultAddress.map(addr => List("-vault-addr", s"https://$addr:8200")).getOrElse(List.empty),
       spawn = true
     ) *> IO.unit
@@ -102,7 +106,8 @@ class LinuxServiceControl extends ServiceControl {
 
   override def configureNomad(parameters: List[String], vaultToken: String, consulToken: String): IO[Unit] =
     for {
-      args <- IO(s"""NOMAD_CMD_ARGS=${parameters.mkString(" ")} -config=${RadPath.persistentDir}/nomad/config -consul-token=$consulToken
+      args <- IO(s"""NOMAD_CMD_ARGS=${parameters
+        .mkString(" ")} -config=${RadPath.persistentDir}/nomad/config -consul-token=$consulToken
                              |VAULT_TOKEN=$vaultToken
                              |PATH=${sys.env("PATH")}:${(RadPath.persistentDir / "consul").toString()}
                              |""".stripMargin)
@@ -135,11 +140,17 @@ class WindowsServiceControl extends ServiceControl {
 
   override def configureConsul(parameters: List[String]): IO[Unit] =
     Util.execArr(List(nssm.toString, "remove", "consul", "confirm")) *>
-      Util.execArr((List(
-        nssm.toString, "install", "consul",
-        (RadPath.persistentDir / "consul" / "consul.exe").toString, "agent",
-        "-log-file", (RadPath.persistentDir / "consul" / "consul.log").toString,
-      ) ++ parameters).map(_.replaceAll("\"", "\\\\\""))) *> IO.unit
+      Util.execArr(
+        (List(
+          nssm.toString,
+          "install",
+          "consul",
+          (RadPath.persistentDir / "consul" / "consul.exe").toString,
+          "agent",
+          "-log-file",
+          (RadPath.persistentDir / "consul" / "consul.log").toString
+        ) ++ parameters).map(_.replaceAll("\"", "\\\\\""))
+      ) *> IO.unit
 
   override def runConsulTemplate(
     consulToken: String,
@@ -148,10 +159,14 @@ class WindowsServiceControl extends ServiceControl {
   ): IO[Unit] =
     Util.execArr(
       List(
-        (RadPath.persistentDir / "consul-template" / "consul-template.exe").toString, "-once",
-        "-config", (RadPath.persistentDir / "consul-template" / "config-windows.hcl").toString,
-        "-vault-token", vaultToken,
-        "-consul-token", consulToken,
+        (RadPath.persistentDir / "consul-template" / "consul-template.exe").toString,
+        "-once",
+        "-config",
+        (RadPath.persistentDir / "consul-template" / "config-windows.hcl").toString,
+        "-vault-token",
+        vaultToken,
+        "-consul-token",
+        consulToken
       ) ++ vaultAddress.map(addr => List("-vault-addr", s"https://$addr:8200")).getOrElse(List.empty),
       spawn = true
     ) *> IO.unit
@@ -183,13 +198,18 @@ class WindowsServiceControl extends ServiceControl {
       )
     ) *>
       Util.execArr(List(nssm.toString, "remove", "nomad", "confirm")) *>
-      Util.execArr((List(
-        nssm.toString, "install", "nomad",
-        (RadPath.persistentDir / "nomad" / "nomad.exe").toString, "agent",
-        s"""-config="${RadPath.persistentDir / "nomad" / "config"}"""",
-        s"""-vault-token="$vaultToken"""",
-        s"""-consul-token="$consulToken""""
-      ) ++ parameters).map(_.replaceAll("\"", "\\\\\""))) *> IO.unit
+      Util.execArr(
+        (List(
+          nssm.toString,
+          "install",
+          "nomad",
+          (RadPath.persistentDir / "nomad" / "nomad.exe").toString,
+          "agent",
+          s"""-config="${RadPath.persistentDir / "nomad" / "config"}"""",
+          s"""-vault-token="$vaultToken"""",
+          s"""-consul-token="$consulToken""""
+        ) ++ parameters).map(_.replaceAll("\"", "\\\\\""))
+      ) *> IO.unit
   override def stopNomad(): IO[Util.ProcOut] = Util.exec(s"$nssm stop nomad")
 
   def startNomad(): IO[Util.ProcOut] = Util.exec(s"$nssm start nomad")
@@ -205,10 +225,16 @@ class WindowsServiceControl extends ServiceControl {
     val javaLoc = (os.Path(javaHome) / "bin" / "java.exe").toString
     val jarLoc = RadPath.persistentDir / "exec" / "timberland-svc-bin_deploy.jar"
     Util.execArr(List(nssm.toString, "remove", "timberland-svc", "confirm")) *>
-      Util.execArr(List(
-        nssm.toString, "install", "timberland-svc",
-        javaLoc, "-jar", jarLoc.toString
-      )) *> IO.unit
+      Util.execArr(
+        List(
+          nssm.toString,
+          "install",
+          "timberland-svc",
+          javaLoc,
+          "-jar",
+          jarLoc.toString
+        )
+      ) *> IO.unit
   }
 
   def startTimberlandSvc(): IO[Util.ProcOut] = Util.exec(s"$nssm start timberland-svc")
@@ -372,7 +398,9 @@ object Services {
     serverJoin: Boolean = false
   ): IO[Unit] = {
     val baseArgs = List(
-      s"""-bind="$bindAddr"""", s"""-advertise="$bindAddr"""", s"""-client="127.0.0.1 $bindAddr"""",
+      s"""-bind="$bindAddr"""",
+      s"""-advertise="$bindAddr"""",
+      s"""-client="127.0.0.1 $bindAddr"""",
       s"""-config-dir="${(RadPath.persistentDir / "consul" / "config").toString}"""",
       s"""-encrypt="$gossipKey""""
     )

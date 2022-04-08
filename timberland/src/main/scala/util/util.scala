@@ -152,11 +152,12 @@ object Util {
       for {
         timestampOutput <- exec(s"systemctl show -p ActiveEnterTimestamp $serviceName").map(_.stdout)
         timestamp = timestampOutput.split(' ').slice(1, 3).mkString(" ")
-        journalctlLog <- if (timestamp.nonEmpty) {
-          execArr(List("journalctl", "-e", "-u", serviceName, "--since", timestamp))
-        } else {
-          execArr(List("journalctl", "-u", serviceName))
-        }
+        journalctlLog <-
+          if (timestamp.nonEmpty) {
+            execArr(List("journalctl", "-e", "-u", serviceName, "--since", timestamp))
+          } else {
+            execArr(List("journalctl", "-u", serviceName))
+          }
         lookupResult <- IO(journalctlLog.stdout.contains(stringToFind))
         _ <- lookupResult match {
           case false => IO.sleep(2.seconds) *> queryLoop
@@ -206,7 +207,12 @@ object Util {
   def exec(command: String, cwd: os.Path = os.root, env: Map[String, String] = Map.empty): IO[ProcOut] =
     execArr(command.split(" "), cwd, env)
 
-  def execArr(command: Seq[String], cwd: os.Path = os.root, env: Map[String, String] = Map.empty, spawn: Boolean = false): IO[ProcOut] = IO {
+  def execArr(
+    command: Seq[String],
+    cwd: os.Path = os.root,
+    env: Map[String, String] = Map.empty,
+    spawn: Boolean = false
+  ): IO[ProcOut] = IO {
     scribe.debug(s"Calling: $command")
     val cmd = os.proc(command)
     if (spawn) {

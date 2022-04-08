@@ -21,7 +21,7 @@ case object featureFlags {
     "google-oauth" -> oauthConfig,
     "okta-auth" -> oktaAuthConfig,
     "messaging" -> messagingConfig,
-    "ensure-supported" -> ensureSupported,
+    "ensure-supported" -> ensureSupported
   )
 
   // A list of flags that should be enabled by default
@@ -79,7 +79,7 @@ case object featureFlags {
     tfModuleNames <- tfParser.getModuleList
     flagList = tfModuleNames.toSet ++ HOOKS.keySet ++ SHARED_FLAGS
     oldFlagMap <- IO(os.exists(FLAGS_JSON)).flatMap {
-      case true => featureFlags.flags
+      case true  => featureFlags.flags
       case false => IO.pure(Map.empty[String, Boolean])
     }
     flagMap = flagList.map(flag => flag -> DEFAULT_FLAG_NAMES.contains(flag)).toMap ++ oldFlagMap

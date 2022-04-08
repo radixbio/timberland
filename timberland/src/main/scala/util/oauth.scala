@@ -95,7 +95,7 @@ object OAuthController {
       oauthConfigRequest = CreateOauthServerRequest(
         client_id = sys.env.getOrElse("GOOGLE_OAUTH_ID", ""),
         client_secrets = sys.env.get("GOOGLE_OAUTH_SECRET").map(List(_)).getOrElse(Nil),
-        provider = "google",
+        provider = "google"
       )
       _ <- vaultSession.createOauthServer("oauth2/google", "google", oauthConfigRequest)
       _ <- IO(scribe.info("OAuth plugin installed"))

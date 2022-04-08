@@ -300,7 +300,7 @@ object auth {
       s"-client-cert=${RadPath.runtime / "certs" / "nomad" / "cli-cert.pem"}",
       s"-client-key=${RadPath.runtime / "certs" / "nomad" / "cli-key.pem"}",
       s"-address=$addr",
-      s"-token=${tokens.masterToken}",
+      s"-token=${tokens.masterToken}"
     ).mkString(" ")
 
     val actorPolicyFile = RadPath.persistentDir / "nomad" / "actor-policy.hcl"
@@ -317,17 +317,16 @@ object auth {
       tokenMap = Map(
         "consul-ui-token" -> tokens.masterToken,
         "actor-token" -> tokens.actorToken,
-        "nomad-actor-token" -> nomadActorToken.getOrElse(""),
+        "nomad-actor-token" -> nomadActorToken.getOrElse("")
       )
-      _ <- tokenMap.toList.map {
-        case (name, token) =>
-          val payload = CreateSecretRequest(data = Map("token" -> token).asJson, cas = None)
-          vault.createSecret(s"tokens/${name}", payload).map {
-            case Left(err) =>
-              scribe.warn(s"Warning, ${name} could not be saved to vault due to:\n" + err)
-              scribe.warn(s"This is most likely because the token already exists")
-            case Right(_) => ()
-          }
+      _ <- tokenMap.toList.map { case (name, token) =>
+        val payload = CreateSecretRequest(data = Map("token" -> token).asJson, cas = None)
+        vault.createSecret(s"tokens/${name}", payload).map {
+          case Left(err) =>
+            scribe.warn(s"Warning, ${name} could not be saved to vault due to:\n" + err)
+            scribe.warn(s"This is most likely because the token already exists")
+          case Right(_) => ()
+        }
       }.parSequence
       _ <- IO(os.write.over(RadPath.runtime / "timberland" / ".acl-token", tokens.masterToken, os.PermSet(400)))
     } yield ()

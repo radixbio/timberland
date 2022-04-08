@@ -51,11 +51,12 @@ object runner {
               flags <- featureFlags.flags
               bootstrapExpect = if (flags.getOrElse("dev", false)) 1 else 3
               tokens <- Services.startServices(bindIP, leaderNode, bootstrapExpect, setupACL, serverJoin)
-              _ <- if (leaderNode.isEmpty) {
-                Util.waitForPortUp(8200, 30.seconds)
-              } else {
-                IO(scribe.info("Not waiting for Vault to be up since leader node is running Vault already"))
-              }
+              _ <-
+                if (leaderNode.isEmpty) {
+                  Util.waitForPortUp(8200, 30.seconds)
+                } else {
+                  IO(scribe.info("Not waiting for Vault to be up since leader node is running Vault already"))
+                }
             } yield tokens
 
           // only run on leader node, or with a remote address as a target
