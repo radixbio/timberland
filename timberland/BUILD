@@ -629,9 +629,9 @@ pkg_msi(
     data_base_dir = "./opt/radix",
     description = "Radix_Timberland_deployment",
     manufacturer = "Radix_Labs",
-    package = "radix-timberland",
+    package = "radix-timberland-slim",
     package_guid = "{eabaa8a7-e277-46ed-8602-4e4212afa5ec}",
-    post_install_script = "//timberland/assets:windows/postinst.bat",
+    post_install_script = "assets/windows/postinst.bat",
     version = "0.1",
 )
 
