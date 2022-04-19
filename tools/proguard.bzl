@@ -104,7 +104,9 @@ PROGUARD_DEFAULT = """-dontoptimize
 def proguardify(
         name,
         srcs = [],
-        proguard_script = PROGUARD_DEFAULT):
+        proguard_script = PROGUARD_DEFAULT,
+        *args,
+        **kwargs):
     """
     Runs proguard for a fat jar file in order to slim it down
     """
@@ -118,9 +120,11 @@ def proguardify(
               "$(location @proguard//:proguard) @args.pro -injars $(SRCS) -outjars out.jar &&" +
               "mv out.jar $@",
         tools = ["@proguard//:proguard"],
+        *args,
+        **kwargs
     )
 
-def services_pkg_tar(name, srcs, package_dir, use_proguard = False):
+def services_pkg_tar(name, srcs, package_dir, use_proguard = False, *args, **kwargs):
     """
     Runs pkg_tar, optionally running proguard on all the passed srcs, and renames the outputs to look like "foo-bin.jar"
     """
@@ -131,6 +135,8 @@ def services_pkg_tar(name, srcs, package_dir, use_proguard = False):
             proguardify(
                 name = src_name + "-pro",
                 srcs = [src],
+                *args,
+                **kwargs
             )
             proguarded_srcs.append(":" + src_name + "-pro_slim.jar")
     else:
@@ -147,4 +153,6 @@ def services_pkg_tar(name, srcs, package_dir, use_proguard = False):
         srcs = proguarded_srcs,
         package_dir = package_dir,
         remap_paths = remap_paths,
+        *args,
+        **kwargs
     )

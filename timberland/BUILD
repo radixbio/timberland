@@ -1,10 +1,12 @@
 load("@rules_pkg//:pkg.bzl", "pkg_deb", "pkg_tar")
-load("//tools:timberland.bzl", "timberland_module")
 load("@io_bazel_rules_docker//docker/util:run.bzl", "container_run_and_commit", "container_run_and_extract")
 load("@io_bazel_rules_docker//container:container.bzl", "container_image", "container_layer", "container_load", "container_push")
 load("//tools:workspace_status.bzl", "workspace_status")
 load("//tools:windows.bzl", "pkg_msi")
-load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
+load("//tools:timberland.bzl", "timberland_module")
+
+
+#load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
 load("//tools:rpm.bzl", "rpm_package")
 load("//tools:proguard.bzl", "services_pkg_tar")
 
@@ -12,69 +14,55 @@ package(
     default_visibility = ["//visibility:public"],
 )
 
-string_flag(
-    name = "runtime_target",
-    build_setting_default = "amd64",  # Currently works via default in all select()s
-)
+#string_flag(
+#    name = "runtime_target",
+#    build_setting_default = "amd64",  # Currently works via default in all select()s
+#)
+#
+#config_setting(
+#    name = "aarch64",
+#    flag_values = {":runtime_target": "aarch64"},
+#)
+#
+#config_setting(
+#    name = "windows",
+#    flag_values = {":runtime_target": "windows"},
+#)
+#
+#config_setting(
+#    name = "amd64",
+#    flag_values = {":runtime_target": "amd64"},
+#)
 
-config_setting(
-    name = "aarch64",
-    flag_values = {":runtime_target": "aarch64"},
-)
-
-config_setting(
-    name = "windows",
-    flag_values = {":runtime_target": "windows"},
-)
-
-config_setting(
-    name = "amd64",
-    flag_values = {":runtime_target": "amd64"},
-)
-
-scala_library(
-    name = "timberland-dependencies",
-    exports = [
-        "//shared/shared:shared-shared",
-        "//utils/helm:helm-jvm",
-        "//utils/sheets:sheets-interps",
-        "@third_party//3rdparty/jvm/com/bertramlabs/plugins:hcl4j",
-        "@third_party//3rdparty/jvm/com/github/xuwei_k:optparse_applicative",
-        "@third_party//3rdparty/jvm/com/lihaoyi:ammonite_ops",
-        "@third_party//3rdparty/jvm/com/outr:scribe",
-        "@third_party//3rdparty/jvm/dnsjava",
-        "@third_party//3rdparty/jvm/io/circe:circe_core",
-        "@third_party//3rdparty/jvm/io/circe:circe_derivation",
-        "@third_party//3rdparty/jvm/io/circe:circe_generic_extras",
-        "@third_party//3rdparty/jvm/io/circe:circe_literal",
-        "@third_party//3rdparty/jvm/io/circe:circe_optics",
-        "@third_party//3rdparty/jvm/org/fusesource/jansi",
-        "@third_party//3rdparty/jvm/org/scala_lang/modules:scala_parser_combinators",
-    ],
-    deps = [
-        "//shared/shared:shared-shared",
-        "//utils/helm:helm-jvm",
-        "//utils/sheets:sheets-interps",
-        "@third_party//3rdparty/jvm/com/bertramlabs/plugins:hcl4j",
-        "@third_party//3rdparty/jvm/com/github/xuwei_k:optparse_applicative",
-        "@third_party//3rdparty/jvm/com/lihaoyi:ammonite_ops",
-        "@third_party//3rdparty/jvm/com/outr:scribe",
-        "@third_party//3rdparty/jvm/io/circe:circe_core",
-        "@third_party//3rdparty/jvm/io/circe:circe_derivation",
-        "@third_party//3rdparty/jvm/io/circe:circe_generic_extras",
-        "@third_party//3rdparty/jvm/io/circe:circe_optics",
-        "@third_party//3rdparty/jvm/org/fusesource/jansi",
-        "@third_party//3rdparty/jvm/org/scala_lang/modules:scala_parser_combinators",
-        "@third_party//3rdparty/jvm/org/slf4j:slf4j_nop",
-    ],
-)
+# timberland sources itself
+TIMBERLAND_DEPENDENCIES = [
+    "//shared/shared:shared-shared",
+    "//utils/helm:helm-jvm",
+    "//utils/sheets:sheets-interps",
+    "@third_party//3rdparty/jvm/com/bertramlabs/plugins:hcl4j",
+    "@third_party//3rdparty/jvm/com/github/xuwei_k:optparse_applicative",
+    "@third_party//3rdparty/jvm/com/lihaoyi:ammonite_ops",
+    "@third_party//3rdparty/jvm/com/outr:scribe",
+    "@third_party//3rdparty/jvm/dnsjava",
+    "@third_party//3rdparty/jvm/io/circe:circe_core",
+    "@third_party//3rdparty/jvm/io/circe:circe_derivation",
+    "@third_party//3rdparty/jvm/io/circe:circe_generic_extras",
+    "@third_party//3rdparty/jvm/io/circe:circe_literal",
+    "@third_party//3rdparty/jvm/io/circe:circe_optics",
+    "@third_party//3rdparty/jvm/org/fusesource/jansi",
+    "@third_party//3rdparty/jvm/org/slf4j:slf4j_nop",
+    "@third_party//3rdparty/jvm/com/github/tototoshi:scala_csv",
+    "@third_party//3rdparty/jvm/com/profesorfalken:jPowerShell",
+]
 
 #TODO collapse the namespace, so "core_srcs" aren't from launch/, runtime/, util/...
 #it's shared dependencies that timberland the commandline tool
 #has with the in-container process
-timberland_core_srcs = [
+TIMBERLAND_SRCS = [
     "src/main/scala/defns.scala",
+    "src/main/scala/cli.scala",
     "src/main/scala/launch/daemonutil.scala",
+    "src/main/scala/launch/dns.scala",
     "src/main/scala/runtime/auth.scala",
     "src/main/scala/flags/featureFlags.scala",
     "src/main/scala/flags/configGen.scala",
@@ -85,7 +73,7 @@ timberland_core_srcs = [
     "src/main/scala/flags/hooks/FlagHook.scala",
     "src/main/scala/flags/hooks/oauthConfig.scala",
     "src/main/scala/flags/hooks/messagingConfig.scala",
-    "src/main/scala/runtime/services.scala",
+    "src/main/scala/runtime/services.scala", # TODO split this target up since Disco depends on this
     "src/main/scala/util/VaultStarter.scala",
     "src/main/scala/util/oauth.scala",
     "src/main/scala/util/util.scala",
@@ -93,67 +81,14 @@ timberland_core_srcs = [
 ]
 
 scala_library(
-    name = "timberland-core-lib",
-    srcs = timberland_core_srcs,
+    name = "timberland-lib",
+    srcs = TIMBERLAND_SRCS,
     resources = glob([
         "src/main/resources/reference.conf",
     ]),
     visibility = ["//visibility:public"],
-    exports = [":timberland-dependencies"],
-    deps = [
-        ":timberland-dependencies",
-    ],
-)
-
-timberland_service_control_srcs = [
-    # why is this separate?
-    "src/main/scala/runtime/services.scala",
-]
-
-scala_library(
-    name = "timberland-service-control",
-    srcs = timberland_service_control_srcs,
-    visibility = [
-        "//visibility:public",
-    ],
-    exports = [
-        ":timberland-core-lib",
-    ],
-    deps = [
-        ":timberland-core-lib",
-    ],
-)
-
-scala_library(
-    name = "timberland-lib",
-    srcs = glob(
-        [
-            "src/main/scala/**/*.scala",
-        ],
-        exclude = timberland_core_srcs + timberland_service_control_srcs,
-    ),
-    visibility = [
-        "//timberland:__subpackages__",
-    ],
-    exports = [
-        ":timberland-core-lib",
-        ":timberland-service-control",
-        "//shared/shared:shared-shared",
-        "//utils/helm:helm-jvm",
-        "//utils/sheets:sheets-interps",  #TODO remove this
-        "@third_party//3rdparty/jvm/com/github/xuwei_k:optparse_applicative",
-        "@third_party//3rdparty/jvm/com/lihaoyi:ammonite_ops",
-        "@third_party//3rdparty/jvm/com/outr:scribe",
-    ],
-    deps = [
-        ":timberland-core-lib",
-        ":timberland-service-control",
-        #      ":timberland-update-lib",
-        "//utils/helm:helm-jvm",
-        "//utils/sheets:sheets-interps",  #TODO remove this
-        "@third_party//3rdparty/jvm/com/github/tototoshi:scala_csv",
-        "@third_party//3rdparty/jvm/com/profesorfalken:jPowerShell",
-    ],
+    exports = TIMBERLAND_DEPENDENCIES,
+    deps = TIMBERLAND_DEPENDENCIES,
 )
 
 scala_binary(
@@ -162,6 +97,12 @@ scala_binary(
     main_class = "com.radix.timberland.runner",
     deps = [":timberland-lib"],
 )
+
+# timberland runtime binary dependencies
+# timberland runtime configuration files for binary dependencies
+# drivers, and their bundling
+# timberland platform-specific installers
+# misc.
 
 scala_binary(
     name = "timberland-test",
@@ -188,25 +129,20 @@ pkg_tar(
 pkg_tar(
     name = "timberland-vault",
     srcs = [
-               "assets/vault/messaging-policy.hcl",
-               "assets/systemd/vault.env.conf",
-               "assets/vault/actor-acl-token-policy.hcl",
-               "assets/vault/read-flag-config-policy.hcl",
-               "assets/vault/remote-access-policy.hcl",
-               "assets/vault/aws-cred-role.json",
-               "assets/vault/tls-cert-policy.hcl",
-               "assets/vault/tls-cert-role.json",
-               "assets/vault/vault_config.conf",
-           ] + select({
-               "aarch64": ["@vault_arm//:vault"],
-               "windows": ["@vault_win//:vault.exe"],
-               "//conditions:default": ["@vault"],
-           }) +
-           select({
-               "aarch64": ["@vault-plugin-secrets-oauthapp_arm//:vault-plugin-secrets-oauthapp"],
-               "windows": ["@vault-plugin-secrets-oauthapp_win//:vault-plugin-secrets-oauthapp.exe"],
-               "//conditions:default": ["@vault-plugin-secrets-oauthapp"],
-           }),
+       "assets/vault/messaging-policy.hcl",
+       "assets/systemd/vault.env.conf",
+       "assets/vault/actor-acl-token-policy.hcl",
+       "assets/vault/read-flag-config-policy.hcl",
+       "assets/vault/remote-access-policy.hcl",
+       "assets/vault/aws-cred-role.json",
+       "assets/vault/tls-cert-policy.hcl",
+       "assets/vault/tls-cert-role.json",
+       "assets/vault/vault_config.conf",
+    ],
+    deps = [
+        "//:vault",
+        "//:vault-plugin-secrets-oauthapp",
+    ],
     mode = "0755",
     package_dir = "/opt/radix/timberland/vault",
 )
@@ -224,11 +160,10 @@ pkg_tar(
 
 pkg_tar(
     name = "timberland-ipfs",
-    srcs = ["//utils/ipfs:ipfs-service"] + select({
-        "aarch64": ["@ipfs_arm//:go-ipfs/ipfs"],
-        "windows": ["@ipfs_win//:go-ipfs/ipfs.exe"],
-        "//conditions:default": ["@ipfs//:go-ipfs/ipfs"],
-    }),
+    srcs = [
+        "//utils/ipfs:ipfs-service",
+    ],
+    deps = ["//:ipfs"],
     package_dir = "/opt/radix/ipfs_binaries",
 )
 
@@ -238,60 +173,14 @@ pkg_tar(
         "assets/consul/actor-policy.hcl",
         "assets/consul/default-policy.hcl",
         "assets/systemd/consul.env.conf",
-    ] + select({
-        "aarch64": ["@consul_arm//:consul"],
-        "windows": ["@consul_win//:consul.exe"],
-        "//conditions:default": ["@consul"],
-    }),
+    ],
+    deps = ["//:consul"],
     package_dir = "/opt/radix/timberland/consul",
 )
 
 pkg_tar(
     name = "timberland-containernetworking-cni-plugin",
-    srcs = select({
-        "aarch64": [
-            "@containernetworking-cni-plugin_arm//:bandwidth",
-            "@containernetworking-cni-plugin_arm//:bridge",
-            "@containernetworking-cni-plugin_arm//:dhcp",
-            "@containernetworking-cni-plugin_arm//:firewall",
-            "@containernetworking-cni-plugin_arm//:flannel",
-            "@containernetworking-cni-plugin_arm//:host-device",
-            "@containernetworking-cni-plugin_arm//:host-local",
-            "@containernetworking-cni-plugin_arm//:ipvlan",
-            "@containernetworking-cni-plugin_arm//:loopback",
-            "@containernetworking-cni-plugin_arm//:macvlan",
-            "@containernetworking-cni-plugin_arm//:portmap",
-            "@containernetworking-cni-plugin_arm//:ptp",
-            "@containernetworking-cni-plugin_arm//:sbr",
-            "@containernetworking-cni-plugin_arm//:static",
-            "@containernetworking-cni-plugin_arm//:tuning",
-            "@containernetworking-cni-plugin_arm//:vlan",
-        ],
-        "windows": [
-            "@containernetworking-cni-plugin_win//:flannel.exe",
-            "@containernetworking-cni-plugin_win//:host-local.exe",
-            "@containernetworking-cni-plugin_win//:win-bridge.exe",
-            "@containernetworking-cni-plugin_win//:win-overlay.exe",
-        ],
-        "//conditions:default": [
-            "@containernetworking-cni-plugin//:bandwidth",
-            "@containernetworking-cni-plugin//:bridge",
-            "@containernetworking-cni-plugin//:dhcp",
-            "@containernetworking-cni-plugin//:firewall",
-            "@containernetworking-cni-plugin//:flannel",
-            "@containernetworking-cni-plugin//:host-device",
-            "@containernetworking-cni-plugin//:host-local",
-            "@containernetworking-cni-plugin//:ipvlan",
-            "@containernetworking-cni-plugin//:loopback",
-            "@containernetworking-cni-plugin//:macvlan",
-            "@containernetworking-cni-plugin//:portmap",
-            "@containernetworking-cni-plugin//:ptp",
-            "@containernetworking-cni-plugin//:sbr",
-            "@containernetworking-cni-plugin//:static",
-            "@containernetworking-cni-plugin//:tuning",
-            "@containernetworking-cni-plugin//:vlan",
-        ],
-    }),
+    deps = ["//:containernetworking-cni-plugin"],
     package_dir = "/opt/cni/bin",
 )
 
@@ -310,18 +199,6 @@ pkg_tar(
     srcs = [
         "assets/consul-template/config.hcl",
         "assets/consul-template/config-windows.hcl",
-    ] + select({
-        "aarch64": ["@consul-template_arm//:consul-template"],
-        "windows": ["@consul-template_win//:consul-template.exe"],
-        "//conditions:default": ["@consul-template"],
-    }),
-    package_dir = "/opt/radix/timberland/consul-template",
-)
-
-pkg_tar(
-    name = "timberland-consul-template-dns",
-    srcs = [
-        "assets/consul-template/resolv.conf.tpl",
     ],
     package_dir = "/opt/radix/timberland/consul-template",
 )
@@ -354,6 +231,15 @@ pkg_tar(
 )
 
 pkg_tar(
+    name = "timberland-consul-template-dns",
+    srcs = [
+        "assets/consul-template/resolv.conf.tpl",
+    ],
+    package_dir = "/opt/radix/timberland/consul-template",
+)
+
+
+pkg_tar(
     name = "timberland-consul-template-nomad",
     srcs = [
         "assets/consul-template/nomad/cert.pem.tpl",
@@ -375,17 +261,8 @@ pkg_tar(
 
 pkg_tar(
     name = "timberland-nomad",
-    srcs = [
-        "assets/systemd/nomad.env.conf",
-    ] + select({
-        "aarch64": ["@nomad_arm//:nomad"],
-        "windows": [
-            "@nomad_win//:nomad.exe",
-            "assets/nomad/nomad-windows.hcl",
-        ],
-        "//conditions:default": ["@nomad"],
-    }),
-    mode = "0755",
+    srcs = ["assets/systemd/nomad.env.conf"],
+    deps = ["//:nomad"],
     package_dir = "/opt/radix/timberland/nomad",
 )
 
@@ -421,30 +298,31 @@ pkg_tar(
 
 timberland_services = [
     "//algs/common/algs_mega_uservice:algs-mega-uservice-bin_deploy.jar",
-    "//device_drivers/elemental/gateway:elemental-gateway-bin_deploy.jar",
-    "//device_drivers/elemental/kafka_bridge:elemental_bridge-bin_deploy.jar",
+    # "//device_drivers/elemental/gateway:elemental-gateway-bin_deploy.jar",
+    # "//device_drivers/elemental/kafka_bridge:elemental_bridge-bin_deploy.jar",
     "//monolith/mega_service:mega-mega-uservice-bin_deploy.jar",
-    #"//device_drivers/eve:eve-bin_deploy.jar",
-    #"//device_drivers/oceanoptics:oceanoptics-bin_deploy.jar",
-    #"//device_drivers/kafka_connectors/elastic:kafka_connect_elastic-bin_deploy.jar",
-    #"//device_drivers/kafka_connectors/osipi:kafka_connect_osipi-bin_deploy.jar",
-    #"//device_drivers/kafka_connectors/yugabyte:kafka_connect_yugabyte-bin_deploy.jar",
+    # "//device_drivers/eve:eve-bin_deploy.jar",
+    # "//device_drivers/oceanoptics:oceanoptics-bin_deploy.jar",
+    # "//device_drivers/hw_discovery:hw-discovery-bin_deploy.jar",
+    # "//device_drivers/kafka_connectors/elastic:kafka_connect_elastic-bin_deploy.jar",
+    # "//device_drivers/kafka_connectors/osipi:kafka_connect_osipi-bin_deploy.jar",
+    # "//device_drivers/kafka_connectors/yugabyte:kafka_connect_yugabyte-bin_deploy.jar",
     #"//device_drivers/ln2:ln2-bin_deploy.jar",
-    #"//device_drivers/messaging:messaging-bin_deploy.jar",
-    #"//device_drivers/mock_bioreactor:mock-bioreactor-bin_deploy.jar",
-    #"//device_drivers/minifors2:minifors2-bin_deploy.jar",
-    #"//device_drivers/multitrons:multitrons-bin_deploy.jar",
-    #"//device_drivers/olditrons:olditrons-bin_deploy.jar",
-    #"//device_drivers/eth_multitrons:eth_multitrons-bin_deploy.jar",
-    #"//device_drivers/opentrons:opentrons-bin_deploy.jar",
-    #"//device_drivers/quantstudio:quantstudio-bin_deploy.jar",
-    #"//device_drivers/tecan:tecan-bin_deploy.jar",
-    #"//device_drivers/ht91100:ht91100-bin_deploy.jar",
-    #"//device_drivers/tfexactive:tfexactive-bin_deploy.jar",
-    #"//device_drivers/watlow96_thermal:watlow96_thermal-bin_deploy.jar",
-    #"//device_drivers/echo/csv:echo_csv-bin_deploy.jar",
-    #"//device_drivers/octet:octet-bin_deploy.jar",
-    #"//device_drivers/entris2:entris2-bin_deploy.jar",
+    # "//device_drivers/messaging:messaging-bin_deploy.jar",
+    # "//device_drivers/mock_bioreactor:mock-bioreactor-bin_deploy.jar",
+    # "//device_drivers/minifors2:minifors2-bin_deploy.jar",
+    # "//device_drivers/multitrons:multitrons-bin_deploy.jar",
+    # "//device_drivers/olditrons:olditrons-bin_deploy.jar",
+    # "//device_drivers/eth_multitrons:eth_multitrons-bin_deploy.jar",
+    # "//device_drivers/opentrons:opentrons-bin_deploy.jar",
+    # "//device_drivers/quantstudio:quantstudio-bin_deploy.jar",
+    # "//device_drivers/tecan:tecan-bin_deploy.jar",
+    # "//device_drivers/ht91100:ht91100-bin_deploy.jar",
+    # "//device_drivers/tfexactive:tfexactive-bin_deploy.jar",
+    # "//device_drivers/watlow96_thermal:watlow96_thermal-bin_deploy.jar",
+    # "//device_drivers/echo/csv:echo_csv-bin_deploy.jar",
+    # "//device_drivers/octet:octet-bin_deploy.jar",
+    # "//device_drivers/entris2:entris2-bin_deploy.jar",
     "//runtime:runtime-bootstrap_deploy.jar",
     "//api:api-bin_deploy.jar",
     "//utils/bunny_uservice:bunny-uservice-bin_deploy.jar",
@@ -461,6 +339,10 @@ services_pkg_tar(
     name = "timberland-services-proguard",
     srcs = timberland_services,
     package_dir = "/opt/radix/services",
+    target_compatible_with = [
+        "//tools:packaging",
+        "//tools:build_for_windows",
+    ],
     use_proguard = True,
 )
 
@@ -552,6 +434,14 @@ pkg_tar(
     package_dir = "/opt/radix/services/",
 )
 
+#pkg_tar(
+#    name = "timberland-tcp-tunnel",
+#    srcs = [
+#        "//external:jar/net/kanstren/tcptunnel/tcptunnel",
+#    ],
+#    package_dir = "/opt/radix/timberland",
+#)
+
 pkg_tar(
     name = "timberland-avahi",
     srcs = [
@@ -562,6 +452,7 @@ pkg_tar(
 
 pkg_tar(
     name = "timberland-full-tar-proguard",
+    target_compatible_with = ["//tools:packaging"],
     deps = [
         ":timberland-services-proguard",
         ":timberland-slim-tar",
@@ -602,6 +493,7 @@ pkg_tar(
         ":timberland-exec",
         ":timberland-ipfs",
         ":timberland-net-utils",
+        # ":timberland-exec",
         ":timberland-networkd",
         ":timberland-nomad",
         ":timberland-nomad-config",
@@ -620,6 +512,10 @@ pkg_msi(
     package = "radix-timberland",
     package_guid = "{eabaa8a7-e277-46ed-8602-4e4212afa5ec}",
     post_install_script = "assets/windows/postinst.bat",
+    target_compatible_with = [
+        "//tools:packaging",
+        "//tools:build_for_windows",
+    ],
     version = "0.1",
 )
 
@@ -632,8 +528,13 @@ pkg_msi(
     package = "radix-timberland-slim",
     package_guid = "{eabaa8a7-e277-46ed-8602-4e4212afa5ec}",
     post_install_script = "assets/windows/postinst.bat",
+    target_compatible_with = [
+        "//tools:packaging",
+        "//tools:build_for_windows",
+    ],
     version = "0.1",
 )
+
 
 pkg_deb(
     name = "timberland-deb",
@@ -668,6 +569,10 @@ pkg_deb(
     package = "radix-timberland-slim",
     postinst = "assets/debian/postinst.sh",
     prerm = "assets/debian/prerm.sh",
+    target_compatible_with = [
+        "//tools:packaging",
+        "//tools:build_for_debian",
+    ],
     version = "0.1",  # filename will have a blank version bc file can't be read at analysis time
 )
 
@@ -676,6 +581,9 @@ rpm_package(
     data = ":timberland-full-tar",
     rpm_file = "timberland-rpm-all.rpm",
     spec_template = "assets/redhat/rpm.spec",
+    target_compatible_with = [
+        "//tools:packaging",
+    ],
 )
 
 rpm_package(
@@ -683,6 +591,9 @@ rpm_package(
     data = ":timberland-slim-tar",
     rpm_file = "timberland-rpm-slim.rpm",
     spec_template = "assets/redhat/rpm.spec",
+    target_compatible_with = [
+        "//tools:packaging",
+    ],
 )
 
 sh_binary(
@@ -832,51 +743,11 @@ pkg_tar(
 pkg_tar(
     name = "terraform-deps",
     deps = [
-        ":terraform-binary",
-        ":terraform-consul-plugin",
-        ":terraform-nomad-plugin",
-        ":terraform-vault-plugin",
+        "//:terraform",
+        "//:terraform-provider-consul",
+        "//:terraform-provider-nomad",
+        "//:terraform-provider-vault",
     ],
-)
-
-pkg_tar(
-    name = "terraform-binary",
-    srcs = select({
-        "aarch64": ["@terraform_arm//:terraform"],
-        "windows": ["@terraform_win//:terraform.exe"],
-        "//conditions:default": ["@terraform"],
-    }),
-    package_dir = "/opt/radix/timberland/terraform",
-)
-
-pkg_tar(
-    name = "terraform-consul-plugin",
-    srcs = select({
-        "aarch64": ["@terraform-provider-consul_arm//file"],
-        "windows": ["@terraform-provider-consul_win//file"],
-        "//conditions:default": ["@terraform-provider-consul//file"],
-    }),
-    package_dir = "/opt/radix/timberland/terraform/plugins/registry.terraform.io/hashicorp/consul",
-)
-
-pkg_tar(
-    name = "terraform-nomad-plugin",
-    srcs = select({
-        "aarch64": ["@terraform-provider-nomad_arm//file"],
-        "windows": ["@terraform-provider-nomad_win//file"],
-        "//conditions:default": ["@terraform-provider-nomad//file"],
-    }),
-    package_dir = "/opt/radix/timberland/terraform/plugins/registry.terraform.io/hashicorp/nomad",
-)
-
-pkg_tar(
-    name = "terraform-vault-plugin",
-    srcs = select({
-        "aarch64": ["@terraform-provider-vault_arm//file"],
-        "windows": ["@terraform-provider-vault_win//file"],
-        "//conditions:default": ["@terraform-provider-vault//file"],
-    }),
-    package_dir = "/opt/radix/timberland/terraform/plugins/registry.terraform.io/hashicorp/vault",
 )
 
 pkg_tar(
@@ -898,3 +769,17 @@ scala_binary(
         "@third_party//3rdparty/jvm/com/lihaoyi:ammonite_2_13_3",
     ],
 )
+
+#load("@vaticle_bazel_distribution//packer:rules.bzl", "assemble_packer", "deploy_packer")
+#
+#assemble_packer(
+#    name = "lol",
+#    config = "//timberland/assets:packer/test.pkr.hcl",
+#)
+#
+#deploy_packer(
+#    name = "lol_deploy",
+#    overwrite = True,
+#    target = ":lol",
+#    exn = "pkr.hcl"
+#)

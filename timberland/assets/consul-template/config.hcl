@@ -18,6 +18,7 @@ template {
   backup = true
 }
 
+
 template {
   source = "/opt/radix/timberland/consul-template/ca/cert.pem.tpl"
   destination = "/opt/radix/certs/ca/cert.pem"

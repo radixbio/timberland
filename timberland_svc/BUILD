@@ -5,13 +5,13 @@ scala_library(
     srcs = ["src/main/scala/timberlandService.scala"],
     visibility = ["//visibility:public"],
     exports = [
-        "//timberland:timberland-service-control",
+        "//timberland:timberland-lib",
         "@third_party//3rdparty/jvm/com/lihaoyi:os_lib",
         "@third_party//3rdparty/jvm/org/typelevel:cats_core",
         "@third_party//3rdparty/jvm/org/typelevel:cats_effect",
     ],
     deps = [
-        "//timberland:timberland-service-control",
+        "//timberland:timberland-lib",
         "@third_party//3rdparty/jvm/com/lihaoyi:os_lib",
         "@third_party//3rdparty/jvm/org/typelevel:cats_core",
         "@third_party//3rdparty/jvm/org/typelevel:cats_effect",
