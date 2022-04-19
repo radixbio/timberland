@@ -28,9 +28,6 @@ case object featureFlags {
   val DEFAULT_FLAG_NAMES = List(
     "ensure-supported",
     "dev",
-    "kafka",
-    "kafka_companions",
-    "zookeeper",
     "ipfs",
     "runtime"
   )
