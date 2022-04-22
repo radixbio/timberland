@@ -23,6 +23,7 @@ job "yugabyte-kafka-connector" {
 
       resources {
         memory = 100
+        memory_max = 150
       }
 
       shutdown_delay = "0s"

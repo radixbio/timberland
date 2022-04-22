@@ -93,6 +93,12 @@ client {
   }
 }
 
+server {
+  default_scheduler_config {
+    memory_oversubscription_enabled = true
+  }
+}
+
 plugin "raw_exec" {
   config {
     enabled = true

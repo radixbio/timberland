@@ -70,6 +70,7 @@ job "kafka-daemons" {
       resources {
         cpu = 1000
         memory = 2048
+        memory_max = 3072
       }
 
       shutdown_delay = "0s"
