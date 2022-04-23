@@ -298,7 +298,6 @@ pkg_tar(
 
 timberland_services = [
     "//algs/common/algs_mega_uservice:algs-mega-uservice-bin_deploy.jar",
-    # "//device_drivers/elemental/gateway:elemental-gateway-bin_deploy.jar",
     # "//device_drivers/elemental/kafka_bridge:elemental_bridge-bin_deploy.jar",
     "//monolith/mega_service:mega-mega-uservice-bin_deploy.jar",
     # "//device_drivers/eve:eve-bin_deploy.jar",
@@ -327,7 +326,6 @@ timberland_services = [
     "//api:api-bin_deploy.jar",
     "//utils/bunny_uservice:bunny-uservice-bin_deploy.jar",
     "//utils/disco:disco_uservice-bin_deploy.jar",
-    "//utils/healthcheck:healthcheck-bin_deploy.jar",
     "//utils/rainbowuservice:rainbow-uservice-bin_deploy.jar",
     "//utils/scheduleruservice:scheduler-uservice-bin_deploy.jar",  #TODO confirm this is right
     "//vm:vm-bin_deploy.jar",
@@ -730,7 +728,6 @@ pkg_tar(
         "//api:api-terraform",
         "//utils/bunny_uservice:bunny_uservice-terraform",
         "//utils/disco:disco-terraform",
-        "//utils/healthcheck:healthcheck-terraform",
         "//utils/ipfs:ipfs-terraform",
         "//utils/rainbowuservice:rainbow-terraform",
         "//utils/scheduleruservice:scheduler-terraform",  #TODO confirm this is right
