@@ -668,8 +668,5 @@ deploy_rsa.pub
 interface/yarn.lock
 package-lock.json
 
-# Make artifacts
-/build
-/core
-/srcs.md5
+user-bazelrc
 

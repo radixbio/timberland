@@ -61,5 +61,5 @@ test --verbose_failures
 # is more appropriate. feel free to add whatever personal config you use in user-bazelrc
 # you can use build:jane-doe --whatever; common --config=jane-doe so that others can see your config without having to
 # use it
-import %workspace%/user-bazelrc
+try-import %workspace%/user-bazelrc
 
