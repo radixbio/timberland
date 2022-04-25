@@ -273,6 +273,7 @@ pkg_tar(
         "//tools:build_for_linux": [":terraform-provider-nomad_linux"],
         "//tools:build_for_windows": [],
     }),
+    package_dir = "registry.terraform.io/hashicorp/nomad",
 )
 
 
@@ -307,6 +308,7 @@ pkg_tar(
         "//tools:build_for_linux": [":terraform-provider-consul_linux"],
         "//tools:build_for_windows": [],
     }),
+    package_dir = "registry.terraform.io/hashicorp/consul",
 )
 
 # terraform-provider-vault
@@ -340,6 +342,7 @@ pkg_tar(
         "//tools:build_for_linux": [":terraform-provider-vault_linux"],
         "//tools:build_for_windows": [],
     }),
+    package_dir = "registry.terraform.io/hashicorp/vault",
 )
 # containernetworking-cni-plugin
 pkg_tar(

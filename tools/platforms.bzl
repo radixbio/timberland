@@ -20,13 +20,14 @@ PLATFORM_LUT = {
 }
 
 def generate_constraints():
-    native.constraint_setting(
-        name = "build_size",
-    )
+
     for build_size in BUILD_SIZE:
+        native.constraint_setting(
+            name = "build_size_" + build_size,
+        )
         native.constraint_value(
             name = build_size,
-            constraint_setting = ":build_size",
+            constraint_setting = ":build_size_" + build_size,
         )
     native.constraint_setting(
         name = "build_on",
@@ -57,6 +58,7 @@ def generate_constraints():
     for i, build_size in enumerate(BUILD_SIZE):
         # builds in build_size are in size order, so full can build minimal
         super_build_size = ["//" + native.package_name() + ":" + x for x in BUILD_SIZE[:i]]
+        print(super_build_size)
         for build_on_os in BUILD_ON_OS:
             for build_for_os in BUILD_FOR_OS:
                 for build_for_arch in BUILD_FOR_ARCH:

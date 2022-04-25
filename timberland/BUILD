@@ -200,6 +200,7 @@ pkg_tar(
         "assets/consul-template/config.hcl",
         "assets/consul-template/config-windows.hcl",
     ],
+    deps = ["//:consul-template"],
     package_dir = "/opt/radix/timberland/consul-template",
 )
 
@@ -491,7 +492,6 @@ pkg_tar(
         ":timberland-exec",
         ":timberland-ipfs",
         ":timberland-net-utils",
-        # ":timberland-exec",
         ":timberland-networkd",
         ":timberland-nomad",
         ":timberland-nomad-config",
@@ -741,10 +741,19 @@ pkg_tar(
     name = "terraform-deps",
     deps = [
         "//:terraform",
+        ":terraform-plugins",
+    ],
+    package_dir = "/opt/radix/timberland/terraform",
+)
+
+pkg_tar(
+    name = "terraform-plugins",
+    deps = [
         "//:terraform-provider-consul",
         "//:terraform-provider-nomad",
         "//:terraform-provider-vault",
     ],
+    package_dir = "plugins",
 )
 
 pkg_tar(
