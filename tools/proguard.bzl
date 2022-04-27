@@ -3,6 +3,7 @@ load("@rules_pkg//:pkg.bzl", "pkg_tar")
 PROGUARD_DEFAULT = """-dontoptimize
                       -dontobfuscate
                       -dontnote
+                      -dontpreverify
                       # this is probably a bad idea...
                       # ideally would be -dontwarn scala.**
                       -dontwarn

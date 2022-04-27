@@ -88,7 +88,7 @@ pkg_tar(
     srcs = select({
         "//tools:build_for_macos": [],
         "//tools:build_for_linux": [],
-        "//tools:build_for_windows": ["@consul_windows_x64//:consul"],
+        "//tools:build_for_windows": ["@consul_windows_x64//:consul.exe"],
     }),
     deps = select({
         "//tools:build_for_macos": [":consul_macos"],
@@ -147,7 +147,7 @@ pkg_tar(
     srcs = select({
         "//tools:build_for_macos": [],
         "//tools:build_for_linux": [],
-        "//tools:build_for_windows": ["@vault_windows_x64//:vault"],
+        "//tools:build_for_windows": ["@vault_windows_x64//:vault.exe"],
     }),
     deps = select({
         "//tools:build_for_macos": [":vault_macos"],
@@ -172,7 +172,7 @@ pkg_tar(
     srcs = select({
         "//tools:build_for_macos": ["@vault-plugin-secrets-oauthapp_macos_x64//:vault-plugin-secrets-oauthapp"],
         "//tools:build_for_linux": [],
-        "//tools:build_for_windows": ["@vault-plugin-secrets-oauthapp_windows_x64//:vault-plugin-secrets-oauthapp"],
+        "//tools:build_for_windows": ["@vault-plugin-secrets-oauthapp_windows_x64//:vault-plugin-secrets-oauthapp.exe"],
     }),
     deps = select({
         "//tools:build_for_macos": [],
@@ -197,7 +197,7 @@ pkg_tar(
     srcs = select({
         "//tools:build_for_macos": ["@nomad_macos_x64//:nomad"],
         "//tools:build_for_linux": [],
-        "//tools:build_for_windows": ["@nomad_windows_x64//:nomad"],
+        "//tools:build_for_windows": ["@nomad_windows_x64//:nomad.exe"],
     }),
     deps = select({
         "//tools:build_for_macos": [],
@@ -232,7 +232,7 @@ pkg_tar(
     srcs = select({
         "//tools:build_for_macos": [],
         "//tools:build_for_linux": [],
-        "//tools:build_for_windows": ["@terraform_windows_x64//:terraform"],
+        "//tools:build_for_windows": ["@terraform_windows_x64//:terraform.exe"],
     }),
     deps = select({
         "//tools:build_for_macos": [":terraform_macos"],

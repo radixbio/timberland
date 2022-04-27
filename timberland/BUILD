@@ -570,6 +570,7 @@ pkg_deb(
     target_compatible_with = [
         "//tools:packaging",
         "//tools:build_for_debian",
+        "//tools:build_for_linux"
     ],
     version = "0.1",  # filename will have a blank version bc file can't be read at analysis time
 )
@@ -581,6 +582,8 @@ rpm_package(
     spec_template = "assets/redhat/rpm.spec",
     target_compatible_with = [
         "//tools:packaging",
+        "//tools:build_for_centos",
+        "//tools:build_for_linux"
     ],
 )
 
@@ -591,6 +594,8 @@ rpm_package(
     spec_template = "assets/redhat/rpm.spec",
     target_compatible_with = [
         "//tools:packaging",
+        "//tools:build_for_centos",
+        "//tools:build_for_linux"
     ],
 )
 
