@@ -54,14 +54,14 @@ echo "$(OUTS)" | tr " " "\\n" | xargs -n 1 -I {} sh -c "echo \\"{}\\" | egrep -o
     """,
     local = True,
     tags = ["no-cache"],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+        "@platforms//os:linux",
+    ],
     tools = [
         "@bitrock-unpacker//file",
         "@tclkit//file",
     ],
-    target_compatible_with = [
-        "@platforms//cpu:x86_64",
-        "@platforms//os:linux",
-    ]
 )
 
 # consul

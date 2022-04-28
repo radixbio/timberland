@@ -446,15 +446,6 @@ http_archive(
     url = "https://github.com/protocolbuffers/protobuf/archive/v%s.tar.gz" % protobuf_version,
 )
 
-load(
-    "@io_bazel_rules_scala//scala:scala_cross_version.bzl",
-    #    "default_scala_major_version",
-    "scala_mvn_artifact",
-)
-load(
-    "@io_bazel_rules_scala//scala:scala_maven_import_external.bzl",
-    "scala_maven_import_external",
-)
 load("//3rdparty:workspace.bzl", "maven_dependencies")
 
 maven_dependencies()
@@ -466,10 +457,10 @@ build_external_workspace(name = "third_party")
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 
 git_repository(
-    name="com_github_johnynek_bazel_jar_jar",
+    name = "com_github_johnynek_bazel_jar_jar",
     # Latest commit SHA as at 2019/02/13
-    commit="171f268569384c57c19474b04aebe574d85fde0d",
-    remote="https://github.com/johnynek/bazel_jar_jar.git",
+    commit = "171f268569384c57c19474b04aebe574d85fde0d",
+    remote = "https://github.com/johnynek/bazel_jar_jar.git",
 )
 
 load(
@@ -493,8 +484,10 @@ load(
 
 container_repositories()
 
-load("@io_bazel_rules_docker//container:container.bzl", "container_pull", "container_load")
-
+load(
+    "@io_bazel_rules_docker//container:container.bzl",
+    "container_pull",
+)
 
 # this one has the *windows* jdk /include files in /opt/javainclude
 container_pull(
@@ -540,9 +533,9 @@ jvm_maven_import_external(
 )
 
 git_repository(
-    name="scalaz3",
-    commit="19016d1a5a2b59b8c4ee91a79049ad4266ab9455",
-    remote="git@github.com:radixbio/scalaz3.git",
+    name = "scalaz3",
+    commit = "19016d1a5a2b59b8c4ee91a79049ad4266ab9455",
+    remote = "git@github.com:radixbio/scalaz3.git",
     #    shallow_since = "1626731854 -0400",
 )
 
@@ -937,8 +930,8 @@ load("@build_bazel_rules_nodejs//:index.bzl", "node_repositories")
 
 
 node_repositories(
-    package_json = ["//interface:package.json"],
     node_version = "16.5.0",
+    package_json = ["//interface:package.json"],
 )
 
 load("@build_bazel_rules_nodejs//:index.bzl", "npm_install")

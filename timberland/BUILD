@@ -5,7 +5,6 @@ load("//tools:workspace_status.bzl", "workspace_status")
 load("//tools:windows.bzl", "pkg_msi")
 load("//tools:timberland.bzl", "timberland_module")
 
-
 #load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
 load("//tools:rpm.bzl", "rpm_package")
 load("//tools:proguard.bzl", "services_pkg_tar")
@@ -73,7 +72,7 @@ TIMBERLAND_SRCS = [
     "src/main/scala/flags/hooks/FlagHook.scala",
     "src/main/scala/flags/hooks/oauthConfig.scala",
     "src/main/scala/flags/hooks/messagingConfig.scala",
-    "src/main/scala/runtime/services.scala", # TODO split this target up since Disco depends on this
+    "src/main/scala/runtime/services.scala",  # TODO split this target up since Disco depends on this
     "src/main/scala/util/VaultStarter.scala",
     "src/main/scala/util/oauth.scala",
     "src/main/scala/util/util.scala",
@@ -129,22 +128,22 @@ pkg_tar(
 pkg_tar(
     name = "timberland-vault",
     srcs = [
-       "assets/vault/messaging-policy.hcl",
-       "assets/systemd/vault.env.conf",
-       "assets/vault/actor-acl-token-policy.hcl",
-       "assets/vault/read-flag-config-policy.hcl",
-       "assets/vault/remote-access-policy.hcl",
-       "assets/vault/aws-cred-role.json",
-       "assets/vault/tls-cert-policy.hcl",
-       "assets/vault/tls-cert-role.json",
-       "assets/vault/vault_config.conf",
+        "assets/systemd/vault.env.conf",
+        "assets/vault/actor-acl-token-policy.hcl",
+        "assets/vault/aws-cred-role.json",
+        "assets/vault/messaging-policy.hcl",
+        "assets/vault/read-flag-config-policy.hcl",
+        "assets/vault/remote-access-policy.hcl",
+        "assets/vault/tls-cert-policy.hcl",
+        "assets/vault/tls-cert-role.json",
+        "assets/vault/vault_config.conf",
     ],
+    mode = "0755",
+    package_dir = "/opt/radix/timberland/vault",
     deps = [
         "//:vault",
         "//:vault-plugin-secrets-oauthapp",
     ],
-    mode = "0755",
-    package_dir = "/opt/radix/timberland/vault",
 )
 
 pkg_tar(
@@ -163,8 +162,8 @@ pkg_tar(
     srcs = [
         "//utils/ipfs:ipfs-service",
     ],
-    deps = ["//:ipfs"],
     package_dir = "/opt/radix/ipfs_binaries",
+    deps = ["//:ipfs"],
 )
 
 pkg_tar(
@@ -174,14 +173,14 @@ pkg_tar(
         "assets/consul/default-policy.hcl",
         "assets/systemd/consul.env.conf",
     ],
-    deps = ["//:consul"],
     package_dir = "/opt/radix/timberland/consul",
+    deps = ["//:consul"],
 )
 
 pkg_tar(
     name = "timberland-containernetworking-cni-plugin",
-    deps = ["//:containernetworking-cni-plugin"],
     package_dir = "/opt/cni/bin",
+    deps = ["//:containernetworking-cni-plugin"],
 )
 
 pkg_tar(
@@ -200,8 +199,8 @@ pkg_tar(
         "assets/consul-template/config.hcl",
         "assets/consul-template/config-windows.hcl",
     ],
-    deps = ["//:consul-template"],
     package_dir = "/opt/radix/timberland/consul-template",
+    deps = ["//:consul-template"],
 )
 
 pkg_tar(
@@ -239,7 +238,6 @@ pkg_tar(
     package_dir = "/opt/radix/timberland/consul-template",
 )
 
-
 pkg_tar(
     name = "timberland-consul-template-nomad",
     srcs = [
@@ -263,8 +261,8 @@ pkg_tar(
 pkg_tar(
     name = "timberland-nomad",
     srcs = ["assets/systemd/nomad.env.conf"],
-    deps = ["//:nomad"],
     package_dir = "/opt/radix/timberland/nomad",
+    deps = ["//:nomad"],
 )
 
 pkg_tar(
@@ -533,7 +531,6 @@ pkg_msi(
     version = "0.1",
 )
 
-
 pkg_deb(
     name = "timberland-deb",
     architecture = "all",
@@ -570,7 +567,7 @@ pkg_deb(
     target_compatible_with = [
         "//tools:packaging",
         "//tools:build_for_debian",
-        "//tools:build_for_linux"
+        "//tools:build_for_linux",
     ],
     version = "0.1",  # filename will have a blank version bc file can't be read at analysis time
 )
@@ -583,7 +580,7 @@ rpm_package(
     target_compatible_with = [
         "//tools:packaging",
         "//tools:build_for_centos",
-        "//tools:build_for_linux"
+        "//tools:build_for_linux",
     ],
 )
 
@@ -595,7 +592,7 @@ rpm_package(
     target_compatible_with = [
         "//tools:packaging",
         "//tools:build_for_centos",
-        "//tools:build_for_linux"
+        "//tools:build_for_linux",
     ],
 )
 
@@ -615,6 +612,12 @@ sh_binary(
         ":timberland-rpm-all.rpm",
     ],
     #tags = ["no-sandbox"],
+    target_compatible_with = [
+        "//tools:packaging",
+        "//tools:build_for_centos",
+        "//tools:build_for_debian",
+        "//tools:build_for_linux",
+    ],
 )
 
 sh_test(
@@ -634,6 +637,12 @@ sh_test(
         ":timberland-rpm-all.rpm",
     ],
     tags = ["no-sandbox"],
+    target_compatible_with = [
+        "//tools:packaging",
+        "//tools:build_for_centos",
+        "//tools:build_for_debian",
+        "//tools:build_for_linux",
+    ],
 )
 
 timberland_module(
@@ -728,9 +737,9 @@ pkg_tar(
         "//device_drivers/tecan:tecan-terraform",
         "//device_drivers/tfexactive:tfexactive-terraform",
         "//device_drivers/watlow96_thermal:watlow96_thermal-terraform",
+        "//frontdoor:frontdoor-terraform",
         "//monolith/mega_service:mega-mega-uservice-terraform",
         "//runtime:runtime-terraform",
-        "//frontdoor:frontdoor-terraform",
         "//utils/bunny_uservice:bunny_uservice-terraform",
         "//utils/disco:disco-terraform",
         "//utils/ipfs:ipfs-terraform",
@@ -744,21 +753,21 @@ pkg_tar(
 
 pkg_tar(
     name = "terraform-deps",
-    deps = [
-        "//:terraform",
-        ":terraform-plugins",
-    ],
     package_dir = "/opt/radix/timberland/terraform",
+    deps = [
+        ":terraform-plugins",
+        "//:terraform",
+    ],
 )
 
 pkg_tar(
     name = "terraform-plugins",
+    package_dir = "plugins",
     deps = [
         "//:terraform-provider-consul",
         "//:terraform-provider-nomad",
         "//:terraform-provider-vault",
     ],
-    package_dir = "plugins",
 )
 
 pkg_tar(

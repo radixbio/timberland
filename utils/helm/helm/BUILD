@@ -87,20 +87,17 @@ scala_library(
 )
 
 scala_library(
-     name = "helm-interfaces",
-     srcs = [
-         "src/main/scala/ConsulInterface.scala",
-         "src/main/scala/NomadInterface.scala",
-         "src/main/scala/VaultInterface.scala"
-     ],
-     visibility = ["//utils/helm:__subpackages__"],
-     exports = [
-         ":helm-core-lib"
-     ],
-     deps = [
-         ":helm-core-lib",
-     ],
- )
-
-
-
+    name = "helm-interfaces",
+    srcs = [
+        "src/main/scala/ConsulInterface.scala",
+        "src/main/scala/NomadInterface.scala",
+        "src/main/scala/VaultInterface.scala",
+    ],
+    visibility = ["//utils/helm:__subpackages__"],
+    exports = [
+        ":helm-core-lib",
+    ],
+    deps = [
+        ":helm-core-lib",
+    ],
+)

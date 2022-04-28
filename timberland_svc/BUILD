@@ -1,5 +1,3 @@
-load("@rules_pkg//:pkg.bzl", "pkg_tar")
-
 scala_library(
     name = "timberland-svc-lib",
     srcs = ["src/main/scala/timberlandService.scala"],

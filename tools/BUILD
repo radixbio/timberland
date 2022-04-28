@@ -1,21 +1,14 @@
 load("//tools:modify_rules_scala_merge_jar_phase.bzl", "add_phase_merge_in_correct_order")
-load("//tools:platforms.bzl", "generate_constraints")
-#load("@bazel_tools//")
-generate_constraints()
+
 # TODO: it would be awfully nice to go through this and throw out as much as possible
-#platform(
-#    name = "full_build_on_macos_build_for_macos_aarch64",
-#    constraint_values = [
-#        "@platforms//os:macos",
-#        "@platforms//cpu:aarch64",
-#        ":build_on_macos",
-#        ":build_for_macos",
-#        ":full",
-#        ":build_for_aarch64",
-##        "@bazel_tools//platforms:aarch64"
-##        "@toolchain"
-#    ]
-#)
+
+load("@io_bazel_rules_scala//scala:scala_toolchain.bzl", "scala_toolchain")
+load("@io_bazel_rules_scala//scala:providers.bzl", "declare_deps_provider")
+load("//tools:platforms.bzl", "generate_constraints")
+generate_constraints()
+
+
+
 package(
     default_visibility = ["//visibility:public"],
 )
@@ -61,9 +54,6 @@ py_binary(
     python_version = "PY3",
     deps = [],
 )
-
-load("@io_bazel_rules_scala//scala:scala_toolchain.bzl", "scala_toolchain")
-load("@io_bazel_rules_scala//scala:providers.bzl", "declare_deps_provider")
 
 scala_toolchain(
     name = "my_toolchain_impl",
