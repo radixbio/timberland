@@ -321,6 +321,6 @@ object RadPath {
     runtime / "config",
     runtime / "config" / "modules"
   ).foreach(os.makeDir.all)
-  if (Util.isLinux) os.perms.set(runtime / "ipfs_data", os.PermSet.fromInt(755))
+  if (Util.isLinux) os.perms.set(runtime / "ipfs_data", os.PermSet.fromInt(775))
 
 }

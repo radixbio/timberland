@@ -18,7 +18,7 @@ client {
   # in nomad 1.0, nomad will automatically select the latest version that consul supports
   # https://github.com/hashicorp/nomad/pull/8945
   meta {
-    connect.sidecar_image = "envoyproxy/envoy:v1.16.0@sha256:9e72bbba48041223ccf79ba81754b1bd84a67c6a1db8a9dbff77ea6fc1cb04ea"
+    connect.sidecar_image = "envoyproxy/envoy:v1.16.0"
   }
 
   options {
@@ -82,7 +82,6 @@ client {
     "/etc/sudoers" = "/etc/sudoers",
     "/etc/hosts" = "/etc/hosts",
     "/etc/java-11-openjdk" = "/etc/java-11-openjdk",
-    "/etc/ssl/certs" = "/etc/ssl/certs",
     "/lib" = "/lib",
     "/lib32" = "/lib32",
     "/lib64" = "/lib64",
@@ -118,6 +117,7 @@ plugin "docker" {
     volumes {
       enabled = true
     }
+    infra_image = "gcr.io/google_containers/pause-amd64:3.1"
   }
 }
 

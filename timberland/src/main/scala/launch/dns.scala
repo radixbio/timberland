@@ -310,8 +310,8 @@ object dns {
       scribe.debug("Detected Windows DNS control")
       Windows()
     } else {
-      scribe.warn("Did not successfully detect DNS control!")
-      NoMethod()
+      scribe.debug("Defaulting to /etc/resolv.conf for DNS control")
+      Resolvconf()
     }
   }
 

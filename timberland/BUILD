@@ -153,6 +153,7 @@ pkg_tar(
         "//timberland:timberland-bin_deploy.jar",
         "//timberland_svc:timberland-svc-bin_deploy.jar",
     ],
+    mode = "0755",
     package_dir = "/opt/radix/timberland/exec",
     #    package_dir = "/usr/bin",
 )
@@ -162,6 +163,7 @@ pkg_tar(
     srcs = [
         "//utils/ipfs:ipfs-service",
     ],
+    mode = "0755",
     package_dir = "/opt/radix/ipfs_binaries",
     deps = ["//:ipfs"],
 )

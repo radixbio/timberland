@@ -53,6 +53,10 @@ object ConstPaths {
   // this can be overridden with --namespace
   val namespaceFile = RadPath.runtime / "timberland" / "release-name.txt"
 
+  // this file stores the arguments that were last passed to timberland start
+  // these arguments are stored so that they can be reused if the computer reboots
+  val argFile = RadPath.runtime / "timberland" / ".last-args.json"
+
   val TF_MODULES_DIR: os.Path = RadPath.persistentDir / "terraform" / "modules"
   val TF_CONFIG_DIR: os.Path = RadPath.runtime / "config" / "modules"
 

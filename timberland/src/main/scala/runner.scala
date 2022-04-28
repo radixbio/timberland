@@ -1,20 +1,23 @@
 package com.radix.timberland
 
-import cats.effect.{ContextShift, IO}
+import cats.effect.{ConcurrentEffect, ContextShift, IO, Resource, Timer}
 import cats.implicits._
 import com.radix.timberland.flags.hooks.ensureSupported
 import com.radix.timberland.flags.{configGen, featureFlags}
 import com.radix.timberland.launch.daemonutil
 import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.timberland.runtime._
-import com.radix.timberland.util.{OAuthController, RadPath, Util, VaultUtils}
+import com.radix.timberland.util.{OAuthController, RadPath, Util, VaultUtils, VaultStarter}
 import com.radix.utils.helm.http4s.vault.Vault
 import com.radix.utils.helm.vault.UnsealRequest
-import io.circe.{Parser => _}
+import io.circe.{Json, Parser => _}
+import io.circe.parser.parse
 import optparse_applicative._
 import org.http4s.implicits._
 import com.radix.utils.tls.ConsulVaultSSLContext._
-
+import com.radix.utils.tls.TrustEveryoneSSLContext
+import io.circe.syntax.EncoderOps
+import org.http4s.Uri
 import scala.concurrent.ExecutionContext.global
 import scala.concurrent.duration._
 
@@ -40,7 +43,6 @@ object runner {
             .withHandler(minimumLevel = Some(loglevel))
             .replace()
           scribe.debug(s"starting runtime with $cmd")
-
           System.setProperty("dns.server", remoteAddress.getOrElse("127.0.0.1"))
           // disable DNS cache
           System.setProperty("networkaddress.cache.ttl", "0")
@@ -152,9 +154,15 @@ object runner {
           } yield ()
           val handleFirewall =
             if (ensureSupported.osname == "windows") Util.addWindowsFirewallRules() else IO.unit
-          val bootstrapIO = featureFlags.generateAllTfAndConfigFiles *>
+
+          val saveArgs = IO(os.write.over(ConstPaths.argFile, cmd.asJson.toString()))
+
+          val bootstrapIO = {
+            saveArgs *>
+            featureFlags.generateAllTfAndConfigFiles *>
             handleFirewall *>
             (if (remoteAddress.isDefined) remoteBootstrap else localBootstrap)
+          }
           val bootstrap = bootstrapIO.handleErrorWith(err => IO(scribe.error(err)))
 
           bootstrap.unsafeRunSync()
@@ -243,13 +251,29 @@ object runner {
             scribe.error("Timberland not yet initialized")
             sys.exit(1)
           }
-          val vaultToken = VaultUtils.findVaultToken()
-          val vaultUnsealKey = VaultUtils.findVaultKey()
           implicit val contextShift: ContextShift[IO] = IO.contextShift(global)
-          val vaultSession = new Vault[IO](Some(vaultToken), uri"https://127.0.0.1:8200")
+          implicit val timer: Timer[IO] = IO.timer(global)
           val prog = for {
-            _ <- Util.waitForPortUp(8200, 10.seconds)
-            _ <- vaultSession.unseal(UnsealRequest(vaultUnsealKey))
+            args <- IO(parse(os.read(ConstPaths.argFile)).toOption.get.as[Start].toOption.get)
+            serviceAddrs = args.leaderNode match {
+              case Some(otherConsul) => ServiceAddrs(otherConsul, otherConsul, otherConsul)
+              case None              => ServiceAddrs()
+            }
+            isRemote = args.leaderNode.isDefined || args.remoteAddress.isDefined
+            _ <- Services.serviceController.restartVault()
+            _ <- Util.waitForPortUp(8200, 30.seconds)
+            _ <- if (!isRemote || args.serverMode) {
+              VaultStarter.initializeAndUnsealVault(
+                baseUrl = Uri.unsafeFromString("https://127.0.0.1:8200"),
+                shouldBootstrapVault = false
+              )
+            } else IO.unit
+            _ <- IO.sleep(10.seconds) // This works on line 482 of VaultStarter.scala, so it should work here
+            auth <- auth.getAuthTokens(isRemote, serviceAddrs, args.username, args.password)
+            _ <- Services.serviceController.runConsulTemplate(auth.consulNomadToken, auth.vaultToken, None)
+            _ <- Services.serviceController.restartConsul()
+            _ <- Services.serviceController.restartNomad()
+            _ <- Services.serviceController.restartTimberlandSvc()
           } yield ()
           prog.unsafeRunSync()
 

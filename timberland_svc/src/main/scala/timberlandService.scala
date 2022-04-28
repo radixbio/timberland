@@ -2,7 +2,7 @@ package com.radix.timberland_svc.timberlandService
 
 import scala.concurrent.duration._
 import cats.effect.{IO, IOApp}
-import com.radix.timberland.ConstPaths
+import com.radix.timberland.{ConstPaths, launch}
 import com.radix.timberland.flags.{configGen, featureFlags}
 import com.radix.timberland.launch.daemonutil
 import com.radix.timberland.radixdefs.ServiceAddrs
@@ -29,6 +29,7 @@ object timberlandService extends IOApp {
   private def reloadTemplateLoop(): IO[Nothing] =
     for {
       _ <- IO.sleep(1.hour)
+      _ <- launch.dns.up() // Ensure DNS entry exists
       tokens <- auth.getAuthTokens(isRemote = false, serviceAddrs, None, None)
       _ <- serviceController.runConsulTemplate(tokens.consulNomadToken, tokens.vaultToken, None)
       nothing <- reloadTemplateLoop()

@@ -140,7 +140,7 @@ class WindowsServiceControl extends ServiceControl {
 
   override def configureConsul(parameters: List[String]): IO[Unit] =
     Util.execArr(List(nssm.toString, "remove", "consul", "confirm")) *>
-      Util.execArr(
+      IO.sleep(1.second) *> Util.execArr(
         (List(
           nssm.toString,
           "install",
@@ -171,7 +171,7 @@ class WindowsServiceControl extends ServiceControl {
       spawn = true
     ) *> IO.unit
 
-  override def restartConsul(): IO[Util.ProcOut] = stopConsul *> startConsul
+  override def restartConsul(): IO[Util.ProcOut] = stopConsul *> IO.sleep(1.second) *> startConsul
 
   override def stopConsul(): IO[Util.ProcOut] = Util.exec(s"$nssm stop consul") *> flushDNS
 
@@ -198,7 +198,7 @@ class WindowsServiceControl extends ServiceControl {
       )
     ) *>
       Util.execArr(List(nssm.toString, "remove", "nomad", "confirm")) *>
-      Util.execArr(
+      IO.sleep(1.second) *> Util.execArr(
         (List(
           nssm.toString,
           "install",
@@ -213,7 +213,7 @@ class WindowsServiceControl extends ServiceControl {
   override def stopNomad(): IO[Util.ProcOut] = Util.exec(s"$nssm stop nomad")
 
   def startNomad(): IO[Util.ProcOut] = Util.exec(s"$nssm start nomad")
-  override def restartNomad(): IO[Util.ProcOut] = stopNomad *> startNomad
+  override def restartNomad(): IO[Util.ProcOut] = stopNomad *> IO.sleep(1.second) *> startNomad
 
   override def configureTimberlandSvc(): IO[Unit] = {
     val javaHome = sys.env.getOrElse(
@@ -225,7 +225,7 @@ class WindowsServiceControl extends ServiceControl {
     val javaLoc = (os.Path(javaHome) / "bin" / "java.exe").toString
     val jarLoc = RadPath.persistentDir / "exec" / "timberland-svc-bin_deploy.jar"
     Util.execArr(List(nssm.toString, "remove", "timberland-svc", "confirm")) *>
-      Util.execArr(
+      IO.sleep(1.second) *> Util.execArr(
         List(
           nssm.toString,
           "install",
@@ -239,7 +239,7 @@ class WindowsServiceControl extends ServiceControl {
 
   def startTimberlandSvc(): IO[Util.ProcOut] = Util.exec(s"$nssm start timberland-svc")
   override def stopTimberlandSvc(): IO[Util.ProcOut] = Util.exec(s"$nssm stop timberland-svc")
-  override def restartTimberlandSvc(): IO[Util.ProcOut] = stopTimberlandSvc *> startTimberlandSvc
+  override def restartTimberlandSvc(): IO[Util.ProcOut] = stopTimberlandSvc *> IO.sleep(1.second) *> startTimberlandSvc
 }
 class DarwinServiceControl extends ServiceControl {}
 
@@ -314,7 +314,7 @@ object Services {
         if (!remoteJoin) for {
           _ <- IO { os.makeDir.all(RadPath.runtime / "vault") } // need to manually make dir so vault can make raft db
           _ <- startVault(finalBindAddr)
-          _ <- (new VaultStarter).initializeAndUnsealAndSetupVault(initialSetup)
+          _ <- VaultStarter.initializeAndUnsealAndSetupVault(initialSetup)
         } yield ()
         else IO.unit
 
@@ -333,8 +333,7 @@ object Services {
           _ <- serviceController.runConsulTemplate(consulToken, vaultToken, leaderNodeO)
           _ <- IO.sleep(5.seconds)
           _ = ConsulVaultSSLContext.refreshCerts()
-          _ <- (new VaultStarter)
-            .initializeAndUnsealVault(baseUrl = uri"https://127.0.0.1:8200", shouldBootstrapVault = false)
+          _ <- VaultStarter.initializeAndUnsealVault(baseUrl = uri"https://127.0.0.1:8200", shouldBootstrapVault = false)
         } yield ()
         else IO.unit
 

@@ -361,7 +361,7 @@ object VaultUtils {
     }
 }
 
-class VaultStarter {
+object VaultStarter {
   private[this] implicit val timer: Timer[IO] = IO.timer(global)
   private[this] implicit val cs: ContextShift[IO] = IO.contextShift(global)
 
@@ -526,9 +526,8 @@ class VaultStarter {
     shouldSetupVault: Boolean
   )(implicit serviceAddrs: ServiceAddrs = ServiceAddrs()): IO[String] = {
     val vaultBaseUrl = uri"https://127.0.0.1:8200"
-    val starter = new VaultStarter()
     val unseal = for {
-      vaultUnseal <- starter.initializeAndUnsealVault(vaultBaseUrl, shouldSetupVault)
+      vaultUnseal <- initializeAndUnsealVault(vaultBaseUrl, shouldSetupVault)
       // TODO(alex): waitForSystemd required here in some edge case where vaultUnseal != VaultUnsealed? (was previously
       // waitForDns(vault.service.consul)
       _ <- OAuthController.vaultOauthBootstrap(vaultUnseal, vaultBaseUrl)

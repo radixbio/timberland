@@ -1,7 +1,9 @@
 package com.radix.timberland
 
+import com.radix.shared.persistence.serializations.utils.bioutil.octet.defns.Plate.PlateRows
 import com.radix.timberland.launch.daemonutil
-import io.circe.{Parser => _}
+import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
+import io.circe.{Decoder, Encoder, HCursor, Json, Parser => _}
 import optparse_applicative._
 import optparse_applicative.types.{Doc, Parser}
 import scalaz.syntax.apply._
@@ -18,6 +20,17 @@ case class Start(
   password: Option[String] = None,
   serverMode: Boolean = false
 ) extends RadixCMD
+object Start {
+  implicit val encoder: Encoder[Start] = deriveEncoder
+  implicit val decoder: Decoder[Start] = deriveDecoder
+  private val levels = List(
+    scribe.Level.Trace, scribe.Level.Debug, scribe.Level.Info,
+    scribe.Level.Error, scribe.Level.Warn
+  )
+  implicit val loglevelEncoder: Encoder[scribe.Level] = (lvl: scribe.Level) => Json.fromDouble(lvl.value).get
+  implicit val loglevelDecoder: Decoder[scribe.Level] = (c: HCursor) =>
+    c.as[Double].map(d => levels.find(lvl => lvl.value == d).get)
+}
 
 case class Env(fish: Boolean) extends RadixCMD
 
