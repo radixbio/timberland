@@ -66,67 +66,42 @@ case object FlagQuery extends RadixCMD
 
 case class AddUser(name: String, roles: List[String]) extends RadixCMD
 
-sealed trait Oauth extends RadixCMD
-
-case object GoogleSheets extends Oauth
-
 object cli {
 
   implicit class Weakener[F[_], A](fa: F[A])(implicit F: scalaz.Functor[F]) {
     def weaken[B](implicit ev: A <:< B): F[B] = F.map(fa)(identity(_))
   }
 
-  private def FlagArgs[T]: ((List[String], Option[String], Option[String], Option[String]) => T) => Parser[T] = ^^^(
-    many(
-      strArgument(
-        metavar("FLAGS"),
-        help("List of features/components")
+  private def FlagArgs[T]: ((List[String], Option[String], Option[String], Option[String]) => T) => Parser[T] =
+    ^^^(
+      many(
+        strArgument(
+          metavar("FLAGS"),
+          help("List of features/components")
+        )
+      ),
+      optional(
+        strOption(
+          metavar("ADDR"),
+          long("remote-address"),
+          help("Address to remote Consul instance")
+        )
+      ),
+      optional(
+        strOption(
+          metavar("USERNAME"),
+          long("username"),
+          help("Remote username (set locally with add_user cmd)")
+        )
+      ),
+      optional(
+        strOption(
+          metavar("PASSWORD"),
+          long("password"),
+          help("Remote password (set locally with add_user cmd)")
+        )
       )
-    ),
-    optional(
-      strOption(
-        metavar("ADDR"),
-        long("remote-address"),
-        help("Address to remote Consul instance")
-      )
-    ),
-    optional(
-      strOption(
-        metavar("USERNAME"),
-        long("username"),
-        help("Remote username (set locally with add_user cmd)")
-      )
-    ),
-    optional(
-      strOption(
-        metavar("PASSWORD"),
-        long("password"),
-        help("Remote password (set locally with add_user cmd)")
-      )
-    )
-  )(_)
-
-  private val oauthGoogleSheets = subparser[Oauth](
-    metavar("google-sheets"),
-    command(
-      "google-sheets",
-      info(
-        pure(GoogleSheets),
-        progDesc("Set up a Google Sheets token")
-      )
-    )
-  )
-
-  private val oauth = subparser[Oauth](
-    metavar("oauth"),
-    command(
-      "oauth",
-      info(
-        oauthGoogleSheets,
-        progDesc("Configure OAuth tokens")
-      )
-    )
-  )
+    )(_)
 
   private val env = subparser[Env](
     metavar("env"),
@@ -399,7 +374,6 @@ object cli {
   )
 
   private val cmds: List[Parser[RadixCMD]] = List(
-    oauth,
     start,
     stop,
     env,
@@ -488,11 +462,6 @@ object cli {
             Doc.text("To stop an existing Radix runtime installation, run:"),
             Doc.linebreak,
             Doc.indent(2, Doc.text("timberland stop")),
-            Doc.linebreak,
-            Doc.linebreak,
-            Doc.text("To view info about setting up oauth, run:"),
-            Doc.linebreak,
-            Doc.indent(2, Doc.text("timberland oauth"))
           )
         )(Doc.append)
       )

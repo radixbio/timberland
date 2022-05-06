@@ -37,7 +37,6 @@ package(
 TIMBERLAND_DEPENDENCIES = [
     "//shared/shared:shared-shared",
     "//utils/helm:helm-jvm",
-    "//utils/sheets:sheets-interps",
     "@third_party//3rdparty/jvm/com/bertramlabs/plugins:hcl4j",
     "@third_party//3rdparty/jvm/com/github/xuwei_k:optparse_applicative",
     "@third_party//3rdparty/jvm/com/lihaoyi:ammonite_ops",
@@ -74,7 +73,6 @@ TIMBERLAND_SRCS = [
     "src/main/scala/flags/hooks/messagingConfig.scala",
     "src/main/scala/runtime/services.scala",  # TODO split this target up since Disco depends on this
     "src/main/scala/util/VaultStarter.scala",
-    "src/main/scala/util/oauth.scala",
     "src/main/scala/util/util.scala",
     "src/main/scala/EnvironmentVariables.scala",
 ]

@@ -528,15 +528,10 @@ object VaultStarter {
     val vaultBaseUrl = uri"https://127.0.0.1:8200"
     val unseal = for {
       vaultUnseal <- initializeAndUnsealVault(vaultBaseUrl, shouldSetupVault)
-      // TODO(alex): waitForSystemd required here in some edge case where vaultUnseal != VaultUnsealed? (was previously
-      // waitForDns(vault.service.consul)
-      _ <- OAuthController.vaultOauthBootstrap(vaultUnseal, vaultBaseUrl)
-
       _ <- IO(scribe.debug(s"VAULT STATUS: ${vaultUnseal}"))
       vaultToken <- IO(vaultUnseal match {
         case VaultUnsealed(key: String, token: String) => VaultUtils.storeVaultTokenKey(key, token)
         case VaultAlreadyUnsealed                      => VaultUtils.findVaultToken()
-        // case _ => ???
       })
     } yield vaultToken
     unseal

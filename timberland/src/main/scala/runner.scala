@@ -7,7 +7,7 @@ import com.radix.timberland.flags.{configGen, featureFlags}
 import com.radix.timberland.launch.daemonutil
 import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.timberland.runtime._
-import com.radix.timberland.util.{OAuthController, RadPath, Util, VaultUtils, VaultStarter}
+import com.radix.timberland.util.{RadPath, Util, VaultStarter, VaultUtils}
 import com.radix.utils.helm.http4s.vault.Vault
 import com.radix.utils.helm.vault.UnsealRequest
 import io.circe.{Json, Parser => _}
@@ -43,6 +43,7 @@ object runner {
             .withHandler(minimumLevel = Some(loglevel))
             .replace()
           scribe.debug(s"starting runtime with $cmd")
+
           System.setProperty("dns.server", remoteAddress.getOrElse("127.0.0.1"))
           // disable DNS cache
           System.setProperty("networkaddress.cache.ttl", "0")
@@ -159,9 +160,9 @@ object runner {
 
           val bootstrapIO = {
             saveArgs *>
-            featureFlags.generateAllTfAndConfigFiles *>
-            handleFirewall *>
-            (if (remoteAddress.isDefined) remoteBootstrap else localBootstrap)
+              featureFlags.generateAllTfAndConfigFiles *>
+              handleFirewall *>
+              (if (remoteAddress.isDefined) remoteBootstrap else localBootstrap)
           }
           val bootstrap = bootstrapIO.handleErrorWith(err => IO(scribe.error(err)))
 
@@ -262,12 +263,13 @@ object runner {
             isRemote = args.leaderNode.isDefined || args.remoteAddress.isDefined
             _ <- Services.serviceController.restartVault()
             _ <- Util.waitForPortUp(8200, 30.seconds)
-            _ <- if (!isRemote || args.serverMode) {
-              VaultStarter.initializeAndUnsealVault(
-                baseUrl = Uri.unsafeFromString("https://127.0.0.1:8200"),
-                shouldBootstrapVault = false
-              )
-            } else IO.unit
+            _ <-
+              if (!isRemote || args.serverMode) {
+                VaultStarter.initializeAndUnsealVault(
+                  baseUrl = Uri.unsafeFromString("https://127.0.0.1:8200"),
+                  shouldBootstrapVault = false
+                )
+              } else IO.unit
             _ <- IO.sleep(10.seconds) // This works on line 482 of VaultStarter.scala, so it should work here
             auth <- auth.getAuthTokens(isRemote, serviceAddrs, args.username, args.password)
             _ <- Services.serviceController.runConsulTemplate(auth.consulNomadToken, auth.vaultToken, None)
@@ -276,13 +278,6 @@ object runner {
             _ <- Services.serviceController.restartTimberlandSvc()
           } yield ()
           prog.unsafeRunSync()
-
-        case GoogleSheets =>
-          val credentials = for {
-            creds <- OAuthController.creds
-            _ <- IO(scribe.info("Credentials successfully stored!"))
-          } yield creds
-          credentials.unsafeRunSync()
       }
     }
 

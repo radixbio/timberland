@@ -5,12 +5,14 @@ scala_library(
     exports = [
         "//timberland:timberland-lib",
         "@third_party//3rdparty/jvm/com/lihaoyi:os_lib",
+        "@third_party//3rdparty/jvm/org/http4s:http4s_dsl",
         "@third_party//3rdparty/jvm/org/typelevel:cats_core",
         "@third_party//3rdparty/jvm/org/typelevel:cats_effect",
     ],
     deps = [
         "//timberland:timberland-lib",
         "@third_party//3rdparty/jvm/com/lihaoyi:os_lib",
+        "@third_party//3rdparty/jvm/org/http4s:http4s_dsl",
         "@third_party//3rdparty/jvm/org/typelevel:cats_core",
         "@third_party//3rdparty/jvm/org/typelevel:cats_effect",
     ],
