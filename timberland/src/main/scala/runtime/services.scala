@@ -335,7 +335,7 @@ object Services {
           _ = ConsulVaultSSLContext.refreshCerts()
           _ <- VaultStarter.initializeAndUnsealVault(baseUrl = uri"https://127.0.0.1:8200", shouldBootstrapVault = false)
         } yield ()
-        else IO.unit
+        else IO(ConsulVaultSSLContext.refreshCerts())
 
       // START CONSUL
       _ <- setupConsul(finalBindAddr, gossipKey, leaderNodeO, bootstrapExpect, clientJoin)

@@ -1,7 +1,7 @@
 package com.radix.timberland.util
 
 import java.io.{File, PrintWriter}
-import cats.effect.{ContextShift, IO, Timer}
+import cats.effect.{Resource, ContextShift, IO, Timer}
 import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.utils.helm.http4s.vault.{Vault => VaultSession}
 import com.radix.utils.helm.vault._
@@ -12,6 +12,7 @@ import org.http4s.{Header, Uri}
 import org.http4s.client.dsl.io._
 import org.http4s.circe._
 import org.http4s.Method.PUT
+import org.http4s.client.Client
 import org.http4s.implicits._
 import scribe.Level
 
@@ -466,7 +467,11 @@ object VaultStarter {
     } yield vaultSealResult
   }
 
-  def initializeAndUnsealVault(baseUrl: Uri, shouldBootstrapVault: Boolean): IO[VaultSealStatus] = {
+  def initializeAndUnsealVault(
+    baseUrl: Uri,
+    shouldBootstrapVault: Boolean,
+    vaultBlaze: Resource[IO, Client[IO]] = blaze
+  ): IO[VaultSealStatus] = {
     def getResult(implicit vaultSession: VaultSession[IO]): IO[VaultSealStatus] =
       for {
         _ <- IO(scribe.debug("Checking Vault Status..."))
@@ -505,12 +510,12 @@ object VaultStarter {
     for {
       // If certs aren't being created for the first time, wait 15 seconds
       _ <- if (!shouldBootstrapVault) IO.sleep(15.seconds) else IO.unit
-      vaultSession = new VaultSession[IO](authToken = None, baseUrl = baseUrl)
+      vaultSession = new VaultSession[IO](authToken = None, baseUrl = baseUrl)(implicitly, vaultBlaze)
       result <- getResult(vaultSession).attempt
       status <- result match {
         case Left(a) =>
           a.printStackTrace()
-          Util.timeout(initializeAndUnsealVault(baseUrl, shouldBootstrapVault), 1.minutes)
+          Util.timeout(initializeAndUnsealVault(baseUrl, shouldBootstrapVault, vaultBlaze), 1.minutes)
         case Right(finalState) => IO.pure(finalState)
       }
     } yield status

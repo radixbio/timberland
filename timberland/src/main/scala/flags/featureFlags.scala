@@ -66,7 +66,7 @@ case object featureFlags {
   // Sets the passed flags to either true or false depending on the $enable variable and writes the new file to disk
   def setFlags(flagNames: List[String], enable: Boolean): IO[Unit] = for {
     flagMap <- flags
-    flagsToSet <- if (flagNames.contains("all")) flags.map(_.keys) else IO.pure(flagNames)
+    flagsToSet <- if (flagNames.contains("all")) flags.map(_.keys.filter(_ != "dev")) else IO.pure(flagNames)
     newFlagMap = flagMap ++ flagsToSet.map(_ -> enable).toMap
     newJson = Map("feature_flags" -> newFlagMap)
     _ <- IO(os.write.over(FLAGS_JSON, newJson.asJson.toString()))

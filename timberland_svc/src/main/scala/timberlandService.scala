@@ -18,24 +18,28 @@ import org.http4s.server.middleware.{CORS, CORSConfig}
 import org.http4s.syntax.all._
 
 object timberlandService extends IOApp {
-  implicit val serviceAddrs: ServiceAddrs = ServiceAddrs()
 
   val serviceController = Services.serviceController
 
-  override def run(args: List[String]): IO[Nothing] = {
-    IO.race(reloadTemplateLoop(), startTimberlandConfigServer()).flatMap(_ => IO.never)
-  }
+  override def run(args: List[String]): IO[Nothing] =
+    for {
+      args <- auth.recoverArgs
+      context <- auth.recoverRunContext(args)
+      addrs = context._1
+      tokens = context._2
+      _ <- IO.race(reloadTemplateLoop(tokens), startTimberlandConfigServer(addrs, tokens))
+      never <- IO.never
+    } yield never
 
-  private def reloadTemplateLoop(): IO[Nothing] =
+  private def reloadTemplateLoop(implicit tokens: AuthTokens): IO[Nothing] =
     for {
       _ <- IO.sleep(1.hour)
       _ <- launch.dns.up() // Ensure DNS entry exists
-      tokens <- auth.getAuthTokens(isRemote = false, serviceAddrs, None, None)
       _ <- serviceController.runConsulTemplate(tokens.consulNomadToken, tokens.vaultToken, None)
-      nothing <- reloadTemplateLoop()
+      nothing <- reloadTemplateLoop
     } yield nothing
 
-  private def startTimberlandConfigServer(): IO[Nothing] =
+  private def startTimberlandConfigServer(implicit addrs: ServiceAddrs, auth: AuthTokens): IO[Nothing] =
     BlazeServerBuilder[IO]
       .bindHttp(7777, "localhost")
       .withHttpApp(routesWithCORS)
@@ -44,7 +48,7 @@ object timberlandService extends IOApp {
       .start
       .flatMap(_.join)
 
-  private def routesWithCORS: Http[IO, IO] = CORS(
+  private def routesWithCORS(implicit addrs: ServiceAddrs, auth: AuthTokens): Http[IO, IO] = CORS(
     routes.orNotFound,
     CORSConfig(
       anyOrigin = false,
@@ -59,12 +63,12 @@ object timberlandService extends IOApp {
     )
   )
 
-  private def routes: HttpRoutes[IO] = HttpRoutes.of[IO] {
+  private def routes(implicit addrs: ServiceAddrs, auth: AuthTokens): HttpRoutes[IO] = HttpRoutes.of[IO] {
     case GET -> Root / "config" / module        => getConfig(module)
     case req @ POST -> Root / "config" / module => setConfig(module, req)
     case GET -> Root / "flags"                  => getFlags
     case req @ POST -> Root / "flags"           => setFlags(req)
-    case POST -> Root / "run"                   => runTimberland()
+    case POST -> Root / "run"                   => featureFlags.runHooks *> daemonutil.runTerraform() *> Ok()
     case _ -> Root                              => NotFound()
   }
 
@@ -88,12 +92,5 @@ object timberlandService extends IOApp {
     _ <- IO(os.write.over(featureFlags.FLAGS_JSON, newJson.asJson.toString()))
     ok <- Ok()
   } yield ok
-
-  private def runTimberland(): IO[Response[IO]] = {
-    auth.getAuthTokens().flatMap { implicit authTokens =>
-      implicit val serviceAddrs: ServiceAddrs = ServiceAddrs()
-      featureFlags.runHooks *> daemonutil.runTerraform() *> Ok()
-    }
-  }
 
 }

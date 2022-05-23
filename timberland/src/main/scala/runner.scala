@@ -254,25 +254,25 @@ object runner {
           }
           implicit val contextShift: ContextShift[IO] = IO.contextShift(global)
           implicit val timer: Timer[IO] = IO.timer(global)
-          val prog = for {
-            args <- IO(parse(os.read(ConstPaths.argFile)).toOption.get.as[Start].toOption.get)
-            serviceAddrs = args.leaderNode match {
-              case Some(otherConsul) => ServiceAddrs(otherConsul, otherConsul, otherConsul)
-              case None              => ServiceAddrs()
-            }
-            isRemote = args.leaderNode.isDefined || args.remoteAddress.isDefined
+          val restartVaultAndGetTokens = for {
             _ <- Services.serviceController.restartVault()
             _ <- Util.waitForPortUp(8200, 30.seconds)
-            _ <-
-              if (!isRemote || args.serverMode) {
-                VaultStarter.initializeAndUnsealVault(
-                  baseUrl = Uri.unsafeFromString("https://127.0.0.1:8200"),
-                  shouldBootstrapVault = false
-                )
-              } else IO.unit
+            _ <- VaultStarter.initializeAndUnsealVault(
+              baseUrl = Uri.unsafeFromString("https://127.0.0.1:8200"),
+              shouldBootstrapVault = false,
+              vaultBlaze = TrustEveryoneSSLContext.insecureBlaze
+            )
             _ <- IO.sleep(10.seconds) // This works on line 482 of VaultStarter.scala, so it should work here
-            auth <- auth.getAuthTokens(isRemote, serviceAddrs, args.username, args.password)
-            _ <- Services.serviceController.runConsulTemplate(auth.consulNomadToken, auth.vaultToken, None)
+            consulNomadToken <- auth.getMasterToken
+            vaultToken <- IO(os.read(RadPath.runtime / "timberland" / ".vault-token"))
+          } yield AuthTokens(consulNomadToken, "", vaultToken)
+          val prog = for {
+            args <- auth.recoverArgs
+            // If vault is installed on local computer, restart it, unseal it, and get tokens from local file
+            // If vault is not installed, just query the remote vault for tokens
+            hasLocalVault = args.leaderNode.isEmpty || args.serverMode
+            tokens <- if (hasLocalVault) restartVaultAndGetTokens else auth.recoverRunContext(args).map(_._2)
+            _ <- Services.serviceController.runConsulTemplate(tokens.consulNomadToken, tokens.vaultToken, None)
             _ <- Services.serviceController.restartConsul()
             _ <- Services.serviceController.restartNomad()
             _ <- Services.serviceController.restartTimberlandSvc()

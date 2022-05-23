@@ -2,6 +2,7 @@ package com.radix.timberland.runtime
 
 import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
+import com.radix.timberland.{ConstPaths, Start}
 import com.radix.timberland.radixdefs.{ACLTokens, ServiceAddrs}
 import com.radix.timberland.util.{RadPath, Util, VaultUtils}
 import com.radix.utils.helm.http4s.vault.Vault
@@ -9,6 +10,7 @@ import com.radix.utils.helm.vault.{CreateSecretRequest, KVGetResult, LoginRespon
 import com.radix.utils.tls.ConsulVaultSSLContext.blaze
 import io.circe.Json
 import io.circe.syntax._
+import io.circe.parser.parse
 import org.http4s.Uri
 import org.http4s.implicits._
 
@@ -20,6 +22,21 @@ case class AuthTokens(consulNomadToken: String, actorToken: String, vaultToken: 
 object auth {
   implicit val timer: Timer[IO] = IO.timer(ExecutionContext.global)
   implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.Implicits.global)
+
+  /**
+   * Gets the previous arguments used to run timberland start
+   */
+  def recoverArgs: IO[Start] = IO(parse(os.read(ConstPaths.argFile)).toOption.get.as[Start].toOption.get)
+
+  /**
+   * Gets the tokens and addresses used on the most recent call to timberland start
+   */
+  def recoverRunContext(args: Start): IO[(ServiceAddrs, AuthTokens)] = {
+    val serviceAddrsOption = args.leaderNode.orElse(args.remoteAddress).map(addr => ServiceAddrs(addr, addr, addr))
+    val isRemote = serviceAddrsOption.isDefined
+    val serviceAddrs = serviceAddrsOption.getOrElse(ServiceAddrs())
+    getAuthTokens(isRemote, serviceAddrs, args.username, args.password).map((serviceAddrs, _))
+  }
 
   def getAuthTokens(
     isRemote: Boolean = false,
@@ -88,6 +105,7 @@ object auth {
       )
       consulNomadToken <- getTokenFromVault(authenticatedVault, "consul-ui-token")
       actorToken <- getTokenFromVault(authenticatedVault, "actor-token")
+      _ <- IO(os.write.over(RadPath.runtime / "timberland" / ".acl-token", consulNomadToken))
     } yield AuthTokens(consulNomadToken = consulNomadToken, actorToken = actorToken, vaultToken)
 
   }
