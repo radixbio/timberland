@@ -732,7 +732,6 @@ pkg_tar(
         "//device_drivers/kafka_connectors/yugabyte:kafka_connect_yugabyte-terraform",
         "//device_drivers/ln2:ln2-terraform",
         "//device_drivers/messaging:messaging-terraform",
-        "//device_drivers/metasite:metasite-terraform",
         "//device_drivers/minifors2:minifors2-terraform",
         "//device_drivers/mock_bioreactor:mock-bioreactor-terraform",
         "//device_drivers/multitrons:multitrons-terraform",
