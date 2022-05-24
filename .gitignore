@@ -670,3 +670,8 @@ package-lock.json
 
 user-bazelrc
 
+rust-project.json
+.bazelbsp/*
+.bazelbsp
+.bsp/*
+.bsp

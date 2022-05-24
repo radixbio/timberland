@@ -81,3 +81,4 @@ MANIFEST_PATH=$(realpath $REPO_ROOT/Cargo.toml)
 touch $REPO_ROOT/3rdparty/crates.bzl
 echo -e "def raze_fetch_remote_crates():\n    pass" > $REPO_ROOT/3rdparty/crates.bzl
 bazel run @cargo_raze//:raze -- --manifest-path=$MANIFEST_PATH
+bazel run @rules_rust//tools/rust_analyzer:gen_rust_project

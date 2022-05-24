@@ -1,6 +1,4 @@
 load("@rules_pkg//:pkg.bzl", "pkg_deb", "pkg_tar")
-load("@io_bazel_rules_docker//docker/util:run.bzl", "container_run_and_commit", "container_run_and_extract")
-load("@io_bazel_rules_docker//container:container.bzl", "container_image", "container_layer", "container_load", "container_push")
 load("//tools:workspace_status.bzl", "workspace_status")
 load("//tools:windows.bzl", "pkg_msi")
 load("//tools:timberland.bzl", "timberland_module")

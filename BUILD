@@ -70,7 +70,7 @@ pkg_tar(
         "//tools:build_for_aarch64": ["@consul_macos_aarch64//:consul"],
         "//tools:build_for_x64": ["@consul_macos_x64//:consul"],
     }),
-    target_compatible_with = ["//tools:build_for_macos"]
+    target_compatible_with = ["//tools:build_for_macos"],
 )
 
 pkg_tar(
@@ -79,7 +79,7 @@ pkg_tar(
         "//tools:build_for_aarch64": ["@consul_linux_aarch64//:consul"],
         "//tools:build_for_x64": ["@consul_linux_x64//:consul"],
     }),
-    target_compatible_with = ["//tools:build_for_linux"]
+    target_compatible_with = ["//tools:build_for_linux"],
 )
 
 pkg_tar(
@@ -93,7 +93,7 @@ pkg_tar(
         "//tools:build_for_macos": [":consul_macos"],
         "//tools:build_for_linux": [":consul_linux"],
         "//tools:build_for_windows": [],
-    })
+    }),
 )
 
 # consul-template
@@ -105,7 +105,7 @@ pkg_tar(
         "//tools:build_for_aarch64": ["@consul-template_linux_aarch64//:consul-template"],
         "//tools:build_for_x64": ["@consul-template_linux_x64//:consul-template"],
     }),
-    target_compatible_with = ["//tools:build_for_linux"]
+    target_compatible_with = ["//tools:build_for_linux"],
 )
 
 pkg_tar(
@@ -129,7 +129,7 @@ pkg_tar(
         "//tools:build_for_aarch64": ["@vault_macos_aarch64//:vault"],
         "//tools:build_for_x64": ["@vault_macos_x64//:vault"],
     }),
-    target_compatible_with = ["//tools:build_for_macos"]
+    target_compatible_with = ["//tools:build_for_macos"],
 )
 
 pkg_tar(
@@ -138,7 +138,7 @@ pkg_tar(
         "//tools:build_for_aarch64": ["@vault_linux_aarch64//:vault"],
         "//tools:build_for_x64": ["@vault_linux_x64//:vault"],
     }),
-    target_compatible_with = ["//tools:build_for_linux"]
+    target_compatible_with = ["//tools:build_for_linux"],
 )
 
 pkg_tar(
@@ -163,7 +163,7 @@ pkg_tar(
         "//tools:build_for_aarch64": ["@vault-plugin-secrets-oauthapp_linux_aarch64//:vault-plugin-secrets-oauthapp"],
         "//tools:build_for_x64": ["@vault-plugin-secrets-oauthapp_linux_x64//:vault-plugin-secrets-oauthapp"],
     }),
-    target_compatible_with = ["//tools:build_for_linux"]
+    target_compatible_with = ["//tools:build_for_linux"],
 )
 
 pkg_tar(
@@ -180,7 +180,6 @@ pkg_tar(
     }),
 )
 
-
 # nomad
 pkg_tar(
     name = "nomad_linux",
@@ -188,7 +187,7 @@ pkg_tar(
         "//tools:build_for_aarch64": ["@nomad_linux_aarch64//:nomad"],
         "//tools:build_for_x64": ["@nomad_linux_x64//:nomad"],
     }),
-    target_compatible_with = ["//tools:build_for_linux"]
+    target_compatible_with = ["//tools:build_for_linux"],
 )
 
 pkg_tar(
@@ -205,8 +204,6 @@ pkg_tar(
     }),
 )
 
-
-
 # terraform
 pkg_tar(
     name = "terraform_macos",
@@ -214,7 +211,7 @@ pkg_tar(
         "//tools:build_for_aarch64": ["@terraform_macos_aarch64//:terraform"],
         "//tools:build_for_x64": ["@terraform_macos_x64//:terraform"],
     }),
-    target_compatible_with = ["//tools:build_for_macos"]
+    target_compatible_with = ["//tools:build_for_macos"],
 )
 
 pkg_tar(
@@ -223,7 +220,7 @@ pkg_tar(
         "//tools:build_for_aarch64": ["@terraform_linux_aarch64//:terraform"],
         "//tools:build_for_x64": ["@terraform_linux_x64//:terraform"],
     }),
-    target_compatible_with = ["//tools:build_for_linux"]
+    target_compatible_with = ["//tools:build_for_linux"],
 )
 
 pkg_tar(
@@ -240,7 +237,6 @@ pkg_tar(
     }),
 )
 
-
 # terraform-provider-nomad
 pkg_tar(
     name = "terraform-provider-nomad_macos",
@@ -248,7 +244,7 @@ pkg_tar(
         "//tools:build_for_aarch64": ["@terraform-provider-nomad_macos_aarch64//file"],
         "//tools:build_for_x64": ["@terraform-provider-nomad_macos_x64//file"],
     }),
-    target_compatible_with = ["//tools:build_for_macos"]
+    target_compatible_with = ["//tools:build_for_macos"],
 )
 
 pkg_tar(
@@ -257,7 +253,7 @@ pkg_tar(
         "//tools:build_for_aarch64": ["@terraform-provider-nomad_linux_aarch64//file"],
         "//tools:build_for_x64": ["@terraform-provider-nomad_linux_x64//file"],
     }),
-    target_compatible_with = ["//tools:build_for_linux"]
+    target_compatible_with = ["//tools:build_for_linux"],
 )
 
 pkg_tar(
@@ -267,14 +263,13 @@ pkg_tar(
         "//tools:build_for_linux": [],
         "//tools:build_for_windows": ["@terraform-provider-nomad_windows_x64//file"],
     }),
+    package_dir = "registry.terraform.io/hashicorp/nomad",
     deps = select({
         "//tools:build_for_macos": [":terraform-provider-nomad_macos"],
         "//tools:build_for_linux": [":terraform-provider-nomad_linux"],
         "//tools:build_for_windows": [],
     }),
-    package_dir = "registry.terraform.io/hashicorp/nomad",
 )
-
 
 # terraform-provider-consul
 pkg_tar(
@@ -283,7 +278,7 @@ pkg_tar(
         "//tools:build_for_aarch64": ["@terraform-provider-consul_macos_aarch64//file"],
         "//tools:build_for_x64": ["@terraform-provider-consul_macos_x64//file"],
     }),
-    target_compatible_with = ["//tools:build_for_macos"]
+    target_compatible_with = ["//tools:build_for_macos"],
 )
 
 pkg_tar(
@@ -292,7 +287,7 @@ pkg_tar(
         "//tools:build_for_aarch64": ["@terraform-provider-consul_linux_aarch64//file"],
         "//tools:build_for_x64": ["@terraform-provider-consul_linux_x64//file"],
     }),
-    target_compatible_with = ["//tools:build_for_linux"]
+    target_compatible_with = ["//tools:build_for_linux"],
 )
 
 pkg_tar(
@@ -302,12 +297,12 @@ pkg_tar(
         "//tools:build_for_linux": [],
         "//tools:build_for_windows": ["@terraform-provider-consul_windows_x64//file"],
     }),
+    package_dir = "registry.terraform.io/hashicorp/consul",
     deps = select({
         "//tools:build_for_macos": [":terraform-provider-consul_macos"],
         "//tools:build_for_linux": [":terraform-provider-consul_linux"],
         "//tools:build_for_windows": [],
     }),
-    package_dir = "registry.terraform.io/hashicorp/consul",
 )
 
 # terraform-provider-vault
@@ -317,7 +312,7 @@ pkg_tar(
         "//tools:build_for_aarch64": ["@terraform-provider-vault_macos_aarch64//file"],
         "//tools:build_for_x64": ["@terraform-provider-vault_macos_x64//file"],
     }),
-    target_compatible_with = ["//tools:build_for_macos"]
+    target_compatible_with = ["//tools:build_for_macos"],
 )
 
 pkg_tar(
@@ -326,7 +321,7 @@ pkg_tar(
         "//tools:build_for_aarch64": ["@terraform-provider-vault_linux_aarch64//file"],
         "//tools:build_for_x64": ["@terraform-provider-vault_linux_x64//file"],
     }),
-    target_compatible_with = ["//tools:build_for_linux"]
+    target_compatible_with = ["//tools:build_for_linux"],
 )
 
 pkg_tar(
@@ -336,13 +331,14 @@ pkg_tar(
         "//tools:build_for_linux": [],
         "//tools:build_for_windows": ["@terraform-provider-vault_windows_x64//file"],
     }),
+    package_dir = "registry.terraform.io/hashicorp/vault",
     deps = select({
         "//tools:build_for_macos": [":terraform-provider-vault_macos"],
         "//tools:build_for_linux": [":terraform-provider-vault_linux"],
         "//tools:build_for_windows": [],
     }),
-    package_dir = "registry.terraform.io/hashicorp/vault",
 )
+
 # containernetworking-cni-plugin
 pkg_tar(
     name = "containernetworking-cni-plugin_linux",
@@ -365,7 +361,7 @@ pkg_tar(
             "@containernetworking-cni-plugin_linux_aarch64//:tuning",
             "@containernetworking-cni-plugin_linux_aarch64//:vlan",
         ],
-        "//tools:build_for_x64":[
+        "//tools:build_for_x64": [
             "@containernetworking-cni-plugin_linux_x64//:bandwidth",
             "@containernetworking-cni-plugin_linux_x64//:bridge",
             "@containernetworking-cni-plugin_linux_x64//:dhcp",
@@ -384,7 +380,7 @@ pkg_tar(
             "@containernetworking-cni-plugin_linux_x64//:vlan",
         ],
     }),
-    target_compatible_with = ["//tools:build_for_linux"]
+    target_compatible_with = ["//tools:build_for_linux"],
 )
 
 pkg_tar(
@@ -397,13 +393,13 @@ pkg_tar(
             "@containernetworking-cni-plugin_windows_x64//:win-bridge.exe",
             "@containernetworking-cni-plugin_windows_x64//:win-overlay.exe",
         ],
-       "//tools:build_for_macos": [] # macos does not support cni
+        "//tools:build_for_macos": [],  # macos does not support cni
     }),
     deps = select({
         "//tools:build_for_linux": [":containernetworking-cni-plugin_linux"],
         "//tools:build_for_windows": [],
-        "//tools:build_for_macos": []
-    })
+        "//tools:build_for_macos": [],
+    }),
 )
 
 # TODO arm
@@ -412,12 +408,12 @@ pkg_tar(
     srcs = select({
         "//tools:build_for_linux": ["@ipfs//:go-ipfs/ipfs"],
         "//tools:build_for_windows": ["@ipfs_win//:go-ipfs/ipfs.exe"],
-        "//tools:build_for_macos": []
-    })
+        "//tools:build_for_macos": [],
+    }),
 )
 
 foo = select({
-        "//tools:build_for_linux": ["foo"],
-        "//tools:build_for_windows": ["bar"],
-        "//tools:build_for_macos": ["biz"]
+    "//tools:build_for_linux": ["foo"],
+    "//tools:build_for_windows": ["bar"],
+    "//tools:build_for_macos": ["biz"],
 })

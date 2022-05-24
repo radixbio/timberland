@@ -5,7 +5,7 @@ workspace(
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file")
 load("@bazel_tools//tools/build_defs/repo:jvm.bzl", "jvm_maven_import_external")
-load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository", "new_git_repository")
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 
 skylib_version = "1.0.3"
 
@@ -96,15 +96,11 @@ load("@bazel_gazelle//:deps.bzl", "gazelle_dependencies")
 
 gazelle_dependencies()
 
-rules_scala_version = "eabb1d28fb288fb5b15857260f87818dda5a97c8"  # update this as needed
-
 http_archive(
     name = "rules_rust",
-    sha256 = "531bdd470728b61ce41cf7604dc4f9a115983e455d46ac1d0c1632f613ab9fc3",
-    strip_prefix = "rules_rust-d8238877c0e552639d3e057aadd6bfcf37592408",
+    sha256 = "edb87c0d2ba70823fe3df7862676d695599314a4634b9758bd55f0e8f19c2751",
     urls = [
-        # `main` branch as of 2021-08-23
-        "https://github.com/bazelbuild/rules_rust/archive/d8238877c0e552639d3e057aadd6bfcf37592408.tar.gz",
+        "https://github.com/bazelbuild/rules_rust/releases/download/0.4.0/rules_rust-v0.4.0.tar.gz",
     ],
 )
 
@@ -115,15 +111,15 @@ rust_repositories(
     version = "1.59.0",
 )
 
+load("@rules_rust//tools/rust_analyzer:deps.bzl", "rust_analyzer_deps")
+
+rust_analyzer_deps()
+
 http_archive(
     name = "cargo_raze",
-    patch_args = [
-        "-p1",
-    ],
-    patches = ["//tools:0001-patch-pcre-to-use-additional-URL.patch"],
-    sha256 = "e04a1982ce4f81ffe42066256cfcfc03732e4f1d646fd3253bcf3eabf45f45be",
-    strip_prefix = "cargo-raze-0.13.0",
-    url = "https://github.com/google/cargo-raze/archive/refs/tags/v0.13.0.tar.gz",
+    sha256 = "58ecdbae2680b71edc19a0f563cdb73e66c8914689b6edab258c8b90a93b13c7",
+    strip_prefix = "cargo-raze-0.15.0",
+    url = "https://github.com/google/cargo-raze/archive/refs/tags/v0.15.0.tar.gz",
 )
 
 load("@cargo_raze//:repositories.bzl", "cargo_raze_repositories")
@@ -350,11 +346,11 @@ java_binary(
     url = "https://github.com/Guardsquare/proguard/releases/download/v7.0.1/proguard-7.0.1.tar.gz",
 )
 
-rules_scala_version = "5df8033f752be64fbe2cedfd1bdbad56e2033b15"
+rules_scala_version = "4ba3780fcba8d26980daff4639abc6f18517308b"
 
 http_archive(
     name = "io_bazel_rules_scala",
-    sha256 = "b7fa29db72408a972e6b6685d1bc17465b3108b620cb56d9b1700cf6f70f624a",
+    sha256 = "21f613c25685ec5fdd32f25d0c8ef272cf81636261dda72ce1e99d63c377f0d8",
     strip_prefix = "rules_scala-%s" % rules_scala_version,
     type = "zip",
     url = "https://github.com/bazelbuild/rules_scala/archive/%s.zip" % rules_scala_version,
@@ -365,7 +361,7 @@ http_archive(
 # scala_config(scala_version = "2.11.12")
 load("@io_bazel_rules_scala//:scala_config.bzl", "scala_config")
 
-scala_config(scala_version = "2.13.6")
+scala_config(scala_version = "2.13.8")
 
 load("@io_bazel_rules_scala//scala:scala.bzl", "scala_repositories")
 load("@io_bazel_rules_scala//scala:toolchains.bzl", "scala_register_toolchains")
@@ -379,19 +375,23 @@ load(
 )
 load("@io_bazel_rules_scala//testing:scalatest.bzl", "scalatest_repositories", "scalatest_toolchain")
 
-#scala_repositories()
-scala_repositories(
-    overriden_artifacts = {
-        "io_bazel_rules_scala_scalatest": {
-            "artifact": "org.scalatest:scalatest_2.13:3.1.4",
-            "sha256": "60ec218647411a9262e40bd50433db67d4ab97fd01c56b7e281872951f7bfcc7",
-        },
-        "io_bazel_rules_scala_scalactic": {
-            "artifact": "org.scalactic:scalactic_2.13:3.1.4",
-            "sha256": "be6859e48ecaa7ad00bd3520d958909830ad6c30fdd69f9811f19f67d9315e83",
-        },
-    },
-)
+scala_repositories()
+#scala_repositories(
+#    overriden_artifacts = {
+#        "io_bazel_rules_scala_scalatest": {
+#            "artifact": "org.scalatest:scalatest_2.13:3.1.4",
+#            "sha256": "60ec218647411a9262e40bd50433db67d4ab97fd01c56b7e281872951f7bfcc7",
+#        },
+#        "io_bazel_rules_scala_scalactic": {
+#            "artifact": "org.scalactic:scalactic_2.13:3.1.4",
+#            "sha256": "be6859e48ecaa7ad00bd3520d958909830ad6c30fdd69f9811f19f67d9315e83",
+#        },
+#    },
+#)
+load("@rules_proto//proto:repositories.bzl", "rules_proto_dependencies", "rules_proto_toolchains")
+rules_proto_dependencies()
+rules_proto_toolchains()
+
 
 scalafmt_default_config()
 
@@ -432,6 +432,7 @@ git_repository(
     commit = "7636b7dc2e14bf198a6c21c01e33847f3863e572",
     patch_cmds = ["mv pkg/* ."],
     remote = "https://github.com/itdaniher/rules_pkg.git",
+    shallow_since = "1596141723 -0400"
 )
 
 load("@rules_pkg//:deps.bzl", "rules_pkg_dependencies")
@@ -455,13 +456,12 @@ load("//3rdparty:target_file.bzl", "build_external_workspace")
 
 build_external_workspace(name = "third_party")
 
-load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
-
 git_repository(
     name = "com_github_johnynek_bazel_jar_jar",
     # Latest commit SHA as at 2019/02/13
     commit = "171f268569384c57c19474b04aebe574d85fde0d",
     remote = "https://github.com/johnynek/bazel_jar_jar.git",
+    shallow_since = "1594234634 -1000"
 )
 
 load(
@@ -473,9 +473,9 @@ jar_jar_repositories()
 
 http_archive(
     name = "io_bazel_rules_docker",
-    sha256 = "59536e6ae64359b716ba9c46c39183403b01eabfbd57578e84398b4829ca499a",
-    strip_prefix = "rules_docker-0.22.0",
-    urls = ["https://github.com/bazelbuild/rules_docker/releases/download/v0.22.0/rules_docker-v0.22.0.tar.gz"],
+    sha256 = "27d53c1d646fc9537a70427ad7b034734d08a9c38924cc6357cc973fed300820",
+    strip_prefix = "rules_docker-0.24.0",
+    urls = ["https://github.com/bazelbuild/rules_docker/releases/download/v0.24.0/rules_docker-v0.24.0.tar.gz"],
 )
 
 load(
@@ -484,6 +484,10 @@ load(
 )
 
 container_repositories()
+
+load("@io_bazel_rules_docker//repositories:deps.bzl", container_deps = "deps")
+
+container_deps()
 
 load(
     "@io_bazel_rules_docker//container:container.bzl",
@@ -702,6 +706,7 @@ http_archive(
     name = "vault-plugin-secrets-oauthapp_macos_x64",
     build_file_content = "exports_files([\"vault-plugin-secrets-oauthapp\"])",
     patch_cmds = ["mv vault-plugin-secrets-oauthapp-v1.3.0-darwin-amd64 vault-plugin-secrets-oauthapp"],
+    sha256 = "90a5eb499f75ed45a5e068b57e06cdb553a0729d1f19ed3faf0f8d004f68da99",
     url = "https://github.com/puppetlabs/vault-plugin-secrets-oauthapp/releases/download/v1.3.0/vault-plugin-secrets-oauthapp-v1.3.0-darwin-amd64.tar.xz",
 )
 
@@ -716,7 +721,7 @@ http_archive(
 http_archive(
     name = "nomad_linux_aarch64",
     build_file_content = "exports_files([\"nomad\"])",
-    sha256 = "7a68dec9ba9b07bfa143c29ed25c746675c634e60ef550af53dea62fb54769ea",
+    sha256 = "6677ff5b5b034be5b7d1ef4cba19da50817c7382cf2179e4759906e09ee5afb7",
     url = "https://releases.hashicorp.com/nomad/1.3.0/nomad_1.3.0_linux_arm64.zip",
 )
 
@@ -873,9 +878,9 @@ http_file(
 
 http_file(
     name = "terraform-provider-vault_macos_aarch64",
-    downloaded_file_path = "vault/terraform-provider-vault_3.5.0_macos_arm.zip",
+    downloaded_file_path = "vault/terraform-provider-vault_3.5.0_macos_arm64.zip",
     sha256 = "966e508880af89d3e4e4781f90e2f781a6d3d79d2e588ea74f95f2de29bf8df9",
-    urls = ["https://releases.hashicorp.com/terraform-provider-vault/3.5.0/terraform-provider-vault_3.5.0_darwin_arm.zip"],
+    urls = ["https://releases.hashicorp.com/terraform-provider-vault/3.5.0/terraform-provider-vault_3.5.0_darwin_arm64.zip"],
 )
 
 # CNI plugins
@@ -955,7 +960,7 @@ http_archive(
     strip_prefix = "buchgr-rules_jmh-a5f0231",
     type = "zip",
     url = "https://github.com/buchgr/rules_jmh/zipball/a5f0231ebfde44b4904c7d101b9f269b96c86d06",
-    #  sha256 = "dbb7d7e5ec6e932eddd41b910691231ffd7b428dff1ef9a24e4a9a59c1a1762d",
+    sha256 = "a3392009da4bdd2d50f2bd0731786ddceb48667ce65ff51f28c785d2363efdd3"
 )
 
 load("@rules_jmh//:deps.bzl", "rules_jmh_deps")
@@ -968,23 +973,25 @@ rules_jmh_maven_deps()
 
 http_archive(
     name = "build_bazel_rules_nodejs",
-    sha256 = "f0f76a06fd6c10e8fb9a6cb9389fa7d5816dbecd9b1685063f89fb20dc6822f3",
-    urls = ["https://github.com/bazelbuild/rules_nodejs/releases/download/4.5.1/rules_nodejs-4.5.1.tar.gz"],
+    sha256 = "0fad45a9bda7dc1990c47b002fd64f55041ea751fafc00cd34efb96107675778",
+    urls = ["https://github.com/bazelbuild/rules_nodejs/releases/download/5.5.0/rules_nodejs-5.5.0.tar.gz"],
 )
 
-load("@build_bazel_rules_nodejs//:index.bzl", "node_repositories")
+load("@build_bazel_rules_nodejs//:repositories.bzl", "build_bazel_rules_nodejs_dependencies")
+
+build_bazel_rules_nodejs_dependencies()
+
+load("@build_bazel_rules_nodejs//:index.bzl", "node_repositories", "npm_install")
 
 node_repositories(
     node_version = "16.15.0",
-    package_json = ["//interface:package.json"],
 )
-
-load("@build_bazel_rules_nodejs//:index.bzl", "npm_install")
 
 npm_install(
     name = "npm",
     package_json = "//interface:package.json",
     package_lock_json = "//interface:package-lock.json",
+    symlink_node_modules = True,
 )
 
 load("//containers/packer:deps.bzl", "packer_deps")

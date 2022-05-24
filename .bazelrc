@@ -11,6 +11,7 @@
 # if CI uploads are taking too long, uncomment it so that CI doesn't have to populate the cache
 # build:ci --noremote_upload_local_results
 build:user --noremote_upload_local_results  
+build --repo_env=RULES_RUST_TOOLCHAIN_INCLUDE_RUSTC_SRCS=true
 
 ### other remote/buildbuddy stuff
 build:user --remote_timeout=60

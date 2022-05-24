@@ -1,5 +1,3 @@
-load("@rules_python//python:defs.bzl", "py_binary")
-
 def _rpm_pkg_impl(ctx):
     ctx.actions.run(
         executable = ctx.executable._make_rpm_package,

@@ -5,9 +5,8 @@ load("//tools:modify_rules_scala_merge_jar_phase.bzl", "add_phase_merge_in_corre
 load("@io_bazel_rules_scala//scala:scala_toolchain.bzl", "scala_toolchain")
 load("@io_bazel_rules_scala//scala:providers.bzl", "declare_deps_provider")
 load("//tools:platforms.bzl", "generate_constraints")
+
 generate_constraints()
-
-
 
 package(
     default_visibility = ["//visibility:public"],
