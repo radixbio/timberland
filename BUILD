@@ -275,7 +275,7 @@ pkg_tar(
 pkg_tar(
     name = "terraform-provider-consul_macos",
     srcs = select({
-        "//tools:build_for_aarch64": ["@terraform-provider-consul_macos_aarch64//file"],
+        "//tools:build_for_aarch64": [],
         "//tools:build_for_x64": ["@terraform-provider-consul_macos_x64//file"],
     }),
     target_compatible_with = ["//tools:build_for_macos"],

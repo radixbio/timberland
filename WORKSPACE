@@ -580,65 +580,58 @@ http_archive(
 http_archive(
     name = "consul_linux_x64",
     build_file_content = "exports_files([\"consul\"])",
-    sha256 = "109e2077236cae4560b2fa3dce7974ef58d6a7093d72494614d875e5c86e3b2c",
-    url = "https://releases.hashicorp.com/consul/1.12.0/consul_1.12.0_linux_amd64.zip",
+    sha256 = "abd9a7696e2eeed66fdb28965c220a2ba45ee5cd79ff263557f5392291aab730",
+    url = "https://releases.hashicorp.com/consul/1.10.1/consul_1.10.1_linux_amd64.zip",
 )
 
 http_archive(
     name = "consul_linux_aarch64",
     build_file_content = "exports_files([\"consul\"])",
-    sha256 = "2d22f648af307b63800d291554d3c312beff01d2b4fc8437aeb004935c6bd0cb",
-    url = "https://releases.hashicorp.com/consul/1.12.0/consul_1.12.0_linux_arm64.zip",
+    sha256 = "ffdbeffcdb9865e0c84472c5098d5e1654c14d26e94f9e7e4bcefa6679a181a7",
+    url = "https://releases.hashicorp.com/consul/1.10.1/consul_1.10.1_linux_arm64.zip",
 )
 
 http_archive(
     name = "consul_windows_x64",
     build_file_content = "exports_files([\"consul.exe\"])",
-    sha256 = "f5ddbe48fa4c3af1d6463249afb11e39c34a14e8e6e6195ed526baf3431b646c",
-    url = "https://releases.hashicorp.com/consul/1.12.0/consul_1.12.0_windows_amd64.zip",
+    sha256 = "ebf22aa1bde44dfebf432185ec29e4c8efb6d54ac79b3e9ee6cc5c0ae21ad49a",
+    url = "https://releases.hashicorp.com/consul/1.10.1/consul_1.10.1_windows_amd64.zip",
 )
 
 http_archive(
     name = "consul_macos_x64",
     build_file_content = "exports_files([\"consul\"])",
-    sha256 = "efc169c5f9a07b8a4743686e7159a864c7993746a01caeefc411b9655a59eeec",
-    url = "https://releases.hashicorp.com/consul/1.12.0/consul_1.12.0_darwin_amd64.zip",
-)
-
-http_archive(
-    name = "consul_macos_aarch64",
-    build_file_content = "exports_files([\"consul\"])",
-    sha256 = "9bc1cd65d83ef8be2a693178d14303e9f0d24b88d5598d003791174a665d3769",
-    url = "https://releases.hashicorp.com/consul/1.12.0/consul_1.12.0_darwin_arm64.zip",
+    sha256 = "c9a5d2aff56abce89f40d3ab82de03a1bce77b8a37bf90ebeb29aa201e0ac9c1",
+    url = "https://releases.hashicorp.com/consul/1.10.1/consul_1.10.1_darwin_amd64.zip",
 )
 
 # consul-template
 http_archive(
     name = "consul-template_linux_x64",
     build_file_content = "exports_files([\"consul-template\"])",
-    sha256 = "810c6ada4ac9362838f66cf2312dd53d8d51beed37d1c2fb7c3812e1515a9372",
-    url = "https://releases.hashicorp.com/consul-template/0.28.0/consul-template_0.28.0_linux_amd64.zip",
+    sha256 = "9178437bde1f0f220010f17806c01b36ccb3814f065d4ebdfba53ade9832012d",
+    url = "https://releases.hashicorp.com/consul-template/0.29.0/consul-template_0.29.0_linux_amd64.zip",
 )
 
 http_archive(
     name = "consul-template_linux_aarch64",
     build_file_content = "exports_files([\"consul-template\"])",
-    sha256 = "b390f80b448b09896e4d634f5c251e44ab897cf67db0e1b78e091ceef50518a0",
-    url = "https://releases.hashicorp.com/consul-template/0.28.0/consul-template_0.28.0_linux_arm64.zip",
+    sha256 = "6bbb36d9a47be9f739452147dc4b042bbebdb8fbbaf9a432f1e2a5454478150b",
+    url = "https://releases.hashicorp.com/consul-template/0.29.0/consul-template_0.29.0_linux_arm64.zip",
 )
 
 http_archive(
     name = "consul-template_windows_x64",
     build_file_content = "exports_files([\"consul-template.exe\"])",
-    sha256 = "93e79a0cb9ba92bca28bfb0dfdb0a2129f15d00632c6dc67c3743ce85aec5dc5",
-    url = "https://releases.hashicorp.com/consul-template/0.28.0/consul-template_0.28.0_windows_amd64.zip",
+    sha256 = "cc6d00e3a4a121550900db7a54cff217a317d54fae4341eb812431f4e058af1b",
+    url = "https://releases.hashicorp.com/consul-template/0.29.0/consul-template_0.29.0_windows_amd64.zip",
 )
 
 http_archive(
     name = "consul-template_macos_x64",
     build_file_content = "exports_files([\"consul-template\"])",
-    sha256 = "60f33c4aa3877ee9d2c49146fdc4ae606cc5d8b4aa6f42088dc7fe972f1068a0",
-    url = "https://releases.hashicorp.com/consul-template/0.28.0/consul-template_0.28.0_darwin_amd64.zip",
+    sha256 = "c7110580be052789e8955061de56bf616bdba612ad9ca400fca450912f08fd9d",
+    url = "https://releases.hashicorp.com/consul-template/0.29.0/consul-template_0.29.0_darwin_amd64.zip",
 )
 
 # vault
