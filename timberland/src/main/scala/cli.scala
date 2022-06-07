@@ -24,8 +24,11 @@ object Start {
   implicit val encoder: Encoder[Start] = deriveEncoder
   implicit val decoder: Decoder[Start] = deriveDecoder
   private val levels = List(
-    scribe.Level.Trace, scribe.Level.Debug, scribe.Level.Info,
-    scribe.Level.Error, scribe.Level.Warn
+    scribe.Level.Trace,
+    scribe.Level.Debug,
+    scribe.Level.Info,
+    scribe.Level.Error,
+    scribe.Level.Warn
   )
   implicit val loglevelEncoder: Encoder[scribe.Level] = (lvl: scribe.Level) => Json.fromDouble(lvl.value).get
   implicit val loglevelDecoder: Decoder[scribe.Level] = (c: HCursor) =>
@@ -461,7 +464,7 @@ object cli {
             Doc.linebreak,
             Doc.text("To stop an existing Radix runtime installation, run:"),
             Doc.linebreak,
-            Doc.indent(2, Doc.text("timberland stop")),
+            Doc.indent(2, Doc.text("timberland stop"))
           )
         )(Doc.append)
       )

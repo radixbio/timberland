@@ -1,7 +1,7 @@
 package com.radix.timberland.util
 
 import java.io.{File, PrintWriter}
-import cats.effect.{Resource, ContextShift, IO, Timer}
+import cats.effect.{ContextShift, IO, Resource, Timer}
 import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.utils.helm.http4s.vault.{Vault => VaultSession}
 import com.radix.utils.helm.vault._

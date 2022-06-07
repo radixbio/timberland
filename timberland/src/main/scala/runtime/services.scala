@@ -333,7 +333,8 @@ object Services {
           _ <- serviceController.runConsulTemplate(consulToken, vaultToken, leaderNodeO)
           _ <- IO.sleep(5.seconds)
           _ = ConsulVaultSSLContext.refreshCerts()
-          _ <- VaultStarter.initializeAndUnsealVault(baseUrl = uri"https://127.0.0.1:8200", shouldBootstrapVault = false)
+          _ <- VaultStarter
+            .initializeAndUnsealVault(baseUrl = uri"https://127.0.0.1:8200", shouldBootstrapVault = false)
         } yield ()
         else IO(ConsulVaultSSLContext.refreshCerts())
 

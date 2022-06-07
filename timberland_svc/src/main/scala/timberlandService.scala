@@ -2,7 +2,7 @@ package com.radix.timberland_svc.timberlandService
 
 import scala.concurrent.duration._
 import cats.effect.{IO, IOApp}
-import com.radix.timberland.{ConstPaths, launch}
+import com.radix.timberland.{launch, ConstPaths}
 import com.radix.timberland.flags.{configGen, featureFlags}
 import com.radix.timberland.launch.daemonutil
 import com.radix.timberland.radixdefs.ServiceAddrs
