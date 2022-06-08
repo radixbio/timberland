@@ -1,21 +1,9 @@
 # Helm
-
-![Logo](docs/src/img/logo.png)
-
-[![Build Status](https://travis-ci.org/Verizon/helm.svg?branch=master)](https://travis-ci.org/Verizon/helm)
-[![Maven Central](https://maven-badges.herokuapp.com/maven-central/io.verizon.helm/core_2.11/badge.svg)](https://maven-badges.herokuapp.com/maven-central/io.verizon.helm/core_2.11)
-[![codecov](https://codecov.io/gh/Verizon/helm/branch/master/graph/badge.svg)](https://codecov.io/gh/Verizon/helm)
+This was originially a Verizon project, but a while back Radix scooped it and started maintaining not only the consul API, but extended the project to encompass the whole Hashicorp ecosystem with Vault and Nomad support
 
 A native [Scala](http://scala-lang.org) client for interacting with [Consul](https://www.consul.io/). There is currently one supported client, which uses [http4s](http://http4s.org) to make HTTP calls to Consul. Alternative implementations could be added with relative ease by providing an additional free interpreter for the `ConsulOp` algebra.
-
+    
 ## Getting Started
-
-Add the following to your `build.sbt`:
-
-    libraryDependencies += "io.verizon.helm" %% "http4s" % "1.4.78-scalaz-7.1"
-
-The *Helm* binaries are located on maven central, so no additional resolvers are needed.
-
 ### Algebra
 
 Consul operations are specified by the `ConsulOp` algebra.  Two
@@ -66,8 +54,5 @@ g.unsafeRunSync
 ```
 
 Typically, the *Helm* algebra would be a part of a `Coproduct` with other algebras in a larger program, so running the `IO` immediately after `helm.run` is not typical.
-
-## Contributing
-
-Contributions are welcome; particularly to expand the algebra with additional operations that are supported by Consul but not yet supported by *Helm*.
-
+## Adding new or updating old API functions
+TODO
