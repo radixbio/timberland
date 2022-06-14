@@ -196,9 +196,9 @@ pkg_tar(
     srcs = [
         "assets/consul-template/config.hcl",
         "assets/consul-template/config-windows.hcl",
+        "assets/consul-template/refresh-all.bat",
         "assets/consul-template/refresh-consul.bat",
         "assets/consul-template/refresh-nomad.bat",
-        "assets/consul-template/refresh-all.bat",
         "@windows-kill//:windows-kill_x64_1.1.4_lib_release/windows-kill.exe",
     ],
     package_dir = "/opt/radix/timberland/consul-template",
@@ -262,7 +262,10 @@ pkg_tar(
 
 pkg_tar(
     name = "timberland-nomad",
-    srcs = ["assets/systemd/nomad.env.conf", "assets/nomad/nomad-windows.hcl"],
+    srcs = [
+        "assets/nomad/nomad-windows.hcl",
+        "assets/systemd/nomad.env.conf",
+    ],
     package_dir = "/opt/radix/timberland/nomad",
     deps = ["//:nomad"],
 )
