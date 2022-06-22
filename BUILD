@@ -67,7 +67,7 @@ echo "$(OUTS)" | tr " " "\\n" | xargs -n 1 -I {} sh -c "echo \\"{}\\" | egrep -o
 pkg_tar(
     name = "consul_macos",
     srcs = select({
-        "//tools:build_for_aarch64": ["@consul_macos_aarch64//:consul"],
+        "//tools:build_for_aarch64": ["@consul_macos_x64//:consul"],
         "//tools:build_for_x64": ["@consul_macos_x64//:consul"],
     }),
     target_compatible_with = ["//tools:build_for_macos"],
