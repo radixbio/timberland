@@ -47,14 +47,17 @@ case object tfGen {
   private def mkMainTf(modules: List[String]): IO[String] =
     modules
       .map { module =>
-        tfParser.getHclVarList(module).map { varList =>
+        for {
+          varList <- tfParser.getHclVarList(module)
+          deps <- tfParser.getHclDeps(module)
           // List of key value pairs to set in the module
-          val vars = List(
+          vars = List(
             // These vars are essential to the module
             List(
               "source" -> s""""./$module"""",
               "enable" -> s"""lookup(var.feature_flags, "$module", false)""",
-              "config" -> s"var.config_$module"
+              "config" -> s"var.config_$module",
+              "depends_on" -> s"[${deps.map("module." + _).mkString(",")}]"
             ),
             // These vars are defined at the root level in daemonutil and passed to each module
             SHARED_VARS.map { varName =>
@@ -66,14 +69,13 @@ case object tfGen {
             }
           ).flatten.filter {
             // If the variables.tf file of the module doesn't have the variable defined, don't pass it to the module
-            case (varName, _) => varList.contains(varName) || varName == "source"
+            case (varName, _) => varList.contains(varName) || varName == "source" || varName == "depends_on"
           }
-          s"""
-           |module "$module" {
-           |  ${vars.map { case (k, v) => s"$k = $v" }.mkString("\n  ")}
-           |}
-           |""".stripMargin
-        }
+        } yield s"""
+                 |module "$module" {
+                 |  ${vars.map { case (k, v) => s"$k = $v" }.mkString("\n  ")}
+                 |}
+                 |""".stripMargin
       }
       .sequence
       .map(_.mkString("\n"))

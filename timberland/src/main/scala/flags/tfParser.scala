@@ -6,7 +6,7 @@ import com.bertramlabs.plugins.hcl4j.RuntimeSymbols._
 import com.radix.timberland.util.RadPath
 import io.circe.Json
 import io.circe.syntax._
-import java.util.{Map => JavaMap}
+import java.util.{Map => JavaMap, List => JavaList}
 import scala.jdk.CollectionConverters._
 import com.radix.timberland.ConstPaths.{TF_CONFIG_DIR, TF_MODULES_DIR}
 
@@ -54,24 +54,36 @@ object tfParser {
 
   // Parses the variables.tf file of a module and returns a set listing each input variable defined in the module
   def getHclVarList(moduleName: String): IO[Set[String]] = {
-    val varFile = TF_MODULES_DIR / moduleName / "variables.tf"
-    IO(os.read(varFile)).map { hclStr =>
-      val rootHcl = new HCLParser().parse(hclStr)
-      rootHcl.get("variable").asInstanceOf[JavaMap[String, AnyRef]].keySet().asScala.toSet
+    parseHcl(moduleName).map(_.keySet().asScala.toSet)
+  }
+
+  def getHclDeps(moduleName: String): IO[List[String]] = {
+    parseHcl(moduleName).map { hclVars =>
+      if (hclVars.containsKey("dependencies")) {
+        val depStanza = hclVars.get("dependencies").asInstanceOf[JavaMap[String, Object]]
+        if (depStanza.containsKey("default")) {
+          depStanza.get("default").asInstanceOf[JavaList[String]].asScala.toList
+        } else List.empty
+      } else List.empty
     }
   }
 
   // Parses the variables.tf file of a module and returns a map containing the type and default values of its config var
   def getHclCfg(moduleName: String): IO[Option[JavaMap[String, AnyRef]]] = {
+    parseHcl(moduleName).map { hclVars =>
+      if (hclVars.containsKey("config")) {
+        Some(hclVars.get("config").asInstanceOf[JavaMap[String, AnyRef]])
+      } else None
+    }
+  }
+
+  def parseHcl(moduleName: String): IO[JavaMap[String, AnyRef]] = {
     val varFile = TF_MODULES_DIR / moduleName / "variables.tf"
     IO(os.read(varFile)).map { hclStr =>
       val objectRegex = raw"(?s)object\((\{.+})\)".r
       val hclStrSanitized = objectRegex.replaceAllIn(hclStr, "$1")
       val rootHcl = new HCLParser().parse(hclStrSanitized)
-      val hclVars = rootHcl.get("variable").asInstanceOf[JavaMap[String, AnyRef]]
-      if (hclVars.containsKey("config")) {
-        Some(hclVars.get("config").asInstanceOf[JavaMap[String, AnyRef]])
-      } else None
+      rootHcl.get("variable").asInstanceOf[JavaMap[String, AnyRef]]
     }
   }
 

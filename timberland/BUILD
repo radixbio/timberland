@@ -62,6 +62,7 @@ TIMBERLAND_SRCS = [
     "src/main/scala/runtime/auth.scala",
     "src/main/scala/flags/featureFlags.scala",
     "src/main/scala/flags/configGen.scala",
+    "src/main/scala/flags/depGraph.scala",
     "src/main/scala/flags/tfGen.scala",
     "src/main/scala/flags/tfParser.scala",
     "src/main/scala/flags/hooks/oktaAuthConfig.scala",

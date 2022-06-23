@@ -16,6 +16,12 @@ variable "dev" {
   default = true //false
 }
 
+variable "dependencies" {
+  description = "List of modules that this one depends on"
+  type = list(string)
+  default = ["zookeeper"]
+}
+
 variable "interbroker_port" {
   description = ""
   type = number

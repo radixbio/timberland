@@ -20,6 +20,12 @@ variable "config" {
   }
 }
 
+variable "dependencies" {
+  description = "List of modules that this one depends on"
+  type = list(string)
+  default = ["kafka"]
+}
+
 variable "dev" {
   description = "Whether the runtime is being launched in dev mode"
   type = bool
