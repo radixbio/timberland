@@ -37,3 +37,9 @@ variable "config" {
     quorum_size = 3
   }
 }
+
+variable "consul_address" {
+  description = "The ip or hostname of consul"
+  type = string
+  default = null
+}

@@ -721,7 +721,7 @@ http_archive(
 http_archive(
     name = "nomad_windows_x64",
     build_file_content = "exports_files([\"nomad.exe\"])",
-    sha256 = "6677ff5b5b034be5b7d1ef4cba19da50817c7382cf2179e4759906e09ee5afb7",
+    sha256 = "4b375c7f2636921cc0f760a5a4e1a0f350e6601647e52c357618b1abc2e1ed44",
     url = "https://releases.hashicorp.com/nomad/1.3.0/nomad_1.3.0_windows_amd64.zip",
 )
 
