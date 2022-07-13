@@ -1007,11 +1007,11 @@ packer_deps()
 http_file(
     name = "ubuntu18046_x64",
     sha256 = "f5cbb8104348f0097a8e513b10173a07dbc6684595e331cb06f93f385d0aecf6",
-    urls = ["http://44.204.92.26/iso/base-operating-systems/ubuntu-18.04.6-server-amd64.iso"],
+    urls = ["http://3.239.240.126/iso/base-operating-systems/ubuntu-18.04.6-server-amd64.iso"],
 )
 
 http_file(
     name = "centos7_x64",
     sha256 = "07b94e6b1a0b0260b94c83d6bb76b26bf7a310dc78d7a9c7432809fb9bc6194a",
-    urls = ["http://44.204.92.26/iso/base-operating-systems/CentOS-7-x86_64-Minimal-2009.iso"],
+    urls = ["http://3.239.240.126/iso/base-operating-systems/CentOS-7-x86_64-Minimal-2009.iso"],
 )
