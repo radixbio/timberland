@@ -1015,3 +1015,9 @@ http_file(
     sha256 = "07b94e6b1a0b0260b94c83d6bb76b26bf7a310dc78d7a9c7432809fb9bc6194a",
     urls = ["http://3.239.240.126/iso/base-operating-systems/CentOS-7-x86_64-Minimal-2009.iso"],
 )
+
+http_file(
+    name = "azure_img",
+    sha256 = "9a47a31f5bf22d65ecb8b1c738bfdac1bf3175da4e87e4889e399067dbce2bb8",
+    urls = ["http://3.239.240.126/devices/azure/original_disk.img"]
+)
