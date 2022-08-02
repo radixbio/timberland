@@ -1,6 +1,5 @@
 # Created by https://www.gitignore.io/api/sbt,tex,java,latex,bazel,scala,python,intellij,intellij+all
 
-
 ### STAROEM ###
 ./device_drivers/hamiltonserver/pyhamilton/pyhamilton/STAR-OEM/
 
@@ -8,7 +7,7 @@
 /bazel-*
 **/bazel-*
 /cargo
-Cargo.lock
+
 
 ### Intellij ###
 # Covers JetBrains IDEs: IntelliJ, RubyMine, PhpStorm, AppCode, PyCharm, CLion, Android Studio and Webstorm
@@ -630,6 +629,7 @@ utils/prism-uservice/journal/*
 # Bazel
 .ijwb/
 3rdparty/
+user-bazelrc
 
 # Helm
 release-notes
@@ -664,11 +664,9 @@ deploy_rsa.pub
 # Terraform
 **/.terraform/*
 
-# Web stuff
-interface/yarn.lock
-package-lock.json
+# Rust
+Cargo.lock 
 
-user-bazelrc
 
 rust-project.json
 .bazelbsp/*
