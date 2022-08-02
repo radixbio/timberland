@@ -1021,3 +1021,9 @@ http_file(
     sha256 = "9a47a31f5bf22d65ecb8b1c738bfdac1bf3175da4e87e4889e399067dbce2bb8",
     urls = ["http://3.239.240.126/devices/azure/original_disk.img"]
 )
+
+http_file(
+    name = "opentrons_img",
+    sha256 = "036e0aae18c345f961ae078d3945b6da4bfc8ac9d45a7ed4f1d89ca681285bd4",
+    urls = ["http://3.239.240.126/devices/opentrons/original_disk.img"],
+)
