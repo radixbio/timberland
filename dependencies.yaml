@@ -473,9 +473,6 @@ dependencies:
     scala-xml:
       lang: scala
       version: "2.0.1"
-    scala-parallel-collections:
-      lang: scala
-      version: "1.0.4"
 
   org.scalacheck:
     scalacheck:
