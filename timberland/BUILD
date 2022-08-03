@@ -333,6 +333,7 @@ timberland_services = [
     "//utils/bunny_uservice:bunny-uservice-bin_deploy.jar",
     "//utils/disco:disco_uservice-bin_deploy.jar",
     "//utils/rainbowuservice:rainbow-uservice-bin_deploy.jar",
+    "//utils/repl:repl-bin_deploy.jar",
     "//utils/scheduleruservice:scheduler-uservice-bin_deploy.jar",  #TODO confirm this is right
     "//vm:vm-bin_deploy.jar",
     "//vm:vm-runner-bin_deploy.jar",
@@ -751,6 +752,7 @@ pkg_tar(
         "//utils/disco:disco-terraform",
         "//utils/ipfs:ipfs-terraform",
         "//utils/rainbowuservice:rainbow-terraform",
+        "//utils/repl:repl-terraform",
         "//utils/scheduleruservice:scheduler-terraform",  #TODO confirm this is right
         "//vm:vm-runner-terraform",
         "//vm:vm-terraform",

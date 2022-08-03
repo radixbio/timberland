@@ -118,12 +118,12 @@ dependencies:
     ammonite-ops:
       lang: scala
       version: "2.4.0"
-    ammonite_2.13.3:
+    ammonite-sshd_2.13.8:
       lang: scala/unmangled
-      version: "2.4.0"
-    fansi:
-      lang: scala
-      version: "0.2.14"
+      version: "2.5.4"
+    ammonite_2.13.8:
+      lang: scala/unmangled
+      version: "2.5.4"
     fastparse:
       lang: scala
       version: "2.3.3"
@@ -132,19 +132,7 @@ dependencies:
       version: "0.7.1"
     pprint:
       lang: scala
-      version: "0.5.5"
-    scalatags:
-      lang: scala
-      version: "0.7.0"
-    sourcecode:
-      lang: scala
-      version: "0.2.1"
-    ujson:
-      lang: scala
-      version: "1.4.2"
-    upickle:
-      lang: scala
-      version: "1.4.2"
+      version: "0.7.1"
 
   com.michaelpollmeier:
     gremlin-scala:
@@ -467,15 +455,15 @@ dependencies:
       version: "2.12.10"
 
   org.scala-lang.modules:
+    scala-parallel-collections:
+      lang: scala
+      version: "1.0.4"
     scala-parser-combinators:
       lang: scala
       version: "1.1.2"
     scala-xml:
       lang: scala
       version: "2.0.1"
-    scala-parallel-collections:
-      lang: scala
-      version: "1.0.4"
 
   org.scalacheck:
     scalacheck:
