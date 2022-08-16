@@ -304,7 +304,7 @@ pkg_tar(
 timberland_services = [
     "//algs/common/algs_mega_uservice:algs-mega-uservice-bin_deploy.jar",
     # "//device_drivers/elemental/kafka_bridge:elemental_bridge-bin_deploy.jar",
-    "//monolith/mega_service:mega-mega-uservice-bin_deploy.jar",
+    # "//monolith/mega_service:mega-mega-uservice-bin_deploy.jar",
     # "//device_drivers/eve:eve-bin_deploy.jar",
     # "//device_drivers/oceanoptics:oceanoptics-bin_deploy.jar",
     # "//device_drivers/hw_discovery:hw-discovery-bin_deploy.jar",
@@ -329,15 +329,15 @@ timberland_services = [
     # "//device_drivers/octet:octet-bin_deploy.jar",
     # "//device_drivers/entris2:entris2-bin_deploy.jar",
     "//runtime:runtime-bootstrap_deploy.jar",
-    "//frontdoor:frontdoor-bin_deploy.jar",
+    # "//frontdoor:frontdoor-bin_deploy.jar",
     "//utils/bunny_uservice:bunny-uservice-bin_deploy.jar",
-    "//utils/disco:disco_uservice-bin_deploy.jar",
+    # "//utils/disco:disco_uservice-bin_deploy.jar",
     "//utils/rainbowuservice:rainbow-uservice-bin_deploy.jar",
     "//utils/repl:repl-bin_deploy.jar",
-    "//utils/scheduleruservice:scheduler-uservice-bin_deploy.jar",  #TODO confirm this is right
-    "//vm:vm-bin_deploy.jar",
-    "//vm:vm-runner-bin_deploy.jar",
-    "//vm:vm-test-runner-bin_deploy.jar",
+    # "//utils/scheduleruservice:scheduler-uservice-bin_deploy.jar",  #TODO confirm this is right
+    #"//vm:vm-bin_deploy.jar",
+    #"//vm:vm-runner-bin_deploy.jar",
+    #"//vm:vm-test-runner-bin_deploy.jar",
 ]
 
 services_pkg_tar(
@@ -795,7 +795,7 @@ scala_binary(
     main_class = "ammonite.Main",
     deps = [
         ":timberland-lib",
-        "@third_party//3rdparty/jvm/com/lihaoyi:ammonite_2_13_3",
+        "@third_party//3rdparty/jvm/com/lihaoyi:ammonite_2_13_8",
     ],
 )
 
