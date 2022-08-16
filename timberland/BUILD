@@ -469,7 +469,7 @@ pkg_tar(
     deps = [
         ":timberland-services",
         ":timberland-slim-tar",
-        # "//interface:frontend-snowpack",
+        # "//interface:frontend-vite",
     ],
 )
 

@@ -1,6 +1,5 @@
 workspace(
-    name = "monorepo",
-    managed_directories = {"@npm": ["interface/node_modules"]},
+    name = "monorepo"
 )
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file")
@@ -974,17 +973,17 @@ load("@build_bazel_rules_nodejs//:repositories.bzl", "build_bazel_rules_nodejs_d
 
 build_bazel_rules_nodejs_dependencies()
 
-load("@build_bazel_rules_nodejs//:index.bzl", "node_repositories", "npm_install")
+load("@build_bazel_rules_nodejs//:index.bzl", "node_repositories", "yarn_install")
 
 node_repositories(
     node_version = "16.15.0",
 )
 
-npm_install(
+yarn_install(
     name = "npm",
     package_json = "//interface:package.json",
-    package_lock_json = "//interface:package-lock.json",
-    symlink_node_modules = True,
+    yarn_lock = "//interface:yarn.lock",
+    symlink_node_modules = False,
 )
 
 load("//containers/packer:deps.bzl", "packer_deps")

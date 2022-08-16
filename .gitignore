@@ -665,10 +665,13 @@ deploy_rsa.pub
 **/.terraform/*
 
 # Rust
-Cargo.lock 
-
-
+Cargo.lock
 rust-project.json
+
+# Web stuff
+package-lock.json
+
+
 .bazelbsp/*
 .bazelbsp
 .bsp/*
