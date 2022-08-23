@@ -1006,7 +1006,7 @@ packer_deps()
 http_file(
     name = "virtio_win_drivers",
     urls = ["https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/virtio-win.iso"],
-    sha256 = "8d17ae343e60f0463ce0393035c6efe209d213cf1938d0a25ce09fc55a666e7b"
+    sha256 = "196817297921be7b65d73dd2ad7fd9a7c825b455eaa218432f351c3300ecacf5"
 )
 
 http_file(
