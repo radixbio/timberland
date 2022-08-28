@@ -1005,36 +1005,36 @@ packer_deps()
 
 http_file(
     name = "virtio_win_drivers",
-    urls = ["https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/virtio-win.iso"],
+    urls = ["http://54.157.246.237/deps/virtio-win.iso"],
     sha256 = "196817297921be7b65d73dd2ad7fd9a7c825b455eaa218432f351c3300ecacf5"
 )
 
 http_file(
     name = "windows10_x64",
-    urls = ["https://software-download.microsoft.com/download/sg/444969d5-f34g-4e03-ac9d-1f9786c69161/19044.1288.211006-0501.21h2_release_svc_refresh_CLIENTENTERPRISEEVAL_OEMRET_x64FRE_en-us.iso"],
+    urls = ["http://54.157.246.237/iso/base-operating-systems/Win10_21H2_English_x64-Release-Svc-Refresh.iso"],
     sha256 = "69efac1df9ec8066341d8c9b62297ddece0e6b805533fdb6dd66bc8034fba27a"
 )
 
 http_file(
     name = "ubuntu18046_x64",
     sha256 = "f5cbb8104348f0097a8e513b10173a07dbc6684595e331cb06f93f385d0aecf6",
-    urls = ["http://3.239.240.126/iso/base-operating-systems/ubuntu-18.04.6-server-amd64.iso"],
+    urls = ["http://54.157.246.237/iso/base-operating-systems/ubuntu-18.04.6-server-amd64.iso"],
 )
 
 http_file(
     name = "centos7_x64",
     sha256 = "07b94e6b1a0b0260b94c83d6bb76b26bf7a310dc78d7a9c7432809fb9bc6194a",
-    urls = ["http://3.239.240.126/iso/base-operating-systems/CentOS-7-x86_64-Minimal-2009.iso"],
+    urls = ["http://54.157.246.237/iso/base-operating-systems/CentOS-7-x86_64-Minimal-2009.iso"],
 )
 
 http_file(
     name = "azure_img",
     sha256 = "9a47a31f5bf22d65ecb8b1c738bfdac1bf3175da4e87e4889e399067dbce2bb8",
-    urls = ["http://3.239.240.126/devices/azure/original_disk.img"]
+    urls = ["http://54.157.246.237/iso/devices/azure/original_disk.img"]
 )
 
 http_file(
     name = "opentrons_img",
     sha256 = "036e0aae18c345f961ae078d3945b6da4bfc8ac9d45a7ed4f1d89ca681285bd4",
-    urls = ["http://3.239.240.126/devices/opentrons/original_disk.img"],
+    urls = ["http://54.157.246.237/iso/devices/opentrons/original_disk.img"],
 )
