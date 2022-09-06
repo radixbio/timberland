@@ -1005,7 +1005,7 @@ packer_deps()
 
 http_file(
     name = "virtio_win_drivers",
-    urls = ["http://54.157.246.237/deps/virtio-win.iso"],
+    urls = ["http://54.157.246.237/deps/tools/virtio-win.iso"],
     sha256 = "196817297921be7b65d73dd2ad7fd9a7c825b455eaa218432f351c3300ecacf5"
 )
 
