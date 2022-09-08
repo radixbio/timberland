@@ -281,7 +281,7 @@ class Http4sConsulTests extends FlatSpec with Matchers with TypeCheckedTripleEqu
     helm.run(csl, ConsulOp.agentListServices).attempt.unsafeRunSync should ===(
       Right(
         Map(
-          "consul" -> ServiceResponse("consul", "consul", List.empty, "", 8300, false, Map.empty[String, String]),
+          "consul" -> ServiceResponse("consul", "consul", List.empty, "", 8300, false, Map.empty[String, String], "dc1"),
           "test" -> ServiceResponse(
             "testService",
             "test",
@@ -289,7 +289,8 @@ class Http4sConsulTests extends FlatSpec with Matchers with TypeCheckedTripleEqu
             "127.0.0.1",
             1234,
             false,
-            Map.empty[String, String]
+            Map.empty[String, String],
+            "dc1"
           )
         )
       )
@@ -518,7 +519,8 @@ object Http4sConsulTests {
             "127.0.0.1",
             1234,
             false,
-            Map.empty[String, String]
+            Map.empty[String, String],
+            "dc1"
           ),
           List(
             HealthCheckResponse(
