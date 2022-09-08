@@ -14,7 +14,7 @@ import com.radix.timberland.radixdefs.ACLTokens
 import com.radix.timberland.util._
 import com.radix.utils.tls.{ConsulVaultSSLContext, TrustEveryoneSSLContext}
 import org.http4s.{Header, Uri}
-import org.http4s.Method.POST
+import org.http4s.Method.{POST, PUT}
 import org.http4s.client.dsl.io._
 import org.http4s.implicits._
 
@@ -24,6 +24,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.{Failure, Success, Try}
 import io.circe.generic.auto._
 import io.circe.syntax._
+import io.circe.Json
 import os.ProcessInput
 
 trait ServiceControl {
@@ -38,7 +39,7 @@ trait ServiceControl {
   def stopTimberlandSvc(): IO[Util.ProcOut] = ???
   def stopVault(): IO[Util.ProcOut] = ???
   def configureConsul(parameters: List[String]): IO[Unit] = ???
-  def runConsulTemplate(consulToken: String, vaultToken: String, vaultAddress: Option[String]): IO[Unit] = ???
+  def runConsulTemplate(consulToken: String, vaultToken: String, vaultAddress: Option[String], datacenter: String): IO[Unit] = ???
   def configureNomad(parameters: List[String], vaultToken: String, consulToken: String): IO[Unit] = ???
   def configureTimberlandSvc(): IO[Unit] = ???
   def configureVault(parameters: String): IO[Unit] = ???
@@ -86,7 +87,8 @@ class LinuxServiceControl extends ServiceControl {
   override def runConsulTemplate(
     consulToken: String,
     vaultToken: String,
-    vaultAddress: Option[String]
+    vaultAddress: Option[String],
+    datacenter: String
   ): IO[Unit] =
     Util.execArr(
       List(
@@ -99,7 +101,8 @@ class LinuxServiceControl extends ServiceControl {
         "-consul-token",
         consulToken
       ) ++ vaultAddress.map(addr => List("-vault-addr", s"https://$addr:8200")).getOrElse(List.empty),
-      spawn = true
+      spawn = true,
+      env = Map("DATACENTER" -> datacenter)
     ) *> IO.unit
 
   override def configureTimberlandSvc(): IO[Unit] = IO.unit
@@ -155,7 +158,8 @@ class WindowsServiceControl extends ServiceControl {
   override def runConsulTemplate(
     consulToken: String,
     vaultToken: String,
-    vaultAddress: Option[String]
+    vaultAddress: Option[String],
+    datacenter: String
   ): IO[Unit] =
     Util.execArr(
       List(
@@ -168,7 +172,8 @@ class WindowsServiceControl extends ServiceControl {
         "-consul-token",
         consulToken
       ) ++ vaultAddress.map(addr => List("-vault-addr", s"https://$addr:8200")).getOrElse(List.empty),
-      spawn = true
+      spawn = true,
+      env = Map("DATACENTER" -> datacenter)
     ) *> IO.unit
 
   override def restartConsul(): IO[Util.ProcOut] = stopConsul *> IO.sleep(1.second) *> startConsul
@@ -270,6 +275,7 @@ object Services {
   def startServices(
     bindAddr: Option[String],
     leaderNodeO: Option[String],
+    datacenter: String,
     bootstrapExpect: Int,
     initialSetup: Boolean,
     serverJoin: Boolean
@@ -279,11 +285,10 @@ object Services {
       finalBindAddr <- IO {
         bindAddr match {
           case Some(ip) => ip
-          case None => {
+          case None =>
             val sock = new java.net.DatagramSocket()
             sock.connect(InetAddress.getByName("8.8.8.8"), 10002)
             sock.getLocalAddress.getHostAddress
-          }
         }
       }
       certDir = os.root / "opt" / "radix" / "certs"
@@ -325,13 +330,17 @@ object Services {
       gkBlaze = if (remoteJoin) TrustEveryoneSSLContext.insecureBlaze else ConsulVaultSSLContext.blaze
       gossipKey <- auth.getGossipKey(vaultToken, leaderNodeO.getOrElse("127.0.0.1"), gkBlaze)
 
+      // SAVE PUBLIC IP TO FILE FOR USE BY CONSUL TEMPLATE
+      publicAddr <- Util.getPublicIp
+      _ <- IO(os.write.over(RadPath.persistentDir / ".publicip", publicAddr.getOrElse[String]("127.0.0.1")))
+
       // START CONSUL TEMPLATE
-      _ <- serviceController.runConsulTemplate(consulToken, vaultToken, leaderNodeO)
+      _ <- serviceController.runConsulTemplate(consulToken, vaultToken, leaderNodeO, datacenter)
       _ <- consulTemplateReplacementCerts.map(Util.waitForPathToExist(_, 30.seconds)).parSequence
       _ <-
         if (!remoteJoin) for {
           _ <- serviceController.restartVault()
-          _ <- serviceController.runConsulTemplate(consulToken, vaultToken, leaderNodeO)
+          _ <- serviceController.runConsulTemplate(consulToken, vaultToken, leaderNodeO, datacenter)
           _ <- IO.sleep(5.seconds)
           _ = ConsulVaultSSLContext.refreshCerts()
           _ <- VaultStarter
@@ -340,23 +349,23 @@ object Services {
         else IO(ConsulVaultSSLContext.refreshCerts())
 
       // START CONSUL
-      _ <- setupConsul(finalBindAddr, gossipKey, leaderNodeO, bootstrapExpect, clientJoin)
+      _ <- setupConsul(finalBindAddr, gossipKey, leaderNodeO, bootstrapExpect, datacenter, clientJoin)
       _ <- Util.waitForSystemdString("consul", "agent: Synced node info", 60.seconds)
       actorToken <- if (initialSetup) auth.setupConsulTokens(RadPath.persistentDir, consulToken) else IO("")
       _ <-
         if (!remoteJoin) Util.waitForSystemdString("consul", "Synced service: service=vault:", 30.seconds)
         else IO.unit
-      _ <- if (initialSetup) addConsulIntention(consulToken) else IO.unit
+      _ <- if (initialSetup) addConsulIntention(consulToken) *> setConsulProxyDefaults(consulToken) else IO.unit
 
       // START NOMAD
-      _ <- setupNomad("0.0.0.0", gossipKey, leaderNodeO, bootstrapExpect, vaultToken, consulToken, serverJoin)
+      _ <- setupNomad(gossipKey, leaderNodeO, bootstrapExpect, vaultToken, consulToken, datacenter, serverJoin)
       _ <- Util.waitForPortUp(4646, 30.seconds)
       consulNomadToken <-
         if (initialSetup && !remoteJoin) {
           auth.setupNomadMasterToken(RadPath.persistentDir, consulToken)
-        } else if (initialSetup && remoteJoin)
+        } else if (initialSetup && remoteJoin) {
           IO(consulToken)
-        else {
+        } else {
           auth.getMasterToken
         }
       _ <- if (initialSetup) addNomadNamespace(consulNomadToken) else IO.unit
@@ -396,14 +405,14 @@ object Services {
     gossipKey: String,
     leaderNodeO: Option[String],
     bootstrapExpect: Int,
+    datacenter: String,
     serverJoin: Boolean = false
   ): IO[Unit] = {
     val baseArgs = List(
-      s"""-bind="$bindAddr"""",
       s"""-advertise="$bindAddr"""",
-      s"""-client="127.0.0.1 $bindAddr"""",
       s"""-config-dir="${(RadPath.persistentDir / "consul" / "config").toString}"""",
-      s"""-encrypt="$gossipKey""""
+      s"""-encrypt="$gossipKey"""",
+      s"""-datacenter="$datacenter"""",
     )
     val clientJoin = leaderNodeO.isDefined && !serverJoin
     val remoteJoin = clientJoin || serverJoin
@@ -416,7 +425,7 @@ object Services {
             s"""-retry-join="$host""""
           }
 
-      case None => baseArgs
+      case None => baseArgs ++ List(s"""-node="$datacenter-leader"""")
     }
 
     val baseArgsWithSeedsAndServer = remoteJoin match {
@@ -437,12 +446,12 @@ object Services {
   }
 
   def setupNomad(
-    bindAddr: String,
     gossipKey: String,
     leaderNodeO: Option[String],
     bootstrapExpect: Int,
     vaultToken: String,
     consulToken: String,
+    datacenter: String,
     serverJoin: Boolean = false
   ): IO[Unit] = {
     val clientJoin = leaderNodeO.isDefined & !serverJoin
@@ -461,7 +470,10 @@ object Services {
           }
       case None => baseArgs
     }
-    val parameters = baseArgsWithSeeds ++ List(s"""-bind="$bindAddr"""", s"""-encrypt="$gossipKey"""")
+    val parameters = baseArgsWithSeeds ++ List(
+      s"""-encrypt="$gossipKey"""",
+      s"""-dc="$datacenter""""
+    )
     for {
       configureNomad <- serviceController.configureNomad(parameters, vaultToken, consulToken)
       procOut <- serviceController.restartNomad()
@@ -513,6 +525,26 @@ object Services {
 
     ConsulVaultSSLContext.blaze.use(_.status(req)).map { status =>
       if (status.code != 200) scribe.warn("Error adding consul intention: " + status.reason)
+      ()
+    }
+  }
+
+  private def setConsulProxyDefaults(consulToken: String): IO[Unit] = {
+    val payload = Map(
+      "Kind" -> Json.fromString("proxy-defaults"),
+      "Name" -> Json.fromString("global"),
+      "MeshGateway" -> Map(
+        "mode" -> Json.fromString("local")
+      ).asJson
+    ).asJson.toString()
+    val req = PUT(
+      payload,
+      uri"http://consul.service.consul:8500/v1/config",
+      Header("X-Consul-Token", consulToken)
+    )
+
+    ConsulVaultSSLContext.blaze.use(_.status(req)).map { status =>
+      if (status.code != 200) scribe.warn("Error setting consul proxy defaults: " + status.reason)
       ()
     }
   }

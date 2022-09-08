@@ -78,6 +78,8 @@ trait ConsulInterface[F[_]] extends (ConsulOp ~> F) {
     wait: Option[Interval]
   ): F[QueryResponse[List[HealthNodesForServiceResponse]]]
 
+  def agentGetInfo(): F[AgentInfoResult]
+
   def agentRegisterService(
     service: String,
     id: Option[String],

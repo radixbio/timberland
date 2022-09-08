@@ -13,7 +13,7 @@ job "kibana" {
     value = "true"
   }
 
-  datacenters = ["dc1"]
+  datacenters = ["${datacenter}"]
 
   group "kibana" {
 

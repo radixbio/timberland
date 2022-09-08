@@ -86,7 +86,7 @@ object NomadHCL {
 
     case class Port(static: Option[Int] = None) extends HCLFmt
 
-    case class Network(mbits: Int = 10, ports: List[syntax.PortShim], mode: Option[String] = None) extends HCLFmt
+    case class Network(mbits: Option[Int] = None, ports: List[syntax.PortShim], mode: Option[String] = None) extends HCLFmt
 
     case class CheckRestart(limit: Int = 0, grace: String = "1s", ignore_warnings: Boolean = false) extends HCLFmt
 
@@ -177,10 +177,10 @@ object NomadHCL {
     ) extends HCLFmt
 
     case class DockerConfig(
-      image: String,
+      image: Option[String] = None,
       args: Option[List[String]] = None,
       //                            auth: Option,
-      auth_soft_fail: Boolean = false,
+      auth_soft_fail: Option[Boolean] = None,
       command: Option[String] = None,
       dns_search_domains: Option[List[String]] = None,
       dns_options: Option[List[String]] = None,
@@ -419,7 +419,7 @@ object NomadHCL {
         override def show(t: FieldType[K, H] :: T): List[String] = {
           t match {
             case h :: tail =>
-              H.value.show(h).map(hd => s"${W.value.toString.drop(1)} = $hd" :: T.show(tail)).getOrElse(T.show(tail))
+              H.value.show(h).map(hd => s"${W.value.toString.drop(7).dropRight(1)} = $hd" :: T.show(tail)).getOrElse(T.show(tail))
           }
         }
       }
@@ -480,7 +480,7 @@ object NomadHCL {
               val inside = H.value.show(h).map("  " + _).mkString("\n")
               if (inside.stripLineEnd.replaceAll(" ", "") != "") {
                 s"""
-                   |${W.value.toString.drop(1)} {
+                   |${W.value.toString.drop(7).dropRight(1)} {
                    |${inside}
                    |}
                    |""".stripMargin.split("\n").map("  " + _).mkString("\n") + "\n" :: T.show(tail)

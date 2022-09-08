@@ -3,6 +3,7 @@ resource "nomad_job" "zookeeper" {
   jobspec = templatefile("/opt/radix/timberland/terraform/modules/zookeeper/zookeeper.tmpl", {
     dev = var.dev,
     namespace = var.namespace,
+    datacenter = var.datacenter,
         config = var.config
   })
 }

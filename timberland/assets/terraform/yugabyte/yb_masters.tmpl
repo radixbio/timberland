@@ -13,7 +13,7 @@ job "yugabyte-masters" {
     value = "true"
   }
 
-  datacenters = ["dc1"]
+  datacenters = ["${datacenter}"]
 
 %{ for i in range(dev ? 1 : config.quorum_size) ~}
   group "yb-masters-group-${i}" {

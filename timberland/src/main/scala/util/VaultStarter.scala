@@ -289,7 +289,7 @@ object VaultUtils {
           "write",
           s"-address=https://$vaultAddr:8200",
           "/pki_int/roles/tls-cert",
-          "allowed_domains=service.consul,dc1.consul,global.nomad",
+          "allowed_domains=service.consul,dc1.consul,dc2.consul,global.nomad",
           "allow_subdomains=true",
           "max_ttl=86400s",
           "require_cn=false",

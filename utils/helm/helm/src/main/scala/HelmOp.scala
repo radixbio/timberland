@@ -17,11 +17,11 @@ object ConsulOp {
 
   final case class KVGet(
     key: Key,
-    recurse: Option[Boolean],
-    datacenter: Option[String],
-    separator: Option[String],
-    index: Option[Long],
-    maxWait: Option[Interval]
+    recurse: Option[Boolean] = None,
+    datacenter: Option[String] = None,
+    separator: Option[String] = None,
+    index: Option[Long] = None,
+    maxWait: Option[Interval] = None,
   ) extends ConsulOp[QueryResponse[List[KVGetResult]]]
 
   final case class KVGetRaw(
@@ -89,7 +89,11 @@ object ConsulOp {
     checkId: String
   ) extends ConsulOp[Unit]
 
+  final case object AgentGetInfo extends ConsulOp[AgentInfoResult]
   final case object AgentListServices extends ConsulOp[Map[String, ServiceResponse]]
+  final case class AgentSetToken(tokenType: String, token: String) extends ConsulOp[Unit]
+
+  final case object AclGetTokens extends ConsulOp[List[AclTokenResult]]
 
   final case class CatalogListNodesForService(service: String, tag: Option[String])
       extends ConsulOp[List[CatalogListNodesForServiceResponse]]
@@ -112,6 +116,10 @@ object ConsulOp {
 
   final case class AgentEnableMaintenanceMode(id: String, enable: Boolean, reason: Option[String])
       extends ConsulOp[Unit]
+
+  final case class KeyringInstallKey(str: String) extends ConsulOp[Unit]
+
+  final case class KeyringSetPrimaryKey(str: String) extends ConsulOp[Unit]
 
   type ConsulOpF[A] = Free[ConsulOp, A]
 
@@ -233,6 +241,12 @@ object ConsulOp {
 
   def agentEnableMaintenanceMode(id: String, enable: Boolean, reason: Option[String]): ConsulOpF[Unit] =
     liftF(AgentEnableMaintenanceMode(id, enable, reason))
+
+  def keyringInstallKey(key: String): ConsulOpF[Unit] =
+    liftF(KeyringInstallKey(key))
+
+  def keyringSetPrimaryKey(key: String): ConsulOpF[Unit] =
+    liftF(KeyringSetPrimaryKey(key))
 
   final case class SessionCreate(
     name: String,

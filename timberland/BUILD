@@ -60,6 +60,7 @@ TIMBERLAND_SRCS = [
     "src/main/scala/launch/daemonutil.scala",
     "src/main/scala/launch/dns.scala",
     "src/main/scala/runtime/auth.scala",
+    "src/main/scala/runtime/wan.scala",
     "src/main/scala/flags/featureFlags.scala",
     "src/main/scala/flags/configGen.scala",
     "src/main/scala/flags/depGraph.scala",

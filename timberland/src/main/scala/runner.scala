@@ -33,6 +33,7 @@ object runner {
               leaderNode,
               remoteAddress,
               namespace,
+              datacenter,
               username,
               password,
               serverJoin
@@ -53,7 +54,7 @@ object runner {
               _ <- IO(scribe.debug("Launching daemons"))
               flags <- featureFlags.flags
               bootstrapExpect = if (flags.getOrElse("dev", false)) 1 else 3
-              tokens <- Services.startServices(bindIP, leaderNode, bootstrapExpect, setupACL, serverJoin)
+              tokens <- Services.startServices(bindIP, leaderNode, datacenter, bootstrapExpect, setupACL, serverJoin)
               _ <-
                 if (leaderNode.isEmpty) {
                   Util.waitForPortUp(8200, 30.seconds)
@@ -68,7 +69,7 @@ object runner {
             authTokens: AuthTokens
           ) =
             for {
-              tfStatus <- daemonutil.runTerraform(namespace)(serviceAddrs, authTokens)
+              tfStatus <- daemonutil.runTerraform(namespace, datacenter)(serviceAddrs, authTokens)
               _ <- IO {
                 tfStatus match {
                   case 0 => true
@@ -172,7 +173,7 @@ object runner {
         case Stop =>
           (for {
             tokens <- auth.getAuthTokens()
-            _ <- daemonutil.runTerraform(shouldStop = true)(tokens = tokens)
+            _ <- daemonutil.runTerraform(shouldStop = true)(tokens = tokens) // TODO: add dc
             _ <- Services.stopServices()
             _ <- IO(scribe.info("Stopped."))
           } yield ()).unsafeRunSync
@@ -212,6 +213,14 @@ object runner {
           }
 
         case FlagQuery => featureFlags.query.unsafeRunSync()
+
+        case WanJoin(host, leaderNode, username, password, publicAddr) =>
+          if (host) {
+            wan.prepareWanHost(publicAddr).unsafeRunSync()
+          } else {
+            wan.wanJoin(leaderNode, username, password, publicAddr).unsafeRunSync()
+          }
+          sys.exit(0)
 
         case AddUser(name, policies) =>
           if (!os.exists(ConstPaths.bootstrapComplete)) {
@@ -272,7 +281,7 @@ object runner {
             // If vault is not installed, just query the remote vault for tokens
             hasLocalVault = args.leaderNode.isEmpty || args.serverMode
             tokens <- if (hasLocalVault) restartVaultAndGetTokens else auth.recoverRunContext(args).map(_._2)
-            _ <- Services.serviceController.runConsulTemplate(tokens.consulNomadToken, tokens.vaultToken, None)
+            _ <- Services.serviceController.runConsulTemplate(tokens.consulNomadToken, tokens.vaultToken, None, args.datacenter)
             _ <- Services.serviceController.restartConsul()
             _ <- Services.serviceController.restartNomad()
             _ <- Services.serviceController.restartTimberlandSvc()

@@ -27,16 +27,16 @@ object timberlandService extends IOApp {
       context <- auth.recoverRunContext(args)
       addrs = context._1
       tokens = context._2
-      _ <- IO.race(reloadTemplateLoop(tokens), startTimberlandConfigServer(addrs, tokens))
+      _ <- IO.race(reloadTemplateLoop(tokens, args.datacenter), startTimberlandConfigServer(addrs, tokens))
       never <- IO.never
     } yield never
 
-  private def reloadTemplateLoop(implicit tokens: AuthTokens): IO[Nothing] =
+  private def reloadTemplateLoop(tokens: AuthTokens, datacenter: String): IO[Nothing] =
     for {
       _ <- IO.sleep(1.hour)
       _ <- launch.dns.up() // Ensure DNS entry exists
-      _ <- serviceController.runConsulTemplate(tokens.consulNomadToken, tokens.vaultToken, None)
-      nothing <- reloadTemplateLoop
+      _ <- serviceController.runConsulTemplate(tokens.consulNomadToken, tokens.vaultToken, None, datacenter)
+      nothing <- reloadTemplateLoop(tokens, datacenter)
     } yield nothing
 
   private def startTimberlandConfigServer(implicit addrs: ServiceAddrs, auth: AuthTokens): IO[Nothing] =
@@ -68,7 +68,7 @@ object timberlandService extends IOApp {
     case req @ POST -> Root / "config" / module => setConfig(module, req)
     case GET -> Root / "flags"                  => getFlags
     case req @ POST -> Root / "flags"           => setFlags(req)
-    case POST -> Root / "run"                   => featureFlags.runHooks *> daemonutil.runTerraform() *> Ok()
+    case POST -> Root / "run"                   => featureFlags.runHooks *> daemonutil.runTerraform() *> Ok() // TODO: Add dc
     case _ -> Root                              => NotFound()
   }
 

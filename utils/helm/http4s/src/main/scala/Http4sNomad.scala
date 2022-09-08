@@ -109,6 +109,7 @@ final class Http4sNomadClient[F[_]](
       _ <- F.delay(log.debug(s"parsing nomad HCL create job command ${job.name}"))
       // Convert the JobShim object to a string.
       hcl = implicitly[HCLAble[JobShim]].show(job)
+      _ <- F.delay(println(hcl))
       body = Json.obj("JobHCL" -> hcl.asJson, "Canonicalize" -> canonicalize.asJson)
       parseUri = baseUri / "v1" / "jobs" / "parse"
 

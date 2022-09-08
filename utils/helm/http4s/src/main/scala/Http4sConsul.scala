@@ -7,6 +7,7 @@ import cats.effect.{Effect, Resource}
 import cats.implicits._
 import com.radix.utils.helm._
 import com.radix.utils.helm.http4s.{util => helmUtil}
+import org.http4s.Method.POST
 
 import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.duration._
@@ -38,6 +39,10 @@ final class Http4sConsulClient[F[_]](
 
   private implicit val keysDecoder: EntityDecoder[F, List[String]] =
     jsonOf[F, List[String]]
+  private implicit val aclTokenResultDecoder: EntityDecoder[F, List[AclTokenResult]] =
+    jsonOf[F, List[AclTokenResult]]
+  private implicit val agentInfoResultDecoder: EntityDecoder[F, AgentInfoResult] =
+    jsonOf[F, AgentInfoResult]
   private implicit val listKvGetResultDecoder: EntityDecoder[F, List[KVGetResult]] = jsonOf[F, List[KVGetResult]]
   private implicit val listServicesDecoder: EntityDecoder[F, Map[String, ServiceResponse]] =
     jsonOf[F, Map[String, ServiceResponse]]
@@ -82,9 +87,15 @@ final class Http4sConsulClient[F[_]](
       agentRegisterService(service, id, tags, address, port, enableTagOverride, check, checks)
     case ConsulOp.AgentDeregisterService(service) =>
       agentDeregisterService(service)
+    case ConsulOp.AgentSetToken(tokenType, token) =>
+      agentSetToken(tokenType, token)
+    case ConsulOp.AgentGetInfo => agentGetInfo()
     case ConsulOp.AgentListServices => agentListServices(): F[A]
     case ConsulOp.AgentEnableMaintenanceMode(id, enable, reason) =>
       agentEnableMaintenanceMode(id, enable, reason)
+    case ConsulOp.AclGetTokens => aclGetTokens()
+    case ConsulOp.KeyringInstallKey(key) => keyringInstallKey(key)
+    case ConsulOp.KeyringSetPrimaryKey(key) => keyringSetPrimaryKey(key)
     case ConsulOp
           .SessionCreate(name, datacenter, lockDelay, node, checks, behavior, ttl) =>
       sessionCreate(name, datacenter, lockDelay, node, checks, behavior, ttl)
@@ -161,11 +172,11 @@ final class Http4sConsulClient[F[_]](
 
   def kvGet(
     key: Key,
-    recurse: Option[Boolean],
-    datacenter: Option[String],
-    separator: Option[String],
-    index: Option[Long],
-    wait: Option[Interval]
+    recurse: Option[Boolean] = None,
+    datacenter: Option[String] = None,
+    separator: Option[String] = None,
+    index: Option[Long] = None,
+    wait: Option[Interval] = None
   ): F[QueryResponse[List[KVGetResult]]] = {
     for {
       _ <- F.delay(log.debug(s"fetching consul key $key"))
@@ -466,6 +477,21 @@ final class Http4sConsulClient[F[_]](
     }
   }
 
+  def isConnectedToDatacenter(datacenter: String): F[Boolean] = for {
+    _ <- F.delay(log.debug(s"checking if consul is connected to datacenter $datacenter"))
+    req = addCreds(
+      addConsulToken(
+        Request(
+          uri = (baseUri / "v1" / "catalog" / "services") +? ("dc", datacenter)
+        )
+      )
+    )
+    connected <- blaze.use(_.successful(req))
+  } yield {
+    log.debug(s"consul is connected to datacenter $datacenter: $connected")
+    connected
+  }
+
   def healthChecksInState(
     state: HealthStatus,
     datacenter: Option[String],
@@ -548,6 +574,34 @@ final class Http4sConsulClient[F[_]](
     }
   }
 
+  def aclGetTokens(): F[List[AclTokenResult]] = {
+    for {
+      _ <- F.delay(log.debug("fetching ACL tokens"))
+      req = addCreds(
+        addConsulToken(
+          Request(uri = baseUri / "v1" / "acl" / "tokens")
+        )
+      )
+      response <- blaze.use { client => client.expectOr[List[AclTokenResult]](req)(handleConsulErrorResponse) }
+    } yield {
+      log.debug(s"ACL tokens response: $response")
+      response
+    }
+  }
+
+  def agentSetToken(tokenType: String, token: String): F[Unit] = {
+    for {
+      _ <- F.delay(log.debug(s"setting agent token $tokenType to $token"))
+      json = Json.obj("Token" -> token.asJson).toString()
+      req <- PUT(json, baseUri / "v1" / "agent" / "token" / tokenType)
+        .map(addConsulToken)
+        .map(addCreds)
+      response <- blaze.use(client => client.expectOr[String](req)(handleConsulErrorResponse))
+    } yield {
+      log.debug(s"Agent set token response: $response")
+    }
+  }
+
   def agentRegisterService(
     service: String,
     id: Option[String],
@@ -616,6 +670,19 @@ final class Http4sConsulClient[F[_]](
     }
   }
 
+  def agentGetInfo(): F[AgentInfoResult] = {
+    for {
+      _ <- F.delay(log.debug(s"fetching info from local agent"))
+      req = addCreds(addConsulToken(Request(uri = (baseUri / "v1" / "agent" / "self"))))
+      info <- blaze.use { client =>
+        client.expectOr[AgentInfoResult](req)(handleConsulErrorResponse)
+      }
+    } yield {
+      log.debug(s"got info: $info")
+      info
+    }
+  }
+
   def agentEnableMaintenanceMode(id: String, enable: Boolean, reason: Option[String]): F[Unit] = {
     for {
       _ <- F.delay(log.debug(s"setting service with id $id maintenance mode to $enable"))
@@ -633,6 +700,26 @@ final class Http4sConsulClient[F[_]](
         client.expectOr[String](req)(handleConsulErrorResponse)
       }
     } yield log.debug(s"setting maintenance mode for service $id to $enable resulted in $response")
+  }
+
+  def keyringInstallKey(key: String): F[Unit] = {
+    val req = POST(Map("Key" -> key).asJson.toString, baseUri / "v1" / "operator" / "keyring")
+      .map(addConsulToken)
+      .map(addCreds)
+    for {
+      _ <- F.delay(log.debug(s"installing key $key into consul keyring"))
+      response <- blaze.use(_.expectOr[String](req)(handleConsulErrorResponse))
+    } yield log.debug(s"response from key install: $response")
+  }
+
+  def keyringSetPrimaryKey(key: String): F[Unit] = {
+    val req = PUT(Map("Key" -> key).asJson.toString, baseUri / "v1" / "operator" / "keyring")
+      .map(addConsulToken)
+      .map(addCreds)
+    for {
+      _ <- F.delay(log.debug(s"setting key $key as primary"))
+      response <- blaze.use(_.expectOr[String](req)(handleConsulErrorResponse))
+    } yield log.debug(s"response from primary key set: $response")
   }
 
   import java.util.UUID

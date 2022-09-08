@@ -1,7 +1,7 @@
 job "yugabyte-kafka-connector" {
   namespace = "${namespace}"
   all_at_once = false
-  datacenters = ["dc1"]
+  datacenters = ["${datacenter}"]
 
   group "connector" {
     count = 1

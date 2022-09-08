@@ -16,6 +16,7 @@ case class Start(
   leaderNode: Option[String] = None,
   remoteAddress: Option[String] = None,
   namespace: Option[String] = None,
+  datacenter: String = "dc1",
   username: Option[String] = None,
   password: Option[String] = None,
   serverMode: Boolean = false
@@ -34,6 +35,14 @@ object Start {
   implicit val loglevelDecoder: Decoder[scribe.Level] = (c: HCursor) =>
     c.as[Double].map(d => levels.find(lvl => lvl.value == d).get)
 }
+
+case class WanJoin(
+  host: Boolean,
+  leaderNode: Option[String],
+  username: Option[String],
+  password: Option[String],
+  publicAddr: String
+) extends RadixCMD
 
 case class Env(fish: Boolean) extends RadixCMD
 
@@ -113,6 +122,44 @@ object cli {
       info(
         switch(long("fish"), help("Output script for fish rather than POSIX-compliant shells")).map(Env),
         progDesc("Print a shell script that puts timberland, nomad, consul, vault, and terraform in $PATH")
+      )
+    )
+  )
+
+  private val wanjoin = subparser[WanJoin](
+    metavar("wanjoin"),
+    command(
+      "wanjoin",
+      info(
+        pure(WanJoin(host = false, leaderNode = None, publicAddr = "", username = None, password = None)) <*>
+          switch(
+            long("host"),
+            help("Prepare this host as a primary datacenter than can be WAN-joined")
+          ).map(host => (exist: WanJoin) => exist.copy(host = host)) <*>
+          strArgument(
+            metavar("PUBLIC_ADDR"),
+            help("Publically accessible address of this node")
+          ).map(publicAddr => (exist: WanJoin) => exist.copy(publicAddr = publicAddr)) <*>
+          optional(strOption(
+            metavar("LEADER_NODE"),
+            long("leader-node"),
+            help("Leader node to join")
+          )).map(leaderNode => (exist: WanJoin) => exist.copy(leaderNode = leaderNode)) <*>
+          optional(
+            strOption(
+              metavar("USERNAME"),
+              long("username"),
+              help("Remote username (set locally with add_user cmd)")
+            )
+          ).map(username => (exist: WanJoin) => exist.copy(username = username)) <*>
+          optional(
+            strOption(
+              metavar("PASSWORD"),
+              long("password"),
+              help("Remote password (set locally with add_user cmd)")
+            )
+          ).map(password => (exist: WanJoin) => exist.copy(password = password)),
+        progDesc("Join a WAN cluster")
       )
     )
   )
@@ -202,6 +249,20 @@ object cli {
             exist: Start =>
               namespace match {
                 case Some(_) => exist.copy(namespace = namespace)
+                case None    => exist
+              }
+          }) <*>
+
+          optional(
+            strOption(
+              metavar("DATACENTER"),
+              long("datacenter"),
+              help("Datacenter for Nomad jobs")
+            )
+          ).map(datacenter => {
+            exist: Start =>
+              datacenter match {
+                case Some(dc) => exist.copy(datacenter = dc)
                 case None    => exist
               }
           }) <*>
@@ -387,7 +448,8 @@ object cli {
     config,
     enable,
     disable,
-    query
+    query,
+    wanjoin
   ).map(_.weaken[RadixCMD])
 
   val opts: ParserInfo[RadixCMD] = info(
@@ -461,6 +523,12 @@ object cli {
                 )
               )(Doc.append)
             ),
+            Doc.linebreak,
+            Doc.linebreak,
+            Doc.text("To join this machine to another node over WAN or prepare the node to be joined, run:"),
+            Doc.linebreak,
+            Doc.indent(2, Doc.text("timberland wanjoin")),
+            Doc.linebreak,
             Doc.linebreak,
             Doc.text("To stop an existing Radix runtime installation, run:"),
             Doc.linebreak,

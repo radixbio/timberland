@@ -9,7 +9,7 @@ import com.radix.timberland.ConstPaths
 case object tfGen {
 
   // A list of root-level terraform variables that should be passed to each module
-  val SHARED_VARS = List("namespace", "consul_address")
+  val SHARED_VARS = List("namespace", "consul_address", "datacenter")
 
   private val ec = ExecutionContext.global
   implicit private val cs: ContextShift[IO] = IO.contextShift(ec)

@@ -201,4 +201,12 @@ class Vault[F[_]: ConcurrentEffect](authToken: Option[String], baseUrl: Uri)(imp
         .withEntity(req.asJson)
     )
   }
+
+  override def getCertificate(pkiName: String, commonName: String, ttl: String): F[Either[VaultError, CertificateResponse]] = {
+    val req = Map("common_name" -> commonName, "ttl" -> ttl, "exclude_cn_from_sans" -> "false", "format" -> "pem")
+    submitRequest(
+      Request[F](method = POST, uri = baseUrl / "v1" / pkiName / "issue" / "tls-cert", headers = baseHeaders)
+        .withEntity(req.asJson)
+    )
+  }
 }

@@ -1,6 +1,12 @@
 resource "nomad_job" "kafka" {
   count = var.enable ? 1 : 0
-  jobspec = templatefile("/opt/radix/timberland/terraform/modules/kafka/kafka.tmpl", {namespace = var.namespace, dev = var.dev, config = var.config, interbroker_port = var.interbroker_port})
+  jobspec = templatefile("/opt/radix/timberland/terraform/modules/kafka/kafka.tmpl", {
+    namespace = var.namespace,
+    datacenter = var.datacenter,
+    dev = var.dev,
+    config = var.config,
+    interbroker_port = var.interbroker_port
+  })
 }
 
 data "consul_service_health" "kafka_health" {

@@ -64,7 +64,7 @@ class NomadOpTests extends AnyFlatSpec with ForAllTestContainer {
           task = List(
             task("arst")(
               Task(
-                config = Some(DockerConfig(image = "hello-world:latest"))
+                config = Some(DockerConfig(image = Some("hello-world:latest")))
               )
             )
           )

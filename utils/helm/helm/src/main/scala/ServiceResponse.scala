@@ -10,7 +10,8 @@ final case class ServiceResponse(
   address: String,
   port: Int,
   enableTagOverride: Boolean,
-  meta: Map[String, String]
+  meta: Map[String, String],
+  datacenter: String
 )
 
 object ServiceResponse {
@@ -24,6 +25,7 @@ object ServiceResponse {
         service <- j.downField("Service").as[String]
         tags <- j.downField("Tags").as[List[String]]
         meta <- j.downField("Meta").as[Option[Map[String, String]]]
+        datacenter <- j.downField("Datacenter").as[String]
       } yield ServiceResponse(
         service,
         id,
@@ -31,7 +33,8 @@ object ServiceResponse {
         address,
         port,
         enableTagOverride,
-        meta.getOrElse(Map.empty[String, String])
+        meta.getOrElse(Map.empty[String, String]),
+        datacenter
       )
     }
   }

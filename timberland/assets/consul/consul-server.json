@@ -1,9 +1,8 @@
 {
   "bind_addr" : "",
-  "datacenter" : "dc1",
   "data_dir" : "/opt/radix/consul",
   "ui" : true,
-  "client_addr": "",
+  "client_addr": "127.0.0.1 {{ GetPrivateIPs }} {{ GetPublicIPs }}",
   "advertise_addr": "",
   "connect": {
     "enabled": true
@@ -13,6 +12,7 @@
     "https": 8501,
     "grpc": 8502
   },
+  "bind_addr": "0.0.0.0",
   "recursors": ["8.8.8.8"],
   "acl": {
     "enabled": true,
@@ -22,7 +22,8 @@
   "verify_incoming": true,
   "verify_outgoing": true,
   "verify_server_hostname": true,
-  "ca_file": "/opt/radix/certs/ca/cert.pem",
+  "disable_remote_exec": false,
+  "ca_path": "/opt/radix/certs/ca",
   "cert_file": "/opt/radix/certs/consul/cert.pem",
   "key_file": "/opt/radix/certs/consul/key.pem",
   "auto_encrypt": {

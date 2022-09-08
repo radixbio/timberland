@@ -13,7 +13,7 @@ job "kc-daemons" {
     value = "true"
   }
 
-  datacenters = ["dc1"]
+  datacenters = ["${datacenter}"]
 
 %{ for i in range(1) ~}
   group "kafka-companions-${i}" {

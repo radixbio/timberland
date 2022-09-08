@@ -10,6 +10,12 @@ variable "namespace" {
   default = ""
 }
 
+variable "datacenter" {
+  description = "Name of the datacenter for this nomad job"
+  type = string
+  default = ""
+}
+
 variable "consul_address" {
   description = "Dns address/resolved remote ip of consul"
   type = string

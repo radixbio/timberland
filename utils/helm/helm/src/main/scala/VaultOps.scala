@@ -243,3 +243,23 @@ object LoginResponse {
     } yield LoginResponse(token, accessorId, policies, metadata)
   }
 }
+
+final case class CertificateResponse(
+  certificate: String,
+  caChain: List[String],
+  expiration: Int,
+  issuingCa: String,
+  privateKey: String
+)
+object CertificateResponse {
+  implicit val certificateResponseDecoder: Decoder[CertificateResponse] = (c: HCursor) => {
+    val data: ACursor = c.downField("data")
+    for {
+      certificate <- data.get[String]("certificate")
+      caChain <- data.get[List[String]]("ca_chain")
+      expiration <- data.get[Int]("expiration")
+      issuingCa <- data.get[String]("issuing_ca")
+      privateKey <- data.get[String]("private_key")
+    } yield CertificateResponse(certificate, caChain, expiration, issuingCa, privateKey)
+  }
+}

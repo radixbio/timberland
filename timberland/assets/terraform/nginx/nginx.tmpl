@@ -13,7 +13,7 @@ job "nginx" {
     value = "true"
   }
 
-  datacenters = ["dc1"]
+  datacenters = ["${datacenter}"]
 
   group "nginx" {
 

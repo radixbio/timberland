@@ -2,6 +2,7 @@ resource "nomad_job" "nginx" {
   count = var.enable ? 1 : 0
   jobspec = templatefile("/opt/radix/timberland/terraform/modules/nginx/nginx.tmpl", {
     namespace = var.namespace,
+    datacenter = var.datacenter,
     services = var.dev ? data.consul_services.svc_list.names : [
       # "kibana",
       # "ui",

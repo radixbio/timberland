@@ -333,25 +333,28 @@ object auth {
       nomadActorTokenCmdRes <- Util.exec(nomadActorTokenCmd)
       _ <- IO(scribe.info(nomadActorTokenCmdRes.toString))
       nomadActorToken = parseToken(nomadActorTokenCmdRes)
+
       tokenMap = Map(
         "consul-ui-token" -> tokens.masterToken,
         "actor-token" -> tokens.actorToken,
         "nomad-actor-token" -> nomadActorToken.getOrElse("")
       )
-      _ <- tokenMap.toList.map { case (name, token) =>
-        val payload = CreateSecretRequest(data = Map("token" -> token).asJson, cas = None)
-        vault.createSecret(s"tokens/${name}", payload).map {
-          case Left(err) =>
-            scribe.warn(s"Warning, ${name} could not be saved to vault due to:\n" + err)
-            scribe.warn(s"This is most likely because the token already exists")
-          case Right(_) => ()
-        }
-      }.parSequence
+      _ <- tokenMap.toList.map { case (name, token) => storeTokenInVault(name, token, vault) }.parSequence
       _ <- IO(os.write.over(RadPath.runtime / "timberland" / ".acl-token", tokens.masterToken, os.PermSet(400)))
     } yield ()
   }
 
-  private def parseToken(cmdResult: Util.ProcOut): Option[String] = {
+  def storeTokenInVault(name: String, token: String, vault: Vault[IO]): IO[Unit] = {
+    val payload = CreateSecretRequest(data = Map("token" -> token).asJson, cas = None)
+    vault.createSecret(s"tokens/$name", payload).map {
+      case Left(err) =>
+        scribe.warn(s"Warning, $name could not be saved to vault due to:\n" + err)
+        scribe.warn(s"This is most likely because the token already exists")
+      case Right(_) => ()
+    }
+  }
+
+  def parseToken(cmdResult: Util.ProcOut): Option[String] = {
     val lines = cmdResult.stdout.split('\n')
     val secretLine = lines.find(line => line.startsWith("Secret"))
     secretLine.map(_.split("\\s+").last).orElse {

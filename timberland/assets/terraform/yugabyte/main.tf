@@ -1,11 +1,20 @@
 resource "nomad_job" "yb_masters" {
   count = var.enable ? 1 : 0
-  jobspec = templatefile("/opt/radix/timberland/terraform/modules/yugabyte/yb_masters.tmpl", {namespace = var.namespace, config = var.config, dev = var.dev})
+  jobspec = templatefile("/opt/radix/timberland/terraform/modules/yugabyte/yb_masters.tmpl", {
+    namespace = var.namespace,
+    datacenter = var.datacenter,
+    config = var.config, dev = var.dev
+  })
 }
 
 resource "nomad_job" "yb_tservers" {
   count = var.enable ? 1 : 0
-  jobspec = templatefile("/opt/radix/timberland/terraform/modules/yugabyte/yb_tservers.tmpl", {namespace = var.namespace, config = var.config, dev = var.dev})
+  jobspec = templatefile("/opt/radix/timberland/terraform/modules/yugabyte/yb_tservers.tmpl", {
+    namespace = var.namespace,
+    datacenter = var.datacenter,
+    config = var.config,
+    dev = var.dev
+  })
 }
 
 data "consul_service_health" "yb_master_health" {

@@ -65,6 +65,7 @@ package object daemonutil {
    */
   def runTerraform(
     namespace: Option[String] = None,
+    datacenter: String = "dc1",
     shouldStop: Boolean = false
   )(implicit
     serviceAddrs: ServiceAddrs = ServiceAddrs(),
@@ -76,6 +77,7 @@ package object daemonutil {
 
     val variables =
       s"-var='namespace=${os.read(ConstPaths.namespaceFile).stripLineEnd}' " +
+        s"-var='datacenter=$datacenter' " +
         s"-var='acl_token=${tokens.consulNomadToken}' " +
         s"-var='vault_token=${tokens.vaultToken}' " +
         s"-var='consul_address=${serviceAddrs.consulAddr}' " +

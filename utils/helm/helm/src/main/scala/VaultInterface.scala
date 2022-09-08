@@ -47,4 +47,6 @@ trait VaultInterface[F[_]] {
 
   def enableAuthMethod(authMethod: String): F[Either[VaultError, Unit]]
 
+  def getCertificate(pkiName: String, commonName: String, ttl: String): F[Either[VaultError, CertificateResponse]]
+
 }

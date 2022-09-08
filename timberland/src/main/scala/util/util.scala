@@ -3,10 +3,11 @@ package com.radix.timberland.util
 import java.io.{FileNotFoundException, IOException}
 import java.net.{InetAddress, ServerSocket, UnknownHostException}
 import ammonite.ops._
-import cats.effect.{ContextShift, IO, Sync, Timer}
+import cats.effect.{ConcurrentEffect, ContextShift, IO, Sync, Timer}
 import com.radix.utils.tls.ConsulVaultSSLContext.blaze
-import org.http4s.Header
+import org.http4s.{Header, Uri}
 import org.http4s.Method._
+import org.http4s.client.blaze.BlazeClientBuilder
 import org.http4s.client.dsl.io._
 import org.http4s.implicits._
 import org.log4s.LogLevel
@@ -271,6 +272,14 @@ object Util {
       val digester = MessageDigest.getInstance("SHA-256")
       val hash = digester.digest(Files.readAllBytes(file))
       hash.map(b => String.format("%02X", b)).mkString.toLowerCase // convert to hex
+    }
+  }
+
+  def getPublicIp: IO[Option[String]] = {
+    BlazeClientBuilder[IO](global).resource.use { client =>
+      GET(Uri.unsafeFromString("http://checkip.amazonaws.com"))
+        .flatMap(client.expectOption[String](_))
+        .map(_.map(_.stripLineEnd))
     }
   }
 }

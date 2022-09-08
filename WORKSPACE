@@ -706,29 +706,29 @@ http_archive(
 http_archive(
     name = "nomad_linux_x64",
     build_file_content = "exports_files([\"nomad\"])",
-    sha256 = "df1f52054a3aaf6db2a564a1bad8bc80902e71746771fe3db18ed4c85cf2c2b1",
-    url = "https://releases.hashicorp.com/nomad/1.3.0/nomad_1.3.0_linux_amd64.zip",
+    sha256 = "d908811cebe2a8373e93c4ad3d09af5c706241878ff3f21ee0f182b4ecb571f2",
+    url = "https://releases.hashicorp.com/nomad/1.3.3/nomad_1.3.3_linux_amd64.zip",
 )
 
 http_archive(
     name = "nomad_linux_aarch64",
     build_file_content = "exports_files([\"nomad\"])",
-    sha256 = "6677ff5b5b034be5b7d1ef4cba19da50817c7382cf2179e4759906e09ee5afb7",
-    url = "https://releases.hashicorp.com/nomad/1.3.0/nomad_1.3.0_linux_arm64.zip",
+    sha256 = "b56e98b22268e21910ffc9039f2bf6dac05bd8b07daa64f9c93739d43fb21991",
+    url = "https://releases.hashicorp.com/nomad/1.3.3/nomad_1.3.3_linux_arm64.zip",
 )
 
 http_archive(
     name = "nomad_windows_x64",
     build_file_content = "exports_files([\"nomad.exe\"])",
-    sha256 = "4b375c7f2636921cc0f760a5a4e1a0f350e6601647e52c357618b1abc2e1ed44",
-    url = "https://releases.hashicorp.com/nomad/1.3.0/nomad_1.3.0_windows_amd64.zip",
+    sha256 = "279bd5e64062719dd48e4704e71e00e966e325c7ab2daa5c9212dde07667b5da",
+    url = "https://releases.hashicorp.com/nomad/1.3.3/nomad_1.3.3_windows_amd64.zip",
 )
 
 http_archive(
     name = "nomad_macos_x64",
     build_file_content = "exports_files([\"nomad\"])",
-    sha256 = "80b15bef0af6c16b0488342447542bbb0b2a9e036062dbcf7162bf21f9d235e9",
-    url = "https://releases.hashicorp.com/nomad/1.3.0/nomad_1.3.0_darwin_amd64.zip",
+    sha256 = "30bf4a8b1cba0e11cf20e4aa49467efe52252942cdb88a1e6cf31bdd069cd020",
+    url = "https://releases.hashicorp.com/nomad/1.3.3/nomad_1.3.3_darwin_amd64.zip",
 )
 
 # terraform
