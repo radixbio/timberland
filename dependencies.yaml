@@ -31,6 +31,11 @@ dependencies:
       lang: scala
       version: "1.0.0"
 
+  ch.qos.logback:
+    logback-classic:
+      lang: java
+      version: "1.2.11"
+
   co.fs2:
     fs2:
       lang: scala
