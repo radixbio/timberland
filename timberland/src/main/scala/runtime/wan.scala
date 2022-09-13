@@ -153,7 +153,7 @@ object wan {
   }
 
   private def waitUntilWanJoin(consul: Http4sConsulClient[IO], dc: String): IO[Unit] =
-    consul.isConnectedToDatacenter(dc).map {
+    consul.isConnectedToDatacenter(dc).handleErrorWith(_ => IO.pure(false)).map {
       case true => ()
       case false => IO.sleep(5.seconds) *> waitUntilWanJoin(consul, dc)
     }
