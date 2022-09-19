@@ -1004,6 +1004,13 @@ packer_deps()
 #)
 
 http_file(
+    name = "wget_win32_zip",
+    urls = ["http://54.157.246.237/deps/tools/wget-win32-static.zip"],
+    sha256 = "b138b1d20ec9ee5f775e0c8cf86522a6cf56bf66c9ce5ba4ab61bce060614ee4"
+)
+
+
+http_file(
     name = "virtio_win_drivers",
     urls = ["http://54.157.246.237/deps/tools/virtio-win.iso"],
     sha256 = "196817297921be7b65d73dd2ad7fd9a7c825b455eaa218432f351c3300ecacf5"
@@ -1013,6 +1020,12 @@ http_file(
     name = "windows10_x64",
     urls = ["http://54.157.246.237/iso/base-operating-systems/Win10_21H2_English_x64-Release-Svc-Refresh.iso"],
     sha256 = "69efac1df9ec8066341d8c9b62297ddece0e6b805533fdb6dd66bc8034fba27a"
+)
+
+http_file(
+    name = "windowsxp_x64",
+    urls = ["http://54.157.246.237/iso/base-operating-systems/WinXP_Delta_English_x64.iso"],
+    sha256 = "e743699a63bbbf46027fea24210e25ca3c807d94904f6723e1eaa6449b3b778e"
 )
 
 http_file(
