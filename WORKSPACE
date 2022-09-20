@@ -375,6 +375,7 @@ load(
 load("@io_bazel_rules_scala//testing:scalatest.bzl", "scalatest_repositories", "scalatest_toolchain")
 
 scala_repositories()
+
 #scala_repositories(
 #    overriden_artifacts = {
 #        "io_bazel_rules_scala_scalatest": {
@@ -388,9 +389,10 @@ scala_repositories()
 #    },
 #)
 load("@rules_proto//proto:repositories.bzl", "rules_proto_dependencies", "rules_proto_toolchains")
-rules_proto_dependencies()
-rules_proto_toolchains()
 
+rules_proto_dependencies()
+
+rules_proto_toolchains()
 
 scalafmt_default_config()
 
@@ -431,7 +433,7 @@ git_repository(
     commit = "7636b7dc2e14bf198a6c21c01e33847f3863e572",
     patch_cmds = ["mv pkg/* ."],
     remote = "https://github.com/itdaniher/rules_pkg.git",
-    shallow_since = "1596141723 -0400"
+    shallow_since = "1596141723 -0400",
 )
 
 load("@rules_pkg//:deps.bzl", "rules_pkg_dependencies")
@@ -460,7 +462,7 @@ git_repository(
     # Latest commit SHA as at 2019/02/13
     commit = "171f268569384c57c19474b04aebe574d85fde0d",
     remote = "https://github.com/johnynek/bazel_jar_jar.git",
-    shallow_since = "1594234634 -1000"
+    shallow_since = "1594234634 -1000",
 )
 
 load(
@@ -949,10 +951,10 @@ http_archive(
 
 http_archive(
     name = "rules_jmh",
+    sha256 = "a3392009da4bdd2d50f2bd0731786ddceb48667ce65ff51f28c785d2363efdd3",
     strip_prefix = "buchgr-rules_jmh-a5f0231",
     type = "zip",
     url = "https://github.com/buchgr/rules_jmh/zipball/a5f0231ebfde44b4904c7d101b9f269b96c86d06",
-    sha256 = "a3392009da4bdd2d50f2bd0731786ddceb48667ce65ff51f28c785d2363efdd3"
 )
 
 load("@rules_jmh//:deps.bzl", "rules_jmh_deps")

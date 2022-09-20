@@ -3,6 +3,9 @@
 ### STAROEM ###
 ./device_drivers/hamiltonserver/pyhamilton/pyhamilton/STAR-OEM/
 
+# Temporary, will be removed #
+/actorDiscoOld.sc
+
 ### Bazel ###
 /bazel-*
 **/bazel-*
