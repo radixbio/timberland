@@ -8,9 +8,14 @@ import org.http4s.Status
 import java.time.OffsetDateTime
 
 sealed trait VaultError extends Throwable
-final case class VaultConnectionError() extends VaultError
-final case class VaultErrorMalformedResponse() extends VaultError
-final case class VaultErrorResponse(body: VaultErrorResponseBody, status: Status) extends VaultError
+final case class VaultConnectionError() extends Exception("Error connecting to Vault") with VaultError
+final case class VaultErrorMalformedResponse(error: Throwable) extends Exception(error) with VaultError
+object VaultErrorMalformedResponse {
+  def apply(error: String): VaultErrorMalformedResponse = VaultErrorMalformedResponse(new Exception(error))
+}
+final case class VaultErrorResponse(body: VaultErrorResponseBody, status: Status)
+    extends Exception(body.toString)
+    with VaultError
 final case class VaultErrorResponseBody(errors: Vector[String])
 object VaultErrorResponseBody {
   implicit val vaultErrorResponseDecoder: Decoder[VaultErrorResponseBody] =
@@ -199,13 +204,14 @@ object CreateSecretRequest {
 // https://www.vaultproject.io/api/secret/kv/kv-v2.html#read-secret-version
 final case class KVGetResult[R](metadata: Option[KVMetadata], data: R)
 object KVGetResult {
-  implicit def kvGetResultDecoder[R](implicit d: Decoder[R]): Decoder[KVGetResult[R]] = (c: HCursor) => {
-    val data: ACursor = c.downField("data")
-    for {
-      metadata <- data.downField("metadata").as[Option[KVMetadata]]
-      innerData <- data.downField("data").as[R]
-    } yield KVGetResult(metadata, innerData)
-  }
+  implicit def kvGetResultDecoder[R](implicit d: Decoder[R]): Decoder[KVGetResult[R]] =
+    (c: HCursor) => {
+      val data: ACursor = c.downField("data")
+      for {
+        metadata <- data.downField("metadata").as[Option[KVMetadata]]
+        innerData <- data.downField("data").as[R]
+      } yield KVGetResult(metadata, innerData)
+    }
 }
 
 final case class CreateOauthSecretResponse(data: Json)

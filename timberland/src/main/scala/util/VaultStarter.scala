@@ -329,7 +329,7 @@ object VaultUtils {
           stderr = Util.scribePipe(Level.Error),
           env = env
         )
-      List("tls-cert", "remote-access", "read-flag-config", "actor-acl-token", "messaging")
+      List("tls-cert", "remote-access", "read-flag-config", "actor-acl-token", "messaging", "read-rusers")
         .map(policy =>
           Util
             .proc(

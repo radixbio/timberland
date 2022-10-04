@@ -18,7 +18,7 @@ object messagingConfig extends FlagHook {
 
   def run(options: Map[String, String], serviceAddrs: ServiceAddrs, tokens: AuthTokens): IO[Unit] = {
     val vaultUri = Uri.fromString(s"https://${serviceAddrs.vaultAddr}:8200").toOption.get
-    val vault = new Vault[IO](authToken = Some(tokens.vaultToken), baseUrl = vaultUri)
+    val vault = new Vault[IO](authToken = tokens.vaultToken, baseUrl = vaultUri)
     val pluginBinaryName = "vault-plugin-secrets-oauthapp"
     val pluginBinary = RadPath.persistentDir.toNIO.resolve("vault").resolve(pluginBinaryName)
 

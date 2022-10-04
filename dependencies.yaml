@@ -201,7 +201,8 @@ dependencies:
       lang: scala
       modules: [ "actor", "actor-testkit-typed", "actor-typed", "cluster", "cluster-typed",
         "distributed-data", "persistence", "persistence-query", "persistence-tck",
-        "persistence-typed", "protobuf", "remote", "slf4j", "stream", "stream-typed", "testkit" ]
+        "persistence-testkit", "persistence-typed", "protobuf", "remote", "slf4j", "stream",
+        "stream-typed", "testkit" ]
       version: "2.6.15"
     akka-http:
       lang: scala

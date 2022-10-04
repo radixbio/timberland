@@ -20,7 +20,7 @@ object oauthConfig extends FlagHook {
 
   def run(options: Map[String, String], serviceAddrs: ServiceAddrs, tokens: AuthTokens): IO[Unit] = {
     val vaultUri = Uri.fromString(s"https://${serviceAddrs.vaultAddr}:8200").toOption.get
-    val vaultSession = new Vault[IO](authToken = Some(tokens.vaultToken), baseUrl = vaultUri)
+    val vaultSession = new Vault[IO](authToken = tokens.vaultToken, baseUrl = vaultUri)
     val oauthConfigRequest = CreateOauthServerRequest(
       client_id = options("google_oauth_id"),
       client_secrets = List(options("google_oauth_secret")),

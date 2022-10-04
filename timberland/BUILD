@@ -131,6 +131,7 @@ pkg_tar(
         "assets/vault/aws-cred-role.json",
         "assets/vault/messaging-policy.hcl",
         "assets/vault/read-flag-config-policy.hcl",
+        "assets/vault/read-rusers-policy.hcl",
         "assets/vault/remote-access-policy.hcl",
         "assets/vault/tls-cert-policy.hcl",
         "assets/vault/tls-cert-role.json",

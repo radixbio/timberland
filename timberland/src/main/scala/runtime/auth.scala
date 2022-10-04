@@ -56,7 +56,7 @@ object auth {
 
   def getGossipKey(vaultToken: String, vaultAddress: String, gkBlaze: Resource[IO, Client[IO]] = blaze): IO[String] = {
     val vaultUri = Uri.fromString(s"https://$vaultAddress:8200").toOption.get
-    val vault = new Vault[IO](authToken = Some(vaultToken), baseUrl = vaultUri)(IO.ioConcurrentEffect, gkBlaze)
+    val vault = new Vault[IO](authToken = vaultToken, baseUrl = vaultUri)(IO.ioConcurrentEffect, gkBlaze)
     val gossipKeyOption = vault.getSecret[Json](s"gossip-key").map {
       case Right(KVGetResult(_, data)) =>
         data.hcursor.get[String]("key").toOption
@@ -100,7 +100,7 @@ object auth {
         case Right(LoginResponse(token, _, _, _)) => token
       }
 
-      authenticatedVault = new Vault[IO](authToken = Some(vaultToken), baseUrl = vaultUri)(
+      authenticatedVault = new Vault[IO](authToken = vaultToken, baseUrl = vaultUri)(
         IO.ioConcurrentEffect,
         insecureBlaze
       )
@@ -116,11 +116,11 @@ object auth {
     for {
       vaultToken <- IO(VaultUtils.findVaultToken())
       consulNomadToken <- blaze.use { client =>
-        val vault = new Vault[IO](authToken = Some(vaultToken), baseUrl = vaultUri)
+        val vault = new Vault[IO](authToken = vaultToken, baseUrl = vaultUri)
         getTokenFromVault(vault, "consul-ui-token")
       }
       actorToken <- blaze.use { client =>
-        val vault = new Vault[IO](authToken = Some(vaultToken), baseUrl = vaultUri)
+        val vault = new Vault[IO](authToken = vaultToken, baseUrl = vaultUri)
         getTokenFromVault(vault, "actor-token")
       }
     } yield AuthTokens(consulNomadToken = consulNomadToken, actorToken = actorToken, vaultToken = vaultToken)
@@ -311,7 +311,7 @@ object auth {
   def storeTokensInVault(tokens: ACLTokens): IO[Unit] = {
     val vaultToken = VaultUtils.findVaultToken()
     val vaultUri = uri"https://127.0.0.1:8200"
-    val vault = new Vault[IO](authToken = Some(vaultToken), baseUrl = vaultUri)
+    val vault = new Vault[IO](authToken = vaultToken, baseUrl = vaultUri)
 
     val addr = "https://nomad.service.consul:4646"
     val connectionArgs = List(

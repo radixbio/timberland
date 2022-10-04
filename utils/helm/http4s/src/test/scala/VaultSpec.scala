@@ -29,7 +29,7 @@ class VaultSpec extends FixtureAnyFunSpec with Matchers with TestContainerForAll
       val vault = vaultContainer.asInstanceOf[VaultContainer]
       val vaultBaseUrl = Uri.unsafeFromString(s"http://${vault.containerIpAddress}:${vault.mappedPort(8200)}")
 
-      val vaultSession: Vault[IO] = new Vault[IO](rootToken, vaultBaseUrl)
+      val vaultSession: Vault[IO] = new Vault[IO](IO.pure(rootToken), vaultBaseUrl)
       IO(super.withFixture(test.toNoArgTest(FixtureParam(vaultSession)))).unsafeRunSync()
     }
   }

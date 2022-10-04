@@ -23,7 +23,7 @@ class ElementalOps(authToken: String) {
   def writeUsernamePassword(username: String, password: String): IO[VaultResult] = {
     val upMap = Map("username" -> username, "password" -> password).asJson
     val vaultSession =
-      new VaultSession[IO](authToken = Some(authToken), baseUrl = uri("https://vault.service.consul:8200"))
+      new VaultSession[IO](authToken = authToken, baseUrl = uri("https://vault.service.consul:8200"))
     for {
       secretRequest <- IO(CreateSecretRequest(data = upMap, cas = None))
       vaultResult <- vaultSession.createSecret("elemental-credentials", secretRequest)
@@ -39,7 +39,7 @@ class ElementalOps(authToken: String) {
 
   def getUsernamePassword: IO[VaultResult] = {
     val vaultSession =
-      new VaultSession[IO](authToken = Some(authToken), baseUrl = uri("https://vault.service.consul:8200"))
+      new VaultSession[IO](authToken = authToken, baseUrl = uri("https://vault.service.consul:8200"))
     for {
       vaultResult <- vaultSession.getSecret[Json]("elemental-credentials")
       result <- vaultResult match {

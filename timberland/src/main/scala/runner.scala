@@ -1,24 +1,23 @@
 package com.radix.timberland
 
-import cats.effect.{ConcurrentEffect, ContextShift, IO, Resource, Timer}
+import flags.hooks.ensureSupported
+import flags.{configGen, featureFlags}
+import launch.daemonutil
+import radixdefs.ServiceAddrs
+import runtime._
+import util.{RadPath, Util, VaultStarter, VaultUtils}
+
+import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
-import com.radix.timberland.flags.hooks.ensureSupported
-import com.radix.timberland.flags.{configGen, featureFlags}
-import com.radix.timberland.launch.daemonutil
-import com.radix.timberland.radixdefs.ServiceAddrs
-import com.radix.timberland.runtime._
-import com.radix.timberland.util.{RadPath, Util, VaultStarter, VaultUtils}
 import com.radix.utils.helm.http4s.Http4sConsulClient
 import com.radix.utils.helm.http4s.vault.Vault
-import com.radix.utils.helm.vault.UnsealRequest
-import io.circe.{Json, Parser => _}
-import io.circe.parser.parse
-import optparse_applicative._
-import org.http4s.implicits._
 import com.radix.utils.tls.ConsulVaultSSLContext._
 import com.radix.utils.tls.{ConsulVaultSSLContext, TrustEveryoneSSLContext}
 import io.circe.syntax.EncoderOps
+import io.circe.{Parser => _}
+import optparse_applicative._
 import org.http4s.Uri
+import org.http4s.implicits._
 
 import scala.concurrent.ExecutionContext.global
 import scala.concurrent.duration._
@@ -72,12 +71,13 @@ object runner {
             authTokens: AuthTokens
           ) =
             for {
-              _ <- if (force) {
-                implicit val blaze = ConsulVaultSSLContext.blaze
-                val consulUri = Uri.unsafeFromString(serviceAddrs.consulAddr)
-                val consul = new Http4sConsulClient[IO](consulUri, Some(authTokens.consulNomadToken))
-                List("terraform/.lock", "terraform/.lockinfo", "terraform").map(consul.kvDelete).sequence
-              } else IO.unit
+              _ <-
+                if (force) {
+                  implicit val blaze = ConsulVaultSSLContext.blaze
+                  val consulUri = Uri.unsafeFromString(serviceAddrs.consulAddr)
+                  val consul = new Http4sConsulClient[IO](consulUri, Some(authTokens.consulNomadToken))
+                  List("terraform/.lock", "terraform/.lockinfo", "terraform").map(consul.kvDelete).sequence
+                } else IO.unit
               tfStatus <- daemonutil.runTerraform(namespace, datacenter)(serviceAddrs, authTokens)
               _ <- IO {
                 tfStatus match {
@@ -239,7 +239,7 @@ object runner {
           val policiesWithDefault = if (policies.nonEmpty) policies else List("remote-access")
           val vaultToken = VaultUtils.findVaultToken()
           implicit val contextShift: ContextShift[IO] = IO.contextShift(global)
-          val vault = new Vault[IO](Some(vaultToken), uri"https://127.0.0.1:8200")
+          val vault = new Vault[IO](vaultToken, uri"https://127.0.0.1:8200")
           val proc = for {
             password <- IO(System.console.readPassword("Password> ").mkString)
             _ <- vault.enableAuthMethod("userpass")
@@ -295,7 +295,12 @@ object runner {
             hasLocalVault = args.leaderNode.isEmpty || args.serverMode
             tokens <- if (hasLocalVault) restartVaultAndGetTokens else auth.recoverRunContext(args).map(_._2)
             vaultAddr = if (hasLocalVault) None else args.leaderNode.map(host => s"https://$host:8200")
-            _ <- Services.serviceController.runConsulTemplate(tokens.consulNomadToken, tokens.vaultToken, vaultAddr, args.datacenter)
+            _ <- Services.serviceController.runConsulTemplate(
+              tokens.consulNomadToken,
+              tokens.vaultToken,
+              vaultAddr,
+              args.datacenter
+            )
             _ <- Services.serviceController.restartConsul()
             _ <- Util.waitForPortUp(8501, 30.seconds)
             _ <- Services.serviceController.restartNomad()
