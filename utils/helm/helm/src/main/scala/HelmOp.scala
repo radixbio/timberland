@@ -27,7 +27,7 @@ object ConsulOp {
   final case class KVGetRaw(
     key: Key,
     index: Option[Long],
-    maxWait: Option[Interval]
+    maxWait: Option[Interval],
   ) extends ConsulOp[QueryResponse[Option[Array[Byte]]]]
 
   final case class KVSetWithSession(key: Key, value: Array[Byte], session: UUID) extends ConsulOp[Boolean]
@@ -44,14 +44,14 @@ object ConsulOp {
     near: Option[String],
     nodeMeta: Option[String],
     index: Option[Long],
-    maxWait: Option[Interval]
+    maxWait: Option[Interval],
   ) extends ConsulOp[QueryResponse[List[HealthCheckResponse]]]
 
   final case class HealthListChecksForNode(
     node: String,
     datacenter: Option[String],
     index: Option[Long],
-    maxWait: Option[Interval]
+    maxWait: Option[Interval],
   ) extends ConsulOp[QueryResponse[List[HealthCheckResponse]]]
 
   final case class HealthListChecksInState(
@@ -60,7 +60,7 @@ object ConsulOp {
     near: Option[String],
     nodeMeta: Option[String],
     index: Option[Long],
-    maxWait: Option[Interval]
+    maxWait: Option[Interval],
   ) extends ConsulOp[QueryResponse[List[HealthCheckResponse]]]
 
   // There's also a Catalog function called List Nodes for Service
@@ -72,7 +72,7 @@ object ConsulOp {
     tag: Option[String],
     passingOnly: Option[Boolean],
     index: Option[Long],
-    maxWait: Option[Interval]
+    maxWait: Option[Interval],
   ) extends ConsulOp[QueryResponse[List[HealthNodesForServiceResponse]]]
 
   // adds a health check with id healthCheckId to service instance with id serviceId,
@@ -81,7 +81,7 @@ object ConsulOp {
     serviceId: String,
     hostname: String,
     healthCheckId: String,
-    healthCheckName: String
+    healthCheckName: String,
   ) extends ConsulOp[Unit]
 
   // removes health check with the id given.
@@ -109,7 +109,7 @@ object ConsulOp {
     port: Option[Int],
     enableTagOverride: Option[Boolean],
     check: Option[HealthCheckParameter],
-    checks: Option[NonEmptyList[HealthCheckParameter]]
+    checks: Option[NonEmptyList[HealthCheckParameter]],
   ) extends ConsulOp[Unit]
 
   final case class AgentDeregisterService(id: String) extends ConsulOp[Unit]
@@ -129,21 +129,21 @@ object ConsulOp {
     datacenter: Option[String] = None,
     separator: Option[String] = None,
     index: Option[Long] = None,
-    maxWait: Option[Interval] = None
+    maxWait: Option[Interval] = None,
   ): ConsulOpF[QueryResponse[List[KVGetResult]]] =
     liftF(KVGet(key, recurse, datacenter, separator, index, maxWait))
 
   def kvGetRaw(
     key: Key,
     index: Option[Long],
-    maxWait: Option[Interval]
+    maxWait: Option[Interval],
   ): ConsulOpF[QueryResponse[Option[Array[Byte]]]] =
     liftF(KVGetRaw(key, index, maxWait))
 
   def kvGetJson[A](
     key: Key,
     index: Option[Long],
-    maxWait: Option[Interval]
+    maxWait: Option[Interval],
   )(implicit decoder: Decoder[A]): ConsulOpF[Either[ParsingFailure, QueryResponse[Option[A]]]] =
     kvGetRaw(key, index, maxWait).map { response =>
       response.value match {
@@ -184,7 +184,7 @@ object ConsulOp {
     near: Option[String],
     nodeMeta: Option[String],
     index: Option[Long],
-    maxWait: Option[Interval]
+    maxWait: Option[Interval],
   ): ConsulOpF[QueryResponse[List[HealthCheckResponse]]] =
     liftF(HealthListChecksForService(service, datacenter, near, nodeMeta, index, maxWait))
 
@@ -192,7 +192,7 @@ object ConsulOp {
     node: String,
     datacenter: Option[String],
     index: Option[Long],
-    maxWait: Option[Interval]
+    maxWait: Option[Interval],
   ): ConsulOpF[QueryResponse[List[HealthCheckResponse]]] =
     liftF(HealthListChecksForNode(node, datacenter, index, maxWait))
 
@@ -202,7 +202,7 @@ object ConsulOp {
     near: Option[String],
     nodeMeta: Option[String],
     index: Option[Long],
-    maxWait: Option[Interval]
+    maxWait: Option[Interval],
   ): ConsulOpF[QueryResponse[List[HealthCheckResponse]]] =
     liftF(HealthListChecksInState(state, datacenter, near, nodeMeta, index, maxWait))
 
@@ -214,7 +214,7 @@ object ConsulOp {
     tag: Option[String],
     passingOnly: Option[Boolean],
     index: Option[Long],
-    maxWait: Option[Interval]
+    maxWait: Option[Interval],
   ): ConsulOpF[QueryResponse[List[HealthNodesForServiceResponse]]] =
     liftF(HealthListNodesForService(service, datacenter, near, nodeMeta, tag, passingOnly, index, maxWait))
 
@@ -232,7 +232,7 @@ object ConsulOp {
     port: Option[Int],
     enableTagOverride: Option[Boolean],
     check: Option[HealthCheckParameter],
-    checks: Option[NonEmptyList[HealthCheckParameter]]
+    checks: Option[NonEmptyList[HealthCheckParameter]],
   ): ConsulOpF[Unit] =
     liftF(AgentRegisterService(service, id, tags, address, port, enableTagOverride, check, checks))
 
@@ -255,7 +255,7 @@ object ConsulOp {
     node: Option[String] = Some(""),
     checks: Option[NonEmptyList[HealthCheckParameter]] = None,
     behavior: Option[String] = Some("release"),
-    ttl: Option[String] = None
+    ttl: Option[String] = None,
   ) extends ConsulOp[UUID]
 
   def sessionCreate(
@@ -265,7 +265,7 @@ object ConsulOp {
     node: Option[String] = None,
     checks: Option[NonEmptyList[HealthCheckParameter]] = None,
     behavior: Option[String] = Some("release"),
-    ttl: Option[String] = None
+    ttl: Option[String] = None,
   ): ConsulOpF[UUID] =
     liftF(SessionCreate(name, dc, lockDelay, node, checks, behavior, ttl))
 

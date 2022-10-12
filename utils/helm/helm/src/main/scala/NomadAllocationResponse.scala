@@ -18,7 +18,7 @@ object NomadAllocationNetworkResourceReservedPort {
 
 final case class NomadAllocationNetworkResource(
   ip: String,
-  reservedPorts: Vector[NomadAllocationNetworkResourceReservedPort]
+  reservedPorts: Vector[NomadAllocationNetworkResourceReservedPort],
 )
 
 object NomadAllocationNetworkResource {

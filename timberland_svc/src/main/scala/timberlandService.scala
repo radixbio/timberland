@@ -56,11 +56,11 @@ object timberlandService extends IOApp {
         "https://localhost:1337",
         "http://localhost:1337",
         "https://nginx.service.consul:8080",
-        "http://nginx.service.consul:8080"
+        "http://nginx.service.consul:8080",
       ),
       allowCredentials = false,
-      maxAge = 1.day.toSeconds
-    )
+      maxAge = 1.day.toSeconds,
+    ),
   )
 
   private def routes(implicit addrs: ServiceAddrs, auth: AuthTokens): HttpRoutes[IO] = HttpRoutes.of[IO] {

@@ -21,7 +21,7 @@ case object featureFlags {
     "google-oauth" -> oauthConfig,
     "okta-auth" -> oktaAuthConfig,
     "messaging" -> messagingConfig,
-    "ensure-supported" -> ensureSupported
+    "ensure-supported" -> ensureSupported,
   )
 
   // A list of flags that should be enabled by default
@@ -29,7 +29,7 @@ case object featureFlags {
     "ensure-supported",
     "dev",
     "ipfs",
-    "runtime"
+    "runtime",
   )
 
   val FLAGS_JSON = RadPath.runtime / "config" / "flags.json"
@@ -57,9 +57,10 @@ case object featureFlags {
 
   def query: IO[Unit] = flags.map { flagMap =>
     flagMap.toList
-      .foreach { case (flag, enabled) =>
-        val enableStr = if (enabled) AnsiColor.GREEN_B + "ENABLED" else AnsiColor.RED_B + "DISABLED"
-        println(s"$flag: $enableStr${AnsiColor.RESET}")
+      .foreach {
+        case (flag, enabled) =>
+          val enableStr = if (enabled) AnsiColor.GREEN_B + "ENABLED" else AnsiColor.RED_B + "DISABLED"
+          println(s"$flag: $enableStr${AnsiColor.RESET}")
       }
   }
 

@@ -20,7 +20,7 @@ case class Start(
   username: Option[String] = None,
   password: Option[String] = None,
   serverMode: Boolean = false,
-  force: Boolean = false
+  force: Boolean = false,
 ) extends RadixCMD
 object Start {
   implicit val encoder: Encoder[Start] = deriveEncoder
@@ -30,7 +30,7 @@ object Start {
     scribe.Level.Debug,
     scribe.Level.Info,
     scribe.Level.Error,
-    scribe.Level.Warn
+    scribe.Level.Warn,
   )
   implicit val loglevelEncoder: Encoder[scribe.Level] = (lvl: scribe.Level) => Json.fromDouble(lvl.value).get
   implicit val loglevelDecoder: Decoder[scribe.Level] = (c: HCursor) =>
@@ -42,7 +42,7 @@ case class WanJoin(
   leaderNode: Option[String],
   username: Option[String],
   password: Option[String],
-  publicAddr: String
+  publicAddr: String,
 ) extends RadixCMD
 
 case class Env(fish: Boolean) extends RadixCMD
@@ -67,7 +67,7 @@ case class FlagConfig(
   remoteAddress: Option[String],
   username: Option[String],
   password: Option[String],
-  force: Boolean
+  force: Boolean,
 ) extends RadixCMD
 
 case class FlagSet(
@@ -76,7 +76,7 @@ case class FlagSet(
   remoteAddress: Option[String],
   username: Option[String],
   password: Option[String],
-  force: Boolean
+  force: Boolean,
 ) extends RadixCMD
 
 case object FlagQuery extends RadixCMD
@@ -94,36 +94,36 @@ object cli {
       many(
         strArgument(
           metavar("FLAGS"),
-          help("List of features/components")
+          help("List of features/components"),
         )
       ),
       optional(
         strOption(
           metavar("ADDR"),
           long("remote-address"),
-          help("Address to remote Consul instance")
+          help("Address to remote Consul instance"),
         )
       ),
       optional(
         strOption(
           metavar("USERNAME"),
           long("username"),
-          help("Remote username (set locally with add_user cmd)")
+          help("Remote username (set locally with add_user cmd)"),
         )
       ),
       optional(
         strOption(
           metavar("PASSWORD"),
           long("password"),
-          help("Remote password (set locally with add_user cmd)")
+          help("Remote password (set locally with add_user cmd)"),
         )
       ),
       optional(
         switch(
           long("force"),
-          help("Forcibly apply terraform changes despite any pending state locks.")
+          help("Forcibly apply terraform changes despite any pending state locks."),
         )
-      ).map(_.getOrElse(false))
+      ).map(_.getOrElse(false)),
     )(_)
 
   private val env = subparser[Env](
@@ -132,9 +132,9 @@ object cli {
       "env",
       info(
         switch(long("fish"), help("Output script for fish rather than POSIX-compliant shells")).map(Env),
-        progDesc("Print a shell script that puts timberland, nomad, consul, vault, and terraform in $PATH")
-      )
-    )
+        progDesc("Print a shell script that puts timberland, nomad, consul, vault, and terraform in $PATH"),
+      ),
+    ),
   )
 
   private val wanjoin = subparser[WanJoin](
@@ -145,34 +145,36 @@ object cli {
         pure(WanJoin(host = false, leaderNode = None, publicAddr = "", username = None, password = None)) <*>
           switch(
             long("host"),
-            help("Prepare this host as a primary datacenter than can be WAN-joined")
+            help("Prepare this host as a primary datacenter than can be WAN-joined"),
           ).map(host => (exist: WanJoin) => exist.copy(host = host)) <*>
           strArgument(
             metavar("PUBLIC_ADDR"),
-            help("Publically accessible address of this node")
+            help("Publically accessible address of this node"),
           ).map(publicAddr => (exist: WanJoin) => exist.copy(publicAddr = publicAddr)) <*>
-          optional(strOption(
-            metavar("LEADER_NODE"),
-            long("leader-node"),
-            help("Leader node to join")
-          )).map(leaderNode => (exist: WanJoin) => exist.copy(leaderNode = leaderNode)) <*>
+          optional(
+            strOption(
+              metavar("LEADER_NODE"),
+              long("leader-node"),
+              help("Leader node to join"),
+            )
+          ).map(leaderNode => (exist: WanJoin) => exist.copy(leaderNode = leaderNode)) <*>
           optional(
             strOption(
               metavar("USERNAME"),
               long("username"),
-              help("Remote username (set locally with add_user cmd)")
+              help("Remote username (set locally with add_user cmd)"),
             )
           ).map(username => (exist: WanJoin) => exist.copy(username = username)) <*>
           optional(
             strOption(
               metavar("PASSWORD"),
               long("password"),
-              help("Remote password (set locally with add_user cmd)")
+              help("Remote password (set locally with add_user cmd)"),
             )
           ).map(password => (exist: WanJoin) => exist.copy(password = password)),
-        progDesc("Join a WAN cluster")
-      )
-    )
+        progDesc("Join a WAN cluster"),
+      ),
+    ),
   )
 
   private val start = subparser[Start](
@@ -186,7 +188,7 @@ object cli {
             strOption(
               metavar("LOGLEVEL"),
               long("debug"),
-              help("Use a custom log verbosity across services")
+              help("Use a custom log verbosity across services"),
             )
           ).map(debug => {
             exist: Start =>
@@ -208,10 +210,10 @@ object cli {
                 Some(
                   Doc.append(
                     Doc.append(Doc.text("Force services to bind to the specified ip and subnet"), Doc.linebreak),
-                    Doc.text("(ex: \"192.168.1.5\")")
+                    Doc.text("(ex: \"192.168.1.5\")"),
                   )
                 )
-              )
+              ),
             )
           ).map(subnet => {
             exist: Start =>
@@ -229,10 +231,10 @@ object cli {
                 Some(
                   Doc.append(
                     Doc.append(Doc.text("Leader node for Consul and Nomad."), Doc.linebreak),
-                    Doc.text("(maps to retry_join in nomad/consul)")
+                    Doc.text("(maps to retry_join in nomad/consul)"),
                   )
                 )
-              )
+              ),
             )
           ).map(seeds => {
             exist: Start =>
@@ -246,7 +248,7 @@ object cli {
             strOption(
               metavar("ADDR"),
               long("remote-address"),
-              help("Address to remote Consul instance")
+              help("Address to remote Consul instance"),
             )
           ).map(ra => { exist: Start => exist.copy(remoteAddress = ra) }) <*>
 
@@ -254,7 +256,7 @@ object cli {
             strOption(
               metavar("NAMESPACE"),
               long("namespace"),
-              help("Namespace for Nomad jobs")
+              help("Namespace for Nomad jobs"),
             )
           ).map(namespace => {
             exist: Start =>
@@ -268,20 +270,20 @@ object cli {
             strOption(
               metavar("DATACENTER"),
               long("datacenter"),
-              help("Datacenter for Nomad jobs")
+              help("Datacenter for Nomad jobs"),
             )
           ).map(datacenter => {
             exist: Start =>
               datacenter match {
                 case Some(dc) => exist.copy(datacenter = dc)
-                case None    => exist
+                case None     => exist
               }
           }) <*>
 
           optional(
             switch(
               long("server-mode"),
-              help("Specify whether Nomad/Consul/Vault should operate in Server mode.")
+              help("Specify whether Nomad/Consul/Vault should operate in Server mode."),
             )
           ).map(serverMode => {
             exist: Start =>
@@ -294,7 +296,7 @@ object cli {
           optional(
             switch(
               long("force"),
-              help("Forcibly apply terraform changes despite any pending state locks.")
+              help("Forcibly apply terraform changes despite any pending state locks."),
             )
           ).map(force => {
             exist: Start =>
@@ -308,7 +310,7 @@ object cli {
             strOption(
               metavar("USERNAME"),
               long("username"),
-              help("Remote username (set locally with add_user cmd)")
+              help("Remote username (set locally with add_user cmd)"),
             )
           ).map(username => {
             exist: Start =>
@@ -322,7 +324,7 @@ object cli {
             strOption(
               metavar("PASSWORD"),
               long("password"),
-              help("Remote password (set locally with add_user cmd)")
+              help("Remote password (set locally with add_user cmd)"),
             )
           ).map(password => {
             exist: Start =>
@@ -331,9 +333,9 @@ object cli {
                 case None    => exist
               }
           }),
-        progDesc("Start the radix core services on the current system")
-      )
-    )
+        progDesc("Start the radix core services on the current system"),
+      ),
+    ),
   )
 
   private val afterStartup = subparser[AfterStartup.type](
@@ -342,9 +344,9 @@ object cli {
       "after_startup",
       info(
         pure(AfterStartup),
-        progDesc("Unseals vault and makes sure all hashicorp services are running")
-      )
-    )
+        progDesc("Unseals vault and makes sure all hashicorp services are running"),
+      ),
+    ),
   )
 
   private val reload = subparser[Reload.type](
@@ -353,9 +355,9 @@ object cli {
       "reload",
       info(
         pure(Reload),
-        progDesc("Stops and restarts all components of timberland (without restarting the services themselves)")
-      )
-    )
+        progDesc("Stops and restarts all components of timberland (without restarting the services themselves)"),
+      ),
+    ),
   )
 
   private val stop = subparser[Stop.type](
@@ -364,14 +366,14 @@ object cli {
       "stop",
       info(
         pure(Stop),
-        progDesc("Stop services across all nodes")
-      )
-    )
+        progDesc("Stop services across all nodes"),
+      ),
+    ),
   )
 
   private val dnsDown = subparser[DNSDown.type](
     metavar("down"),
-    command("down", info(pure(DNSDown), progDesc("Remove Consul DNS from system DNS configuration")))
+    command("down", info(pure(DNSDown), progDesc("Remove Consul DNS from system DNS configuration"))),
   )
 
   private val dnsUp = subparser[DNSUp.type](
@@ -380,9 +382,9 @@ object cli {
       "up",
       info(
         pure(DNSUp),
-        progDesc("Add Consul DNS into system DNS configuration")
-      )
-    )
+        progDesc("Add Consul DNS into system DNS configuration"),
+      ),
+    ),
   )
 
   private val dns = subparser[DNS](
@@ -391,9 +393,9 @@ object cli {
       "dns",
       info(
         dnsDown.weaken[DNS] <|> dnsUp.weaken[DNS],
-        progDesc("configure this machine's DNS for the Radix runtime")
-      )
-    )
+        progDesc("configure this machine's DNS for the Radix runtime"),
+      ),
+    ),
   )
 
   private val addUser = subparser[AddUser](
@@ -403,11 +405,11 @@ object cli {
       info(
         ^(
           strArgument(metavar("NAME"), help("Username (used by the --username option of other commands)")),
-          many(strArgument(metavar("POLICIES..."), help("Optional list of vault policies to attach to the user")))
+          many(strArgument(metavar("POLICIES..."), help("Optional list of vault policies to attach to the user"))),
         )(AddUser),
-        progDesc("Create a new local user for use with the --remote-address option on another machine")
-      )
-    )
+        progDesc("Create a new local user for use with the --remote-address option on another machine"),
+      ),
+    ),
   )
 
   private val makeConfig = subparser[MakeConfig.type](
@@ -416,9 +418,9 @@ object cli {
       "make_config",
       info(
         pure(MakeConfig),
-        progDesc("Generates any missing module configuration files")
-      )
-    )
+        progDesc("Generates any missing module configuration files"),
+      ),
+    ),
   )
 
   private val config = subparser[FlagConfig](
@@ -429,14 +431,14 @@ object cli {
         FlagArgs[FlagConfig](FlagConfig(_, false, _, _, _, _)) <*> optional(
           switch(
             long("all"),
-            help("Reconfigure all values, including the ones that already have a value")
+            help("Reconfigure all values, including the ones that already have a value"),
           )
         ).map(all => {
           exist: FlagConfig => exist.copy(all = all.getOrElse(false))
         }),
-        progDesc("Enable components or features of the Radix runtime")
-      )
-    )
+        progDesc("Enable components or features of the Radix runtime"),
+      ),
+    ),
   )
 
   private val enable = subparser[FlagSet](
@@ -445,9 +447,9 @@ object cli {
       "enable",
       info(
         FlagArgs[FlagSet](FlagSet(_, true, _, _, _, _)),
-        progDesc("Enable components or features of the Radix runtime")
-      )
-    )
+        progDesc("Enable components or features of the Radix runtime"),
+      ),
+    ),
   )
 
   private val disable = subparser[FlagSet](
@@ -456,9 +458,9 @@ object cli {
       "disable",
       info(
         FlagArgs[FlagSet](FlagSet(_, false, _, _, _, _)),
-        progDesc("Disable components or features of the Radix runtime")
-      )
-    )
+        progDesc("Disable components or features of the Radix runtime"),
+      ),
+    ),
   )
 
   private val query = subparser[FlagQuery.type](
@@ -467,9 +469,9 @@ object cli {
       "query",
       info(
         pure(FlagQuery),
-        progDesc("Check which features or components are enabled and view their configuration")
-      )
-    )
+        progDesc("Check which features or components are enabled and view their configuration"),
+      ),
+    ),
   )
 
   private val cmds: List[Parser[RadixCMD]] = List(
@@ -485,7 +487,7 @@ object cli {
     enable,
     disable,
     query,
-    wanjoin
+    wanjoin,
   ).map(_.weaken[RadixCMD])
 
   val opts: ParserInfo[RadixCMD] = info(
@@ -506,9 +508,9 @@ object cli {
                   Doc.text("timberland enable"),
                   Doc.linebreak,
                   Doc.text("timberland disable"),
-                  Doc.linebreak
+                  Doc.linebreak,
                 )
-              )(Doc.append)
+              )(Doc.append),
             ),
             Doc.linebreak,
             Doc.text("To start the Radix runtime, run:"),
@@ -555,9 +557,9 @@ object cli {
                   Doc.text("timberland dns down"),
                   Doc.linebreak,
                   Doc.text("timberland dns up"),
-                  Doc.linebreak
+                  Doc.linebreak,
                 )
-              )(Doc.append)
+              )(Doc.append),
             ),
             Doc.linebreak,
             Doc.linebreak,
@@ -568,10 +570,10 @@ object cli {
             Doc.linebreak,
             Doc.text("To stop an existing Radix runtime installation, run:"),
             Doc.linebreak,
-            Doc.indent(2, Doc.text("timberland stop"))
+            Doc.indent(2, Doc.text("timberland stop")),
           )
         )(Doc.append)
       )
-    )
+    ),
   )
 }

@@ -26,7 +26,7 @@ final case class InitRequest(
   secret_shares: Int,
   secret_threshold: Int,
   pgp_keys: Option[List[String]] = None,
-  root_token_pgp_key: Option[String] = None
+  root_token_pgp_key: Option[String] = None,
 )
 object InitRequest {
   implicit val initRequestEncoder: Encoder[InitRequest] =
@@ -83,7 +83,7 @@ final case class RegisterPluginRequest(
   sha256: String,
   command: String,
   args: Vector[String] = Vector.empty,
-  env: Vector[String] = Vector.empty
+  env: Vector[String] = Vector.empty,
 )
 object RegisterPluginRequest {
   implicit val registerPluginRequestEncoder: Encoder[RegisterPluginRequest] =
@@ -123,14 +123,14 @@ final case class UpdateCredentialAuthorizationCodeRequest(
   server: String,
   code: String,
   redirect_url: String,
-  provider_options: Map[String, String] = Map()
+  provider_options: Map[String, String] = Map(),
 ) extends UpdateCredentialRequest {
   override val grant_type: String = "authorization_code"
 }
 final case class UpdateCredentialRefreshTokenRequest(
   server: String,
   refresh_token: String,
-  provider_options: Map[String, String] = Map()
+  provider_options: Map[String, String] = Map(),
 ) extends UpdateCredentialRequest {
   override val grant_type: String = "refresh_token"
 }
@@ -166,7 +166,7 @@ final case class CreateOauthServerRequest(
   client_secrets: List[String] = List(),
   auth_url_params: Map[String, String] = Map(),
   provider: String,
-  provider_params: Map[String, String] = Map()
+  provider_params: Map[String, String] = Map(),
 )
 object CreateOauthServerRequest {
   implicit val createOauthServerRequest: Encoder[CreateOauthServerRequest] = deriveEncoder[CreateOauthServerRequest]
@@ -177,7 +177,7 @@ final case class KVMetadata(
   created_time: OffsetDateTime,
 //                            deletion_time: Option[OffsetDateTime],
   destroyed: Boolean,
-  version: Int
+  version: Int,
 )
 object KVMetadata {
   implicit val KVMetadataDecoder: Decoder[KVMetadata] =
@@ -255,7 +255,7 @@ final case class CertificateResponse(
   caChain: List[String],
   expiration: Int,
   issuingCa: String,
-  privateKey: String
+  privateKey: String,
 )
 object CertificateResponse {
   implicit val certificateResponseDecoder: Decoder[CertificateResponse] = (c: HCursor) => {

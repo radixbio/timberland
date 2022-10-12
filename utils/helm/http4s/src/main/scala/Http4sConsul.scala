@@ -28,7 +28,7 @@ import org.http4s.circe._
 final class Http4sConsulClient[F[_]](
   val baseUri: Uri,
   override val accessToken: Option[String] = helmUtil.getTokenFromEnvVars(),
-  override val credentials: Option[(String, String)] = None
+  override val credentials: Option[(String, String)] = None,
 )(implicit F: Effect[F], blaze: Resource[F, Client[F]])
     extends ConsulInterface[F] {
 
@@ -89,12 +89,12 @@ final class Http4sConsulClient[F[_]](
       agentDeregisterService(service)
     case ConsulOp.AgentSetToken(tokenType, token) =>
       agentSetToken(tokenType, token)
-    case ConsulOp.AgentGetInfo => agentGetInfo()
+    case ConsulOp.AgentGetInfo      => agentGetInfo()
     case ConsulOp.AgentListServices => agentListServices(): F[A]
     case ConsulOp.AgentEnableMaintenanceMode(id, enable, reason) =>
       agentEnableMaintenanceMode(id, enable, reason)
-    case ConsulOp.AclGetTokens => aclGetTokens()
-    case ConsulOp.KeyringInstallKey(key) => keyringInstallKey(key)
+    case ConsulOp.AclGetTokens              => aclGetTokens()
+    case ConsulOp.KeyringInstallKey(key)    => keyringInstallKey(key)
     case ConsulOp.KeyringSetPrimaryKey(key) => keyringSetPrimaryKey(key)
     case ConsulOp
           .SessionCreate(name, datacenter, lockDelay, node, checks, behavior, ttl) =>
@@ -115,15 +115,16 @@ final class Http4sConsulClient[F[_]](
   }
 
   private def addCreds(req: Request[F]): Request[F] =
-    credentials.fold(req) { case (un, pw) =>
-      req.putHeaders(Authorization(BasicCredentials(un, pw)))
+    credentials.fold(req) {
+      case (un, pw) =>
+        req.putHeaders(Authorization(BasicCredentials(un, pw)))
     }
 
   /** A nice place to store the Consul response headers so we can pass them around */
   private case class ConsulHeaders(
     index: Long,
     lastContact: Long,
-    knownLeader: Boolean
+    knownLeader: Boolean,
   )
 
   /** Helper function to get the value of a header out of a Response. Only used by extractConsulHeaders */
@@ -176,7 +177,7 @@ final class Http4sConsulClient[F[_]](
     datacenter: Option[String] = None,
     separator: Option[String] = None,
     index: Option[Long] = None,
-    wait: Option[Interval] = None
+    wait: Option[Interval] = None,
   ): F[QueryResponse[List[KVGetResult]]] = {
     for {
       _ <- F.delay(log.debug(s"fetching consul key $key"))
@@ -218,7 +219,7 @@ final class Http4sConsulClient[F[_]](
   def kvGetRaw(
     key: Key,
     index: Option[Long],
-    wait: Option[Interval]
+    wait: Option[Interval],
   ): F[QueryResponse[Option[Array[Byte]]]] = {
     for {
       _ <- F.delay(log.debug(s"fetching consul key $key"))
@@ -352,7 +353,7 @@ final class Http4sConsulClient[F[_]](
     near: Option[String],
     nodeMeta: Option[String],
     index: Option[Long],
-    wait: Option[Interval]
+    wait: Option[Interval],
   ): F[QueryResponse[List[HealthCheckResponse]]] = {
     for {
       _ <- F.delay(log.debug(s"fetching health checks for service $service"))
@@ -390,7 +391,7 @@ final class Http4sConsulClient[F[_]](
     serviceId: String,
     healthCheckName: String,
     interval: FiniteDuration = 10.seconds,
-    timeout: FiniteDuration = 1.seconds
+    timeout: FiniteDuration = 1.seconds,
   ): String = {
     val json = Json.obj(
       ("ID", Json.fromString(id)),
@@ -402,7 +403,7 @@ final class Http4sConsulClient[F[_]](
       ("Method", Json.fromString("GET")),
       ("Interval", Json.fromString(s"${interval.toSeconds}s")),
       ("Timeout", Json.fromString(s"${timeout.toSeconds}s")),
-      ("TLSSkipVerify", Json.fromBoolean(true))
+      ("TLSSkipVerify", Json.fromBoolean(true)),
     )
     log.debug(s"json to add health check for ${hostname}: ${json.spaces2}")
     json.spaces2
@@ -412,13 +413,13 @@ final class Http4sConsulClient[F[_]](
     serviceId: String,
     hostname: String,
     healthCheckId: String,
-    healthCheckName: String
+    healthCheckName: String,
   ): F[Unit] = {
     for {
       _ <- F.delay(log.info(s"registering a health check for ${serviceId}"))
       req <- PUT(
         addCheckPayload(healthCheckId, hostname, serviceId, healthCheckName),
-        baseUri / "v1" / "agent" / "check" / "register"
+        baseUri / "v1" / "agent" / "check" / "register",
       ).map(addConsulToken)
         .map(addCreds)
       response <- blaze.use(client => client.expectOr[String](req)(handleConsulErrorResponse))
@@ -429,7 +430,7 @@ final class Http4sConsulClient[F[_]](
 
   def catalogListNodesForService(
     service: String,
-    tag: Option[String] = None
+    tag: Option[String] = None,
   ): F[List[CatalogListNodesForServiceResponse]] = {
     for {
       _ <- F.delay(log.debug(s"fetching service info from catalog for service: $service"))
@@ -454,7 +455,7 @@ final class Http4sConsulClient[F[_]](
     node: String,
     datacenter: Option[String],
     index: Option[Long],
-    wait: Option[Interval]
+    wait: Option[Interval],
   ): F[QueryResponse[List[HealthCheckResponse]]] = {
     for {
       _ <- F.delay(log.debug(s"fetching health checks for node $node"))
@@ -498,7 +499,7 @@ final class Http4sConsulClient[F[_]](
     near: Option[String],
     nodeMeta: Option[String],
     index: Option[Long],
-    wait: Option[Interval]
+    wait: Option[Interval],
   ): F[QueryResponse[List[HealthCheckResponse]]] = {
     for {
       _ <- F.delay(log.debug(s"fetching health checks for service ${HealthStatus.toString(state)}"))
@@ -531,7 +532,7 @@ final class Http4sConsulClient[F[_]](
     tag: Option[String],
     passingOnly: Option[Boolean],
     index: Option[Long],
-    wait: Option[Interval]
+    wait: Option[Interval],
   ): F[QueryResponse[List[HealthNodesForServiceResponse]]] = {
     for {
       _ <- F.delay(log.debug(s"fetching nodes for service $service from health API"))
@@ -545,7 +546,7 @@ final class Http4sConsulClient[F[_]](
               .+??("tag", tag)
               .+??(
                 "passing",
-                passingOnly.filter(identity)
+                passingOnly.filter(identity),
               ) // all values of passing parameter are treated the same by Consul
               .+??("index", index)
               .+??("wait", wait.map(Interval.toString))
@@ -610,7 +611,7 @@ final class Http4sConsulClient[F[_]](
     port: Option[Int],
     enableTagOverride: Option[Boolean],
     check: Option[HealthCheckParameter],
-    checks: Option[NonEmptyList[HealthCheckParameter]]
+    checks: Option[NonEmptyList[HealthCheckParameter]],
   ): F[Unit] = {
 //    val json: Json =
 //      ("Name" := service) ->:
@@ -631,7 +632,7 @@ final class Http4sConsulClient[F[_]](
         ("Port", port.asJson),
         ("EnableTagOverride", enableTagOverride.asJson),
         ("Check", check.asJson),
-        ("Checks", checks.map(_.toList).asJson)
+        ("Checks", checks.map(_.toList).asJson),
       )
       .dropNullValues
     for {
@@ -692,7 +693,7 @@ final class Http4sConsulClient[F[_]](
             Method.PUT,
             uri = (baseUri / "v1" / "agent" / "service" / "maintenance" / id)
               .+?("enable", enable)
-              .+??("reason", reason)
+              .+??("reason", reason),
           )
         )
       )
@@ -737,7 +738,7 @@ final class Http4sConsulClient[F[_]](
     node: Option[String],
     checks: Option[NonEmptyList[HealthCheckParameter]],
     behavior: Option[String],
-    ttl: Option[String]
+    ttl: Option[String],
   ): F[UUID] =
     for {
       _ <- F.delay(log.debug(s"PUTting $name in /session/create"))
@@ -758,11 +759,11 @@ final class Http4sConsulClient[F[_]](
             ("Node", node.asJson),
             ("Behavior", behavior.asJson),
             ("Checks", checks.map(_.toList).asJson),
-            ("TTL", ttl.asJson)
+            ("TTL", ttl.asJson),
           )
           json.dropNullValues.toString
         },
-        uri = baseUri / "v1" / "session" / "create"
+        uri = baseUri / "v1" / "session" / "create",
       ).map(addConsulToken _).map(addCreds _)
       resp <- blaze.use { client =>
         client.expectOr[SessionRegisterResult](req)(handleConsulErrorResponse)
@@ -777,7 +778,7 @@ final class Http4sConsulClient[F[_]](
     lockdelay: Option[Duration],
     node: Option[String],
     checks: Option[NonEmptyList[HealthCheckParameter]],
-    behavior: Option[String]
+    behavior: Option[String],
   ): F[UUID] =
     for {
       _ <- F.delay(log.debug(s"PUTting $name in /session/create"))
@@ -789,11 +790,11 @@ final class Http4sConsulClient[F[_]](
             ("LockDelay", lockdelay.asJson),
             ("Node", node.asJson),
             ("Behavior", behavior.asJson),
-            ("Checks", checks.map(_.toList).asJson)
+            ("Checks", checks.map(_.toList).asJson),
           )
           .dropNullValues
           .toString,
-        baseUri / "v1" / "session" / "create"
+        baseUri / "v1" / "session" / "create",
       ).map(addConsulToken _).map(addCreds _)
       resp <- blaze.use { client =>
         client.expectOr[SessionRegisterResult](req)(handleConsulErrorResponse)

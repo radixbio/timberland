@@ -142,7 +142,7 @@ class Http4sConsulTests extends FlatSpec with Matchers with TypeCheckedTripleEqu
       .run(
         csl,
         ConsulOp
-          .healthListChecksForService("test", None, None, None, None, None)
+          .healthListChecksForService("test", None, None, None, None, None),
       )
       .attempt
       .unsafeRunSync should ===(Right(healthStatusResponse))
@@ -155,7 +155,7 @@ class Http4sConsulTests extends FlatSpec with Matchers with TypeCheckedTripleEqu
       .run(
         csl,
         ConsulOp
-          .healthListChecksForService("test", None, None, None, None, None)
+          .healthListChecksForService("test", None, None, None, None, None),
       )
       .attempt
       .unsafeRunSync should be(consulErrorException)
@@ -174,7 +174,7 @@ class Http4sConsulTests extends FlatSpec with Matchers with TypeCheckedTripleEqu
     val response = consulResponse(
       Status.Ok,
       healthNodesForServiceReplyJson,
-      consulHeaders(1234, true, 0).filter(_.name != "X-Consul-Index".ci)
+      consulHeaders(1234, true, 0).filter(_.name != "X-Consul-Index".ci),
     )
     val csl = constantConsul(response)
 
@@ -188,7 +188,7 @@ class Http4sConsulTests extends FlatSpec with Matchers with TypeCheckedTripleEqu
     val response = consulResponse(
       Status.Ok,
       healthNodesForServiceReplyJson,
-      consulHeaders(1234, true, 0).filter(_.name != "X-Consul-KnownLeader".ci)
+      consulHeaders(1234, true, 0).filter(_.name != "X-Consul-KnownLeader".ci),
     )
     val csl = constantConsul(response)
 
@@ -202,7 +202,7 @@ class Http4sConsulTests extends FlatSpec with Matchers with TypeCheckedTripleEqu
     val response = consulResponse(
       Status.Ok,
       healthNodesForServiceReplyJson,
-      consulHeaders(1234, true, 0).filter(_.name != "X-Consul-LastContact".ci)
+      consulHeaders(1234, true, 0).filter(_.name != "X-Consul-LastContact".ci),
     )
     val csl = constantConsul(response)
 
@@ -281,7 +281,16 @@ class Http4sConsulTests extends FlatSpec with Matchers with TypeCheckedTripleEqu
     helm.run(csl, ConsulOp.agentListServices).attempt.unsafeRunSync should ===(
       Right(
         Map(
-          "consul" -> ServiceResponse("consul", "consul", List.empty, "", 8300, false, Map.empty[String, String], "dc1"),
+          "consul" -> ServiceResponse(
+            "consul",
+            "consul",
+            List.empty,
+            "",
+            8300,
+            false,
+            Map.empty[String, String],
+            "dc1",
+          ),
           "test" -> ServiceResponse(
             "testService",
             "test",
@@ -290,8 +299,8 @@ class Http4sConsulTests extends FlatSpec with Matchers with TypeCheckedTripleEqu
             1234,
             false,
             Map.empty[String, String],
-            "dc1"
-          )
+            "dc1",
+          ),
         )
       )
     )
@@ -323,7 +332,7 @@ object Http4sConsulTests {
       List(
         Header.Raw("X-Consul-Index".ci, index.toString),
         Header.Raw("X-Consul-KnownLeader".ci, knownLeader.toString),
-        Header.Raw("X-Consul-LastContact".ci, lastContact.toString)
+        Header.Raw("X-Consul-LastContact".ci, lastContact.toString),
       )
     )
   }
@@ -491,11 +500,11 @@ object Http4sConsulTests {
     QueryResponse(
       List(
         KVGetResult("foo", "bar", 0, None, 0, 43788, 43789),
-        KVGetResult("foo/baz", "quxx", 1234, Some("adf4238a-882b-9ddc-4a9d-5b6758e4159e"), 0, 43790, 43791)
+        KVGetResult("foo/baz", "quxx", 1234, Some("adf4238a-882b-9ddc-4a9d-5b6758e4159e"), 0, 43790, 43791),
       ),
       555,
       false,
-      2
+      2,
     )
 
   val healthNodesForServiceReturnValue =
@@ -510,7 +519,7 @@ object Http4sConsulTests {
             Map("metaTest" -> "test123"),
             TaggedAddresses("192.168.1.145", "192.168.2.145"),
             123455121311L,
-            123455121347L
+            123455121347L,
           ),
           ServiceResponse(
             "testService",
@@ -520,7 +529,7 @@ object Http4sConsulTests {
             1234,
             false,
             Map.empty[String, String],
-            "dc1"
+            "dc1",
           ),
           List(
             HealthCheckResponse(
@@ -534,7 +543,7 @@ object Http4sConsulTests {
               "testServiceName",
               List("testTag"),
               19008L,
-              19013L
+              19013L,
             ),
             HealthCheckResponse(
               "localhost",
@@ -547,14 +556,14 @@ object Http4sConsulTests {
               "testServiceName",
               List("testTag", "anotherTag"),
               123455121300L,
-              123455121321L
-            )
-          )
+              123455121321L,
+            ),
+          ),
         )
       ),
       1234,
       true,
-      0
+      0,
     )
 
   val healthStatusResponse =
@@ -571,7 +580,7 @@ object Http4sConsulTests {
           "testServiceName",
           List("testTag"),
           19008L,
-          19013L
+          19013L,
         ),
         HealthCheckResponse(
           "localhost",
@@ -584,12 +593,12 @@ object Http4sConsulTests {
           "testServiceName",
           List("testTag", "anotherTag"),
           123455121300L,
-          123455121321L
-        )
+          123455121321L,
+        ),
       ),
       1234,
       true,
-      0
+      0,
     )
 
   // Some custom matchers here because ScalaTest's built-in matching doesn't handle Left(Throwable) well.
@@ -605,13 +614,13 @@ object Http4sConsulTests {
           MatchResult(
             true,
             s"$l was $expectedExceptionType($expectedMessage)",
-            s"$l was not $expectedExceptionType($expectedMessage)"
+            s"$l was not $expectedExceptionType($expectedMessage)",
           )
         case other =>
           MatchResult(
             false,
             s"Expected Left($expectedExceptionType($expectedMessage)), but got $other",
-            s"Expected something that WASN'T Left($expectedExceptionType($expectedMessage)), but that's what we got"
+            s"Expected something that WASN'T Left($expectedExceptionType($expectedMessage)), but that's what we got",
           )
       }
   }

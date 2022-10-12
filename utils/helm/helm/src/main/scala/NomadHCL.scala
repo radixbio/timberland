@@ -48,7 +48,7 @@ object NomadHCL {
       auto_revert: Boolean = false,
       //                      auto_promote: Boolean = false,
       canary: Int = 0,
-      stagger: String = "30s"
+      stagger: String = "30s",
     ) extends HCLFmt
 
     case class Target(value: String = "", percent: Int = 0) extends HCLFmt
@@ -66,7 +66,7 @@ object NomadHCL {
       destination: String = "local/",
       mode: String = "any",
       options: Option[Map[String, String]] = None,
-      source: String
+      source: String,
     ) extends HCLFmt
 
     case class Template(
@@ -79,14 +79,15 @@ object NomadHCL {
       perms: String = "644",
       right_delimiter: String = "}}",
       source: Option[String] = None,
-      splay: String = "5s"
+      splay: String = "5s",
     ) extends HCLFmt
 
     case class Logs(max_files: Int = 10, max_file_size: Int = 10) extends HCLFmt
 
     case class Port(static: Option[Int] = None) extends HCLFmt
 
-    case class Network(mbits: Option[Int] = None, ports: List[syntax.PortShim], mode: Option[String] = None) extends HCLFmt
+    case class Network(mbits: Option[Int] = None, ports: List[syntax.PortShim], mode: Option[String] = None)
+        extends HCLFmt
 
     case class CheckRestart(limit: Int = 0, grace: String = "1s", ignore_warnings: Boolean = false) extends HCLFmt
 
@@ -106,7 +107,7 @@ object NomadHCL {
       protocol: String = "http",
       timeout: String,
       `type`: String,
-      tls_skip_verify: Boolean = false
+      tls_skip_verify: Boolean = false,
     )
     //TODO Header format serialization
         extends HCLFmt
@@ -119,24 +120,24 @@ object NomadHCL {
       tags: Option[List[String]] = None,
       canary_tags: Option[List[String]] = None,
       address_mode: String = "auto",
-      connect: Option[ConsulConnectShim] = None
+      connect: Option[ConsulConnectShim] = None,
     ) extends HCLFmt
 
     case class ConsulConnect(
       sidecar_service: SidecarServiceShim = SidecarServiceShim(SidecarService()),
-      native: Option[Boolean] = None
+      native: Option[Boolean] = None,
     ) extends HCLFmt
 
     case class SidecarService(
       tags: Option[List[String]] = None,
       port: Option[String] = None,
-      proxy: Option[Proxy] = None
+      proxy: Option[Proxy] = None,
     ) extends HCLFmt
 
     case class Proxy(
       local_service_address: Option[String] = None,
       local_service_port: Option[Int] = None,
-      upstreams: List[UpstreamShim]
+      upstreams: List[UpstreamShim],
     ) extends HCLFmt
 
     case class Upstream(destination_name: String, local_bind_port: Int) extends HCLFmt
@@ -145,14 +146,14 @@ object NomadHCL {
       name: String,
       count: Int = 1,
       constraint: Option[List[Constraint]] = None,
-      affinity: Option[List[Affinity]] = None
+      affinity: Option[List[Affinity]] = None,
     ) extends HCLFmt
 
     case class Resources(
       cpu: Int = 100,
       memory: Int = 300,
       network: Option[Network] = None,
-      device: Option[Device] = None
+      device: Option[Device] = None,
     ) extends HCLFmt
 
     case class Task(
@@ -173,7 +174,7 @@ object NomadHCL {
       shutdown_delay: String = "0s",
       user: Option[String] = None,
       template: Option[List[syntax.TemplateShim]] = None,
-      vault: Option[Vault] = None
+      vault: Option[Vault] = None,
     ) extends HCLFmt
 
     case class DockerConfig(
@@ -220,7 +221,7 @@ object NomadHCL {
       cpu_cfs_period: Option[Int] = None,
       advertise_ipv6_address: Option[Boolean] = None,
       readonly_rootfs: Option[Boolean] = None,
-      pids_limit: Option[Int] = None
+      pids_limit: Option[Int] = None,
     ) extends HCLFmt
 
     case class Group(
@@ -236,20 +237,20 @@ object NomadHCL {
       task: List[TaskShim],
       vault: Option[Vault] = None,
       network: Option[Network] = None,
-      services: Option[List[syntax.ServiceShim]] = None
+      services: Option[List[syntax.ServiceShim]] = None,
     ) extends HCLFmt
 
     case class Migrate(
       max_parallel: Int = 1,
       health_check: String = "checks",
       min_healthy_time: String = "10s",
-      healthy_deadline: String = "5m"
+      healthy_deadline: String = "5m",
     ) extends HCLFmt
 
     case class Parameterized(
       meta_optional: Option[List[String]],
       meta_required: Option[List[String]],
-      payload: String = "optional"
+      payload: String = "optional",
     ) extends HCLFmt
 
     case class Periodic(cron: String, prohibit_overlap: Boolean = false, time_zone: String = "UTC") extends HCLFmt
@@ -260,14 +261,14 @@ object NomadHCL {
       delay: Option[String] = Some("30s"),
       delay_function: Option[String] = Some("exponential"),
       max_delay: Option[String] = Some("1h"),
-      unlimited: Option[Boolean] = Some(true)
+      unlimited: Option[Boolean] = Some(true),
     ) extends HCLFmt
 
     case class Vault(
       change_mode: String = "restart",
       change_signal: Option[String],
       env: Boolean = true,
-      policies: Option[List[String]] = None
+      policies: Option[List[String]] = None,
     ) extends HCLFmt
 
     case class Affinity(attribute: String = "", operator: String = "=", value: String = "", weight: Int = 50)
@@ -291,7 +292,7 @@ object NomadHCL {
       `type`: String = "service",
       update: Option[Update] = None,
       vault: Option[Vault] = None,
-      vault_token: Option[String] = None
+      vault_token: Option[String] = None,
     ) extends HCLFmt
 
   }
@@ -413,13 +414,16 @@ object NomadHCL {
     implicit def LiftAttrsIntoElements[H, K, T <: HList](implicit
       H: Lazy[HCLAttr[H]],
       W: Witness.Aux[K],
-      T: HCLFields[T]
+      T: HCLFields[T],
     ): HCLFields[FieldType[K, H] :: T] = {
       new HCLFields[FieldType[K, H] :: T] {
         override def show(t: FieldType[K, H] :: T): List[String] = {
           t match {
             case h :: tail =>
-              H.value.show(h).map(hd => s"${W.value.toString.drop(7).dropRight(1)} = $hd" :: T.show(tail)).getOrElse(T.show(tail))
+              H.value
+                .show(h)
+                .map(hd => s"${W.value.toString.drop(7).dropRight(1)} = $hd" :: T.show(tail))
+                .getOrElse(T.show(tail))
           }
         }
       }
@@ -448,7 +452,7 @@ object NomadHCL {
       W: Witness.Aux[K],
       ev: syntax.HCLSpecial[H],
       ev2: HCLAble[H],
-      T: HCLFields[T]
+      T: HCLFields[T],
     ): HCLFields[FieldType[K, H] :: T] = {
       new HCLFields[FieldType[K, H] :: T] {
         override def show(t: FieldType[K, H] :: T): List[String] = {
@@ -464,14 +468,14 @@ object NomadHCL {
     implicit def HCLSpecialsDerive[H, K, T <: HList](implicit
       H: Lazy[syntax.HCLSpecial[H]],
       W: Witness.Aux[K],
-      T: syntax.HCLSpecial[T]
+      T: syntax.HCLSpecial[T],
     ): syntax.HCLSpecial[FieldType[K, H] :: T] = null
 
     implicit def HCLFieldsNormalDerivation[H, K, T <: HList](implicit
       H: Lazy[HCLFields[H]],
       W: Witness.Aux[K],
       ev: defs.HCLClause[H],
-      T: HCLFields[T]
+      T: HCLFields[T],
     ): HCLFields[FieldType[K, H] :: T] = {
       new HCLFields[FieldType[K, H] :: T] {
         override def show(t: FieldType[K, H] :: T): List[String] = {
@@ -494,7 +498,7 @@ object NomadHCL {
     implicit def HCLClausesDerive[H, K, T <: HList](implicit
       H: Lazy[defs.HCLClause[H]],
       W: Witness.Aux[K],
-      T: defs.HCLClause[T]
+      T: defs.HCLClause[T],
     ): defs.HCLClause[FieldType[K, H] :: T] = null
 
   }

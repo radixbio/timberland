@@ -11,7 +11,7 @@ final case class NomadCreateJobResponse(
   warnings: String,
   index: Long,
   lastContact: Long,
-  knownLeader: Boolean
+  knownLeader: Boolean,
 )
 
 object NomadCreateJobResponse {
@@ -32,7 +32,7 @@ object NomadCreateJobResponse {
         warnings,
         index,
         lastContact,
-        knownLeader
+        knownLeader,
       )
   }
 }

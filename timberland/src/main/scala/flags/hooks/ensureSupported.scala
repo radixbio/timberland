@@ -38,7 +38,7 @@ object ensureSupported extends FlagHook {
       IO.raiseError(new RuntimeException("Windows 10 is the only supported Windows version."))
     } else {
       IO.unit
-    }
+    },
   )
 
   override def run(options: Map[String, String], addrs: ServiceAddrs, _tokens: AuthTokens): IO[Unit] =

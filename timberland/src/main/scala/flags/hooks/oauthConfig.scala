@@ -24,7 +24,7 @@ object oauthConfig extends FlagHook {
     val oauthConfigRequest = CreateOauthServerRequest(
       client_id = options("google_oauth_id"),
       client_secrets = List(options("google_oauth_secret")),
-      provider = "google"
+      provider = "google",
     )
     vaultSession
       .createOauthServer("oauth2/google", "google", oauthConfigRequest)

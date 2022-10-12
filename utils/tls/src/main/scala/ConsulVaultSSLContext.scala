@@ -26,7 +26,7 @@ object ConsulVaultSSLContext extends SSLContextBase {
   def refreshCerts(
     caPem: Option[String] = None,
     certPem: Option[String] = None,
-    keyPem: Option[String] = None
+    keyPem: Option[String] = None,
   ): Unit = {
     blazeOption = Some(makeBlaze[IO](caPem, certPem, keyPem))
   }
@@ -34,7 +34,7 @@ object ConsulVaultSSLContext extends SSLContextBase {
   def makeBlaze[F[_]](
     caPem: Option[String] = None,
     certPem: Option[String] = None,
-    keyPem: Option[String] = None
+    keyPem: Option[String] = None,
   )(implicit F: ConcurrentEffect[F]): Resource[F, Client[F]] = {
     val roots = getRootCerts(caPem)
     val leaf = getLeafCert(certPem, keyPem)

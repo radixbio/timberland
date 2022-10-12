@@ -28,12 +28,12 @@ object EnvironmentVariables {
     ),
     "TF_VAR_TLS_NOMAD_KEY_FILE" -> os.Path(
       sys.env.getOrElse("TLS_NOMAD_KEY", (ConstPaths.certDir / "nomad" / "cli-key.pem").toString)
-    )
+    ),
   )
   def envToken(token: String) = envVars ++ Map(
     "NOMAD_TOKEN" -> token,
     "CONSUL_HTTP_TOKEN" -> token,
-    "TF_VAR_ACL_TOKEN" -> token
+    "TF_VAR_ACL_TOKEN" -> token,
   )
 }
 

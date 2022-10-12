@@ -24,13 +24,13 @@ trait ConsulInterface[F[_]] extends (ConsulOp ~> F) {
     datacenter: Option[String],
     separator: Option[String],
     index: Option[Long],
-    wait: Option[Interval]
+    wait: Option[Interval],
   ): F[QueryResponse[List[KVGetResult]]]
 
   def kvGetRaw(
     key: Key,
     index: Option[Long],
-    wait: Option[Interval]
+    wait: Option[Interval],
   ): F[QueryResponse[Option[Array[Byte]]]]
 
   def kvSet(key: Key, value: Array[Byte]): F[Unit]
@@ -48,14 +48,14 @@ trait ConsulInterface[F[_]] extends (ConsulOp ~> F) {
     near: Option[String],
     nodeMeta: Option[String],
     index: Option[Long],
-    wait: Option[Interval]
+    wait: Option[Interval],
   ): F[QueryResponse[List[HealthCheckResponse]]]
 
   def healthChecksForNode(
     node: String,
     datacenter: Option[String],
     index: Option[Long],
-    wait: Option[Interval]
+    wait: Option[Interval],
   ): F[QueryResponse[List[HealthCheckResponse]]]
 
   def healthChecksInState(
@@ -64,7 +64,7 @@ trait ConsulInterface[F[_]] extends (ConsulOp ~> F) {
     near: Option[String],
     nodeMeta: Option[String],
     index: Option[Long],
-    wait: Option[Interval]
+    wait: Option[Interval],
   ): F[QueryResponse[List[HealthCheckResponse]]]
 
   def healthNodesForService(
@@ -75,7 +75,7 @@ trait ConsulInterface[F[_]] extends (ConsulOp ~> F) {
     tag: Option[String],
     passingOnly: Option[Boolean],
     index: Option[Long],
-    wait: Option[Interval]
+    wait: Option[Interval],
   ): F[QueryResponse[List[HealthNodesForServiceResponse]]]
 
   def agentGetInfo(): F[AgentInfoResult]
@@ -88,7 +88,7 @@ trait ConsulInterface[F[_]] extends (ConsulOp ~> F) {
     port: Option[Int],
     enableTagOverride: Option[Boolean],
     check: Option[HealthCheckParameter],
-    checks: Option[NonEmptyList[HealthCheckParameter]]
+    checks: Option[NonEmptyList[HealthCheckParameter]],
   ): F[Unit]
 
   def agentDeregisterService(id: String): F[Unit]
@@ -104,7 +104,7 @@ trait ConsulInterface[F[_]] extends (ConsulOp ~> F) {
     node: Option[String],
     checks: Option[NonEmptyList[HealthCheckParameter]],
     behavior: Option[String],
-    ttl: Option[String]
+    ttl: Option[String],
   ): F[UUID]
 
   def getSessionInfo(session: UUID): F[SessionResponse]
@@ -114,5 +114,5 @@ trait ConsulInterface[F[_]] extends (ConsulOp ~> F) {
 case class ConsulHeaders(
   index: Long,
   lastContact: Long,
-  knownLeader: Boolean
+  knownLeader: Boolean,
 )

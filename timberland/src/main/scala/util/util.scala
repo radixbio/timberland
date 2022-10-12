@@ -65,7 +65,7 @@ object Util {
    */
   def timeoutTo[A](fa: IO[A], after: FiniteDuration, fallback: IO[A])(implicit
     timer: Timer[IO],
-    cs: ContextShift[IO]
+    cs: ContextShift[IO],
   ): IO[A] = {
 
     IO.race(fa, timer.sleep(after)).flatMap {
@@ -107,7 +107,7 @@ object Util {
   def waitForConsul(
     consulToken: String,
     timeoutDuration: FiniteDuration,
-    address: String = "https://consul.service.consul:8501"
+    address: String = "https://consul.service.consul:8501",
   ): IO[Unit] = {
     import com.radix.utils.tls.TrustEveryoneSSLContext.insecureBlaze
     scribe.debug(s"waiting for Consul (@ 8501) to be leader, a max of $timeoutDuration.")
@@ -115,7 +115,7 @@ object Util {
     import org.http4s.Uri
     val requestIO = GET(
       Uri.fromString(pollUrl).getOrElse(uri"https://127.0.0.1:8501/v1/status/leader"),
-      Header("X-Consul-Token", consulToken)
+      Header("X-Consul-Token", consulToken),
     )
     // there's a few hundred milliseconds between when consul has a leader and when the single-leader node syncs ACLs... add a silly 2 second sleep after leader to soak up this tiny race
     def queryConsul: IO[Unit] = requestIO.map { request =>
@@ -212,7 +212,7 @@ object Util {
     command: Seq[String],
     cwd: os.Path = os.root,
     env: Map[String, String] = Map.empty,
-    spawn: Boolean = false
+    spawn: Boolean = false,
   ): IO[ProcOut] = IO {
     scribe.debug(s"Calling: $command")
     val cmd = os.proc(command)
@@ -227,7 +227,7 @@ object Util {
       scribe.log(
         if (res.exitCode == 0) Level.Trace else Level.Debug,
         s" got result code: ${res.exitCode}, stderr: $stderr (${stderr.length}), stdout: $stdout (${stdout.length})",
-        None
+        None,
       )
       output
     }
@@ -328,7 +328,7 @@ object RadPath {
     runtime / "ipfs_data",
     runtime / "ipfs_shared",
     runtime / "config",
-    runtime / "config" / "modules"
+    runtime / "config" / "modules",
   ).foreach(os.makeDir.all)
   if (Util.isLinux) os.perms.set(runtime / "ipfs_data", os.PermSet.fromInt(775))
 

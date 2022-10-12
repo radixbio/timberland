@@ -39,7 +39,12 @@ trait ServiceControl {
   def stopTimberlandSvc(): IO[Util.ProcOut] = ???
   def stopVault(): IO[Util.ProcOut] = ???
   def configureConsul(parameters: List[String]): IO[Unit] = ???
-  def runConsulTemplate(consulToken: String, vaultToken: String, vaultAddress: Option[String], datacenter: String): IO[Unit] = ???
+  def runConsulTemplate(
+    consulToken: String,
+    vaultToken: String,
+    vaultAddress: Option[String],
+    datacenter: String,
+  ): IO[Unit] = ???
   def configureNomad(parameters: List[String], vaultToken: String, consulToken: String): IO[Unit] = ???
   def configureTimberlandSvc(): IO[Unit] = ???
   def configureVault(parameters: String): IO[Unit] = ???
@@ -88,7 +93,7 @@ class LinuxServiceControl extends ServiceControl {
     consulToken: String,
     vaultToken: String,
     vaultAddress: Option[String],
-    datacenter: String
+    datacenter: String,
   ): IO[Unit] =
     Util.execArr(
       List(
@@ -99,10 +104,10 @@ class LinuxServiceControl extends ServiceControl {
         "-vault-token",
         vaultToken,
         "-consul-token",
-        consulToken
+        consulToken,
       ) ++ vaultAddress.map(addr => List("-vault-addr", s"https://$addr:8200")).getOrElse(List.empty),
       spawn = true,
-      env = Map("DATACENTER" -> datacenter)
+      env = Map("DATACENTER" -> datacenter),
     ) *> IO.unit
 
   override def configureTimberlandSvc(): IO[Unit] = IO.unit
@@ -151,7 +156,7 @@ class WindowsServiceControl extends ServiceControl {
           (RadPath.persistentDir / "consul" / "consul.exe").toString,
           "agent",
           "-log-file",
-          (RadPath.persistentDir / "consul" / "consul.log").toString
+          (RadPath.persistentDir / "consul" / "consul.log").toString,
         ) ++ parameters).map(_.replaceAll("\"", "\\\\\""))
       ) *> IO.unit
 
@@ -159,7 +164,7 @@ class WindowsServiceControl extends ServiceControl {
     consulToken: String,
     vaultToken: String,
     vaultAddress: Option[String],
-    datacenter: String
+    datacenter: String,
   ): IO[Unit] =
     Util.execArr(
       List(
@@ -170,10 +175,10 @@ class WindowsServiceControl extends ServiceControl {
         "-vault-token",
         vaultToken,
         "-consul-token",
-        consulToken
+        consulToken,
       ) ++ vaultAddress.map(addr => List("-vault-addr", s"https://$addr:8200")).getOrElse(List.empty),
       spawn = true,
-      env = Map("DATACENTER" -> datacenter)
+      env = Map("DATACENTER" -> datacenter),
     ) *> IO.unit
 
   override def restartConsul(): IO[Util.ProcOut] = stopConsul *> IO.sleep(1.second) *> startConsul
@@ -199,7 +204,7 @@ class WindowsServiceControl extends ServiceControl {
     IO(
       os.copy.over(
         RadPath.runtime / "timberland" / "nomad" / "nomad-windows.hcl",
-        RadPath.runtime / "timberland" / "nomad" / "config" / "nomad.hcl"
+        RadPath.runtime / "timberland" / "nomad" / "config" / "nomad.hcl",
       )
     ) *>
       Util.execArr(List(nssm.toString, "remove", "nomad", "confirm")) *>
@@ -212,7 +217,7 @@ class WindowsServiceControl extends ServiceControl {
           "agent",
           s"""-config="${RadPath.persistentDir / "nomad" / "config"}"""",
           s"""-vault-token="$vaultToken"""",
-          s"""-consul-token="$consulToken""""
+          s"""-consul-token="$consulToken"""",
         ) ++ parameters).map(_.replaceAll("\"", "\\\\\""))
       ) *> IO.unit
   override def stopNomad(): IO[Util.ProcOut] = Util.exec(s"$nssm stop nomad")
@@ -225,7 +230,7 @@ class WindowsServiceControl extends ServiceControl {
       "JAVA_HOME", {
         scribe.error("JAVA_HOME not set, can't find location of java.exe")
         sys.exit(1)
-      }
+      },
     )
     val javaLoc = (os.Path(javaHome) / "bin" / "java.exe").toString
     val jarLoc = RadPath.persistentDir / "exec" / "timberland-svc-bin_deploy.jar"
@@ -237,7 +242,7 @@ class WindowsServiceControl extends ServiceControl {
           "timberland-svc",
           javaLoc,
           "-jar",
-          jarLoc.toString
+          jarLoc.toString,
         )
       ) *> IO.unit
   }
@@ -278,7 +283,7 @@ object Services {
     datacenter: String,
     bootstrapExpect: Int,
     initialSetup: Boolean,
-    serverJoin: Boolean
+    serverJoin: Boolean,
   ): IO[AuthTokens] =
     for {
       // find local IP for default route
@@ -297,7 +302,7 @@ object Services {
         certDir / "vault" / "cert.pem.bak",
         certDir / "vault" / "key.pem.bak",
         certDir / "cli" / "cert.pem.bak",
-        certDir / "cli" / "key.pem.bak"
+        certDir / "cli" / "key.pem.bak",
       )
 
       intermediateAclTokenFile = RadPath.runtime / "timberland" / ".intermediate-acl-token"
@@ -406,7 +411,7 @@ object Services {
     leaderNodeO: Option[String],
     bootstrapExpect: Int,
     datacenter: String,
-    serverJoin: Boolean = false
+    serverJoin: Boolean = false,
   ): IO[Unit] = {
     val baseArgs = List(
       s"""-advertise="$bindAddr"""",
@@ -452,7 +457,7 @@ object Services {
     vaultToken: String,
     consulToken: String,
     datacenter: String,
-    serverJoin: Boolean = false
+    serverJoin: Boolean = false,
   ): IO[Unit] = {
     val clientJoin = leaderNodeO.isDefined & !serverJoin
     val baseArgs = (clientJoin, serverJoin) match {
@@ -472,7 +477,7 @@ object Services {
     }
     val parameters = baseArgsWithSeeds ++ List(
       s"""-encrypt="$gossipKey"""",
-      s"""-dc="$datacenter""""
+      s"""-dc="$datacenter"""",
     )
     for {
       configureNomad <- serviceController.configureNomad(parameters, vaultToken, consulToken)
@@ -507,7 +512,7 @@ object Services {
       req = POST(
         Map("Name" -> namespace).asJson.toString(),
         Uri.unsafeFromString("https://127.0.0.1:4646/v1/namespace/" + namespace),
-        Header("X-Nomad-Token", aclToken)
+        Header("X-Nomad-Token", aclToken),
       )
       status <- ConsulVaultSSLContext.blaze.use(_.status(req))
       _ <- IO {
@@ -520,7 +525,7 @@ object Services {
     val req = POST(
       Map("SourceName" -> "*", "DestinationName" -> "*", "Action" -> "allow").asJson.toString(),
       uri"http://consul.service.consul:8500/v1/connect/intentions",
-      Header("X-Consul-Token", consulToken)
+      Header("X-Consul-Token", consulToken),
     )
 
     ConsulVaultSSLContext.blaze.use(_.status(req)).map { status =>
@@ -535,12 +540,12 @@ object Services {
       "Name" -> Json.fromString("global"),
       "MeshGateway" -> Map(
         "mode" -> Json.fromString("local")
-      ).asJson
+      ).asJson,
     ).asJson.toString()
     val req = PUT(
       payload,
       uri"http://consul.service.consul:8500/v1/config",
-      Header("X-Consul-Token", consulToken)
+      Header("X-Consul-Token", consulToken),
     )
 
     ConsulVaultSSLContext.blaze.use(_.status(req)).map { status =>
@@ -573,21 +578,21 @@ object Services {
       genCert(
         folder = "vault",
         fileName = "dc1-client-consul-0",
-        command = Some(s"$consul tls cert create -client -additional-dnsname=vault.service.consul")
+        command = Some(s"$consul tls cert create -client -additional-dnsname=vault.service.consul"),
       ) *>
       genCert(
         folder = "cli",
         fileName = "dc1-cli-consul-0",
-        command = Some(s"$consul tls cert create -cli")
+        command = Some(s"$consul tls cert create -cli"),
       ) *>
       genCert(
         folder = "consul",
         fileName = "dc1-server-consul-0",
-        command = Some(s"$consul tls cert create -server -additional-dnsname=consul.service.consul")
+        command = Some(s"$consul tls cert create -server -additional-dnsname=consul.service.consul"),
       ) *>
       genCert(
         folder = "ca",
-        fileName = "consul-agent-ca"
+        fileName = "consul-agent-ca",
       ) *>
       IO(os.remove(certDir / "ca" / "key.pem"))
   }

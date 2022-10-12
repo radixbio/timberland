@@ -65,7 +65,7 @@ object Http4sNomadTests {
       List(
         Header.Raw("X-Nomad-Index".ci, index.toString),
         Header.Raw("X-Nomad-KnownLeader".ci, knownLeader.toString),
-        Header.Raw("X-Nomad-LastContact".ci, lastContact.toString)
+        Header.Raw("X-Nomad-LastContact".ci, lastContact.toString),
       )
     )
   }
@@ -102,7 +102,7 @@ object Http4sNomadTests {
       ),
       32,
       false,
-      0
+      0,
     )
 
   // Some custom matchers here because ScalaTest's built-in matching doesn't handle Left(Throwable) well.
@@ -118,13 +118,13 @@ object Http4sNomadTests {
           MatchResult(
             true,
             s"$l was $expectedExceptionType($expectedMessage)",
-            s"$l was not $expectedExceptionType($expectedMessage)"
+            s"$l was not $expectedExceptionType($expectedMessage)",
           )
         case other =>
           MatchResult(
             false,
             s"Expected Left($expectedExceptionType($expectedMessage)), but got $other",
-            s"Expected something that WASN'T Left($expectedExceptionType($expectedMessage)), but that's what we got"
+            s"Expected something that WASN'T Left($expectedExceptionType($expectedMessage)), but that's what we got",
           )
       }
   }

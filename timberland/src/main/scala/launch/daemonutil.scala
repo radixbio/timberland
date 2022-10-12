@@ -43,13 +43,13 @@ package object daemonutil {
       "tls_cert_file" -> EnvironmentVariables.envVars("TF_VAR_TLS_CERT_FILE").toString,
       "tls_key_file" -> EnvironmentVariables.envVars("TF_VAR_TLS_KEY_FILE").toString,
       "tls_nomad_cert_file" -> EnvironmentVariables.envVars("TF_VAR_TLS_NOMAD_CERT_FILE").toString,
-      "tls_nomad_key_file" -> EnvironmentVariables.envVars("TF_VAR_TLS_NOMAD_KEY_FILE").toString
+      "tls_nomad_key_file" -> EnvironmentVariables.envVars("TF_VAR_TLS_NOMAD_KEY_FILE").toString,
     )
     //TODO check with @alex about moving these to the above format
     val tlsBackendConfig = Map(
       "ca_file" -> sys.env.getOrElse("TLS_CA", (ConstPaths.certDir / "ca" / "cert.pem").toString),
       "cert_file" -> sys.env.getOrElse("TLS_CERT", (ConstPaths.certDir / "cli" / "cert.pem").toString),
-      "key_file" -> sys.env.getOrElse("TLS_KEY", (ConstPaths.certDir / "cli" / "key.pem").toString)
+      "key_file" -> sys.env.getOrElse("TLS_KEY", (ConstPaths.certDir / "cli" / "key.pem").toString),
     )
     val vars = tlsVars.map(kv => s"-var='${kv._1}=${kv._2}'")
     if (backendConfig) vars ++ tlsBackendConfig.map(kv => s"-backend-config=${kv._1}=${kv._2}") else vars
@@ -66,10 +66,10 @@ package object daemonutil {
   def runTerraform(
     namespace: Option[String] = None,
     datacenter: String = "dc1",
-    shouldStop: Boolean = false
+    shouldStop: Boolean = false,
   )(implicit
     serviceAddrs: ServiceAddrs = ServiceAddrs(),
-    tokens: AuthTokens
+    tokens: AuthTokens,
   ): IO[Int] = {
     val workingDir = RadPath.runtime / "terraform"
 
@@ -94,7 +94,7 @@ package object daemonutil {
       applyCommand = Seq(
         "bash",
         "-c",
-        s"${ConstPaths.execDir / "terraform"} $cmdName -no-color -auto-approve " + variables + configStr
+        s"${ConstPaths.execDir / "terraform"} $cmdName -no-color -auto-approve " + variables + configStr,
       )
       applyExitCode <- IO(
         if (!System.getProperty("os.name").toLowerCase.contains("windows"))
@@ -103,7 +103,7 @@ package object daemonutil {
             .call(
               cwd = workingDir,
               stdout = Util.scribePipe(Level.Info),
-              stderr = Util.scribePipe(Level.Error)
+              stderr = Util.scribePipe(Level.Error),
             )
             .exitCode
         else 0
@@ -129,7 +129,7 @@ package object daemonutil {
         Seq(
           s"-backend-config=address=${serviceAddrs.consulAddr}:8501",
           s"-backend-config=access_token=${backendMasterToken.get}",
-          s"-var='acl_token=${backendMasterToken.get}'"
+          s"-var='acl_token=${backendMasterToken.get}'",
         ) ++ terraformTLSVars(backendConfig = true)
       else Seq.empty
 
@@ -138,7 +138,7 @@ package object daemonutil {
       "init",
       "-plugin-dir",
       s"${ConstPaths.execDir / "plugins"}",
-      s"-backend=${backendMasterToken.isDefined}"
+      s"-backend=${backendMasterToken.isDefined}",
     ) ++ backendVars
     val initFirstCommand = initAgainCommand ++ Seq("-from-module", s"${ConstPaths.execDir / "modules"}")
 
@@ -155,7 +155,7 @@ package object daemonutil {
               cwd = ConstPaths.workingDir,
               stdout = Util.scribePipe(),
               stderr = Util.scribePipe(Level.Error),
-              check = false
+              check = false,
             )
       )
     } yield ()

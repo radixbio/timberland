@@ -28,7 +28,7 @@ final class Http4sNomadClient[F[_]](
   val baseUri: Uri,
   val client: Client[F],
   override val accessToken: Option[String] = helmUtil.getTokenFromEnvVars(),
-  override val credentials: Option[(String, String)] = None
+  override val credentials: Option[(String, String)] = None,
 )(implicit F: Effect[F])
     extends NomadInterface[F] {
 
@@ -72,8 +72,9 @@ final class Http4sNomadClient[F[_]](
     accessToken.fold(req)(tok => req.putHeaders(Header("X-Nomad-Token", tok)))
 
   private def addCreds(req: Request[F]): Request[F] =
-    credentials.fold(req) { case (un, pw) =>
-      req.putHeaders(Authorization(BasicCredentials(un, pw)))
+    credentials.fold(req) {
+      case (un, pw) =>
+        req.putHeaders(Authorization(BasicCredentials(un, pw)))
     }
 
   private def handleNomadErrorResponse(response: Response[F]): F[Throwable] = {
@@ -159,7 +160,7 @@ final class Http4sNomadClient[F[_]](
     job: JobShim,
     enforceIndex: Boolean = false,
     jobModifyIndex: Int = 0,
-    policyOverride: Boolean = false
+    policyOverride: Boolean = false,
   ): F[QueryResponse[List[NomadCreateJobResponse]]] = {
 
     for {
@@ -185,7 +186,7 @@ final class Http4sNomadClient[F[_]](
   def nomadListJobs(
     namespace: String = "*",
     index: Option[Long] = None,
-    wait: Option[Interval] = None
+    wait: Option[Interval] = None,
   ): F[List[NomadListJobsResponse]] = {
     for {
       _ <- F.delay(log.debug(s"listing nomad jobs: $namespace"))

@@ -19,7 +19,7 @@ final case class CatalogListNodesForServiceResponse(
   serviceEnableTagOverride: Boolean,
 //                                                    serviceProxyDestination: String,
   createIndex: Long,
-  modifyIndex: Long
+  modifyIndex: Long,
 )
 object CatalogListNodesForServiceResponse {
   implicit def catalogListNodesForService: Decoder[CatalogListNodesForServiceResponse] =
@@ -60,7 +60,7 @@ object CatalogListNodesForServiceResponse {
           serviceEnableTagOverride,
           //            serviceProxyDestination,
           createIndex,
-          modifyIndex
+          modifyIndex,
         )
       }
     }

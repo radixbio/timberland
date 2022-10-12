@@ -23,8 +23,9 @@ case object depGraph {
     depPairs <- modules
       .map(mod => tfParser.getHclDeps(mod).map(mod -> _))
       .parSequence
-    graphEdges = depPairs.flatMap { case (module, deps) =>
-      deps.map(module ~> _)
+    graphEdges = depPairs.flatMap {
+      case (module, deps) =>
+        deps.map(module ~> _)
     }
   } yield Graph.from(modules, graphEdges)
 }

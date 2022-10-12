@@ -17,7 +17,7 @@ final case class HealthCheckParameter(
   script: Option[String],
   dockerContainerId: Option[String],
   tcp: Option[String],
-  ttl: Option[Interval]
+  ttl: Option[Interval],
 )
 
 object HealthCheckParameter {
@@ -36,7 +36,7 @@ object HealthCheckParameter {
           ("Script", hcp.script.asJson),
           ("DockerContainerID", hcp.dockerContainerId.asJson),
           ("TCP", hcp.tcp.asJson),
-          ("TTL", hcp.ttl.asJson)
+          ("TTL", hcp.ttl.asJson),
         )
         .dropNullValues
     }

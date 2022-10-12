@@ -23,7 +23,7 @@ final case class NomadServerSummary(
   leader: Boolean,
   node: String,
   raftProtocol: String,
-  voter: Boolean
+  voter: Boolean,
 )
 
 object NomadServerSummary {

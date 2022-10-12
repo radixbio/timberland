@@ -144,12 +144,12 @@ class Vault[F[_]: ConcurrentEffect](authToken: F[Option[String]], baseUrl: Uri)(
   override def registerPlugin(
     pluginType: PluginType,
     name: String,
-    req: RegisterPluginRequest
+    req: RegisterPluginRequest,
   ): F[Either[VaultError, Unit]] =
     submitRequestNoResponse(
       Request[F](
         method = PUT,
-        uri = baseUrl / "v1" / "sys" / "plugins" / "catalog" / pluginType.toString / name
+        uri = baseUrl / "v1" / "sys" / "plugins" / "catalog" / pluginType.toString / name,
       ).withEntity(req.asJson)
     )
 
@@ -163,30 +163,30 @@ class Vault[F[_]: ConcurrentEffect](authToken: F[Option[String]], baseUrl: Uri)(
     submitRequest(
       Request[F](
         method = PUT,
-        uri = appendPath(baseUrl / "v1", pluginPath) / "config" / "auth_code_url"
+        uri = appendPath(baseUrl / "v1", pluginPath) / "config" / "auth_code_url",
       ).withEntity(req.asJson)
     )
 
   override def updateOauthCredential(
     pluginPath: String,
     credentialName: String,
-    req: UpdateCredentialRequest
+    req: UpdateCredentialRequest,
   ): F[Either[VaultError, Unit]] =
     submitRequestNoResponse(
       Request[F](
         method = PUT,
-        uri = appendPath(baseUrl / "v1", pluginPath) / "creds" / credentialName
+        uri = appendPath(baseUrl / "v1", pluginPath) / "creds" / credentialName,
       ).withEntity(req.asJson)
     )
 
   override def getOauthCredential(
     pluginPath: String,
-    credentialName: String
+    credentialName: String,
   ): F[Either[VaultError, CredentialResponse]] =
     submitRequest(
       Request[F](
         method = GET,
-        uri = appendPath(baseUrl / "v1", pluginPath) / "creds" / credentialName
+        uri = appendPath(baseUrl / "v1", pluginPath) / "creds" / credentialName,
       )
     )
 
@@ -194,7 +194,7 @@ class Vault[F[_]: ConcurrentEffect](authToken: F[Option[String]], baseUrl: Uri)(
     submitRequestNoResponse(
       Request[F](
         method = DELETE,
-        uri = appendPath(baseUrl / "v1", pluginPath) / "creds" / credentialName
+        uri = appendPath(baseUrl / "v1", pluginPath) / "creds" / credentialName,
       )
     )
 
@@ -218,7 +218,7 @@ class Vault[F[_]: ConcurrentEffect](authToken: F[Option[String]], baseUrl: Uri)(
   def createOauthServer(
     pluginPath: String,
     name: String,
-    req: CreateOauthServerRequest
+    req: CreateOauthServerRequest,
   ): F[Either[VaultError, Unit]] = {
     submitRequestNoResponse(
       Request[F](method = PUT, uri = appendPath(baseUrl / "v1", pluginPath) / "servers" / name)
@@ -230,7 +230,7 @@ class Vault[F[_]: ConcurrentEffect](authToken: F[Option[String]], baseUrl: Uri)(
     submitRequestNoResponse(
       Request[F](
         method = DELETE,
-        uri = appendPath(baseUrl / "v1", pluginPath) / "servers" / name
+        uri = appendPath(baseUrl / "v1", pluginPath) / "servers" / name,
       )
     )
 
@@ -261,7 +261,7 @@ class Vault[F[_]: ConcurrentEffect](authToken: F[Option[String]], baseUrl: Uri)(
   override def getCertificate(
     pkiName: String,
     commonName: String,
-    ttl: String
+    ttl: String,
   ): F[Either[VaultError, CertificateResponse]] = {
     val req = Map("common_name" -> commonName, "ttl" -> ttl, "exclude_cn_from_sans" -> "false", "format" -> "pem")
     for {
@@ -279,13 +279,13 @@ class Vault[F[_]: ConcurrentEffect](authToken: F[Option[String]], baseUrl: Uri)(
   override def createEntity(
     name: String,
     policies: List[String],
-    metadata: Map[String, Json]
+    metadata: Map[String, Json],
   ): F[Either[VaultError, String]] = {
     val payload = Json.obj(
       "name" -> name.asJson,
       // The metadata needs to be Map[String, String]
       "metadata" -> metadata.view.mapValues(_.asJson.noSpaces).toMap.asJson,
-      "policies" -> policies.asJson
+      "policies" -> policies.asJson,
     )
 
     setWithReply[Json, Json]("identity/entity", payload).map {
@@ -305,13 +305,13 @@ class Vault[F[_]: ConcurrentEffect](authToken: F[Option[String]], baseUrl: Uri)(
     name: String,
     entityID: String,
     mountAccessor: String,
-    metadata: Map[String, Json]
+    metadata: Map[String, Json],
   ): F[Either[VaultError, Unit]] = {
     val payload = Json.obj(
       "name" -> name.asJson,
       "canonical_id" -> entityID.asJson,
       "custom_metadata" -> metadata.view.mapValues(_.asJson.noSpaces).toMap.asJson,
-      "mount_accessor" -> mountAccessor.asJson
+      "mount_accessor" -> mountAccessor.asJson,
     )
 
     setDatum("identity/entity-alias", payload)
@@ -333,13 +333,13 @@ class Vault[F[_]: ConcurrentEffect](authToken: F[Option[String]], baseUrl: Uri)(
     name: String,
     policies: List[String],
     metadata: Map[String, Json],
-    disabled: Boolean
+    disabled: Boolean,
   ): F[Either[VaultError, Unit]] = {
     val json = Json.obj(
       "name" -> name.asJson,
       "metadata" -> metadata.view.mapValues(_.asJson.noSpaces).toMap.asJson,
       "policies" -> policies.asJson,
-      "disabled" -> disabled.asJson
+      "disabled" -> disabled.asJson,
     )
 
     setDatum("identity/entity/id/" + id, json)
@@ -353,7 +353,7 @@ class Vault[F[_]: ConcurrentEffect](authToken: F[Option[String]], baseUrl: Uri)(
     submitRequest[List[String]](
       Request[F](
         method = GET,
-        uri = (baseUrl / "v1" / "identity" / "entity" / "id").withQueryParam("list", "true")
+        uri = (baseUrl / "v1" / "identity" / "entity" / "id").withQueryParam("list", "true"),
       )
     )(decoder).map {
       // It gives a 404 error if there are no entities

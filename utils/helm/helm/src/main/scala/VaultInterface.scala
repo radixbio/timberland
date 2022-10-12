@@ -12,7 +12,7 @@ trait RadixVaultInterface[F[_]] {
     name: String,
     entityID: String,
     mountAccessor: String,
-    metadata: Map[String, Json]
+    metadata: Map[String, Json],
   ): F[Either[VaultError, Unit]]
 
   def readEntity[T: Decoder](id: String): F[Either[VaultError, T]]
@@ -22,7 +22,7 @@ trait RadixVaultInterface[F[_]] {
     name: String,
     policies: List[String],
     metadata: Map[String, Json],
-    disabled: Boolean
+    disabled: Boolean,
   ): F[Either[VaultError, Unit]]
 
   def listEntities: F[Either[VaultError, List[String]]]
@@ -54,7 +54,7 @@ trait VaultInterface[F[_]] extends RadixVaultInterface[F] {
   def updateOauthCredential(
     pluginPath: String,
     credentialName: String,
-    req: UpdateCredentialRequest
+    req: UpdateCredentialRequest,
   ): F[Either[VaultError, Unit]]
 
   // https://github.com/puppetlabs/vault-plugin-secrets-oauthapp#get-read-1

@@ -9,7 +9,7 @@ final case class AgentInfoResult(
   nodeID: String,
   server: Boolean,
   rev: String,
-  version: String
+  version: String,
 )
 
 object AgentInfoResult {

@@ -14,7 +14,7 @@ final case class HealthCheckResponse(
   serviceName: String,
   serviceTags: List[String],
   createIndex: Long,
-  modifyIndex: Long
+  modifyIndex: Long,
 )
 
 object HealthCheckResponse {
@@ -43,7 +43,7 @@ object HealthCheckResponse {
         serviceName,
         serviceTags,
         createIndex,
-        modifyIndex
+        modifyIndex,
       )
     }
   }

@@ -15,7 +15,7 @@ final case class SessionResponse(
   behavior: String,
   ttl: Option[Duration],
   createIndex: Long,
-  modifyIndex: Long
+  modifyIndex: Long,
 )
 
 object SessionResponse {
@@ -40,7 +40,7 @@ object SessionResponse {
         behavior,
         if (ttl == "") None else Some(Duration(ttl)),
         createIndex,
-        modifyIndex
+        modifyIndex,
       )
     }
   }

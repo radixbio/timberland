@@ -25,5 +25,5 @@ final case class QueryResponse[A](
   value: A,
   index: Long,
   knownLeader: Boolean,
-  lastContact: Long
+  lastContact: Long,
 )

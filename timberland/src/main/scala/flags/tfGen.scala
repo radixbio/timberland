@@ -57,7 +57,7 @@ case object tfGen {
               "source" -> s""""./$module"""",
               "enable" -> s"""lookup(var.feature_flags, "$module", false)""",
               "config" -> s"var.config_$module",
-              "depends_on" -> s"[${deps.map("module." + _).mkString(",")}]"
+              "depends_on" -> s"[${deps.map("module." + _).mkString(",")}]",
             ),
             // These vars are defined at the root level in daemonutil and passed to each module
             SHARED_VARS.map { varName =>
@@ -66,7 +66,7 @@ case object tfGen {
             // These vars are pulled from the flags.json file and passed to each module
             featureFlags.SHARED_FLAGS.toList.map { varName =>
               varName -> s"""lookup(var.feature_flags, "$varName", false)"""
-            }
+            },
           ).flatten.filter {
             // If the variables.tf file of the module doesn't have the variable defined, don't pass it to the module
             case (varName, _) => varList.contains(varName) || varName == "source" || varName == "depends_on"

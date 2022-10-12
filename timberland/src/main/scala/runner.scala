@@ -38,7 +38,7 @@ object runner {
               username,
               password,
               serverJoin,
-              force
+              force,
             ) =>
           scribe.Logger.root
             .clearHandlers()
@@ -68,7 +68,7 @@ object runner {
           // only run on leader node, or with a remote address as a target
           def runTerraform(
             serviceAddrs: ServiceAddrs,
-            authTokens: AuthTokens
+            authTokens: AuthTokens,
           ) =
             for {
               _ <-
@@ -124,12 +124,12 @@ object runner {
                   storeIntermediateToken <- auth.storeIntermediateToken(authTokens.consulNomadToken)
                   storeVaultTokenConfig <- auth.writeVaultTokenConfigs(
                     RadPath.persistentDir,
-                    authTokens.consulNomadToken
+                    authTokens.consulNomadToken,
                   )
                   storeConsulNomadTokenConfig <- auth.writeConsulNomadTokenConfigs(
                     RadPath.persistentDir,
                     authTokens.consulNomadToken,
-                    authTokens.vaultToken
+                    authTokens.vaultToken,
                   )
                   storeVaultToken <- IO(VaultUtils.storeVaultTokenKey("", authTokens.vaultToken))
                   stillAuthTokens <- startServices(setupACL = true)
@@ -144,12 +144,12 @@ object runner {
                   authTokens <- auth.getAuthTokens(isRemote = true, serviceAddrs, username, password)
                   storeVaultTokenConfig <- auth.writeVaultTokenConfigs(
                     RadPath.persistentDir,
-                    authTokens.consulNomadToken
+                    authTokens.consulNomadToken,
                   )
                   storeConsulNomadTokenConfig <- auth.writeConsulNomadTokenConfigs(
                     RadPath.persistentDir,
                     authTokens.consulNomadToken,
-                    authTokens.vaultToken
+                    authTokens.vaultToken,
                   )
                   storeVaultToken <- IO(VaultUtils.storeVaultTokenKey("", authTokens.vaultToken))
                 } yield authTokens
@@ -282,7 +282,7 @@ object runner {
             _ <- VaultStarter.initializeAndUnsealVault(
               baseUrl = Uri.unsafeFromString("https://127.0.0.1:8200"),
               shouldBootstrapVault = false,
-              vaultBlaze = TrustEveryoneSSLContext.insecureBlaze
+              vaultBlaze = TrustEveryoneSSLContext.insecureBlaze,
             )
             _ <- IO.sleep(10.seconds) // This works on line 482 of VaultStarter.scala, so it should work here
             consulNomadToken <- auth.getMasterToken
@@ -299,7 +299,7 @@ object runner {
               tokens.consulNomadToken,
               tokens.vaultToken,
               vaultAddr,
-              args.datacenter
+              args.datacenter,
             )
             _ <- Services.serviceController.restartConsul()
             _ <- Util.waitForPortUp(8501, 30.seconds)

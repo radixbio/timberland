@@ -92,14 +92,14 @@ object VaultUtils {
                                      "https://vault.service.consul:8200",
                                      "https://localhost:8200"] }""",
         Uri.unsafeFromString(s"https://$vaultAddr:8200/v1/sys/config/cors"),
-        Header("X-Vault-Token", vaultToken)
+        Header("X-Vault-Token", vaultToken),
       )
       client.expect[String](req).map(scribe.trace(_))
     } *> IO {
       val caPath = RadPath.runtime / "certs" / "ca"
       val env = Map(
         "VAULT_TOKEN" -> findVaultToken(),
-        "VAULT_CACERT" -> (caPath / "cert.pem").toString
+        "VAULT_CACERT" -> (caPath / "cert.pem").toString,
       )
 
       // Symlink ca cert to system cert store since vault plugins only check against public root certs in /etc/ssl/certs
@@ -118,7 +118,7 @@ object VaultUtils {
         .call(
           stdout = Util.scribePipe(),
           stderr = Util.scribePipe(Level.Error),
-          env = env
+          env = env,
         )
 
       Util
@@ -127,12 +127,12 @@ object VaultUtils {
           "write",
           s"-address=https://$vaultAddr:8200",
           "/auth/token/roles/tls-cert",
-          "@" + (vaultPath / "tls-cert-role.json").toString
+          "@" + (vaultPath / "tls-cert-role.json").toString,
         )
         .call(
           stdout = Util.scribePipe(),
           stderr = Util.scribePipe(Level.Error),
-          env = env
+          env = env,
         )
 
       Util
@@ -142,12 +142,12 @@ object VaultUtils {
           "enable",
           s"-address=https://$vaultAddr:8200",
           "-path=secret",
-          "kv"
+          "kv",
         )
         .call(
           stdout = Util.scribePipe(),
           stderr = Util.scribePipe(Level.Error),
-          env = env
+          env = env,
         )
       Util
         .proc(
@@ -155,12 +155,12 @@ object VaultUtils {
           "secrets",
           "enable",
           s"-address=https://$vaultAddr:8200",
-          "pki"
+          "pki",
         )
         .call(
           stdout = Util.scribePipe(),
           stderr = Util.scribePipe(Level.Error),
-          env = env
+          env = env,
         )
       Util
         .proc(
@@ -169,12 +169,12 @@ object VaultUtils {
           "enable",
           s"-address=https://$vaultAddr:8200",
           "-path=pki_int",
-          "pki"
+          "pki",
         )
         .call(
           stdout = Util.scribePipe(),
           stderr = Util.scribePipe(Level.Error),
-          env = env
+          env = env,
         )
       Util
         .proc(
@@ -183,12 +183,12 @@ object VaultUtils {
           "tune",
           s"-address=https://$vaultAddr:8200",
           "-max-lease-ttl=87600h",
-          "pki"
+          "pki",
         )
         .call(
           stdout = Util.scribePipe(),
           stderr = Util.scribePipe(Level.Error),
-          env = env
+          env = env,
         )
       Util
         .proc(
@@ -197,12 +197,12 @@ object VaultUtils {
           "tune",
           s"-address=https://$vaultAddr:8200",
           "-max-lease-ttl=43800h",
-          "pki_int"
+          "pki_int",
         )
         .call(
           stdout = Util.scribePipe(),
           stderr = Util.scribePipe(Level.Error),
-          env = env
+          env = env,
         )
 
       Util
@@ -213,12 +213,12 @@ object VaultUtils {
           "-field=certificate",
           "pki/root/generate/internal",
           "common_name=\"nomad.service.consul\"",
-          "ttl=87600h"
+          "ttl=87600h",
         )
         .call(
           stdout = caPath / "root.pem",
           stderr = Util.scribePipe(Level.Error),
-          env = env
+          env = env,
         )
       val mkcsr =
         Util
@@ -230,11 +230,11 @@ object VaultUtils {
             "-format=json",
             "pki_int/intermediate/generate/internal",
             "common_name=\"nomad.service.consul Intermediate Authority\"",
-            "ttl=43800h"
+            "ttl=43800h",
           )
           .spawn(
             stderr = Util.scribePipe(Level.Error),
-            env = env
+            env = env,
           )
       val csr = parse(mkcsr.stdout.string) match {
         case Left(x) => throw x
@@ -254,11 +254,11 @@ object VaultUtils {
           "pki/root/sign-intermediate",
           s"csr=@${vaultPath / "pki_intermediate.csr"}",
           "format=pem_bundle",
-          "ttl=43800h"
+          "ttl=43800h",
         )
         .spawn(
           stderr = Util.scribePipe(Level.Error),
-          env = env
+          env = env,
         )
       val intcrt = parse(mkintcrt.stdout.string) match {
         case Left(x) => throw x
@@ -276,12 +276,12 @@ object VaultUtils {
           "write",
           s"-address=https://$vaultAddr:8200",
           "/pki_int/intermediate/set-signed",
-          s"certificate=@${vaultPath / "intermediate.cert.pem"}"
+          s"certificate=@${vaultPath / "intermediate.cert.pem"}",
         )
         .call(
           stdout = Util.scribePipe(),
           stderr = Util.scribePipe(Level.Error),
-          env = env
+          env = env,
         )
       Util
         .proc(
@@ -293,12 +293,12 @@ object VaultUtils {
           "allow_subdomains=true",
           "max_ttl=86400s",
           "require_cn=false",
-          "generate_lease=true"
+          "generate_lease=true",
         )
         .call(
           stdout = Util.scribePipe(),
           stderr = Util.scribePipe(Level.Error),
-          env = env
+          env = env,
         )
 
       Util
@@ -307,12 +307,12 @@ object VaultUtils {
           "secrets",
           "enable",
           s"-address=https://$vaultAddr:8200",
-          "aws"
+          "aws",
         )
         .call(
           stdout = Util.scribePipe(),
           stderr = Util.scribePipe(Level.Error),
-          env = env
+          env = env,
         )
 
       Util
@@ -322,12 +322,12 @@ object VaultUtils {
           s"-address=https://$vaultAddr:8200",
           "aws/roles/aws-cred",
           "credential_type=iam_user",
-          s"policy_document=@${vaultPath / "aws-cred-role.json"}"
+          s"policy_document=@${vaultPath / "aws-cred-role.json"}",
         )
         .call(
           stdout = Util.scribePipe(),
           stderr = Util.scribePipe(Level.Error),
-          env = env
+          env = env,
         )
       List("tls-cert", "remote-access", "read-flag-config", "actor-acl-token", "messaging", "read-rusers")
         .map(policy =>
@@ -338,12 +338,12 @@ object VaultUtils {
               "write",
               s"-address=https://$vaultAddr:8200",
               policy,
-              (vaultPath / s"$policy-policy.hcl").toString
+              (vaultPath / s"$policy-policy.hcl").toString,
             )
             .call(
               stdout = Util.scribePipe(),
               stderr = Util.scribePipe(Level.Error),
-              env = env
+              env = env,
             )
         )
     }
@@ -470,7 +470,7 @@ object VaultStarter {
   def initializeAndUnsealVault(
     baseUrl: Uri,
     shouldBootstrapVault: Boolean,
-    vaultBlaze: Resource[IO, Client[IO]] = blaze
+    vaultBlaze: Resource[IO, Client[IO]] = blaze,
   ): IO[VaultSealStatus] = {
     def getResult(implicit vaultSession: VaultSession[IO]): IO[VaultSealStatus] =
       for {

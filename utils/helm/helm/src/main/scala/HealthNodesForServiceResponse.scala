@@ -6,7 +6,7 @@ import io.circe._
 final case class HealthNodesForServiceResponse(
   node: NodeResponse,
   service: ServiceResponse,
-  checks: List[HealthCheckResponse]
+  checks: List[HealthCheckResponse],
 )
 
 object HealthNodesForServiceResponse {

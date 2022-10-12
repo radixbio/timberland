@@ -26,13 +26,13 @@ trait NomadInterface[F[_]] extends (NomadOp ~> F) {
     job: JobShim,
     enforceIndex: Boolean = false,
     jobModifyIndex: Int = 0,
-    policyOverride: Boolean = false
+    policyOverride: Boolean = false,
   ): F[QueryResponse[List[NomadCreateJobResponse]]]
 
   def nomadListJobs(
     namespace: String = "",
     index: Option[Long] = None,
-    wait: Option[Interval] = None
+    wait: Option[Interval] = None,
   ): F[List[NomadListJobsResponse]]
 
   def nomadStopJob(job: String, purge: Boolean = true): F[NomadStopJobResponse]
@@ -46,5 +46,5 @@ trait NomadInterface[F[_]] extends (NomadOp ~> F) {
 case class NomadHeaders(
   index: Long,
   lastContact: Long,
-  knownLeader: Boolean
+  knownLeader: Boolean,
 )

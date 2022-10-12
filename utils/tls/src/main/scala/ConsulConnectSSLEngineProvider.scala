@@ -56,10 +56,10 @@ class ConsulConnectSSLEngineProvider(system: ActorSystem) extends SSLEngineProvi
       Map(
         "Target" -> hostname,
         "ClientCertURI" -> ConsulConnectSSLContext.getLeafCert().uri,
-        "ClientCertSerial" -> ConsulConnectSSLContext.getLeafCert().serial
+        "ClientCertSerial" -> ConsulConnectSSLContext.getLeafCert().serial,
       ).asJson,
       Uri.unsafeFromString("https://consul.service.consul:8501/v1/agent/connect/authorize"),
-      Header("X-Consul-Token", System.getenv("ACCESS_TOKEN"))
+      Header("X-Consul-Token", System.getenv("ACCESS_TOKEN")),
     )
     val resp = blaze
       .use { client =>

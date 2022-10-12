@@ -4,10 +4,10 @@ import io.circe._
 import io.circe.syntax._
 
 final case class AclTokenResult(
-                                  accessorId: String,
-                                  secretId: String,
-                                  description: String
-                                )
+  accessorId: String,
+  secretId: String,
+  description: String,
+)
 
 object AclTokenResult {
   implicit def AclTokenDecoder: Decoder[AclTokenResult] = (j: HCursor) => {

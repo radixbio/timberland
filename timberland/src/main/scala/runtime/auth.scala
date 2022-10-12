@@ -43,7 +43,7 @@ object auth {
     isRemote: Boolean = false,
     serviceAddrs: ServiceAddrs = ServiceAddrs(),
     usernameOption: Option[String] = None,
-    passwordOption: Option[String] = None
+    passwordOption: Option[String] = None,
   ): IO[AuthTokens] = {
     if (isRemote) {
       for {
@@ -102,7 +102,7 @@ object auth {
 
       authenticatedVault = new Vault[IO](authToken = vaultToken, baseUrl = vaultUri)(
         IO.ioConcurrentEffect,
-        insecureBlaze
+        insecureBlaze,
       )
       consulNomadToken <- getTokenFromVault(authenticatedVault, "consul-ui-token")
       actorToken <- getTokenFromVault(authenticatedVault, "actor-token")
@@ -205,7 +205,7 @@ object auth {
     persistentDir: os.Path,
     consulToken: String,
     policyName: String,
-    tokenDescription: String
+    tokenDescription: String,
   ): IO[TokenResult] = {
     val consulDir = persistentDir / "consul"
     val consul = consulDir / "consul"
@@ -319,7 +319,7 @@ object auth {
       s"-client-cert=${RadPath.runtime / "certs" / "nomad" / "cli-cert.pem"}",
       s"-client-key=${RadPath.runtime / "certs" / "nomad" / "cli-key.pem"}",
       s"-address=$addr",
-      s"-token=${tokens.masterToken}"
+      s"-token=${tokens.masterToken}",
     ).mkString(" ")
 
     val actorPolicyFile = RadPath.persistentDir / "nomad" / "actor-policy.hcl"
@@ -337,7 +337,7 @@ object auth {
       tokenMap = Map(
         "consul-ui-token" -> tokens.masterToken,
         "actor-token" -> tokens.actorToken,
-        "nomad-actor-token" -> nomadActorToken.getOrElse("")
+        "nomad-actor-token" -> nomadActorToken.getOrElse(""),
       )
       _ <- tokenMap.toList.map { case (name, token) => storeTokenInVault(name, token, vault) }.parSequence
       _ <- IO(os.write.over(RadPath.runtime / "timberland" / ".acl-token", tokens.masterToken, os.PermSet(400)))

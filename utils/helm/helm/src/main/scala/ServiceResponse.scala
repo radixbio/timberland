@@ -11,7 +11,7 @@ final case class ServiceResponse(
   port: Int,
   enableTagOverride: Boolean,
   meta: Map[String, String],
-  datacenter: String
+  datacenter: String,
 )
 
 object ServiceResponse {
@@ -34,7 +34,7 @@ object ServiceResponse {
         port,
         enableTagOverride,
         meta.getOrElse(Map.empty[String, String]),
-        datacenter
+        datacenter,
       )
     }
   }

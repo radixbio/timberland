@@ -19,7 +19,7 @@ final case class NomadListJobsResponse(
   createIndex: Long,
   modifyIndex: Long,
   jobModifyIndex: Long,
-  submitTime: Long
+  submitTime: Long,
 )
 
 object NomadListJobsResponse {
@@ -58,7 +58,7 @@ object NomadListJobsResponse {
         createIndex,
         modifyIndex,
         jobModifyIndex,
-        submitTime
+        submitTime,
       )
     }
   }
@@ -70,7 +70,7 @@ final case class NomadJobSummary(
   summary: Map[String, NomadTaskGroupSummary],
   children: NomadJobSummaryChildren,
   createIndex: Long,
-  modifyIndex: Long
+  modifyIndex: Long,
 )
 
 object NomadJobSummary {
@@ -89,7 +89,7 @@ object NomadJobSummary {
         summary,
         children,
         createIndex,
-        modifyIndex
+        modifyIndex,
       )
     }
   }
@@ -101,7 +101,7 @@ final case class NomadTaskGroupSummary(
   failed: Long,
   running: Long,
   starting: Long,
-  lost: Long
+  lost: Long,
 )
 
 object NomadTaskGroupSummary {

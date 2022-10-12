@@ -11,7 +11,7 @@ final case class KVGetResult(
   session: Option[String],
   lockIndex: Long,
   createIndex: Long,
-  modifyIndex: Long
+  modifyIndex: Long,
 )
 
 object KVGetResult {

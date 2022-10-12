@@ -14,18 +14,18 @@ object NomadOp {
     job: JobShim,
     enforceIndex: Boolean = false,
     jobModifyIndex: Int = 0,
-    policyOverride: Boolean = false
+    policyOverride: Boolean = false,
   ) extends NomadOp[QueryResponse[List[NomadCreateJobResponse]]]
 
   final case class NomadStopJob(
     job: String,
-    purge: Boolean = true
+    purge: Boolean = true,
   ) extends NomadOp[NomadStopJobResponse]
 
   final case class NomadListJobs(
     namespace: String = "",
     index: Option[Long] = None,
-    maxWait: Option[Interval] = None
+    maxWait: Option[Interval] = None,
   ) extends NomadOp[List[NomadListJobsResponse]]
 
   final case class NomadReadRaftConfiguration(maxWait: Option[Interval])
@@ -38,14 +38,14 @@ object NomadOp {
     job: JobShim,
     enforceIndex: Boolean = false,
     jobModifyIndex: Int = 0,
-    policyOverride: Boolean = false
+    policyOverride: Boolean = false,
   ): NomadOpF[QueryResponse[List[NomadCreateJobResponse]]] =
     liftF(NomadCreateJobFromHCL(job, enforceIndex, jobModifyIndex, policyOverride))
 
   def nomadListJobs(
     namespace: String = "",
     index: Option[Long] = None,
-    maxWait: Option[Interval] = None
+    maxWait: Option[Interval] = None,
   ): NomadOpF[List[NomadListJobsResponse]] =
     liftF(NomadListJobs(namespace, index, maxWait))
 

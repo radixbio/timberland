@@ -11,7 +11,7 @@ final case class NodeResponse(
   meta: Map[String, String],
   taggedAddresses: TaggedAddresses,
   createIndex: Long,
-  modifyIndex: Long
+  modifyIndex: Long,
 )
 
 object NodeResponse {

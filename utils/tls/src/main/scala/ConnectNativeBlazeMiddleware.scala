@@ -27,12 +27,12 @@ case object ConnectNativeBlazeMiddleware {
           val authRequestPayload = Map(
             "Target" -> req.serverAddr,
             "ClientCertURI" -> "",
-            "ClientCertSerial" -> byteStringWithColons
+            "ClientCertSerial" -> byteStringWithColons,
           ).asJson
           POST(
             authRequestPayload,
             Uri.unsafeFromString("https://consul.service.consul:8501/v1/agent/connect/authorize"),
-            Header("X-Consul-Token", System.getenv("ACCESS_TOKEN"))
+            Header("X-Consul-Token", System.getenv("ACCESS_TOKEN")),
           )
         }
 
