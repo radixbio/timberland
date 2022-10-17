@@ -36,10 +36,11 @@ object awsAuthConfig extends FlagHook {
     val vault = RadPath.runtime / "timberland" / "vault" / "vault"
     val caPath = RadPath.runtime / "certs" / "ca" / "cert.pem"
     val env = Map("VAULT_TOKEN" -> tokens.vaultToken, "VAULT_CACERT" -> caPath.toString)
-    val minioAccessKey = Random.alphanumeric.take(20).toList.mkString
-    val minioSecretKey = Random.alphanumeric.take(20).toList.mkString
-    val minioKeysCmd = s"$vault kv put -cas=0 secret/minio-creds access_key=$minioAccessKey secret_key=$minioSecretKey"
     for {
+      minioKeys <- getMinioKeys
+      minioAccessKey = minioKeys._1
+      minioSecretKey = minioKeys._2
+      minioKeysCmd = s"$vault kv put -cas=0 secret/minio-creds access_key=${minioKeys._1} secret_key=${minioKeys._2}"
       authCfg <- IO(decode[AWSAuthConfigFile](os.read(configFile)).toTry.get)
       _ <- Util.exec(minioKeysCmd, env = env)
       _ <- (authCfg.pendingKey, authCfg.pendingSecret) match {
@@ -50,5 +51,19 @@ object awsAuthConfig extends FlagHook {
         case _ => IO.unit
       }
     } yield ()
+  }
+
+  // Returns a tuple containing the access and secret keys for minio
+  private def getMinioKeys: IO[(String, String)] = {
+    val minioCredPath = RadPath.runtime / "timberland" / "aws-creds.txt"
+    IO(os.exists(minioCredPath)).flatMap {
+      case true =>
+        IO(os.read(minioCredPath))
+          .map(_.split("\n"))
+          .map(list => (list.head, list(1)))
+      case false =>
+        val keys = (Random.alphanumeric.take(20).toList.mkString, Random.alphanumeric.take(20).toList.mkString)
+        IO(os.write(minioCredPath, keys._1 + "\n" + keys._2)).map(_ => keys)
+    }
   }
 }

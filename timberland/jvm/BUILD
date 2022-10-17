@@ -717,6 +717,9 @@ terraform_module(
         "//timberland/assets:terraform/elasticsearch/outputs.tf",
         "//timberland/assets:terraform/elasticsearch/variables.tf",
     ],
+    deps = [
+        ":minio-terraform",
+    ],
 )
 
 terraform_module(
@@ -733,6 +736,9 @@ terraform_module(
         "//timberland/assets:terraform/nginx/main.tf",
         "//timberland/assets:terraform/nginx/outputs.tf",
         "//timberland/assets:terraform/nginx/variables.tf",
+    ],
+    deps = [
+        ":minio-terraform",
     ],
 )
 
@@ -781,6 +787,9 @@ terraform_module(
         "//timberland/assets:terraform/kafka_companions/outputs.tf",
         "//timberland/assets:terraform/kafka_companions/variables.tf",
     ],
+    deps = [
+        ":minio-terraform",
+    ],
 )
 
 terraform_module(
@@ -822,6 +831,9 @@ terraform_module(
         "//timberland/assets:terraform/yugabyte/main.tf",
         "//timberland/assets:terraform/yugabyte/outputs.tf",
         "//timberland/assets:terraform/yugabyte/variables.tf",
+    ],
+    deps = [
+        ":minio-terraform",
     ],
 )
 
