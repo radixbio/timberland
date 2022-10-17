@@ -27,12 +27,6 @@ variable "quorum_size" {
   default = 1
 }
 
-variable "vault_token" {
-  description = ""
-  type = string
-  default = "token"
-}
-
 variable "kafka_address" {
   type = list(string)
   default = []

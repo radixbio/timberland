@@ -1,7 +1,7 @@
-variable "have_upstream_creds" {
-  description = "Upstream credentials exist in Vault, multiple minios should be spawned."
-  type = bool
-  default = false
+variable "defined_config_vars" {
+  description = "A list of defined config parameters in the form flagName.configName (e.g. minio.aws_access_key_id)"
+  type = list(string)
+  default = []
 }
 
 variable "test" {
@@ -44,12 +44,6 @@ variable "elemental_quorum_size" {
   description = ""
   type = number
   default = 1 //3
-}
-
-variable "elemental_vault_token" {
-  description = ""
-  type = string
-  default = "token"
 }
 
 variable "yugabyte_quorum_size" {

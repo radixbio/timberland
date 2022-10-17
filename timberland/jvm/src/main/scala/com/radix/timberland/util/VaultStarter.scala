@@ -96,7 +96,7 @@ class VaultUtils {
       "-address=http://127.0.0.1:8200",
       "-path=secret",
       "kv").call(stdout = os.Inherit, stderr = os.Inherit, env = Map("VAULT_TOKEN" -> vaultToken))
-    List("nomad-server", "read-aws").map(policy =>
+    List("nomad-server", "read-flag-config").map(policy =>
       os.proc("/opt/radix/timberland/vault/vault",
         "policy",
         "write",

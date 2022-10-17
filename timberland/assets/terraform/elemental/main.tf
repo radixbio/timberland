@@ -1,6 +1,6 @@
 resource "nomad_job" "elemental" {
   count = var.enable ? 1 : 0
-  jobspec = templatefile("/opt/radix/timberland/terraform/elemental/elemental.tmpl", {prefix = var.prefix, test = var.test, quorum_size = var.quorum_size, token = var.vault_token, kafka_address = var.kafka_address, schema_registry_address = var.schema_registry_address})
+  jobspec = templatefile("/opt/radix/timberland/terraform/elemental/elemental.tmpl", {prefix = var.prefix, test = var.test, quorum_size = var.quorum_size, kafka_address = var.kafka_address, schema_registry_address = var.schema_registry_address})
 }
 
 data "consul_service_health" "elemental_health" {

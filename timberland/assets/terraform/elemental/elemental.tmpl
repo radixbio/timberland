@@ -7,7 +7,8 @@ job "${prefix}elemental-machines" {
     value = "linux"
   }
 
-  datacenters = ["dc1"]
+  datacenters = [
+    "dc1"]
 
   group "em" {
 
@@ -16,28 +17,46 @@ job "${prefix}elemental-machines" {
       value = "true"
     }
 
-    count = ${ quorum_size }
+    count = ${quorum_size}
 
     task "em" {
-
+      vault {
+        policies = [
+          "read-flag-config"]
+        change_mode = "signal"
+        change_signal = "SIGUSR1"
+      }
+      template {
+        data = <<EOF
+      {{with secret "secret/data/flag-config"}}
+            ELEMENTAL_USERNAME = "{{.Data.data.elemental.username}}"
+            ELEMENTAL_PASSWORD = "{{.Data.data.elemental.password}}"
+      {{end}}
+    EOF
+        destination = "secrets/file.env"
+        env = true
+      }
       config {
         image = "registry.gitlab.com/radix-labs/monorepo/elemental-machines-sensors:latest"
         auth_soft_fail = false
         hostname = "$${attr.unique.hostname}-em"
         privileged = false
         network_mode = "weave"
-        port_map = {"akka_port" = 64501}
-        volumes = ["/opt/radix/timberland/nomad/elemental:/opt/conf"]
+        port_map = {
+          "akka_port" = 64501
+        }
+        volumes = [
+          "/opt/radix/timberland/nomad/elemental:/opt/conf"]
         cap_add = []
       }
 
       driver = "docker"
       env = {
-        "VAULT_TOKEN" = "${token}",
         "TCP_AKKA_PORT" = "64501",
         "KAFKA_BOOTSTRAP_SERVERS" = "OUTSIDE://${prefix}kafka-daemons-kafka-kafka.service.consul:9092",
         "AVRO_SCHEMA_REGISTRY_URL" = "http://${prefix}kc-daemons-companions-schema-registry.service.consul:8081"
       }
+
       kill_timeout = "5s"
       kill_signal = "SIGINT"
       leader = false
@@ -57,7 +76,9 @@ job "${prefix}elemental-machines" {
 
       service {
         port = "akka_port"
-        tags = ["em","akka-port"]
+        tags = [
+          "em",
+          "akka-port"]
         address_mode = "auto"
 
         check {

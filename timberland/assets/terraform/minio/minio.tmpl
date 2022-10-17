@@ -14,24 +14,23 @@ job "${prefix}minio-job" {
 
     task "minio-local" {
       vault {
-        policies = ["read-aws"]
-
+        policies = ["read-flag-config"]
         change_mode = "signal"
         change_signal = "SIGUSR1"
       }
 
       template {
         data = <<EOF
-      {{with secret "secret/aws/s3"}}
-      {{ if .Data.aws_access_key_id}}
-            MINIO_ACCESS_KEY = "{{.Data.aws_access_key_id}}"
+      {{with secret "secret/data/flag-config"}}
+      {{ if .Data.data.minio.aws_access_key_id}}
+            MINIO_ACCESS_KEY = "{{.Data.data.minio.aws_access_key_id}}"
       {{else}}
-      	     MINIO_ACCESS_KEY = "minio-access-key"
+      	    MINIO_ACCESS_KEY = "minio-access-key"
       {{end}}
       {{end}}
-      {{with secret "secret/aws/s3"}}
-      {{ if .Data.aws_secret_access_key}}
-            MINIO_SECRET_KEY = "{{.Data.aws_secret_access_key}}"
+      {{with secret "secret/data/flag-config"}}
+      {{ if .Data.data.minio.aws_secret_access_key}}
+            MINIO_SECRET_KEY = "{{.Data.data.minio.aws_secret_access_key}}"
       {{else}}
             MINIO_SECRET_KEY = "minio-secret-key"
       {{end}}
@@ -103,8 +102,7 @@ job "${prefix}minio-job" {
     ${ !have_upstream_creds ? "" : <<-EOH
     task "minio-remote" {
       vault {
-        policies = ["read-aws"]
-
+        policies = ["read-flag-config"]
         change_mode = "signal"
         change_signal = "SIGUSR1"
       }
@@ -127,16 +125,16 @@ job "${prefix}minio-job" {
       driver = "docker"
       template {
         data = <<EOF
-      {{with secret "secret/data/aws/s3"}}
-      {{ if .Data.data.aws_access_key_id}}
-            MINIO_ACCESS_KEY = "{{.Data.data.aws_access_key_id}}"
+      {{with secret "secret/data/flag-config"}}
+      {{ if .Data.data.minio.aws_access_key_id}}
+            MINIO_ACCESS_KEY = "{{.Data.data.minio.aws_access_key_id}}"
       {{else}}
       	     MINIO_ACCESS_KEY = "minio-access-key"
       {{end}}
       {{end}}
-      {{with secret "secret/data/aws/s3"}}
-      {{ if .Data.data.aws_secret_access_key}}
-            MINIO_SECRET_KEY = "{{.Data.data.aws_secret_access_key}}"
+      {{with secret "secret/data/flag-config"}}
+      {{ if .Data.data.minio.aws_secret_access_key}}
+            MINIO_SECRET_KEY = "{{.Data.data.minio.aws_secret_access_key}}"
       {{else}}
             MINIO_SECRET_KEY = "minio-secret-key"
       {{end}}

@@ -31,7 +31,7 @@ trait VaultInterface[F[_]] {
   def getCredential(pluginPath: String, credentialName: String): F[Either[VaultError, CredentialResponse]]
 
   // https://www.vaultproject.io/api/secret/kv/kv-v2.html#create-update-secret
-  def createSecret(name: String, req: CreateSecretRequest): F[Either[VaultError, CreateSecretResponse]]
+  def createSecret(name: String, req: CreateSecretRequest): F[Either[VaultError, Unit]]
 
   // https://www.vaultproject.io/api/secret/kv/kv-v2.html#read-secret-version
   def getSecret(name: String): F[Either[VaultError, KVGetResult]]

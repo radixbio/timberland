@@ -1,4 +1,4 @@
-package com.radix.timberland.runtime
+package com.radix.timberland.flags
 
 import java.net.InetAddress
 
@@ -7,13 +7,12 @@ import cats.implicits._
 import com.radix.timberland.launch.daemonutil
 import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.utils.helm
-import com.radix.utils.helm.{ConsulOp, QueryResponse}
 import com.radix.utils.helm.http4s.Http4sConsulClient
-import io.circe.{Decoder, Json}
+import com.radix.utils.helm.{ConsulOp, QueryResponse}
 import io.circe.parser.{decode, parse}
 import io.circe.syntax._
+import io.circe.{Decoder, Json}
 import org.http4s.Uri
-import org.http4s.implicits._
 import org.http4s.client.blaze.BlazeClientBuilder
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -40,46 +39,8 @@ object flags {
       "retool_postgres", "zookeeper"
     )
   )
-  // The default values for all flags
-  private val defaultFlagMap = resolveSupersetFlags(Map(
-    "core" -> true,
-    "dev" -> true
-  ))
   // All flags that aren't tied to a specific module
   private val nonModuleFlags = specialFlags ++ flagSupersets.keySet + "all"
-
-  /**
-   * A map from feature flag to a list of services associated with that flag
-   * This is used by the waitForQuorum function to determine
-   * when features have finished starting up
-   */
-  val flagServiceMap = Map(
-    "core" -> Vector(
-      "zookeeper-daemons-zookeeper-zookeeper",
-      "kafka-companion-daemons-kafkaCompanions-kSQL",
-      "kafka-companion-daemons-kafkaCompanions-kafkaConnect",
-      "kafka-companion-daemons-kafkaCompanions-kafkaRestProxy",
-      "kafka-companion-daemons-kafkaCompanions-schemaRegistry",
-      "kafka-daemons-kafka-kafka",
-      "minio-job-minio-group-nginx-minio",
-      "apprise-apprise-apprise",
-    ),
-    "yugabyte" -> Vector(
-      "yugabyte-yugabyte-ybmaster",
-      "yugabyte-yugabyte-ybtserver",
-    ),
-    "es" -> Vector(
-      "elasticsearch-elasticsearch-es-generic-node",
-      "elasticsearch-kibana-kibana",
-    ),
-    "retool" -> Vector(
-      "retool-retool-postgres",
-      "retool-retool-retool-main",
-    ),
-    "elemental" -> Vector(
-      "elemental-machines-em-em",
-    ),
-  )
 
   /**
    * Sets a feature flag either in Consul or in the local flag file (if Consul is not running)
@@ -96,22 +57,19 @@ object flags {
     for {
       validFlags <- validateFlags(persistentDir, flagsToSet)
       actualFlags = resolveSupersetFlags(flagsToSet, validFlags)
-      consulDnsResponse <- masterToken match {
-        case Some(_) => IO(InetAddress.getAllByName(serviceAddrs.consulAddr)).attempt
-        case None => IO.pure(Left())
+      shouldUpdateConsul <- masterToken match {
+        case Some(_) => isConsulUp()
+        case None => IO.pure(false)
       }
-      newFlags <- consulDnsResponse match {
-        // no consul, empty response from consul, or no access token defined
-        case Left(_) | Right(Array()) =>
-          setLocalFlags(persistentDir, actualFlags) *>
-          IO.pure(FlagsStoredLocally())
-        case _ =>
-          for {
-            localFlags <- getLocalFlags(persistentDir)
-            totalFlags = localFlags ++ actualFlags
-            _ <- clearLocalFlagFile(persistentDir, totalFlags)
-            newFlags <- setConsulFlags(masterToken.get, totalFlags)
-          } yield ConsulFlagsUpdated(newFlags)
+      newFlags <- if (shouldUpdateConsul) {
+        for {
+          localFlags <- getLocalFlags(persistentDir)
+          totalFlags = localFlags ++ actualFlags
+          _ <- clearLocalFlagFile(persistentDir, totalFlags)
+          newFlags <- setConsulFlags(masterToken.get, totalFlags)
+        } yield ConsulFlagsUpdated(newFlags)
+      } else {
+        setLocalFlags(persistentDir, actualFlags) *> IO.pure(FlagsStoredLocally())
       }
     } yield newFlags
   }
@@ -122,13 +80,14 @@ object flags {
       val consulUri = Uri.fromString(s"http://${serviceAddrs.consulAddr}:8500").toOption.get
       val interpreter = new Http4sConsulClient[IO](consulUri, client, Some(masterToken))
       val getFeaturesOp = ConsulOp.kvGetJson[Map[String, Boolean]]("features", None, None)
+      val flagDefaults = resolveSupersetFlags(config.flagDefaults.map(_ -> true).toMap)
       for {
         features <- helm.run(interpreter, getFeaturesOp)
       } yield features match {
         case Right(QueryResponse(Some(consulFlagMap), _, _, _)) =>
-          defaultFlagMap ++ consulFlagMap
+          flagDefaults ++ consulFlagMap
         case _ =>
-          defaultFlagMap
+          flagDefaults
       }
     }
   }
@@ -166,6 +125,13 @@ object flags {
     }
   }
 
+  def isConsulUp()(implicit serviceAddrs: ServiceAddrs = ServiceAddrs()): IO[Boolean] = {
+    IO(InetAddress.getAllByName(serviceAddrs.consulAddr)).attempt.map {
+      case Left(_) | Right(Array()) => false
+      case _ => true
+    }
+  }
+
   /**
    * Store a set of feature flags locally on the disk. These will be pushed to Consul next time
    * timberland connects to Consul
@@ -192,6 +158,7 @@ object flags {
   private def clearLocalFlagFile(persistentDir: os.Path, contents: Map[String, Boolean]): IO[Unit] = {
     if (contents.nonEmpty) {
       // Persist any special flags so they can be retrieved before consul is started
+      val defaultFlagMap = resolveSupersetFlags(config.flagDefaults.map(_ -> true).toMap)
       val newJson = specialFlags.map(flag => flag -> {
         val defaultSpecialFlagVal = defaultFlagMap.getOrElse(flag, false)
         contents.getOrElse(flag, defaultSpecialFlagVal)

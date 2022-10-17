@@ -47,7 +47,9 @@ timberland_core_srcs = [
     "src/main/scala/com/radix/timberland/launch/consulutil.scala",
     "src/main/scala/com/radix/timberland/launch/daemonutil.scala",
     "src/main/scala/com/radix/timberland/runtime/acl.scala",
-    "src/main/scala/com/radix/timberland/runtime/flags.scala",
+    "src/main/scala/com/radix/timberland/flags/config.scala",
+    "src/main/scala/com/radix/timberland/flags/flags.scala",
+    "src/main/scala/com/radix/timberland/flags/flagConfiguration.scala",
     "src/main/scala/com/radix/timberland/runtime/install.scala",
     "src/main/scala/com/radix/timberland/runtime/services.scala",
     "src/main/scala/com/radix/timberland/util/VaultStarter.scala",
@@ -86,7 +88,6 @@ scala_library(
         ":timberland-core-lib",
         "//shared/shared/shared/shared:shared-shared",
         "//utils/helm:helm-jvm",
-        "//utils/helm/core/shared:helm-elemental",
         "//utils/sheets/jvm/src/main/scala/com/radix/util/sheets:sheets-interps",  #TODO remove this
         "@third_party//3rdparty/jvm/com/github/xuwei_k:optparse_applicative",
         "@third_party//3rdparty/jvm/com/lihaoyi:ammonite_ops",
@@ -95,7 +96,6 @@ scala_library(
     deps = [
         ":timberland-core-lib",
         "//utils/helm:helm-jvm",
-        "//utils/helm/core/shared:helm-elemental",
         "//utils/sheets/jvm/src/main/scala/com/radix/util/sheets:sheets-interps",  #TODO remove this
     ],
 )
@@ -186,7 +186,7 @@ pkg_tar(
         "//timberland/assets:systemd/vault.env.conf",
         "//timberland/assets:vault/nomad-cluster-role.json",
         "//timberland/assets:vault/nomad-server-policy.hcl",
-        "//timberland/assets:vault/read-aws-policy.hcl",
+        "//timberland/assets:vault/read-flag-config-policy.hcl",
         "//timberland/assets:vault/vault_config.conf",
         "@vault",
     ],

@@ -5,7 +5,9 @@ import java.io.File
 import ammonite.ops._
 import cats.effect.IO
 import cats.implicits._
+import com.radix.timberland.flags.{ConsulFlagsUpdated, FlagsStoredLocally, flagConfig}
 import com.radix.timberland.launch.daemonutil
+import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.timberland.runtime._
 import com.radix.timberland.util.VaultStarter
 import io.circe.{Parser => _}
@@ -31,8 +33,6 @@ case class Start(
                   accessToken: Option[String] = None,
                   registryListenerPort: Int = 8081,
                   prefix: Option[String] = None,
-                  username: Option[String] = None,
-                  password: Option[String] = None,
                 ) extends Local
 
 case object Stop extends Local
@@ -143,22 +143,6 @@ object runner {
                     case Some(_) => exist.copy(prefix = prefix)
                     case None => exist
                   }
-                }) <*> optional(
-                strOption(long("username"),
-                  help("elemental user name")))
-                .map(username => { exist: Start =>
-                  username match {
-                    case Some(_) => exist.copy(username = username)
-                    case None => exist
-                  }
-                }) <*> optional(
-                strOption(long("password"),
-                  help("elemental password")))
-                .map(password => { exist: Start =>
-                  password match {
-                    case Some(_) => exist.copy(password = password)
-                    case None => exist
-                  }
                 }),
               progDesc("start the radix core services on the current system")
             )
@@ -258,7 +242,7 @@ object runner {
             case local: Local =>
               local match {
                 case Nuke => Right(Unit)
-                case cmd@Start(dummy, loglevel, bindIP, consulSeedsO, remoteAddress, servicePort, accessToken, registryListenerPort, prefix, username, password) => {
+                case cmd@Start(dummy, loglevel, bindIP, consulSeedsO, remoteAddress, servicePort, accessToken, registryListenerPort, prefix) => {
                   scribe.Logger.root
                     .clearHandlers()
                     .clearModifiers()
@@ -294,7 +278,7 @@ object runner {
 
                     implicit val host = new Run.RuntimeServicesExec[IO]
                     val startServices = for {
-                      localFlags <- flags.getLocalFlags(Path(persistentdir))
+                      localFlags <- flags.flags.getLocalFlags(Path(persistentdir))
 
                       consulPath = Path(consul.toPath.getParent)
                       nomadPath = Path(nomad.toPath.getParent)
@@ -323,7 +307,7 @@ object runner {
                       masterToken <- startServices
                       _ <- acl.storeMasterTokenInVault(Path(persistentdir), masterToken)
 
-                      flagUpdateResp <- flags.updateFlags(Path(persistentdir), Some(masterToken))
+                      flagUpdateResp <- flags.flags.updateFlags(Path(persistentdir), Some(masterToken))
                       featureFlags = flagUpdateResp.asInstanceOf[ConsulFlagsUpdated].flags
 
                       _ <- daemonutil.runTerraform(featureFlags, masterToken, integrationTest = false, prefix)
@@ -333,7 +317,7 @@ object runner {
                     val remoteBootstrap = for {
                       serviceAddrs <- daemonutil.getServiceIps(remoteAddress.getOrElse("127.0.0.1"))
                       masterToken = accessToken.get
-                      featureFlags <- flags.getConsulFlags(masterToken)(serviceAddrs)
+                      featureFlags <- flags.flags.getConsulFlags(masterToken)(serviceAddrs)
 
                       _ <- (new VaultStarter).initializeAndUnsealAndSetupVault()
                       _ <- daemonutil.runTerraform(featureFlags, masterToken, integrationTest = false, prefix)(serviceAddrs)
@@ -375,23 +359,24 @@ object runner {
               val flagMap = flagNames.map((_, enable)).toMap
 
               val localProc = for {
-                flagUpdateResp <- flags.updateFlags(Path(persistentdir), accessToken, flagMap)
+                flagUpdateResp <- flags.flags.updateFlags(Path(persistentdir), accessToken, flagMap)
                 _ <- flagUpdateResp match {
                   case ConsulFlagsUpdated(featureFlags) =>
                     daemonutil.runTerraform(featureFlags, accessToken.get, integrationTest = false, None) *>
                     daemonutil.waitForQuorum(featureFlags)
                   case FlagsStoredLocally() =>
-                    IO.unit
+                    flagConfig.updateFlagConfig(flagMap, None)(ServiceAddrs(), Path(persistentdir))
                 }
               } yield ()
 
               val remoteProc = for {
                 serviceAddrs <- daemonutil.getServiceIps(remoteAddress.getOrElse(""))
-                flagUpdateResp <- flags.updateFlags(Path(persistentdir), accessToken, flagMap)(serviceAddrs)
+                flagUpdateResp <- flags.flags.updateFlags(Path(persistentdir), accessToken, flagMap)(serviceAddrs)
                 _ <- flagUpdateResp match {
                   case ConsulFlagsUpdated(featureFlags) =>
                     daemonutil.runTerraform(featureFlags, accessToken.get, integrationTest = false, None)(serviceAddrs)
                   case FlagsStoredLocally() =>
+                    flagConfig.updateFlagConfig(flagMap, None)(serviceAddrs, Path(persistentdir)) *>
                     IO(scribe.warn("Could not connect to remote consul instance. Flags stored locally."))
                 }
               } yield ()

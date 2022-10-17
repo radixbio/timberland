@@ -104,7 +104,7 @@ module "minio" {
   prefix = var.prefix
   test = var.test
   kafka_address = module.kafka.kafka_health_result
-  have_upstream_creds = var.have_upstream_creds
+  have_upstream_creds = contains(var.defined_config_vars, "minio.aws_access_key_id") && contains(var.defined_config_vars, "minio.aws_secret_access_key")
 }
 
 module "retool_pg_kafka_connector" {

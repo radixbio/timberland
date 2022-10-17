@@ -5,6 +5,7 @@ import java.net.{InetAddress, ServerSocket, UnknownHostException}
 
 import cats.effect.{ContextShift, IO, Resource, Timer}
 import cats.implicits._
+import com.radix.timberland.flags.flagConfig
 import com.radix.timberland.util.VaultUtils
 import com.radix.utils.helm.http4s.Http4sNomadClient
 import com.radix.utils.helm.http4s.vault.{Vault => VaultSession}
@@ -19,7 +20,6 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{ExecutionContext, TimeoutException}
 import scala.concurrent.duration._
 import org.xbill.DNS
-import com.radix.timberland.runtime.flags
 import org.http4s.Uri
 import org.http4s.client.Client
 
@@ -32,7 +32,45 @@ case object AllDaemonsStarted extends DaemonState
 package object daemonutil {
   private[this] implicit val timer: Timer[IO] = IO.timer(global)
   private[this] implicit val cs: ContextShift[IO] = IO.contextShift(global)
-  private[this] implicit val blaze: Resource[IO, Client[IO]] = BlazeClientBuilder[IO](global).resource
+  private[this] implicit val blaze: Resource[IO, Client[IO]] =  BlazeClientBuilder[IO](global).resource
+
+  /**
+   * A map from feature flag to a list of services associated with that flag
+   * This is used to determine when features have finished starting up
+   */
+  val flagServiceMap = Map(
+    "core" -> Vector(
+      "zookeeper-daemons-zookeeper-zookeeper",
+      "kafka-companion-daemons-kafkaCompanions-kSQL",
+      "kafka-companion-daemons-kafkaCompanions-kafkaConnect",
+      "kafka-companion-daemons-kafkaCompanions-kafkaRestProxy",
+      "kafka-companion-daemons-kafkaCompanions-schemaRegistry",
+      "kafka-daemons-kafka-kafka",
+      "minio-job-minio-group-nginx-minio",
+      "apprise-apprise-apprise",
+    ),
+    "yugabyte" -> Vector(
+      "yugabyte-yugabyte-ybmaster",
+      "yugabyte-yugabyte-ybtserver",
+    ),
+    "es" -> Vector(
+      "elasticsearch-elasticsearch-es-generic-node",
+      "elasticsearch-kibana-kibana",
+    ),
+    "retool" -> Vector(
+      "retool-retool-postgres",
+      "retool-retool-retool-main",
+    ),
+    "elemental" -> Vector(
+      "elemental-machines-em-em",
+    ),
+  )
+
+  def checkNomadState(implicit interp: Http4sNomadClient[IO]): IO[NomadReadRaftConfigurationResponse] = {
+    for {
+      state <- NomadOp.nomadReadRaftConfiguration().foldMap(interp)
+    } yield state
+  }
 
   def getServiceIps(remoteConsulDnsAddress: String): IO[ServiceAddrs] = {
     def queryDns(host: String) = IO {
@@ -111,6 +149,8 @@ package object daemonutil {
 
     updatePrefixFile(prefix)
 
+    implicit val persistentDir: os.Path = os.Path(workingDir) / os.up / 'timberland
+
     val variables =
       s"-var='prefix=${getPrefix(integrationTest)}' " +
         s"-var='test=$integrationTest' " +
@@ -124,30 +164,12 @@ package object daemonutil {
     } yield mkDirExitCode
 
     val apply = for {
-      vaultToken <- IO((new VaultUtils).findVaultToken)
-      getCredsFromUser <- timeoutTo(
-        askUser("[Optional] AWS creds formatted like: aws_secret_access_key=foo aws_access_key_id=bar"),
-        30.seconds,
-        IO.pure("")
-      )
-      putCredsInVault <- IO {
-        val creds = getCredsFromUser match {
-          case "" => "input=empty_string"
-          case null => "input=literal_null"
-          case x => x
-        }
-        // NOTE: This makes the assumption that vaultAddr == consulAddr
-        os.proc("/opt/radix/timberland/vault/vault",
-          "kv",
-          "put",
-          s"-address=http://${serviceAddrs.consulAddr}:8200",
-          "secret/aws/s3",
-          s"$creds").call(stdout = os.Inherit, stderr = os.Inherit, env = Map("VAULT_TOKEN" -> vaultToken))
-      }
-      hasAWSCreds <- checkVaultHasCredentials(vaultToken, "aws/s3", "aws_access_key_id")
-      haveUpstreamCreds = s"-var=have_upstream_creds=$hasAWSCreds "
       //TODO don't spawn another bash shell
-      applyCommand = Seq("bash", "-c", s"$execDir/terraform apply -auto-approve " + variables + haveUpstreamCreds)
+      flagConfig <- flagConfig.updateFlagConfig(featureFlags, Some(masterToken))
+      configEntriesStr = flagConfig.configVars.map(kv => s"-var='${kv._1}=${kv._2}'").mkString(" ")
+      definedVarsStr = s"""-var='defined_config_vars=["${flagConfig.definedVars.mkString("""","""")}"]'"""
+      configStr = s"$configEntriesStr $definedVarsStr "
+      applyCommand = Seq("bash", "-c", s"$execDir/terraform apply -auto-approve " + variables + configStr)
       _ <- IO(Console.println(s"Running apply command in ${workingDir}: ${applyCommand.mkString(" ")}"))
       applyExitCode <- IO(Process(applyCommand, Some(workingDir)) !)
     } yield applyExitCode
@@ -156,23 +178,6 @@ package object daemonutil {
       mkTmpDir *> initTerraform(integrationTest, Some(masterToken)) *> apply
     else
       initTerraform(integrationTest, Some(masterToken)) *> apply
-  }
-
-  def checkVaultHasCredentials(token: String, path: String, contains: String)
-                              (implicit serviceAddrs: ServiceAddrs): IO[Boolean] = {
-    blaze.use(implicit client => {
-      val vaultUri = Uri.fromString(s"http://vault.service.consul:8200").toOption.get
-      val vaultSession: VaultSession[IO] = new VaultSession[IO](authToken = Some(token),
-        baseUrl = vaultUri,
-        blazeClient = client)
-      for {
-        getSecret <- vaultSession.getSecret(path)
-        result = getSecret match {
-          case Left(y) => false
-          case Right(x) => x.data.toString().contains(contains)
-        }
-      } yield result
-    })
   }
 
   /**
@@ -223,7 +228,7 @@ package object daemonutil {
     val prefix = getPrefix(integrationTest)
 
     val enabledServices = featureFlags.toList.flatMap {
-      case (feature, enabled) => if (enabled) flags.flagServiceMap.getOrElse(feature, Vector()).map(name => prefix + name) else Vector()
+      case (feature, enabled) => if (enabled) flagServiceMap.getOrElse(feature, Vector()).map(name => prefix + name) else Vector()
     }
 
     enabledServices.parTraverse { service =>
@@ -307,10 +312,5 @@ package object daemonutil {
       case Left(a) => IO.pure(a)
       case Right(_) => fallback
     }
-  }
-
-  private def askUser(question: String): IO[String] = IO.delay {
-    Console.print(question + " ")
-    StdIn.readLine()
   }
 }
