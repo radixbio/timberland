@@ -880,15 +880,20 @@ rules_jmh_maven_deps()
 
 http_archive(
     name = "build_bazel_rules_nodejs",
-    sha256 = "55a25a762fcf9c9b88ab54436581e671bc9f4f523cb5a1bd32459ebec7be68a8",
-    urls = ["https://github.com/bazelbuild/rules_nodejs/releases/download/3.2.2/rules_nodejs-3.2.2.tar.gz"],
+    sha256 = "4501158976b9da216295ac65d872b1be51e3eeb805273e68c516d2eb36ae1fbb",
+    urls = ["https://github.com/bazelbuild/rules_nodejs/releases/download/4.4.1/rules_nodejs-4.4.1.tar.gz"],
 )
 
-load("@build_bazel_rules_nodejs//:index.bzl", "yarn_install")
+load("@build_bazel_rules_nodejs//:index.bzl", "node_repositories")
 
-yarn_install(
-    # Name this npm so that Bazel Label references look like @npm//package
+
+
+node_repositories(package_json = ["//interface:package.json"])
+
+load("@build_bazel_rules_nodejs//:index.bzl", "npm_install")
+
+npm_install(
     name = "npm",
     package_json = "//interface:package.json",
-    yarn_lock = "//interface:yarn.lock",
+    package_lock_json = "//interface:package-lock.json",
 )
