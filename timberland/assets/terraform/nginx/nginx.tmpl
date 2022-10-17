@@ -73,6 +73,8 @@ job "nginx" {
             ssl_certificate /cert.pem;
             ssl_certificate_key /key.pem;
 
+            location /check { return 200; }
+
             location / {
               root /var/www/radix-ui;
             }
@@ -124,10 +126,10 @@ job "nginx" {
 
       check {
         type = "http"
-        protocol = "https"
+        protocol = "http"
         tls_skip_verify = true
         name = "nginx-health"
-        path = "/"
+        path = "/check"
         interval = "30s"
         timeout = "5s"
         expose = true
