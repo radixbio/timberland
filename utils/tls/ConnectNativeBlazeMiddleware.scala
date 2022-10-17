@@ -3,7 +3,7 @@ package com.radix.utils.tls
 import cats.data.{Kleisli, OptionT}
 import cats.effect.IO
 import org.http4s.server.ServerRequestKeys
-import org.http4s.{Header, HttpRoutes, Request, Response, Status, Uri}
+import org.http4s.{Header, HttpRoutes, Request, Response, Uri}
 import io.circe.syntax._
 import io.circe.parser.decode
 import org.http4s.client.dsl.io._

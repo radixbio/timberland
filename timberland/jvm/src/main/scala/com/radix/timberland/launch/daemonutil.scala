@@ -6,15 +6,13 @@ import java.net.UnknownHostException
 import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
 import com.radix.timberland.flags.flagConfig
-import com.radix.timberland.flags.hooks.{awsAuthConfig, AWSAuthConfigFile}
+import com.radix.timberland.flags.hooks.{awsAuthConfig, oktaAuthConfig}
 import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.timberland.runtime.AuthTokens
 import com.radix.timberland.util.{Util, _}
 import com.radix.utils.helm.http4s.Http4sNomadClient
 import com.radix.utils.helm.{NomadOp, NomadReadRaftConfigurationResponse}
-import io.circe.parser.{decode, parse}
-import io.circe.syntax._
-import io.circe.generic.auto._
+import io.circe.parser.parse
 import io.circe.{DecodingFailure, Json}
 import org.xbill.DNS
 
@@ -318,7 +316,8 @@ package object daemonutil {
       )
     } yield applyExitCode
 
-    val proc = writeAWSCredsToVault *>
+    val proc = awsAuthConfig.writeAWSCredsToVault *>
+      oktaAuthConfig.writeOktaCredsToVault *>
       initTerraform(integrationTest, Some(tokens.consulNomadToken)) *>
       show.flatMap(LogTUI.plan) *>
       apply
@@ -372,21 +371,6 @@ package object daemonutil {
       )
     } yield ()
   }
-
-  def writeAWSCredsToVault(implicit tokens: AuthTokens): IO[Unit] =
-    for {
-      authCfg <- IO(decode[AWSAuthConfigFile](os.read(awsAuthConfig.configFile)).toTry.get)
-      _ <- (authCfg.pendingKey, authCfg.pendingSecret) match {
-        case (Some(accessKey), Some(secretKey)) =>
-          val vault = RadPath.runtime / "timberland" / "vault" / "vault"
-          val caPath = RadPath.runtime / "certs" / "ca" / "cert.pem"
-          val env = Map("VAULT_TOKEN" -> tokens.vaultToken, "VAULT_CACERT" -> caPath.toString)
-          val newConfig = AWSAuthConfigFile(credsExistInVault = true)
-          Util.exec(s"$vault write aws/config/root access_key=$accessKey secret_key=$secretKey", env = env) *>
-            IO(os.write.over(awsAuthConfig.configFile, newConfig.asJson.toString))
-        case _ => IO.unit
-      }
-    } yield ()
 
   def stopTerraform(integrationTest: Boolean): IO[Int] = {
     val workingDir = getTerraformWorkDir(integrationTest)

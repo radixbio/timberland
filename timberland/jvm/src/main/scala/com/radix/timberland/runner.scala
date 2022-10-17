@@ -10,7 +10,7 @@ import com.radix.timberland.flags.{RemoteConfig, _}
 import com.radix.timberland.launch.daemonutil
 import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.timberland.runtime._
-import com.radix.timberland.util.{LogTUI, LogTUIWriter, RadPath, UpdateModules, Util, VaultStarter, VaultUtils}
+import com.radix.timberland.util.{LogTUI, LogTUIWriter, RadPath, UpdateModules, Util, OAuthController, VaultStarter, VaultUtils}
 import com.radix.utils.helm.http4s.vault.Vault
 import io.circe.{Parser => _}
 import optparse_applicative._
@@ -143,7 +143,7 @@ object runner {
                     authTokens.consulNomadToken,
                     authTokens.vaultToken
                   )
-                  storeVaultToken <- IO((new VaultUtils).storeVaultTokenKey("", authTokens.vaultToken))
+                  storeVaultToken <- IO(VaultUtils.storeVaultTokenKey("", authTokens.vaultToken))
                   stillAuthTokens <- startServices(setupACL = true)
                 } yield authTokens
               case (true, true, true) =>
@@ -163,7 +163,7 @@ object runner {
                     authTokens.consulNomadToken,
                     authTokens.vaultToken
                   )
-                  storeVaultToken <- IO((new VaultUtils).storeVaultTokenKey("", authTokens.vaultToken))
+                  storeVaultToken <- IO(VaultUtils.storeVaultTokenKey("", authTokens.vaultToken))
                 } yield authTokens
             }
             // flags already written to consul by leader (first node)
@@ -330,7 +330,7 @@ object runner {
             sys.exit(1)
           }
           val policiesWithDefault = if (policies.nonEmpty) policies else List("remote-access")
-          val vaultToken = (new VaultUtils).findVaultToken()
+          val vaultToken = VaultUtils.findVaultToken()
           implicit val contextShift: ContextShift[IO] = IO.contextShift(global)
           val vault = new Vault[IO](Some(vaultToken), uri"https://127.0.0.1:8200")
           val proc = for {

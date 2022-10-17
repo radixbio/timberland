@@ -332,7 +332,7 @@ object Services {
       } yield ()
       else IO.unit
 
-      vaultToken <- IO((new VaultUtils).findVaultToken())
+      vaultToken <- IO(VaultUtils.findVaultToken())
       _ <- if (initialSetup) auth.writeConsulNomadTokenConfigs(RadPath.persistentDir, consulToken, vaultToken)
       else IO.unit
 

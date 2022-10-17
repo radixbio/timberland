@@ -64,7 +64,7 @@ object auth {
   private def getLocalAuthTokens(): IO[AuthTokens] = {
     val vaultUri = uri"https://127.0.0.1:8200"
     for {
-      vaultToken <- IO(new VaultUtils().findVaultToken())
+      vaultToken <- IO(VaultUtils.findVaultToken())
       consulNomadToken <- blaze.use { client =>
         val vault = new Vault[IO](authToken = Some(vaultToken), baseUrl = vaultUri)
         getTokenFromVault(vault, "consul-ui-token")
@@ -259,7 +259,7 @@ object auth {
    * @return
    */
   def storeTokensInVault(tokens: ACLTokens): IO[Unit] = {
-    val vaultToken = (new VaultUtils).findVaultToken()
+    val vaultToken = VaultUtils.findVaultToken()
     val vaultUri = uri"https://127.0.0.1:8200"
     val vault = new Vault[IO](authToken = Some(vaultToken), baseUrl = vaultUri)
     List((tokens.masterToken, "consul-ui-token"), (tokens.actorToken, "actor-token"))

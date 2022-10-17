@@ -1,6 +1,6 @@
 package com.radix.timberland.flags
 
-import com.radix.timberland.flags.hooks.{awsAuthConfig, dockerAuthConfig, ensureSupported, oauthConfig, FlagHook}
+import com.radix.timberland.flags.hooks.{awsAuthConfig, dockerAuthConfig, oktaAuthConfig, ensureSupported, oauthConfig, FlagHook}
 import cats.effect.IO
 import com.radix.timberland.launch.daemonutil
 import com.radix.timberland.radixdefs.ServiceAddrs
@@ -111,6 +111,23 @@ case object config {
         prompt = "Google OAUTH Secret"
       )
     ),
+    "okta-auth" -> List(
+      FlagConfigEntry(
+        key = "base_url",
+        destination = Nowhere,
+        prompt = "Okta base url"
+      ),
+      FlagConfigEntry(
+        key = "org_name",
+        destination = Nowhere,
+        prompt = "Okta organization name"
+      ),
+      FlagConfigEntry(
+        key = "api_token",
+        destination = Nowhere,
+        prompt = "Okta API token"
+      )
+    ),
     "docker-auth" -> List(
       FlagConfigEntry(
         key = "ID",
@@ -153,6 +170,7 @@ case object config {
     Map(
       "google-oauth" -> oauthConfig,
       "docker-auth" -> dockerAuthConfig,
+      "okta-auth" -> oktaAuthConfig,
       "minio" -> awsAuthConfig,
       "ensure-supported" -> ensureSupported
     )

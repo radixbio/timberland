@@ -35,15 +35,9 @@ case class VaultUnsealed(key: String, root_token: String) extends VaultSealStatu
 
 case object VaultAlreadyUnsealed extends VaultSealStatus
 
-sealed trait VaultOAuthStatus extends VaultStatus
-
-case object VaultOauthPluginNotInstalled extends VaultOAuthStatus
-
-case object VaultOauthPluginInstalled extends VaultOAuthStatus
-
 case class RegisterProvider(provider: String, client_id: String, client_secret: String)
 
-class VaultUtils {
+object VaultUtils {
 
   def storeVaultTokenKey(key: String, token: String): String = {
     // if HOME isn't set, use /tmp (file still owed / readable only by root)
@@ -440,43 +434,7 @@ class VaultStarter {
     } yield vaultSealResult
   }
 
-  /** *
-   * Initialize Google OAuth plugin if creds are provided via envvars.
-   *
-   * @param token
-   * @param baseUrl
-   * @return IO[VaultOauthStatus]
-   */
-  def initializeGoogleOauthPlugin(token: String, baseUrl: Uri): IO[VaultOAuthStatus] = {
-    scribe.trace("Registering Google Plugin...")
-
-    val vaultSession = new VaultSession[IO](authToken = Some(token), baseUrl = baseUrl)
-    for {
-      _ <- IO.sleep(2.seconds)
-
-      registerPluginRequest = RegisterPluginRequest(
-        "aece93ff2302b7ee5f90eebfbe8fe8296f1ce18f084c09823dbb3d3f0050b107",
-        "vault-plugin-secrets-oauthapp"
-      )
-      registerPluginResult <- vaultSession
-        .registerPlugin(Secret(), "oauth2", registerPluginRequest)
-
-      enableEngineRequest = EnableSecretsEngine("oauth2")
-      enableEngineResult <- vaultSession
-        .enableSecretsEngine("oauth2/google", enableEngineRequest)
-
-      oauthConfigRequest = CreateSecretRequest(
-        data = RegisterProvider("google", sys.env("GOOGLE_OAUTH_ID"), sys.env("GOOGLE_OAUTH_SECRET")).asJson,
-        cas = None
-      )
-      writeOauthConfig <- vaultSession
-        .createOauthSecret("oauth2/google/config", oauthConfigRequest)
-    } yield VaultOauthPluginInstalled
-  }
-
   def initializeAndUnsealVault(baseUrl: Uri, shouldBootstrapVault: Boolean): IO[VaultSealStatus] = {
-    val vaultUtils = new VaultUtils
-
     def getResult(implicit vaultSession: VaultSession[IO]): IO[VaultSealStatus] =
       for {
         _ <- IO(scribe.trace("Checking Vault Status..."))
@@ -487,17 +445,17 @@ class VaultStarter {
           case VaultNotInitalized => IO.pure(VaultSealed)
           case VaultInitialized(key, root_token) => {
             for {
-              _ <- IO(vaultUtils.storeVaultTokenKey(key, root_token))
+              _ <- IO(VaultUtils.storeVaultTokenKey(key, root_token))
               vaultResp <- waitOnVaultUnseal(key, root_token)
               _ <- IO.sleep(10.seconds) // TODO(alex): waitForSystemdString doesn't work here, smth else is necessary
               // was previously waitForDns(vault.service.consul)
-              setupVault <- if (shouldBootstrapVault) vaultUtils.setupVault() else IO.unit
+              setupVault <- if (shouldBootstrapVault) VaultUtils.setupVault() else IO.unit
             } yield vaultResp
           }
           case VaultAlreadyInitialized => {
             for {
-              vaultToken <- IO(vaultUtils.findVaultToken)
-              vaultKey <- IO(vaultUtils.findVaultKey)
+              vaultToken <- IO(VaultUtils.findVaultToken)
+              vaultKey <- IO(VaultUtils.findVaultKey)
               sealStatus <- checkVaultSealStatus
               seal <- sealStatus match {
                 case Right(status) =>
@@ -540,36 +498,11 @@ class VaultStarter {
       vaultUnseal <- starter.initializeAndUnsealVault(vaultBaseUrl, shouldSetupVault)
       // TODO(alex): waitForSystemd required here in some edge case where vaultUnseal != VaultUnsealed? (was previously
       // waitForDns(vault.service.consul)
-      oauthId = sys.env.get("GOOGLE_OAUTH_ID")
-      oauthSecret = sys.env.get("GOOGLE_OAUTH_SECRET")
-      registerGoogleOAuthPlugin <- (vaultUnseal, oauthId, oauthSecret) match {
-        case (VaultUnsealed(key: String, token: String), Some(a), Some(b)) =>
-          starter.initializeGoogleOauthPlugin(token, vaultBaseUrl)
-        case (VaultUnsealed(key, token), _, _) =>
-          IO(
-            scribe.info(
-              "GOOGLE_OAUTH_ID and/or GOOGLE_OAUTH_SECRET are not set. The Google oauth plugin will not be initialized."
-            )
-          ) *> IO
-            .pure(VaultOauthPluginNotInstalled)
-        case (VaultSealed, _, _) =>
-          IO(scribe.info(s"Vault remains sealed. Please check your configuration.")) *> IO
-            .pure(VaultSealed)
-        case (VaultAlreadyUnsealed, _, _) => {
-          for {
-            _ <- IO.pure("Vault already unsealed")
-            unsealToken = sys.env.get("VAULT_TOKEN")
-            result <- unsealToken match {
-              case Some(token) =>
-                starter.initializeGoogleOauthPlugin(token, vaultBaseUrl)
-            }
-          } yield result
-        }
-      }
-      _ <- IO(scribe.info(s"Plugin Status: $registerGoogleOAuthPlugin"))
+      _ <- OAuthController.vaultOauthBootstrap(vaultUnseal, vaultBaseUrl)
+
       _ <- IO(scribe.info(s"VAULT STATUS: ${vaultUnseal}"))
       vaultToken <- IO(vaultUnseal match {
-        case VaultUnsealed(key: String, token: String) => (new VaultUtils).storeVaultTokenKey(key, token)
+        case VaultUnsealed(key: String, token: String) => VaultUtils.storeVaultTokenKey(key, token)
       })
     } yield vaultToken
     unseal

@@ -24,7 +24,7 @@ object oauthConfig extends FlagHook {
 
   private def writeConfigToVault(OAUTH_ID: String, OAUTH_SECRET: String, serviceAddrs: ServiceAddrs): IO[String] =
     for {
-      vaultToken <- IO(new VaultUtils().findVaultToken())
+      vaultToken <- IO(VaultUtils.findVaultToken())
       vaultUri = Uri.fromString(s"https://${serviceAddrs.vaultAddr}:8200").toOption.get
       vaultSession = new Vault[IO](authToken = Some(vaultToken), baseUrl = vaultUri)
       oauthConfigRequest = CreateSecretRequest(
