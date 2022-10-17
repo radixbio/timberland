@@ -20,6 +20,8 @@ case class Start(
   serverMode: Boolean = false
 ) extends RadixCMD
 
+case object AfterStartup extends RadixCMD
+
 case object Stop extends RadixCMD
 
 case object Nuke extends RadixCMD
@@ -221,6 +223,17 @@ object cli {
               }
           }),
         progDesc("Start the radix core services on the current system")
+      )
+    )
+  )
+
+  private val afterStartup = subparser[AfterStartup.type](
+    metavar("after_startup"),
+    command(
+      "after_startup",
+      info(
+        pure(AfterStartup),
+        progDesc("Unseals vault and makes sure all hashicorp services are running")
       )
     )
   )
@@ -503,6 +516,7 @@ object cli {
     stop,
     nuke,
     startNomad,
+    afterStartup,
     dns,
     addUser,
     enable,

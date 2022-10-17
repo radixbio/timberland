@@ -17,6 +17,7 @@ exports_files([
     "systemd/consul-template.service",
     "systemd/nomad.env.conf",
     "systemd/nomad.service",
+    "systemd/timberland-after-startup.service",
     "systemd/timberland-svc.service",
     "systemd/vault.service",
     "systemd/vault.env.conf",
@@ -52,6 +53,7 @@ exports_files([
     "terraform/main/outputs.tf",
 
     # WINDOWS
+    "windows/afterstartup.bat",
     "windows/postinst.bat",
 
     # ZOOKEEPER MODULE

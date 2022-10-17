@@ -11,6 +11,7 @@ import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.timberland.runtime._
 import com.radix.timberland.util.{Investigator, LogTUI, LogTUIWriter, OAuthController, RadPath, UpdateModules, Util, VaultStarter, VaultUtils}
 import com.radix.utils.helm.http4s.vault.Vault
+import com.radix.utils.helm.vault.UnsealRequest
 import io.circe.{Parser => _}
 import optparse_applicative._
 import org.http4s.implicits._
@@ -348,6 +349,21 @@ object runner {
               sys.exit(1)
           }
           proc.unsafeRunSync()
+
+        case AfterStartup =>
+          if (!os.exists(RadPath.persistentDir / ".bootstrap-complete")) {
+            Console.err.println("Timberland not yet initialized")
+            sys.exit(1)
+          }
+          val vaultToken = VaultUtils.findVaultToken()
+          val vaultUnsealKey = VaultUtils.findVaultKey()
+          implicit val contextShift: ContextShift[IO] = IO.contextShift(global)
+          val vaultSession = new Vault[IO](Some(vaultToken), uri"https://127.0.0.1:8200")
+          val prog = for {
+            _ <- Util.waitForPortUp(8200, 10.seconds)
+            _ <- vaultSession.unseal(UnsealRequest(vaultUnsealKey))
+          } yield ()
+          prog.unsafeRunSync()
 
         case GoogleSheets =>
           val credentials = for {

@@ -393,6 +393,7 @@ pkg_tar(
         "//timberland/assets:systemd/consul.service",
         "//timberland/assets:systemd/consul-template.service",
         "//timberland/assets:systemd/nomad.service",
+        "//timberland/assets:systemd/timberland-after-startup.service",
         "//timberland/assets:systemd/timberland-svc.service",
         "//timberland/assets:systemd/vault.service",
     ],
@@ -493,6 +494,14 @@ pkg_tar(
     package_dir = "/etc/sysctl.d/",
 )
 
+pkg_tar(
+    name = "timberland-windows-startup-script",
+    srcs = [
+        "//timberland/assets:windows/afterstartup.bat",
+    ],
+    package_dir = "/opt/radix/timberland/",
+)
+
 workspace_status(
     name = "commit-message",
     variable = "STABLE_COMMIT_MSG",
@@ -574,6 +583,7 @@ pkg_tar(
         ":timberland-nomad-config",
         ":timberland-radix-ui",
         ":timberland-systemd-services",
+        ":timberland-windows-startup-script",
         #        ":timberland-tcp-tunnel",
         ":timberland-vault",
     ],
