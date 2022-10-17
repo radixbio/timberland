@@ -12,7 +12,7 @@ import java.util.concurrent.Executors
 import com.radix.timberland.runtime.Services.serviceController
 import com.radix.timberland.radixdefs.ACLTokens
 import com.radix.timberland.util._
-import com.radix.utils.tls.ConsulVaultSSLContext
+import com.radix.utils.tls.{ConsulVaultSSLContext, TrustEveryoneSSLContext}
 import org.http4s.{Header, Uri}
 import org.http4s.Method.POST
 import org.http4s.client.dsl.io._
@@ -322,7 +322,8 @@ object Services {
       _ <-
         if (initialSetup) auth.writeConsulNomadTokenConfigs(RadPath.persistentDir, consulToken, vaultToken)
         else IO.unit
-      gossipKey <- auth.getGossipKey(vaultToken, leaderNodeO.getOrElse("127.0.0.1"))
+      gkBlaze = if (remoteJoin) TrustEveryoneSSLContext.insecureBlaze else ConsulVaultSSLContext.blaze
+      gossipKey <- auth.getGossipKey(vaultToken, leaderNodeO.getOrElse("127.0.0.1"), gkBlaze)
 
       // START CONSUL TEMPLATE
       _ <- serviceController.runConsulTemplate(consulToken, vaultToken, leaderNodeO)

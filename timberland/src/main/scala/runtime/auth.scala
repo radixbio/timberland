@@ -1,6 +1,6 @@
 package com.radix.timberland.runtime
 
-import cats.effect.{ContextShift, IO, Timer}
+import cats.effect.{ContextShift, IO, Resource, Timer}
 import cats.implicits._
 import com.radix.timberland.{ConstPaths, Start}
 import com.radix.timberland.radixdefs.{ACLTokens, ServiceAddrs}
@@ -12,6 +12,7 @@ import io.circe.Json
 import io.circe.syntax._
 import io.circe.parser.parse
 import org.http4s.Uri
+import org.http4s.client.Client
 import org.http4s.implicits._
 
 import scala.concurrent.ExecutionContext
@@ -53,9 +54,9 @@ object auth {
     } else getLocalAuthTokens()
   }
 
-  def getGossipKey(vaultToken: String, vaultAddress: String): IO[String] = {
+  def getGossipKey(vaultToken: String, vaultAddress: String, gkBlaze: Resource[IO, Client[IO]] = blaze): IO[String] = {
     val vaultUri = Uri.fromString(s"https://$vaultAddress:8200").toOption.get
-    val vault = new Vault[IO](authToken = Some(vaultToken), baseUrl = vaultUri)
+    val vault = new Vault[IO](authToken = Some(vaultToken), baseUrl = vaultUri)(IO.ioConcurrentEffect, gkBlaze)
     val gossipKeyOption = vault.getSecret[Json](s"gossip-key").map {
       case Right(KVGetResult(_, data)) =>
         data.hcursor.get[String]("key").toOption
