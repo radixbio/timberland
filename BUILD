@@ -27,42 +27,6 @@ pkg_tar(
     package_dir = "/opt/radix",
 )
 
-genrule(
-    name = "ocean-omnidriver",
-    srcs = ["@ocean-omnidriver-linux//file"],
-    outs = [
-        "HighResTiming.jar",
-        "libcommon.so",
-        "libNatHRTiming.so",
-        "libNatUSB.so",
-        "libOmniDriver.so",
-        "OmniDriver.jar",
-        "OOIUtils.jar",
-        "SPAM.jar",
-        "UniRS232.jar",
-        "UniUSB.jar",
-        "xpp3_min-1.1.3.4.M.jar",
-        "xstream-1.1.2.jar",
-    ],
-    cmd = """
-mkdir out &&
-pwd &&
-$(location @tclkit//file) $(location @bitrock-unpacker//file) $(location @ocean-omnidriver-linux//file) out &&
-patchelf --set-rpath '$$ORIGIN' out/default/programfiles/OOI_HOME/libNatUSB.so &&
-echo "$(OUTS)" | tr " " "\\n" | xargs -n 1 -I {} sh -c "echo \\"{}\\" | egrep -o \\"([^\\/]+\\$$)\\" | xargs echo | xargs -I {} -n 1 cp out/default/programfiles/OOI_HOME/{} bazel-out/k8-fastbuild/bin/"
-    """,
-    local = True,
-    tags = ["no-cache"],
-    target_compatible_with = [
-        "@platforms//cpu:x86_64",
-        "@platforms//os:linux",
-    ],
-    tools = [
-        "@bitrock-unpacker//file",
-        "@tclkit//file",
-    ],
-)
-
 # consul
 pkg_tar(
     name = "consul_macos",
@@ -401,19 +365,3 @@ pkg_tar(
         "//tools:build_for_macos": [],
     }),
 )
-
-# TODO arm
-pkg_tar(
-    name = "ipfs",
-    srcs = select({
-        "//tools:build_for_linux": ["@ipfs//:go-ipfs/ipfs"],
-        "//tools:build_for_windows": ["@ipfs_win//:go-ipfs/ipfs.exe"],
-        "//tools:build_for_macos": [],
-    }),
-)
-
-foo = select({
-    "//tools:build_for_linux": ["foo"],
-    "//tools:build_for_windows": ["bar"],
-    "//tools:build_for_macos": ["biz"],
-})

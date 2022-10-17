@@ -1,4 +1,5 @@
 load("@rules_pkg//:pkg.bzl", "pkg_deb", "pkg_tar")
+load("@io_bazel_rules_scala//scala:scala.bzl", "scala_binary", "scala_library")
 load("//tools:workspace_status.bzl", "workspace_status")
 load("//tools:windows.bzl", "pkg_msi")
 load("//tools:timberland.bzl", "timberland_module")
@@ -34,7 +35,6 @@ package(
 
 # timberland sources itself
 TIMBERLAND_DEPENDENCIES = [
-    "//shared/shared:shared-shared",
     "//utils/helm:helm-jvm",
     "@third_party//3rdparty/jvm/com/bertramlabs/plugins:hcl4j",
     "@third_party//3rdparty/jvm/com/github/xuwei_k:optparse_applicative",
@@ -47,6 +47,7 @@ TIMBERLAND_DEPENDENCIES = [
     "@third_party//3rdparty/jvm/io/circe:circe_literal",
     "@third_party//3rdparty/jvm/io/circe:circe_optics",
     "@third_party//3rdparty/jvm/org/fusesource/jansi",
+    "@third_party//3rdparty/jvm/org/scala_graph:graph_core",
     "@third_party//3rdparty/jvm/org/slf4j:slf4j_nop",
     "@third_party//3rdparty/jvm/com/github/tototoshi:scala_csv",
     "@third_party//3rdparty/jvm/com/profesorfalken:jPowerShell",
@@ -156,16 +157,6 @@ pkg_tar(
     mode = "0755",
     package_dir = "/opt/radix/timberland/exec",
     #    package_dir = "/usr/bin",
-)
-
-pkg_tar(
-    name = "timberland-ipfs",
-    srcs = [
-        "//utils/ipfs:ipfs-service",
-    ],
-    mode = "0755",
-    package_dir = "/opt/radix/ipfs_binaries",
-    deps = ["//:ipfs"],
 )
 
 pkg_tar(
@@ -304,44 +295,7 @@ pkg_tar(
     package_dir = "/etc/networkd-dispatcher/routable.d",
 )
 
-timberland_services = [
-    "//algs/common/algs_mega_uservice:algs-mega-uservice-bin_deploy.jar",
-    # "//device_drivers/elemental/kafka_bridge:elemental_bridge-bin_deploy.jar",
-    # "//monolith/mega_service:mega-mega-uservice-bin_deploy.jar",
-    # "//device_drivers/eve:eve-bin_deploy.jar",
-    # "//device_drivers/oceanoptics:oceanoptics-bin_deploy.jar",
-    # "//device_drivers/hw_discovery:hw-discovery-bin_deploy.jar",
-    # "//device_drivers/kafka_connectors/elastic:kafka_connect_elastic-bin_deploy.jar",
-    # "//device_drivers/kafka_connectors/osipi:kafka_connect_osipi-bin_deploy.jar",
-    # "//device_drivers/kafka_connectors/yugabyte:kafka_connect_yugabyte-bin_deploy.jar",
-    #"//device_drivers/ln2:ln2-bin_deploy.jar",
-    #"//device_drivers/messaging:messaging-bin_deploy.jar",
-    #"//device_drivers/mock_bioreactor:mock-bioreactor-bin_deploy.jar",
-    #"//device_drivers/minifors2:minifors2-bin_deploy.jar",
-    #"//device_drivers/multitrons:multitrons-bin_deploy.jar",
-    #"//device_drivers/olditrons:olditrons-bin_deploy.jar",
-    #"//device_drivers/eth_multitrons:eth_multitrons-bin_deploy.jar",
-    #"//device_drivers/opentrons:opentrons-bin_deploy.jar",
-    #"//device_drivers/quantstudio:quantstudio-bin_deploy.jar",
-    #"//device_drivers/quantstudio:quantstudio-autoservice-bin_deploy.jar",
-    # "//device_drivers/tecan:tecan-bin_deploy.jar",
-    # "//device_drivers/ht91100:ht91100-bin_deploy.jar",
-    # "//device_drivers/tfexactive:tfexactive-bin_deploy.jar",
-    # "//device_drivers/watlow96_thermal:watlow96_thermal-bin_deploy.jar",
-    # "//device_drivers/echo/csv:echo_csv-bin_deploy.jar",
-    # "//device_drivers/octet:octet-bin_deploy.jar",
-    # "//device_drivers/entris2:entris2-bin_deploy.jar",
-    "//runtime:runtime-bootstrap_deploy.jar",
-    "//frontdoor:frontdoor-bin_deploy.jar",
-    "//utils/bunny_uservice:bunny-uservice-bin_deploy.jar",
-    "//utils/disco:disco_uservice-bin_deploy.jar",
-    "//utils/rainbowuservice:rainbow-uservice-bin_deploy.jar",
-    "//utils/repl:repl-bin_deploy.jar",
-    # "//utils/scheduleruservice:scheduler-uservice-bin_deploy.jar",  #TODO confirm this is right
-    "//vm:vm-bin_deploy.jar",
-    "//vm:vm-runner-bin_deploy.jar",
-    "//vm:vm-test-runner-bin_deploy.jar",
-]
+timberland_services = []
 
 services_pkg_tar(
     name = "timberland-services-proguard",
@@ -359,27 +313,6 @@ services_pkg_tar(
     srcs = timberland_services,
     package_dir = "/opt/radix/services",
     use_proguard = False,
-)
-
-pkg_tar(
-    name = "timberland-net-utils",
-    srcs = [
-        "//utils/tcp_tunnel:disco_tunnel_deploy.jar",
-    ],
-    package_dir = "/opt/radix/networking/",
-)
-
-# These jars are distinct from the ones on the devdrivers target above. While the deploy jars above
-#   are the main class for starting the monitor actor and triggering the connector to initialize,
-#   the final jars below are the ones containing the actual connector code, purged of all duplicate
-#   deps
-pkg_tar(
-    name = "timberland-connectors",
-    srcs = [
-        "//device_drivers/elemental/kafka_bridge:elemental_bridge-connector-patched.jar",
-        "//device_drivers/kafka_connectors/osipi:kafka_connect_osipi-connector-patched.jar",
-    ],
-    package_dir = "/opt/radix/kafka_connectors/",
 )
 
 pkg_tar(
@@ -442,14 +375,6 @@ pkg_tar(
     package_dir = "/opt/radix/services/",
 )
 
-#pkg_tar(
-#    name = "timberland-tcp-tunnel",
-#    srcs = [
-#        "//external:jar/net/kanstren/tcptunnel/tcptunnel",
-#    ],
-#    package_dir = "/opt/radix/timberland",
-#)
-
 pkg_tar(
     name = "timberland-avahi",
     srcs = [
@@ -487,7 +412,6 @@ pkg_tar(
         ":terraform-modules",
         ":timberland-avahi",
         ":timberland-cni-config",
-        ":timberland-connectors",
         ":timberland-consul",
         ":timberland-consul-config",
         ":timberland-consul-template",
@@ -499,8 +423,6 @@ pkg_tar(
         ":timberland-consul-template-vault",
         ":timberland-containernetworking-cni-plugin",
         ":timberland-exec",
-        ":timberland-ipfs",
-        ":timberland-net-utils",
         ":timberland-networkd",
         ":timberland-nomad",
         ":timberland-nomad-config",
@@ -755,39 +677,6 @@ pkg_tar(
         ":nginx-terraform",
         ":yugabyte-terraform",
         ":zookeeper-terraform",
-        "//algs/common/algs_mega_uservice:algs-mega-uservice-terraform",
-        "//device_drivers/echo/csv:echo_csv-terraform",
-        "//device_drivers/elemental/kafka_bridge:elemental_bridge-terraform",
-        "//device_drivers/entris2:entris2-terraform",
-        "//device_drivers/eth_multitrons:eth_multitrons-terraform",
-        "//device_drivers/ht91100:ht91100-terraform",
-        "//device_drivers/kafka_connectors/elastic:kafka_connect_elastic-terraform",
-        "//device_drivers/kafka_connectors/osipi:kafka_connect_osipi-terraform",
-        "//device_drivers/kafka_connectors/yugabyte:kafka_connect_yugabyte-terraform",
-        "//device_drivers/ln2:ln2-terraform",
-        "//device_drivers/messaging:messaging-terraform",
-        "//device_drivers/minifors2:minifors2-terraform",
-        "//device_drivers/mock_bioreactor:mock-bioreactor-terraform",
-        "//device_drivers/multitrons:multitrons-terraform",
-        "//device_drivers/oceanoptics:oceanoptics-terraform",
-        "//device_drivers/octet:octet-terraform",
-        "//device_drivers/opentrons:opentrons-terraform",
-        "//device_drivers/quantstudio:quantstudio-terraform",
-        "//device_drivers/tecan:tecan-terraform",
-        "//device_drivers/tfexactive:tfexactive-terraform",
-        "//device_drivers/watlow96_thermal:watlow96_thermal-terraform",
-        "//frontdoor:frontdoor-terraform",
-        "//monolith/mega_service:mega-mega-uservice-terraform",
-        "//runtime:runtime-terraform",
-        "//utils/bunny_uservice:bunny_uservice-terraform",
-        "//utils/disco:disco-terraform",
-        "//utils/ipfs:ipfs-terraform",
-        "//utils/rainbowuservice:rainbow-terraform",
-        "//utils/repl:repl-terraform",
-        "//utils/scheduleruservice:scheduler-terraform",  #TODO confirm this is right
-        "//vm:vm-runner-terraform",
-        "//vm:vm-terraform",
-        "//vm:vm-test-runner-terraform",
     ],
 )
 
@@ -830,16 +719,3 @@ scala_binary(
     ],
 )
 
-#load("@vaticle_bazel_distribution//packer:rules.bzl", "assemble_packer", "deploy_packer")
-#
-#assemble_packer(
-#    name = "lol",
-#    config = "//timberland/assets:packer/test.pkr.hcl",
-#)
-#
-#deploy_packer(
-#    name = "lol_deploy",
-#    overwrite = True,
-#    target = ":lol",
-#    exn = "pkr.hcl"
-#)

@@ -1,3 +1,5 @@
+load("@io_bazel_rules_scala//scala:scala.bzl", "scala_library")
+
 package(
     default_visibility = ["//utils/helm:__subpackages__"],
 )

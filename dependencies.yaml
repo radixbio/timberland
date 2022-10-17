@@ -18,34 +18,11 @@ options:
   strictVisibility: true
 
 dependencies:
-  ch.jodersky:
-    akka-serial-core:
-      lang: scala
-      version: "4.2.0"
-    akka-serial-native:
-      lang: java
-      version: "4.2.0"
-
-  ch.megard:
-    akka-http-cors:
-      lang: scala
-      version: "1.0.0"
-
-  ch.qos.logback:
-    logback-classic:
-      lang: java
-      version: "1.2.11"
-
   co.fs2:
     fs2:
       lang: scala
       modules: [ "core", "io", "reactive-streams" ]
       version: "2.2.2"
-
-  com.beachape:
-    enumeratum:
-      lang: scala
-      version: "1.5.13"
 
   com.bertramlabs.plugins:
     hcl4j:
@@ -63,36 +40,6 @@ dependencies:
       modules: [ "scala", "scala-mockserver", "scala-vault" ]
       version: "0.38.8"
 
-  com.fazecast:
-    jSerialComm:
-      lang: java
-      version: "2.6.2"
-
-  com.github.andyglow:
-    websocket-scala-client:
-      lang: scala
-      version: "0.3.0"
-
-  com.github.julien-truffaut:
-    monocle-core:
-      lang: scala
-      version: "2.1.0"
-
-  com.github.mmarquee:
-    ui-automation:
-      lang: java
-      version: "0.6.0"
-
-  com.github.oshi:
-    oshi-core:
-      lang: java
-      version: "5.0.1"
-
-  com.github.scredis:
-    scredis:
-      lang: scala
-      version: "2.4.3"
-
   com.github.tototoshi:
     scala-csv:
       lang: scala
@@ -103,98 +50,26 @@ dependencies:
       lang: scala
       version: "0.9.0"
 
-  com.google.guava:
-    guava:
-      lang: java
-      version: "27.0-jre"
-
-  com.h2database:
-    h2:
-      lang: java
-      version: "1.4.192"
-
-  com.lightbend.akka:
-    akka:
-      lang: scala
-      modules: [ "stream-alpakka-file", "stream-alpakka-s3" ]
-      version: "2.0.1"
-
   com.lihaoyi:
     ammonite-ops:
       lang: scala
       version: "2.4.0"
-    ammonite-sshd_2.13.8:
-      lang: scala/unmangled
-      version: "2.5.4"
     ammonite_2.13.8:
       lang: scala/unmangled
       version: "2.5.4"
-    fastparse:
-      lang: scala
-      version: "2.3.3"
     os-lib:
       lang: scala
       version: "0.7.1"
-    pprint:
-      lang: scala
-      version: "0.7.1"
-
-  com.michaelpollmeier:
-    gremlin-scala:
-      lang: scala
-      version: "3.4.7.17"
-
-  com.nrinaudo:
-    kantan.codecs:
-      lang: scala
-      version: "0.5.2"
-    kantan.xpath:
-      lang: scala
-      version: "0.5.2"
-
-  com.olegpy:
-    better-monadic-for:
-      lang: scala
-      version: "0.3.1"
 
   com.outr:
     scribe:
       lang: scala
       version: "2.7.12"
 
-  com.pi4j:
-    pi4j-core:
-      lang: java
-      version: "1.2"
-
   com.profesorfalken:
     jPowerShell:
       lang: java
       version: "3.1.1"
-
-  com.propensive:
-    contextual:
-      lang: scala
-      version: "1.2.1"
-    magnolia:
-      lang: scala
-      version: "0.16.0"
-
-  com.sksamuel.avro4s:
-    avro4s-core:
-      lang: scala
-      version: "4.0.11"
-
-  com.slack.api:
-    bolt:
-      lang: java
-      modules: [ "", "socket-mode" ]
-      version: "1.18.0"
-
-  com.typesafe:
-    config:
-      lang: java
-      version: "1.4.0"
 
   com.typesafe.akka:
     akka:
@@ -211,34 +86,10 @@ dependencies:
       lang: scala
       version: "1.1.0"
 
-  de.heikoseeberger:
-    akka-http-circe:
-      lang: scala
-      version: "1.30.0"
-
-  dev.zio:
-    zio:
-      lang: scala
-      version: "1.0.1"
-    zio-interop-cats:
-      lang: scala
-      version: "2.1.4.0"
-
   dnsjava:
     dnsjava:
       lang: java
       version: "3.0.2"
-
-  eu.timepit:
-    refined:
-      lang: scala
-      modules: [ "", "cats", "scalacheck", "shapeless" ]
-      version: "0.9.10"
-
-  info.folone:
-    poi-scala:
-      lang: scala
-      version: "0.19"
 
   io.7mind.izumi:
     fundamentals-platform:
@@ -258,154 +109,15 @@ dependencies:
       lang: scala
       version: "0.13.0-M4"
 
-  io.confluent:
-    kafka:
-      lang: java
-      modules: [ "avro-serializer", "connect-elasticsearch", "connect-jdbc" ]
-      version: "5.5.1"
-
-  io.getquill:
-    quill:
-      lang: scala
-      modules: [ "core", "jdbc" ]
-      version: "3.5.2"
-
-  io.github.cquiroz:
-    scala-java-time:
-      lang: scala
-      version: "2.0.0"
-
-  io.github.embeddedkafka:
-    embedded-kafka-schema-registry:
-      lang: scala
-      version: "5.5.1"
-
-  io.higherkindness:
-    droste-core:
-      lang: scala
-      version: "0.8.0"
-
-  io.jvm.uuid:
-    scala-uuid:
-      lang: scala
-      version: "0.3.1"
-
-  javax.activation:
-    activation:
-      lang: java
-      version: "1.1.1"
-
-  javax.jws:
-    javax.jws-api:
-      lang: java
-      version: "1.1"
-
-  javax.websocket:
-    javax.websocket-api:
-      lang: java
-      version: "1.1"
-
-  javax.xml.bind:
-    jaxb-api:
-      lang: java
-      version: "2.4.0-b180830.0359"
-
-  javax.xml.ws:
-    jaxws-api:
-      lang: java
-      version: "2.3.1"
-
-  me.shadaj:
-    scalapy:
-      lang: scala
-      modules: [ "core", "macros" ]
-      version: "0.3.0+15-598682f0"
-
-  net.imagej:
-    imagej-legacy:
-      lang: java
-      version: "0.38.1"
-
-  net.kanstren.tcptunnel:
-    tcptunnel:
-      lang: java
-      version: "1.2.0"
-
-  net.liftweb:
-    lift-json:
-      lang: scala
-      version: "3.4.1"
-
-  org.apache.avro:
-    avro:
-      lang: java
-      version: "1.9.1"
-
-  org.apache.commons:
-    commons-compress:
-      lang: java
-      version: "1.20"
-    commons-lang3:
-      lang: java
-      version: "3.8.1"
-    commons-math3:
-      lang: java
-      version: "3.6.1"
-
-  org.apache.kafka:
-    connect:
-      lang: java
-      modules: [ "api", "json", "runtime" ]
-      version: "2.5.1"
-    kafka:
-      lang: scala
-      modules: [ "", "streams-scala" ]
-      version: "2.5.1"
-
-  org.apache.poi:
-    poi:
-      lang: java
-      modules: [ "", "ooxml", "ooxml-schemas" ]
-      version: "4.1.1"
-
-  org.apache.tinkerpop:
-    gremlin:
-      lang: java
-      modules: [ "core", "driver", "groovy" ]
-      version: "3.5.1"
-    tinkergraph-gremlin:
-      lang: java
-      version: "3.5.1"
-
   org.bouncycastle:
     bcpkix-jdk15on:
       lang: java
       version: "1.65"
 
-  org.eclipse.milo:
-    sdk-client:
-      lang: java
-      version: "0.5.3"
-
   org.fusesource.jansi:
     jansi:
       lang: java
       version: "2.3.2"
-
-  org.fusesource.leveldbjni:
-    leveldbjni-all:
-      lang: java
-      version: "1.8"
-
-  org.glassfish.tyrus.bundles:
-    tyrus-standalone-client:
-      lang: java
-      version: "1.17"
-
-  org.graalvm.compiler:
-    compiler:
-      lang: java
-      version: "21.3.0"
 
   org.http4s:
     http4s:
@@ -415,37 +127,6 @@ dependencies:
     parboiled:
       lang: scala
       version: "2.0.1"
-
-  org.iq80.leveldb:
-    leveldb-api:
-      lang: java
-      version: "0.12"
-
-  org.jmdns:
-    jmdns:
-      lang: java
-      version: "3.5.1"
-
-  org.mock-server:
-    mockserver-client-java:
-      lang: java
-      version: "5.5.4"
-
-  org.reflections:
-    reflections:
-      lang: java
-      version: "0.9.11"
-
-  org.sangria-graphql:
-    sangria:
-      lang: scala
-      version: "3.0.0"
-    sangria-akka-streams:
-      lang: scala
-      version: "1.0.2"
-    sangria-circe:
-      lang: scala
-      version: "1.3.0"
 
   org.scala-graph:
     graph-core:
@@ -476,55 +157,16 @@ dependencies:
       lang: scala
       version: "1.14.1"
 
-  org.scalactic:
-    scalactic:
-      lang: scala
-      version: "3.1.4"
-
-  org.scalameta:
-    scalameta:
-      lang: scala
-      version: "4.3.20"
-
-  org.scalamock:
-    scalamock:
-      lang: scala
-      version: "4.4.0"
-
-  org.scalatest:
-    scalatest:
-      lang: scala
-      version: "3.1.4"
-    scalatest-shouldmatchers:
-      lang: scala
-      version: "3.1.0-M2"
-
   org.scalatestplus:
     scalatestplus-scalacheck:
       lang: scala
       version: "3.1.0.0-RC2"
-
-  org.scalaz:
-    scalaz-core:
-      lang: scala
-      version: "7.3.4"
-
-  org.scodec:
-    scodec-core:
-      lang: scala
-      version: "1.11.7"
 
   org.slf4j:
     slf4j:
       lang: java
       modules: [ "api", "nop", "simple" ]
       version: "1.7.30"
-
-  org.tpolecat:
-    atto:
-      lang: scala
-      modules: [ "core", "refined" ]
-      version: "0.7.1"
 
   org.typelevel:
     cats:

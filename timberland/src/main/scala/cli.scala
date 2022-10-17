@@ -1,6 +1,5 @@
 package com.radix.timberland
 
-import com.radix.shared.persistence.serializations.utils.bioutil.octet.defns.Plate.PlateRows
 import com.radix.timberland.launch.daemonutil
 import io.circe.generic.semiauto.{deriveDecoder, deriveEncoder}
 import io.circe.{Decoder, Encoder, HCursor, Json, Parser => _}
