@@ -4,7 +4,6 @@ import java.io.File
 
 import cats.effect.{ContextShift, IO, Resource, Timer}
 import cats.implicits._
-import com.radix.timberland.flags.featureFlags.resolveSupersetFlags
 import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.timberland.runtime.AuthTokens
 import com.radix.timberland.launch.daemonutil.timeoutTo
@@ -112,10 +111,8 @@ object flagConfig {
    */
   def promptForDefaultConfigs(implicit serviceAddrs: ServiceAddrs = ServiceAddrs(),
                               persistentDir: os.Path
-                             ): IO[TerraformConfigVars] = {
-    val defaultFlags = resolveSupersetFlags(config.flagDefaults.map(_ -> true).toMap)
-    updateFlagConfig(defaultFlags)
-  }
+                             ): IO[TerraformConfigVars] =
+    updateFlagConfig(featureFlags.defaultFlagMap)
 
   /**
    * Uses `terraformVar` in `config.flagConfigParams` to create a map of terraform variable name to config value

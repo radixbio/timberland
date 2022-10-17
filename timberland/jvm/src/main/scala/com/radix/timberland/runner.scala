@@ -5,7 +5,7 @@ import java.io.File
 import ammonite.ops._
 import cats.effect.{ContextShift, IO}
 import cats.implicits._
-import com.radix.timberland.flags._
+import com.radix.timberland.flags.{RemoteConfig, _}
 import com.radix.timberland.launch.daemonutil
 import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.timberland.runtime._
@@ -20,6 +20,7 @@ import scalaz.syntax.apply._
 
 import scala.concurrent.ExecutionContext.global
 import scala.concurrent.duration._
+import scala.io.AnsiColor
 import scala.io.StdIn.readLine
 
 sealed trait RadixCMD
@@ -51,13 +52,15 @@ case class DNSUp(service: Option[String], bindIP: Option[String]) extends DNS
 
 case class DNSDown(service: Option[String], bindIP: Option[String]) extends DNS
 
-case class FlagCmd(
+case class FlagSet(
                     flags: List[String],
                     enable: Boolean,
                     remoteAddress: Option[String],
                     username: Option[String],
                     password: Option[String]
                   ) extends Runtime
+
+case class FlagQuery(remoteAddress: Option[String], username: Option[String], password: Option[String]) extends Runtime
 
 case class AddUser(name: String, roles: List[String]) extends Runtime
 
@@ -131,7 +134,7 @@ object runner {
                   }
                 }) <*> optional(
                 strOption(long("username"),
-                  help("vault user name")))
+                  help("timberland username")))
                 .map(username => { exist: Start =>
                   username match {
                     case Some(_) => exist.copy(username = username)
@@ -139,7 +142,7 @@ object runner {
                   }
                 }) <*> optional(
                 strOption(long("password"),
-                  help("vault password")))
+                  help("timberland password")))
                 .map(password => { exist: Start =>
                   password match {
                     case Some(_) => exist.copy(password = password)
@@ -172,15 +175,20 @@ object runner {
           command("enable", info(^^^(
             many(strArgument(metavar("FLAGS"))),
             optional(strOption(long("remote-address"), help("remote consul address"))),
-            optional(strOption(long("username"), help("vault username"))),
-            optional(strOption(long("password"), help("vault password")))
-          )(FlagCmd(_, true, _, _, _)), progDesc("enable feature flags"))),
+            optional(strOption(long("username"), help("timberland username"))),
+            optional(strOption(long("password"), help("timberland password")))
+          )(FlagSet(_, true, _, _, _)), progDesc("enable feature flags"))),
           command("disable", info(^^^(
             many(strArgument(metavar("FLAGS"))),
             optional(strOption(long("remote-address"), help("remote consul address"))),
-            optional(strOption(long("username"), help("vault username"))),
-            optional(strOption(long("password"), help("vault password")))
-          )(FlagCmd(_, false, _, _, _)), progDesc("disable feature flags")))
+            optional(strOption(long("username"), help("timberland username"))),
+            optional(strOption(long("password"), help("timberland password")))
+          )(FlagSet(_, false, _, _, _)), progDesc("disable feature flags"))),
+          command("query", info(^^(
+            optional(strOption(long("remote-address"), help("remote consul address"))),
+            optional(strOption(long("username"), help("timberland username"))),
+            optional(strOption(long("password"), help("timberland password")))
+          )(FlagQuery), progDesc("query current state of feature flags"))),
         ),
         progDesc("radix runtime component")
       )
@@ -324,7 +332,7 @@ object runner {
                         // daemonutil.containerRegistryLogin(containerRegistryUser, containerRegistryToken) *>
                         flagConfig.promptForDefaultConfigs *> createWeaveNetwork *> startServices
                       }
-                      featureFlags <- featureFlags.updateFlags(persistentDirPath, Some(authTokens))(serviceAddrs)
+                      featureFlags <- featureFlags.updateFlags(persistentDirPath, Some(authTokens), confirm = true)(serviceAddrs)
                       _ <- startLogTuiAndRunTerraform(featureFlags, serviceAddrs, authTokens, waitForQuorum = true)
                     } yield ()
 
@@ -332,7 +340,7 @@ object runner {
                     val remoteBootstrap = for {
                       serviceAddrs <- daemonutil.getServiceIps()
                       authTokens <- auth.getAuthTokens(isRemote = true, serviceAddrs, username, password)
-                      featureFlags <- featureFlags.getConsulFlags(serviceAddrs, authTokens)
+                      featureFlags <- featureFlags.updateFlags(persistentDirPath, Some(authTokens))(serviceAddrs)
                       _ <- startLogTuiAndRunTerraform(featureFlags, serviceAddrs, authTokens, waitForQuorum = false)
                     } yield ()
 
@@ -364,14 +372,15 @@ object runner {
               }
               dns_set.unsafeRunSync()
             }
-            case FlagCmd(flagNames, enable, remoteAddress, username, password) => {
+
+            case FlagSet(flagNames, enable, remoteAddress, username, password) =>
               System.setProperty("dns.server", remoteAddress.getOrElse("127.0.0.1"))
               val flagsToSet = flagNames.map((_, enable)).toMap
 
               val consulExistsProc = for {
                 serviceAddrs <- if (remoteAddress.isDefined) daemonutil.getServiceIps() else IO.pure(ServiceAddrs())
                 authTokens <- auth.getAuthTokens(isRemote = remoteAddress.isDefined, serviceAddrs, username, password)
-                flagMap <- featureFlags.updateFlags(persistentDirPath, Some(authTokens), flagsToSet)(serviceAddrs)
+                flagMap <- featureFlags.updateFlags(persistentDirPath, Some(authTokens), flagsToSet, confirm = remoteAddress.isDefined)(serviceAddrs)
                 _ <- daemonutil.runTerraform(flagMap)(serviceAddrs, authTokens) // calls updateFlagConfig
                 _ <- if (remoteAddress.isEmpty) daemonutil.waitForQuorum(flagMap) else IO.unit
               } yield ()
@@ -386,7 +395,19 @@ object runner {
                 case true => consulExistsProc
                 case false => noConsulProc
               }.unsafeRunSync()
-            }
+
+            case FlagQuery(remoteAddress, username, password) =>
+              System.setProperty("dns.server", remoteAddress.getOrElse("127.0.0.1"))
+              val io = for {
+                serviceAddrs <- if (remoteAddress.isDefined) daemonutil.getServiceIps() else IO.pure(ServiceAddrs())
+                consulIsUp <- featureFlags.isConsulUp()(serviceAddrs)
+                authTokens <- if (consulIsUp) {
+                  auth.getAuthTokens(isRemote = remoteAddress.isDefined, serviceAddrs, username, password).map(Some(_))
+                } else IO.pure(None)
+                _ <- featureFlags.printFlagInfo(persistentDirPath, consulIsUp, serviceAddrs, authTokens)
+              } yield ()
+              io.unsafeRunSync()
+              sys.exit(0)
 
             case AddUser(name, policies) =>
               val policiesWithDefault = if (policies.nonEmpty) policies else List("remote-access")

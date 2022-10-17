@@ -2,9 +2,9 @@ package com.radix.timberland.flags
 
 import java.net.InetAddress
 
-import cats.effect.{ContextShift, IO}
-import cats.implicits._
+import cats.effect.{ContextShift, IO, Timer}
 import com.radix.timberland.launch.daemonutil
+import com.radix.timberland.launch.daemonutil.timeoutTo
 import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.timberland.runtime.AuthTokens
 import com.radix.utils.helm
@@ -16,7 +16,10 @@ import io.circe.{Decoder, Json}
 import org.http4s.Uri
 import org.http4s.client.blaze.BlazeClientBuilder
 
+import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.io.{AnsiColor, StdIn}
 
 sealed trait FlagUpdateResponse
 case class ConsulFlagsUpdated(flags: Map[String, Boolean]) extends FlagUpdateResponse
@@ -44,6 +47,8 @@ object featureFlags {
   // All flags that aren't tied to a specific module
   private val nonModuleFlags = specialFlags ++ flagSupersets.keySet + "all"
 
+  def defaultFlagMap = resolveSupersetFlags(config.flagDefaults.map(_ -> true).toMap)
+
   /**
    * Sets a feature flag either in Consul or in the local flag file (if Consul is not running)
    * If Consul is up, this also pushes pending changes in the local flag file. If flags is empty,
@@ -52,11 +57,13 @@ object featureFlags {
    * @param tokens Contains the consul token used to update flags. If this isn't set, the function
    *               will always write to the local flag file
    * @param flagsToSet A map of new flags to push
+   * @param confirm Whether to prompt the user before submitting flags to consul
    * @return The current state of all known feature flags
    */
   def updateFlags(persistentDir: os.Path,
                   tokens: Option[AuthTokens],
-                  flagsToSet: Map[String, Boolean] = Map.empty)
+                  flagsToSet: Map[String, Boolean] = Map.empty,
+                  confirm: Boolean = false)
                  (implicit serviceAddrs: ServiceAddrs = ServiceAddrs()): IO[Map[String, Boolean]] = {
     for {
       validFlags <- validateFlags(persistentDir, flagsToSet)
@@ -69,6 +76,7 @@ object featureFlags {
         for {
           localFlags <- getLocalFlags(persistentDir)
           totalFlags = localFlags ++ actualFlags
+          _ <- if (confirm) confirmFlags(persistentDir, shouldUpdateConsul, serviceAddrs, tokens, totalFlags) else IO.unit
           _ <- clearLocalFlagFile(persistentDir, totalFlags)
           newFlags <- setConsulFlags(totalFlags)(serviceAddrs, tokens.get)
         } yield newFlags
@@ -83,14 +91,13 @@ object featureFlags {
       val consulUri = Uri.fromString(s"http://${serviceAddrs.consulAddr}:8500").toOption.get
       val interpreter = new Http4sConsulClient[IO](consulUri, client, Some(tokens.consulNomadToken))
       val getFeaturesOp = ConsulOp.kvGetJson[Map[String, Boolean]]("features", None, None)
-      val flagDefaults = resolveSupersetFlags(config.flagDefaults.map(_ -> true).toMap)
       for {
         features <- helm.run(interpreter, getFeaturesOp)
       } yield features match {
         case Right(QueryResponse(Some(consulFlagMap), _, _, _)) =>
-          flagDefaults ++ consulFlagMap
+          defaultFlagMap ++ consulFlagMap
         case _ =>
-          flagDefaults
+          defaultFlagMap
       }
     }
   }
@@ -161,7 +168,6 @@ object featureFlags {
   private def clearLocalFlagFile(persistentDir: os.Path, contents: Map[String, Boolean]): IO[Unit] = {
     if (contents.nonEmpty) {
       // Persist any special flags so they can be retrieved before consul is started
-      val defaultFlagMap = resolveSupersetFlags(config.flagDefaults.map(_ -> true).toMap)
       val newJson = specialFlags.map(flag => flag -> {
         val defaultSpecialFlagVal = defaultFlagMap.getOrElse(flag, false)
         contents.getOrElse(flag, defaultSpecialFlagVal)
@@ -222,5 +228,99 @@ object featureFlags {
         flagSet.map(flag => (flag, flagsToSet(supersetFlagName) && flagsToSet.getOrElse(flag, true)))
       case _ => Map.empty
     }.toMap
+  }
+
+  def confirmFlags(persistentDir: os.Path,
+                   consulIsUp: Boolean,
+                   serviceAddrs: ServiceAddrs,
+                   authTokens: Option[AuthTokens],
+                   extraFlags: Map[String, Boolean] = Map.empty): IO[Unit] = {
+    implicit val timer: Timer[IO] = IO.timer(ExecutionContext.global)
+    for {
+      pendingChangesExist <- printFlagInfo(persistentDir, consulIsUp, serviceAddrs, authTokens, extraFlags)
+      _ <- if (pendingChangesExist) {
+        IO(Console.print("The above changes will be written to consul/vault. Continue? [Y/n] "))
+      } else IO.unit
+      userInput <- if (pendingChangesExist) {
+        timeoutTo(IO(StdIn.readLine()), 30.seconds, IO.pure("y"))
+      } else IO.pure("y")
+    } yield {
+      if (userInput != null && userInput.nonEmpty && userInput.toLowerCase != "y") sys.exit(0) else ()
+    }
+  }
+
+  /**
+   * Prints the current state of flags along with any pending changes
+   * @return True if there are any pending changes
+   */
+  def printFlagInfo(persistentDir: os.Path,
+                    consulIsUp: Boolean,
+                    serviceAddrs: ServiceAddrs,
+                    authTokens: Option[AuthTokens],
+                    extraFlags: Map[String, Boolean] = Map.empty): IO[Boolean] =
+    for {
+      localFlagFileContents <- featureFlags.getLocalFlags(persistentDir)
+      localFlags = featureFlags.defaultFlagMap ++ localFlagFileContents ++ extraFlags
+      remoteFlags <- if (consulIsUp) {
+        featureFlags.getConsulFlags(serviceAddrs, authTokens.get)
+      } else IO.pure(Map[String, Boolean]())
+
+      localFlagConfig <- new LocalConfig()(persistentDir).read()
+      remoteFlagConfig <- if (consulIsUp) {
+        new RemoteConfig()(serviceAddrs, authTokens.get).read()
+      } else IO.pure(FlagConfigs())
+    } yield {
+      printCurrentFlags(remoteFlags, remoteFlagConfig)
+      printPendingFlagChanges(remoteFlags, remoteFlagConfig, localFlags, localFlagConfig)
+    }
+
+  private def printCurrentFlags(remoteFlags: Map[String, Boolean], remoteFlagConfig: FlagConfigs): Unit = {
+    println("Current Flags:")
+    for (remoteFlag <- remoteFlags) {
+      val status = if (remoteFlag._2) AnsiColor.GREEN + "ENABLED" else AnsiColor.RED + "DISABLED"
+      println(s"  ${remoteFlag._1}: $status${AnsiColor.RESET}")
+      val remoteConfigMap = remoteFlagConfig.vaultData.getOrElse(remoteFlag._1, Map.empty) ++
+        remoteFlagConfig.consulData.getOrElse(remoteFlag._1, Map.empty)
+      for (remoteConfigEntry <- remoteConfigMap) if (remoteConfigEntry._2.isDefined) {
+        println(s"    ${remoteConfigEntry._1} = ${remoteConfigEntry._2.get}")
+      }
+    }
+  }
+
+  private def printPendingFlagChanges(remoteFlags: Map[String, Boolean],
+                                      remoteFlagConfig: FlagConfigs,
+                                      localFlags: Map[String, Boolean],
+                                      localFlagConfig: FlagConfigs): Boolean = {
+    print(AnsiColor.BOLD)
+    println(s"Pending Local Flag Changes:")
+    val haveChangedList = for (localFlag <- localFlags) yield {
+      val flagName = localFlag._1
+      val isEnabled = localFlag._2
+      val resetStr = AnsiColor.RESET + AnsiColor.BOLD
+      val remoteCfgMap = remoteFlagConfig.vaultData.getOrElse(flagName, Map.empty) ++
+        remoteFlagConfig.consulData.getOrElse(flagName, Map.empty)
+      val localCfgMap = localFlagConfig.vaultData.getOrElse(flagName, Map.empty) ++
+        localFlagConfig.vaultData.getOrElse(flagName, Map.empty)
+      val configDelta = localCfgMap.filter { tuple =>
+        tuple._2.isDefined && (!(remoteCfgMap contains tuple._1) || remoteCfgMap(tuple._1) != tuple._2)
+      }
+      val originalValue = remoteFlags.get(flagName)
+      val hasChanges = originalValue.isEmpty || originalValue.get != isEnabled || configDelta.contains(flagName)
+      if (hasChanges) {
+        val fromStatus = originalValue match {
+          case Some(true) => AnsiColor.GREEN + "ENABLED"
+          case Some(false) => AnsiColor.RED + "DISABLED"
+          case None => AnsiColor.YELLOW + "UNSET"
+        }
+        val toStatus = if (isEnabled) AnsiColor.GREEN_B + "ENABLED" else AnsiColor.RED_B + "DISABLED"
+        println(s"  $flagName: $fromStatus$resetStr -> $toStatus$resetStr")
+        for (changedConfigEntry <- configDelta) {
+          println(s"    ${changedConfigEntry._1} = ${changedConfigEntry._2.get}")
+        }
+      }
+      hasChanges
+    }
+    print(AnsiColor.RESET)
+    remoteFlags.nonEmpty && haveChangedList.exists(b => b)
   }
 }
