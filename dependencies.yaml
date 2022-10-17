@@ -392,6 +392,11 @@ dependencies:
       lang: java
       version: "5.5.4"
 
+  org.reflections:
+    reflections:
+      lang: java
+      version: "0.9.11"
+
   org.scala-graph:
     graph-core:
       lang: scala
