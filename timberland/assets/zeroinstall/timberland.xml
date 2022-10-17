@@ -1,0 +1,18 @@
+<?xml version="1.0" ?>
+<interface xmlns="http://zero-install.sourceforge.net/2004/injector/interface">
+  <name>Timberland</name>
+  <summary>A script to install the Timberland application.</summary>
+  <description>
+    A script to install the Timberland application.
+  </description>
+
+  <implementation id="." path="./TIMBERLAND_TAR" version="0.1">
+    <requires interface="./avahi-utils.xml"/>
+    <requires interface="./docker.xml"/>
+    <requires interface="./openjdk-11-jre-headless.xml"/>
+    <requires interface="./net-tools.xml"/>
+  
+    <command name='run' path="./install"/>
+    <command name='uninstall' path="./uninstall"/>
+  </implementation>
+</interface>

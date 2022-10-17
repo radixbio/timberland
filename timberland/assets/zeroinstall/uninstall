@@ -1,0 +1,25 @@
+#!/bin/bash
+
+if [ "$EUID" -ne 0 ]
+then
+    echo "Please run this command as root."
+    exit 1
+fi
+
+echo "Removing current timberland installation..."
+
+# Remove path link
+
+rm /usr/local/bin/timberland
+
+if [ -f /opt/radix/timberland/exec/timberland ]; then
+    cd /opt/radix/timberland/exec/
+    ./timberland dns down
+fi
+
+killall -9 consul-template || true 2> /dev/null > /dev/null
+systemctl stop nomad consul vault timberland-svc
+apt remove -y 'radix-timberland*' || true
+umount /opt/radix/nomad/alloc/*/*/secrets /opt/radix/nomad/alloc/*/*/alloc || true 2> /dev/null
+rm -rf /opt/radix/* /tmp/ddata*radix*crdt* || true
+killall envoy ipfs || true 2> /dev/null

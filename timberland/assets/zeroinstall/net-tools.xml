@@ -1,0 +1,7 @@
+<?xml version="1.0" ?>
+<interface xmlns="http://zero-install.sourceforge.net/2004/injector/interface">
+  <name>net-tools</name>
+  <summary>NET-3 networking toolkit</summary>
+  <package-implementation package='net-tools'/>
+</interface>
+

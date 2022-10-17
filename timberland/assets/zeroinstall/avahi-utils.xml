@@ -1,0 +1,7 @@
+<?xml version="1.0" ?>
+<interface xmlns="http://zero-install.sourceforge.net/2004/injector/interface">
+  <name>avahi-utils</name>
+  <summary>Avahi browsing, publishing and discovery utilities</summary>
+  <package-implementation package='avahi-utils'/>
+</interface>
+

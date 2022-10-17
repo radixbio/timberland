@@ -5,6 +5,7 @@ load("//tools:timberland.bzl", "timberland_module")
 
 #load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
 load("//tools:rpm.bzl", "rpm_package")
+load("//tools:0install.bzl", "zeroinstall_package")
 load("//tools:proguard.bzl", "services_pkg_tar")
 
 package(
@@ -557,6 +558,34 @@ pkg_deb(
     postinst = "assets/debian/postinst.sh",
     prerm = "assets/debian/prerm.sh",
     version = "0.1",  # filename will have a blank version bc file can't be read at analysis time
+)
+
+zeroinstall_package(
+    name = "timberland-0install",
+    output = "timberland-0install.tar",
+    data = ":timberland-full-tar",
+    assets =
+    glob(
+        ["assets/zeroinstall/*.xml"]
+    ) + [
+        "assets/zeroinstall/install",
+        "assets/zeroinstall/uninstall",
+        "assets/zeroinstall/postinst",
+    ]
+)
+
+zeroinstall_package(
+    name = "timberland-slim-0install",
+    output = "timberland-slim-0install.tar",
+    data = ":timberland-slim-tar",
+    assets =
+    glob(
+        ["assets/zeroinstall/*.xml"],
+    ) + [
+        "assets/zeroinstall/install",
+        "assets/zeroinstall/uninstall",
+        "assets/zeroinstall/postinst",
+    ]
 )
 
 pkg_deb(

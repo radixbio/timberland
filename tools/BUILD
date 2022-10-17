@@ -42,6 +42,12 @@ py_binary(
     deps = [],
 )
 
+py_binary(
+    name = "make_0install_package",
+    srcs = ["make_0install_package.py"],
+    deps = [],
+)
+
 add_phase_merge_in_correct_order(
     name = "patch_phase_merge",
     visibility = ["//visibility:public"],
