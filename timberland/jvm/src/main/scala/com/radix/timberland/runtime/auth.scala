@@ -74,7 +74,7 @@ object auth {
   }
 
   private def getConsulTokenFromVault(vault: Vault[IO]): IO[String] =
-    vault.getSecret("secret/consul-ui-token").map {
+    vault.getSecret("consul-ui-token").map {
       case Right(KVGetResult(_, data)) => data.hcursor.get[String]("token").toOption.getOrElse {
         Console.err.println("Error parsing consul/nomad token from vault secret")
         sys.exit(1)
@@ -176,7 +176,7 @@ object auth {
     blaze.use { client =>
       val vault = new Vault[IO](authToken = Some(vaultToken), baseUrl = vaultUri, blazeClient = client)
       val payload = CreateSecretRequest(data = Map("token" -> masterToken).asJson, cas = None)
-      vault.createSecret("secret/consul-ui-token", payload).map {
+      vault.createSecret("consul-ui-token", payload).map {
         case Left(err) =>
           Console.err.println("Error saving consul/nomad token to vault\n" + err)
           sys.exit(1)

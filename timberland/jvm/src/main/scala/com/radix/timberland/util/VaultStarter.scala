@@ -115,19 +115,6 @@ class VaultUtils {
     )
   })
 
-  def storeVaultTokenInVault(vaultToken: String): IO[Unit] = {
-    BlazeClientBuilder[IO](global).resource.use { client =>
-      val vaultSession = new VaultSession[IO](Some(vaultToken), uri"http://127.0.0.1:8200", client)
-      val req = CreateSecretRequest(data = Map("token" -> vaultToken).asJson, cas = None)
-      vaultSession.createSecret("vault-admin-token", req) map {
-        case Left(err) =>
-          Console.err.println("Error writing vault token\n" + err)
-          sys.exit(1)
-        case _ => ()
-      }
-    }
-  }
-
   def findVaultToken(): String = {
     val token = sys.env.get("VAULT_TOKEN") match {
       case Some(token) => token
@@ -368,7 +355,6 @@ class VaultStarter {
               vaultResp <- waitOnVaultUnseal(vaultSeal, rootToken)
               setupVault <- vaultUtils.setupVault()
               oauthPlugin <- initializeGoogleOauthPlugin(rootToken, baseUrl)
-              _ <- vaultUtils.storeVaultTokenInVault(rootToken)
             } yield vaultResp
           }
           case VaultAlreadyInitialized => {

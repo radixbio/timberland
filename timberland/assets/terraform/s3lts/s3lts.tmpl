@@ -16,7 +16,7 @@ job "${prefix}s3lts" {
 
       template {
         data = <<EOF
-      {{with secret "secret/consul-ui-token"}}
+      {{with secret "consul-ui-token"}}
       {{ if .Data.token}}
             CONSUL_HTTP_TOKEN = "{{.Data.token}}"
       {{else}}
