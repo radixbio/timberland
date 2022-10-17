@@ -1,3 +1,4 @@
+
 consul {
   ssl {
     enabled = true
@@ -23,6 +24,7 @@ template {
   destination = "/opt/radix/certs/ca/cert.pem"
   error_on_missing_key = true
   perms = 0600
+  backup = true
 }
 
 template {
@@ -30,6 +32,7 @@ template {
   destination = "/opt/radix/certs/nomad/cert.pem"
   error_on_missing_key = true
   perms = 0600
+  backup = true
 }
 
 template {
@@ -37,6 +40,7 @@ template {
   destination = "/opt/radix/certs/nomad/key.pem"
   error_on_missing_key = true
   perms = 0600
+  backup = true
 }
 
 template {
@@ -44,6 +48,7 @@ template {
   destination = "/opt/radix/certs/consul/cert.pem"
   error_on_missing_key = true
   perms = 0600
+  backup = true
 }
 
 template {
@@ -51,6 +56,7 @@ template {
   destination = "/opt/radix/certs/consul/key.pem"
   error_on_missing_key = true
   perms = 0600
+  backup = true
 }
 
 template {
@@ -58,6 +64,7 @@ template {
   destination = "/opt/radix/certs/nomad/cli-cert.pem"
   error_on_missing_key = true
   perms = 0600
+  backup = true
 }
 
 template {
@@ -65,6 +72,7 @@ template {
   destination = "/opt/radix/certs/nomad/cli-key.pem"
   error_on_missing_key = true
   perms = 0600
+  backup = true
 }
 
 template {
@@ -72,6 +80,7 @@ template {
   destination = "/opt/radix/certs/vault/cert.pem"
   error_on_missing_key = true
   perms = 0600
+  backup = true
 }
 
 template {
@@ -79,6 +88,7 @@ template {
   destination = "/opt/radix/certs/vault/key.pem"
   error_on_missing_key = true
   perms = 0600
+  backup = true
 }
 
 template {
@@ -86,6 +96,7 @@ template {
   destination = "/opt/radix/certs/cli/cert.pem"
   error_on_missing_key = true
   perms = 0600
+  backup = true
 }
 
 template {
@@ -93,6 +104,7 @@ template {
   destination = "/opt/radix/certs/cli/key.pem"
   error_on_missing_key = true
   perms = 0600
+  backup = true
 }
 
 // Add template for vault token

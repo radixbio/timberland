@@ -9,9 +9,8 @@ import com.radix.timberland.flags.{RemoteConfig, _}
 import com.radix.timberland.launch.daemonutil
 import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.timberland.runtime._
-import com.radix.timberland.util.{LogTUI, LogTUIWriter, VaultStarter, VaultUtils, RadPath, UpdateModules}
+import com.radix.timberland.util.{LogTUI, LogTUIWriter, RadPath, UpdateModules, Util, VaultStarter, VaultUtils}
 import com.radix.utils.helm.http4s.vault.Vault
-import com.radix.timberland.util.{UpdateModules, VaultStarter}
 import io.circe.{Parser => _}
 import optparse_applicative._
 import org.http4s.implicits._
@@ -50,12 +49,11 @@ object runner {
       case _                                                                           => "arm"
     }
 
-
     val persistentDir = RadPath.runtime / "timberland"
 
     val consul = persistentDir / "consul" / "consul"
     val nomad = persistentDir / "nomad" / "nomad"
-    val vault = persistentDir / "vault"/ "vault"
+    val vault = persistentDir / "vault" / "vault"
     val nginx = persistentDir / "nginx"
     os.makeDir.all(nginx)
     val minio = persistentDir / "minio_data"
@@ -73,7 +71,7 @@ object runner {
             case local: Local =>
               local match {
                 case Nuke => Right(Unit)
-                case cmd @ Start(dummy, loglevel, bindIP, consulSeedsO, remoteAddress, prefix, username, password) => {
+                case cmd @ Start(loglevel, bindIP, consulSeedsO, remoteAddress, prefix, username, password) => {
                   scribe.Logger.root
                     .clearHandlers()
                     .clearModifiers()
@@ -84,39 +82,30 @@ object runner {
                   import ammonite.ops._
                   System.setProperty("dns.server", remoteAddress.getOrElse("127.0.0.1"))
 
-                  if (dummy) {
-                    implicit val host = new Mock.RuntimeNolaunch[IO]
-                    Right(
-                      println(Run
-                        .initializeRuntimeProg[IO](consul / os.up, nomad / os.up, bindIP, consulSeedsO, 0, false)
-                        .unsafeRunSync)
+                  val createWeaveNetwork = for {
+                    _ <- IO(scribe.info("Creating weave network"))
+                    _ <- IO(os.proc("/usr/bin/sudo /sbin/sysctl -w vm.max_map_count=262144".split(' ')).spawn())
+                    pluginList <- IO(
+                      os.proc("/usr/bin/docker plugin ls".split(' ')).call(cwd = os.root, check = false)
                     )
-                    System.exit(0)
-                  } else {
-                    val createWeaveNetwork = for {
-                      _ <- IO(scribe.info("Creating weave network"))
-                      _ <- IO(os.proc("/usr/bin/sudo /sbin/sysctl -w vm.max_map_count=262144".split(' ')).spawn())
-                      pluginList <- IO(
-                        os.proc("/usr/bin/docker plugin ls".split(' ')).call(cwd = os.root, check = false)
-                      )
-                      _ <- pluginList.out.string.contains("weaveworks/net-plugin:2.6.0") match {
-                        case true => {
-                          IO(
-                            os.proc(
-                                "/usr/bin/docker network create --driver=weaveworks/net-plugin:2.6.0 --attachable weave  --ip-range 10.32.0.0/12 --subnet 10.32.0.0/12"
-                                  .split(' ')
-                              )
-                              .call(cwd = os.root, stdout = os.Inherit, check = false)
-                          )
-                          IO.pure(scribe.info("Weave network exists or was created"))
-                        }
-                        case false =>
-                          IO.pure(scribe.info("Weave plugin not installed. Skipping creation of weave network."))
+                    _ <- pluginList.out.string.contains("weaveworks/net-plugin:2.6.0") match {
+                      case true => {
+                        IO(
+                          os.proc(
+                              "/usr/bin/docker network create --driver=weaveworks/net-plugin:2.6.0 --attachable weave  --ip-range 10.32.0.0/12 --subnet 10.32.0.0/12"
+                                .split(' ')
+                            )
+                            .call(cwd = os.root, stdout = os.Inherit, check = false)
+                        )
+                        IO.pure(scribe.info("Weave network exists or was created"))
                       }
-                    } yield ()
+                      case false =>
+                        IO.pure(scribe.info("Weave plugin not installed. Skipping creation of weave network."))
+                    }
+                  } yield ()
 
-                    implicit val host = new Run.RuntimeServicesExec[IO]
-                    def startServices(setupACL: Boolean) = for {
+                  def startServices(setupACL: Boolean) =
+                    for {
                       _ <- IO(scribe.info("Launching daemons"))
                       localFlags <- featureFlags.getLocalFlags(persistentDir)
                       // Starts LogTUI before `startLogTuiAndRunTerraform` is called
@@ -124,71 +113,77 @@ object runner {
                       consulPath = consul / os.up
                       nomadPath = nomad / os.up
                       bootstrapExpect = if (localFlags.getOrElse("dev", true)) 1 else 3
-                      tokens <- Run.initializeRuntimeProg[IO](
-                        consulPath, nomadPath, bindIP, consulSeedsO, bootstrapExpect, setupACL
+                      tokens <- Services.startServices(
+                        consulPath,
+                        nomadPath,
+                        bindIP,
+                        consulSeedsO,
+                        bootstrapExpect,
+                        setupACL
                       )
-                      _ <- daemonutil.waitForDNS("vault.service.consul", 10.seconds)
+                      _ <- Util.waitForDNS("vault.service.consul", 10.seconds)
                     } yield tokens
 
-                    def startLogTuiAndRunTerraform(
-                      featureFlags: Map[String, Boolean],
-                      serviceAddrs: ServiceAddrs,
-                      authTokens: AuthTokens,
-                      waitForQuorum: Boolean
-                    ) =
-                      for {
-                        _ <- if (featureFlags.getOrElse("tui", true)) LogTUI.startTUI() else IO.unit
-                        _ <- IO(LogTUI.writeLog(s"using flags: $featureFlags"))
-                        tfStatus <- daemonutil.runTerraform(featureFlags, prefix = prefix)(serviceAddrs, authTokens)
-                        _ <- IO {
-                          tfStatus match {
-                            case 0 => true
-                            case code => {
-                              LogTUI.writeLog("runTerraform failed, exiting")
-                            }
-                            sys.exit(code)
+                  def startLogTuiAndRunTerraform(
+                    featureFlags: Map[String, Boolean],
+                    serviceAddrs: ServiceAddrs,
+                    authTokens: AuthTokens,
+                    waitForQuorum: Boolean
+                  ) =
+                    for {
+                      _ <- if (featureFlags.getOrElse("tui", true)) LogTUI.startTUI() else IO.unit
+                      _ <- IO(LogTUI.writeLog(s"using flags: $featureFlags"))
+                      tfStatus <- daemonutil.runTerraform(featureFlags, prefix = prefix)(serviceAddrs, authTokens)
+                      _ <- IO {
+                        tfStatus match {
+                          case 0 => true
+                          case code => {
+                            LogTUI.writeLog("runTerraform failed, exiting")
                           }
+                          sys.exit(code)
                         }
-                        _ <- if (waitForQuorum) daemonutil.waitForQuorum(featureFlags) else IO.unit
-                      } yield ()
-
-                    // Called when consul/nomad/vault are on localhost
-                    val localBootstrap = for {
-                      hasBootstrapped <- IO(os.exists(persistentDir / ".bootstrap-complete"))
-                      isConsulUp <- daemonutil.isPortUp(8501)
-                      serviceAddrs = ServiceAddrs()
-                      authTokens <- (hasBootstrapped, isConsulUp) match {
-                        case (true, true) =>
-                          auth.getAuthTokens(isRemote = false, serviceAddrs, username, password)
-                        case (true, false) =>
-                          startServices(setupACL = false)
-                        case (false, _) =>
-                          flagConfig.promptForDefaultConfigs(persistentDir = persistentDir) *>
-                            createWeaveNetwork *> startServices(setupACL = true)
                       }
-                      featureFlags <- featureFlags.updateFlags(persistentDir, Some(authTokens), confirm = true)(serviceAddrs)
-                      _ <- startLogTuiAndRunTerraform(featureFlags, serviceAddrs, authTokens, waitForQuorum = true)
+                      _ <- if (waitForQuorum) daemonutil.waitForQuorum(featureFlags) else IO.unit
                     } yield ()
 
-                    // Called when consul/vault/nomad are not on localhost
-                    val remoteBootstrap = for {
-                      serviceAddrs <- daemonutil.getServiceIps()
-                      authTokens <- auth.getAuthTokens(isRemote = true, serviceAddrs, username, password)
-                      featureFlags <- featureFlags.updateFlags(persistentDir, Some(authTokens))(serviceAddrs)
-                      _ <- startLogTuiAndRunTerraform(featureFlags, serviceAddrs, authTokens, waitForQuorum = false)
-                    } yield ()
+                  // Called when consul/nomad/vault are on localhost
+                  val localBootstrap = for {
+                    hasBootstrapped <- IO(os.exists(persistentDir / ".bootstrap-complete"))
+                    isConsulUp <- Util.isPortUp(8501)
+                    serviceAddrs = ServiceAddrs()
+                    authTokens <- (hasBootstrapped, isConsulUp) match {
+                      case (true, true) =>
+                        auth.getAuthTokens(isRemote = false, serviceAddrs, username, password)
+                      case (true, false) =>
+                        startServices(setupACL = false)
+                      case (false, _) =>
+                        flagConfig.promptForDefaultConfigs(persistentDir = persistentDir) *>
+                          createWeaveNetwork *> startServices(setupACL = true)
+                    }
+                    featureFlags <- featureFlags.updateFlags(persistentDir, Some(authTokens), confirm = true)(
+                      serviceAddrs
+                    )
+                    _ <- startLogTuiAndRunTerraform(featureFlags, serviceAddrs, authTokens, waitForQuorum = true)
+                  } yield ()
 
-                    val bootstrapIO = if (remoteAddress.isDefined) remoteBootstrap else localBootstrap
-                    val bootstrap = bootstrapIO.handleErrorWith(err => LogTUI.endTUI(Some(err)) *> IO(throw err)) *> LogTUI.endTUI()
+                  // Called when consul/vault/nomad are not on localhost
+                  val remoteBootstrap = for {
+                    serviceAddrs <- daemonutil.getServiceIps()
+                    authTokens <- auth.getAuthTokens(isRemote = true, serviceAddrs, username, password)
+                    featureFlags <- featureFlags.updateFlags(persistentDir, Some(authTokens))(serviceAddrs)
+                    _ <- startLogTuiAndRunTerraform(featureFlags, serviceAddrs, authTokens, waitForQuorum = false)
+                  } yield ()
 
-                    bootstrap.unsafeRunSync()
-                    sys.exit(0)
-                  }
+                  val bootstrapIO = if (remoteAddress.isDefined) remoteBootstrap else localBootstrap
+                  val bootstrap = bootstrapIO.handleErrorWith(err => LogTUI.endTUI(Some(err)) *> IO(throw err)) *> LogTUI
+                    .endTUI()
+
+                  bootstrap.unsafeRunSync()
+                  sys.exit(0)
                 }
                 case Stop => {
-                  implicit val host = new Run.RuntimeServicesExec[IO]
                   (daemonutil.stopTerraform(integrationTest = false) *>
-                    Run.stopRuntimeProg[IO]() *>
+                    Services.stopServices() *>
                     IO(scribe.info("Stopped."))).unsafeRunSync
                   sys.exit(0)
                 }
@@ -209,7 +204,7 @@ object runner {
                     _ <- if (remoteAddress.isEmpty) daemonutil.waitForQuorum(flagMap) else IO.unit
                   } yield true
 
-                  daemonutil
+                  Util
                     .isPortUp(8501)
                     .flatMap {
                       case true  => UpdateModules.run(consulExistsProc, prefix = prefix)

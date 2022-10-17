@@ -25,7 +25,10 @@ import java.util.concurrent.Executors
 import scala.concurrent.duration._
 import java.time.Instant
 import java.net.NetworkInterface
+
+import com.radix.timberland.util.Util
 import os.Shellable
+
 import scala.collection.JavaConverters._
 
 package object zookeeper {
@@ -151,8 +154,9 @@ package object zookeeper {
    * @param zoodyncfg the path to the zookeeper dynamic configuration file
    * @return The state is now with zookeeper started
    */
-  private[this] def zookeeperQuorumStart(zoocfg: Path, zoodyncfg: Path)(
-    implicit N: LocalEthInfoAlg[IO]
+  private[this] def zookeeperQuorumStart(
+    zoocfg: Path,
+    zoodyncfg: Path
   ): IndexedStateT[IO, MinQuorumFound, ZKStarted, Unit] = {
     for {
       quorum <- IndexedStateT.get[IO, MinQuorumFound]
@@ -166,7 +170,7 @@ package object zookeeper {
         //TODO replace this with a parser that errors if the template doesn't match
         //This is dependent on a consul-template being exactly as it is :(
 
-        val iface = N.getNetworkInterfaces
+        val iface = Util.getNetworkInterfaces
           .unsafeRunSync()
           .toSet
           //network interfaces that are also listed as ZK servers allow us to infer our iteration order and recover an ID
@@ -208,7 +212,6 @@ package object zookeeper {
     zoodynconf: Path,
     minQuorumSize: Int
   ): IndexedStateT[IO, NoMinQuorum.type, ZKStarted, Unit] = {
-    implicit val netinfo = new NetworkInfoExec[IO]
     for {
       _ <- reconfigDynFile(templatePath, minQuorumSize)
       state <- IndexedStateT.get[IO, Either[NoMinQuorum.type, MinQuorumFound]]

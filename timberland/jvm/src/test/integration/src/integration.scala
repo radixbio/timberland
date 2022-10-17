@@ -9,7 +9,7 @@ import cats.~>
 import com.radix.timberland.launch.daemonutil
 import com.radix.timberland.runtime.AuthTokens
 import com.radix.timberland.flags.featureFlags.resolveSupersetFlags
-import com.radix.timberland.util.VaultUtils
+import com.radix.timberland.util.{Util, VaultUtils}
 import com.radix.utils.helm.{ConsulOp, HealthStatus, NomadOp}
 import com.radix.utils.helm.http4s.{Http4sConsulClient, Http4sNomadClient}
 import org.http4s.Uri
@@ -66,9 +66,10 @@ abstract class TimberlandIntegration extends AsyncFlatSpec with Matchers with Be
   def getTokens(): AuthTokens = {
     val vaultToken = new VaultUtils().findVaultToken()
     val getCommand =
-      "/opt/radix/timberland/vault/vault kv get -address=https://vault.service.consul:8200 secret/consul-ui-token".split(
-        " "
-      )
+      "/opt/radix/timberland/vault/vault kv get -address=https://vault.service.consul:8200 secret/consul-ui-token"
+        .split(
+          " "
+        )
     val consulNomadTokenProc = Process(getCommand, None, "VAULT_TOKEN" -> vaultToken)
     val consulNomadToken = consulNomadTokenProc.lineStream.find(_.contains("token")) match {
       case Some(line) => line.split("\\s+")(1)
@@ -111,8 +112,8 @@ abstract class TimberlandIntegration extends AsyncFlatSpec with Matchers with Be
     scribe.Logger.root.clearHandlers().clearModifiers().withHandler(minimumLevel = None).replace()
 
     // Make sure Consul and Nomad are up before using terraform
-    val res = daemonutil.waitForDNS("consul.service.consul", 1.minutes) *>
-      daemonutil.waitForDNS("nomad.service.consul", 1.minutes) *>
+    val res = Util.waitForDNS("consul.service.consul", 1.minutes) *>
+      Util.waitForDNS("nomad.service.consul", 1.minutes) *>
       daemonutil.runTerraform(resolvedFlags, integrationTest = true, None) *> IO(println(resolvedFlags)) *>
       daemonutil.waitForQuorum(resolvedFlags)
     res.unsafeRunSync()

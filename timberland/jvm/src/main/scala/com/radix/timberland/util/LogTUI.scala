@@ -197,7 +197,8 @@ object CLIMagic {
       import sys.process._
       Seq("sh", "-c", s"$pathedTput $s 2> /dev/tty").!!.trim.toInt
     }
-    try consoleDim("lines") catch {case e => 50} // Accessing /dev/tty fails in CI, so arbitrary row count
+    try consoleDim("lines")
+    catch { case e => 50 } // Accessing /dev/tty fails in CI, so arbitrary row count
   }
 
   def _print(text: Ansi): IO[Unit] = IO(System.out.print(text))

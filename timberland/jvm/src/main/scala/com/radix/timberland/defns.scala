@@ -55,42 +55,9 @@ package object radixdefs {
     def fncopy(from: os.Path, to: os.Path): F[Unit]
   }
 
-  /**
-   * Factoring out the interface code [from `RuntimeServicesAlg`] allows it to be used in many places
-   * @tparam F The effect type
-   */
-  trait LocalEthInfoAlg[F[_]] {
-    def getNetworkInterfaces: F[List[String]]
-  }
-
-  class NetworkInfoExec[F[_]](implicit F: Effect[F]) extends LocalEthInfoAlg[F] {
-    override def getNetworkInterfaces: F[List[String]] = F.delay {
-      NetworkInterface.getNetworkInterfaces.asScala.toList
-        .flatMap(_.getInetAddresses.asScala)
-        .filter(_.getAddress.length == 4) // only ipv4
-        .map(_.getHostAddress)
-        .distinct
-    }
-  }
-
-  /**
-   * This trait serves as an interface to bring up and/or bring down the core services
-   * @tparam F
-   */
-  trait RuntimeServicesAlg[F[_]] extends LocalEthInfoAlg[F] {
-    def searchForPort(netinf: List[String], port: Int): F[Option[NonEmptyList[String]]]
-    def startConsul(bind_addr: String, consulSeedsO: Option[String], bootstrapExpect: Int): F[Unit]
-    def startConsulTemplate(consulNomadToken: String, vaultToken: String): F[Unit]
-    def startVault(bind_addr: String): F[Unit]
-    def startNomad(bind_addr: String, bootstrapExpect: Int, vaultToken: String): F[Unit]
-    def stopConsul(): F[Unit]
-    def stopConsulTemplate(): F[Unit]
-    def stopNomad(): F[Unit]
-    def stopVault(): F[Unit]
-    def startWeave(hosts: List[String]): F[Unit]
-  }
-
-  case class ServiceAddrs(consulAddr: String = "consul.service.consul",
-                          nomadAddr: String = "nomad.service.consul",
-                          vaultAddr: String = "vault.service.consul")
+  case class ServiceAddrs(
+    consulAddr: String = "consul.service.consul",
+    nomadAddr: String = "nomad.service.consul",
+    vaultAddr: String = "vault.service.consul"
+  )
 }

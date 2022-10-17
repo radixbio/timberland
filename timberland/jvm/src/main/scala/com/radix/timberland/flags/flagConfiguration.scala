@@ -6,10 +6,9 @@ import cats.effect.{ContextShift, IO, Resource, Timer}
 import cats.implicits._
 import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.timberland.runtime.AuthTokens
-import com.radix.timberland.launch.daemonutil.timeoutTo
 
 import scala.concurrent.duration._
-import com.radix.timberland.util.{RegisterProvider, VaultUtils}
+import com.radix.timberland.util.{RegisterProvider, Util, VaultUtils}
 import com.radix.utils.helm
 import com.radix.utils.helm.http4s.Http4sConsulClient
 import com.radix.utils.helm.http4s.vault.Vault
@@ -271,7 +270,7 @@ object flagConfig {
     implicit val timer: Timer[IO] = IO.timer(ExecutionContext.global)
     for {
       _ <- IO(Console.print((if (entry.optional) "[Optional] " else "") + entry.prompt + "> "))
-      userInput <- timeoutTo(IO(StdIn.readLine()), timeout, IO.pure(null))
+      userInput <- Util.timeoutTo(IO(StdIn.readLine()), timeout, IO.pure(null))
       maybeDefault <- IO {
         entry.default match {
           case Some(value) => Some(value)

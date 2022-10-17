@@ -1,27 +1,19 @@
 package com.radix.timberland.runtime
 
-import com.radix.timberland.launch.daemonutil
-import com.radix.timberland.util.LogTUI
-
-import scala.concurrent.duration._
 import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
+import com.radix.timberland.launch.daemonutil
 import com.radix.timberland.radixdefs.ServiceAddrs
-import com.radix.timberland.util.VaultUtils
+import com.radix.timberland.util.{LogTUI, RadPath, Util, VaultUtils}
 import com.radix.utils.helm.http4s.vault.Vault
 import com.radix.utils.helm.vault.{CreateSecretRequest, KVGetResult, LoginResponse}
-import org.http4s.client.dsl.io._
-import org.http4s.implicits._
-import org.http4s.Method._
-import org.http4s.{Header, Status}
-import org.http4s.{Header, Status, Uri}
-import org.http4s.client.blaze.BlazeClientBuilder
-import io.circe.syntax._
-import os.CommandResult
 import com.radix.utils.tls.ConsulVaultSSLContext.blaze
+import io.circe.syntax._
+import org.http4s.Uri
+import org.http4s.implicits._
 
 import scala.concurrent.ExecutionContext
-import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration._
 
 case class AuthTokens(consulNomadToken: String, vaultToken: String)
 
@@ -52,7 +44,7 @@ object auth {
         vaultLoginResponse <- unauthenticatedVault.login(username, password)
         vaultToken = vaultLoginResponse match {
           case Left(err) =>
-            Console.err.println("Error logging into vault with the specified credentials\n" + err)
+            scribe.error("Error logging into vault with the specified credentials\n" + err)
             sys.exit(1)
           case Right(LoginResponse(token, _, _, _)) => token
         }
@@ -78,11 +70,11 @@ object auth {
     vault.getSecret("consul-ui-token").map {
       case Right(KVGetResult(_, data)) =>
         data.hcursor.get[String]("token").toOption.getOrElse {
-          Console.err.println("Error parsing consul/nomad token from vault secret")
+          scribe.error("Error parsing consul/nomad token from vault secret")
           sys.exit(1)
         }
       case Left(err) =>
-        Console.err.println("Error getting consul/nomad token from vault\n" + err)
+        scribe.error("Error getting consul/nomad token from vault\n" + err)
         sys.exit(1)
     }
 
@@ -122,26 +114,37 @@ object auth {
    * @param consulToken The token used to access consul
    * @return Nothing
    */
-  def setupDefaultConsulToken(persistentDir: os.Path, consulToken: String) = {
+  def setupDefaultConsulToken(persistentDir: os.Path, consulToken: String): IO[Unit] = {
     val consulDir = persistentDir / "consul"
+    val defaultPolicy = consulDir / "default-policy.hcl"
     val consul = consulDir / "consul"
-
+    val defaultPolicyCmd = s"$consul acl policy create -token=$consulToken -name=default-policy -rules=@$defaultPolicy"
+    val getDefaultPolicyCmd = s"$consul acl policy read -token=$consulToken -name=default-policy"
+    val defaultTokenCmd =
+      s"$consul acl token create -token=$consulToken -description='Default-allow-DNS.' -policy-name=default-policy"
     for {
-      _ <- waitForConsul(consulToken)
+      _ <- Util.waitForConsul(consulToken, 60.seconds)
+      defaultPolicyCmdRes <- Util.exec(defaultPolicyCmd)
+      checkDefaultPolicyRes <- if (defaultPolicyCmdRes.exitCode == 0) IO.pure(true)
+      else if ((defaultPolicyCmdRes.exitCode != 0) && (defaultPolicyCmdRes.stderr
+                 .contains("already exists"))) {
+        for {
+          checkDefaultPolicyRes <- Util.exec(getDefaultPolicyCmd)
+          policyAlreadyThere = checkDefaultPolicyRes.stdout.contains(os.read(defaultPolicy))
+        } yield policyAlreadyThere
+      } else IO.pure(false) // unknown error
 
-      defaultPolicyCreationCmd = s"$consul acl policy create -token=$consulToken -name=dns-requests -rules=@${consulDir}/default-policy.hcl"
-      response <- exec(defaultPolicyCreationCmd)
-      _ <- if (response.exitCode != 0) {
-        Console.err.println("Partial bootstrap detected! Please reinstall timberland before continuing")
-        sys.exit(1)
-      } else IO.unit
+      _ <- if (checkDefaultPolicyRes) IO(scribe.info("Policy already exists!"))
+      else {
+        IO(scribe.error("Unknown error setting up default Consul Policy")); IO(sys.exit(1))
+      }
+      defaultTokenCmdRes <- Util.exec(defaultTokenCmd)
 
-      defaultTokenCreationCmd = s"$consul acl token create -token=$consulToken -description=DNS -policy-name=dns-requests"
-      defaultTokenCreationCmdRes <- exec(defaultTokenCreationCmd)
-      dnsRequestToken = parseToken(defaultTokenCreationCmdRes)
+      dnsRequestToken = parseToken(defaultTokenCmdRes)
 
-      setDefaultTokenCmd = s"$consul acl set-agent-token -token=$consulToken default $dnsRequestToken"
-      _ <- exec(setDefaultTokenCmd)
+      setDefaultTokenCmd = s"$consul acl set-agent-token -token=$consulToken default ${dnsRequestToken.getOrElse("")}"
+      _ <- if (defaultTokenCmdRes.exitCode == 0) Util.exec(setDefaultTokenCmd)
+      else IO(scribe.error(s"$defaultTokenCmd exited with ${defaultTokenCmdRes.exitCode}"))
     } yield ()
   }
 
@@ -151,7 +154,7 @@ object auth {
    * @param consulToken The token used to access consul
    * @return The generated master token (works with both consul and nomad)
    */
-  def setupNomadMasterToken(persistentDir: os.Path, consulToken: String) = {
+  def setupNomadMasterToken(persistentDir: os.Path, consulToken: String): IO[String] = {
     val nomad = persistentDir / "nomad" / "nomad"
     val consul = persistentDir / "consul" / "consul"
     val certDir = persistentDir / os.up / "certs"
@@ -162,67 +165,48 @@ object auth {
     val masterPolicy = "00000000-0000-0000-0000-000000000001"
 
     for {
-      nomadResolves <- daemonutil.waitForDNS("nomad.service.consul", 60.seconds)
-      nomadUp <- daemonutil.waitForPortUp(4646, 60.seconds)
-      _ <- IO.sleep(10.seconds)
+      nomadResolves <- Util.waitForDNS("nomad.service.consul", 60.seconds)
+      nomadUp <- Util.waitForPortUp(4646, 60.seconds)
+      _ <- Util.waitForNomad(30.seconds)
       _ <- IO.pure(scribe.info(s"nomad resolves: $nomadResolves, nomad listening on 4646: $nomadUp"))
 
       bootstrapCmd = s"$nomad acl bootstrap -address=$addr -ca-cert=$tlsCa -client-cert=$tlsCert -client-key=$tlsKey"
-      bootstrapCmdRes <- exec(bootstrapCmd)
-      masterToken = parseToken(bootstrapCmdRes)
+      bootstrapCmdRes <- Util.exec(bootstrapCmd)
+      masterTokenOpt = parseToken(bootstrapCmdRes)
+      masterToken <- masterTokenOpt.map(IO.pure).getOrElse(getMasterToken)
 
-      consulMasterTokenCreationCmd = s"$consul acl token create -secret=$masterToken -token=$consulToken -policy-id=$masterPolicy"
-      _ <- exec(consulMasterTokenCreationCmd)
+      masterTokenCmd = s"$consul acl token create -secret=$masterToken -token=$consulToken -policy-id=$masterPolicy"
+      _ <- if (bootstrapCmdRes.exitCode == 0) Util.exec(masterTokenCmd)
+      else IO(scribe.error("Failed to parse token from ACL Bootstrap call!"))
 
       _ <- IO.pure(scribe.info(s"ADMIN TOKEN FOR CONSUL/NOMAD: $masterToken"))
       _ <- IO.pure(LogTUI.printAfter(s"ADMIN TOKEN FOR CONSUL/NOMAD: $masterToken"))
     } yield masterToken
   }
 
-  def getMasterToken(persistentDir: os.Path): IO[String] = IO {
-    os.read(persistentDir / ".acl-token")
+  def getMasterToken: IO[String] = IO {
+    os.read(RadPath.runtime / "timberland" / ".acl-token")
   }
 
-  def storeMasterToken(persistentDir: os.Path, masterToken: String): IO[Unit] = {
+  def storeMasterToken(masterToken: String): IO[Unit] = {
     val vaultToken = (new VaultUtils).findVaultToken()
     val vaultUri = uri"https://127.0.0.1:8200"
     val vault = new Vault[IO](authToken = Some(vaultToken), baseUrl = vaultUri)
     val payload = CreateSecretRequest(data = Map("token" -> masterToken).asJson, cas = None)
     vault.createSecret("consul-ui-token", payload).map {
       case Left(err) =>
-        Console.err.println("Error saving consul/nomad token to vault\n" + err)
-        sys.exit(1)
+        scribe.error(s"Error saving consul/nomad token to vault! Failed with $err.")
       case Right(_) => ()
-    } *> IO(os.write.over(persistentDir / ".acl-token", masterToken, os.PermSet(400)))
+    } *> IO(os.write.over(RadPath.runtime / "timberland" / ".acl-token", masterToken, os.PermSet(400)))
   }
 
-  def exec(command: String) = IO {
-    os.proc(command.split(' ')).call(stderr = os.Inherit, cwd = os.root, check = false)
-  }
-
-  def parseToken(cmdResult: CommandResult) = {
-    val lines = cmdResult.out.text().split('\n')
+  private def parseToken(cmdResult: Util.ProcOut): Option[String] = {
+    val lines = cmdResult.stdout.split('\n')
     val secretLine = lines.find(line => line.startsWith("Secret"))
-    secretLine match {
-      case Some(line) => line.split("\\s+").last
-      case None => {
-        scribe.error("Could not bootstrap consul. Exiting...")
-        sys.exit(1)
-      }
+    secretLine.map(_.split("\\s+").last).orElse {
+      scribe.warn("Invalid response from auth bootstrap command:")
+      scribe.warn(cmdResult.stdout)
+      None
     }
-  }
-
-  def waitForConsul(consulToken: String): IO[Unit] = {
-    val request = GET(uri"https://127.0.0.1:8501/v1/agent/self", Header("X-Consul-Token", consulToken))
-    def queryConsul: IO[Unit] = {
-      blaze
-        .use(_.status(request).attempt)
-        .flatMap {
-          case Right(Status(200)) => IO.unit
-          case thing @ _          => IO.sleep(1 second) *> queryConsul
-        }
-    }
-
-    daemonutil.timeout(queryConsul, 30 minutes)
   }
 }

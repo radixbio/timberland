@@ -1,35 +1,23 @@
 package com.radix.timberland.launch
 
-import java.io.{File, FileWriter, IOException, PrintWriter}
-import java.net.{InetAddress, ServerSocket, UnknownHostException}
+import java.io.File
+import java.net.UnknownHostException
 
-import cats.effect.{ContextShift, IO, Resource, Timer}
+import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
 import com.radix.timberland.flags.flagConfig
-import com.radix.timberland.util.{LogTUI, ResolveDNS, TerraformMagic, VaultUtils, WaitForDNS, RadPath}
-import com.radix.utils.helm.http4s.Http4sNomadClient
-import com.radix.utils.helm.http4s.vault.{Vault => VaultSession}
-import com.radix.utils.helm.{NomadOp, NomadReadRaftConfigurationResponse}
-import org.http4s.client.blaze.BlazeClientBuilder
-import org.http4s.implicits._
-
-import sys.process._
 import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.timberland.runtime.AuthTokens
-
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.{ExecutionContext, TimeoutException}
-import scala.concurrent.duration._
-import org.xbill.DNS
-//import com.radix.timberland.runtime.flags
+import com.radix.timberland.util.{Util, _}
+import com.radix.utils.helm.http4s.Http4sNomadClient
+import com.radix.utils.helm.{NomadOp, NomadReadRaftConfigurationResponse}
 import io.circe.parser.parse
 import io.circe.{DecodingFailure, Json}
-import org.http4s.Uri
-import org.http4s.client.Client
-import os.{proc, ProcessOutput}
-import com.radix.utils.tls.ConsulVaultSSLContext.blaze
+import org.xbill.DNS
 
-import scala.io.{Source, StdIn}
+import scala.concurrent.ExecutionContext
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration._
 
 sealed trait DaemonState
 
@@ -38,7 +26,6 @@ case object AllDaemonsStarted extends DaemonState
 package object daemonutil {
   private[this] implicit val timer: Timer[IO] = IO.timer(global)
   private[this] implicit val cs: ContextShift[IO] = IO.contextShift(global)
-
 
   val execDir = RadPath.runtime / "timberland" / "terraform"
 
@@ -109,7 +96,8 @@ package object daemonutil {
       case (_, None) => scribe.warn("No password/token provided for container registry, not logging in"); IO(-1)
       case (Some(user), Some(token)) =>
         IO {
-          os.proc(Seq("docker", "login", regAddress, "-u", user, "-p", token))
+          Util
+            .proc(Seq("docker", "login", regAddress, "-u", user, "-p", token))
             .call(
               stdout = os.ProcessOutput(LogTUI.writeLogFromStream),
               stderr = os.ProcessOutput(LogTUI.writeLogFromStream)
@@ -148,8 +136,8 @@ package object daemonutil {
       val F = File.createTempFile("radix", ".plan")
       val planCommand = Seq("bash", "-c", s"${execDir / "terraform"} plan $tlsVarStr $variables -out=$F")
       val showCommand = s"${execDir / "terraform"} show -json $F".split(" ")
-      val planout = proc(planCommand).call(cwd = workingDir)
-      val planshow = proc(showCommand).call(cwd = workingDir)
+      val planout = Util.proc(planCommand).call(cwd = workingDir)
+      val planshow = Util.proc(showCommand).call(cwd = workingDir)
 
       val shown = new String(planshow.out.bytes)
       parse(shown) match {
@@ -164,11 +152,10 @@ package object daemonutil {
         import cats.instances.either._
         import cats.instances.list._
         import cats.syntax.traverse._
-        import cats.syntax.either._
 
         type Err[A] = Either[DecodingFailure, A]
         val resource_changes = x.hcursor.downField("resource_changes").as[Array[Json]] match {
-          case Left(fail) => Array.empty[Json] // Should only occur if no changes are being made?
+          case Left(fail)  => Array.empty[Json] // Should only occur if no changes are being made?
           case Right(data) => data
         }
         val prog = for {
@@ -276,7 +263,7 @@ package object daemonutil {
 
   private def sanitizePrefix(rawPrefix: String): String = {
     val cutPrefix = if (!rawPrefix.isEmpty) rawPrefix.substring(0, Math.min(rawPrefix.length, 25)) + "-" else rawPrefix
-    if(cutPrefix.matches("[a-zA-Z\\d-]*")) cutPrefix
+    if (cutPrefix.matches("[a-zA-Z\\d-]*")) cutPrefix
     else {
       cutPrefix.replaceAll("_", "-").replaceAll("[^a-zA-Z\\d-]", "")
     }
@@ -286,7 +273,7 @@ package object daemonutil {
     prefix match {
       case Some(str) => {
         val sanitized = sanitizePrefix(str)
-        if(!str.equals(sanitized)) LogTUI.printAfter(s"The given prefix $str was invalid; used $sanitized instead.")
+        if (!str.equals(sanitized)) LogTUI.printAfter(s"The given prefix $str was invalid; used $sanitized instead.")
         os.write.over(prefixFile, sanitized)
       }
       case None => ()
@@ -307,7 +294,7 @@ package object daemonutil {
     tokens: AuthTokens
   ): IO[Int] = {
     val workingDir = getTerraformWorkDir(integrationTest)
-    val mkTmpDir = IO({os.remove.all(RadPath.temp) ; os.makeDir(RadPath.temp / "terraform")}) //Seq("bash", "-c", "rm -rf /tmp/radix && mkdir -p /tmp/radix/terraform")
+    val mkTmpDir = IO({ os.remove.all(RadPath.temp); os.makeDir(RadPath.temp / "terraform") }) //Seq("bash", "-c", "rm -rf /tmp/radix && mkdir -p /tmp/radix/terraform")
 
     updatePrefixFile(prefix)
 
@@ -323,7 +310,6 @@ package object daemonutil {
         s"-var='vault_address=${serviceAddrs.vaultAddr}' " +
         s"""-var='feature_flags=["${featureFlags.filter(_._2).keys.mkString("""","""")}"]' """
 
-
     val show: IO[(TerraformMagic.TerraformPlan, Map[String, List[String]])] =
       readTerraformPlan(execDir, workingDir, variables)
 
@@ -333,9 +319,14 @@ package object daemonutil {
       tlsConfigStr = terraformTLSVars.mkString(" ")
       definedVarsStr = s"""-var='defined_config_vars=["${flagConfig.definedVars.mkString("""","""")}"]'"""
       configStr = s"$flagConfigStr $tlsConfigStr $definedVarsStr "
-      applyCommand = Seq("bash", "-c", s"${execDir / "terraform"} apply -no-color -auto-approve " + variables + configStr)
+      applyCommand = Seq(
+        "bash",
+        "-c",
+        s"${execDir / "terraform"} apply -no-color -auto-approve " + variables + configStr
+      )
       applyExitCode <- IO(
-        os.proc(applyCommand)
+        Util
+          .proc(applyCommand)
           .call(
             cwd = workingDir,
             stdout = os.ProcessOutput(LogTUI.tfapply),
@@ -371,9 +362,11 @@ package object daemonutil {
         ) ++ terraformTLSVars
       else Seq.empty
 
-    val initAgainCommand= Seq(
-      s"${execDir / "terraform"}", "init",
-      "-plugin-dir", s"${execDir / "plugins"}",
+    val initAgainCommand = Seq(
+      s"${execDir / "terraform"}",
+      "init",
+      "-plugin-dir",
+      s"${execDir / "plugins"}",
       s"-backend=${backendMasterToken.isDefined}"
     ) ++ backendVars
     val initFirstCommand = initAgainCommand ++ Seq("-from-module", s"${execDir / "modules"}")
@@ -384,11 +377,12 @@ package object daemonutil {
       alreadyInitialized <- IO(os.list(workingDir).nonEmpty)
       initCommand = if (alreadyInitialized) initAgainCommand else initFirstCommand
       _ <- IO(
-        os.proc(initCommand)
+        Util
+          .proc(initCommand)
           .call(
             cwd = workingDir,
-            stdout = ProcessOutput(LogTUI.init),
-            stderr = ProcessOutput(LogTUI.stdErrs("terraform-init")),
+            stdout = os.ProcessOutput(LogTUI.init),
+            stderr = os.ProcessOutput(LogTUI.stdErrs("terraform-init")),
             check = false
           )
       )
@@ -398,8 +392,8 @@ package object daemonutil {
   def stopTerraform(integrationTest: Boolean): IO[Int] = {
     val workingDir = getTerraformWorkDir(integrationTest)
     val cmd = Seq("bash", "-c", s"${execDir / "terraform"} destroy -auto-approve")
-    println(s"Destroy command ${cmd.mkString(" ")}")
-    val ret = os.proc(cmd).call(stdout = os.Inherit, stderr = os.Inherit, cwd = workingDir)
+    scribe.trace(s"Destroy command ${cmd.mkString(" ")}")
+    val ret = Util.proc(cmd).call(stdout = os.Inherit, stderr = os.Inherit, cwd = workingDir)
     IO(ret.exitCode)
   }
 
@@ -417,100 +411,8 @@ package object daemonutil {
     }
 
     enabledServices.parTraverse { service =>
-      waitForDNS(s"$service.service.consul", 5.minutes)
+      Util.waitForDNS(s"$service.service.consul", 5.minutes)
     } *> IO.pure(AllDaemonsStarted)
   }
 
-  /** Wait for a DNS record to become available. Consul will not return a record for failing services.
-   * This returns Unit because we do not care what the result is, only that there is at least one.
-   *
-   * @param dnsName         The DNS name to look up
-   * @param timeoutDuration How long to wait before throwing an exception
-   */
-  def waitForDNS(dnsName: String, timeoutDuration: FiniteDuration): IO[Boolean] = {
-    val dnsQuery = new DNS.Lookup(dnsName, DNS.Type.SRV, DNS.DClass.IN)
-
-    def queryProg(): IO[Boolean] =
-      for {
-        _ <- IO(LogTUI.writeLog(s"checking: ${dnsName}"))
-        dnsAnswers <- IO(Option(dnsQuery.run.toSeq).getOrElse(Seq.empty))
-        result <- if (dnsQuery.getResult != DNS.Lookup.SUCCESSFUL || dnsAnswers.isEmpty)
-          IO.sleep(1.seconds) *> queryProg
-        else
-          LogTUI.dns(ResolveDNS(dnsName)) *> IO.pure(true)
-      } yield result
-
-    LogTUI.dns(WaitForDNS(dnsName)) *> timeoutTo(queryProg, timeoutDuration, IO.pure(false))
-  }
-
-  /**
-   *
-   * @param port The port number to check (on localhost)
-   * @return Whether the port is up
-   */
-  def isPortUp(port: Int): IO[Boolean] = IO {
-    val socket =
-      try {
-        val serverSocket = new ServerSocket(port)
-        serverSocket.setReuseAddress(true)
-        Some(serverSocket)
-      } catch {
-        case _: IOException => None
-      }
-    socket.map(_.close()).isEmpty
-  }
-
-  def waitForPortUp(port: Int, timeoutDuration: FiniteDuration): IO[Boolean] = {
-    def queryProg(): IO[Boolean] =
-      for {
-        portUp <- isPortUp(port)
-        _ <- if (!portUp) {
-          IO.sleep(1.second) *> queryProg
-        } else IO(portUp)
-      } yield portUp
-
-    timeout(queryProg, timeoutDuration)
-  }
-
-  /** Let a specified function run for a specified period of time before interrupting it and raising an error. This
-   * function sets up the timeoutTo function.
-   *
-   * Taken from: https://typelevel.org/cats-effect/datatypes/io.html#race-conditions--race--racepair
-   *
-   * @param fa    The function to run (This function must return type IO[A])
-   * @param after Timeout after this amount of time
-   * @param timer A default Timer
-   * @param cs    A default ContextShift
-   * @tparam A The return type of the function must be IO[A]. A is the type of our result
-   * @return Returns the successful completion of the function or a IO.raiseError
-   */
-  def timeout[A](fa: IO[A], after: FiniteDuration)(implicit timer: Timer[IO], cs: ContextShift[IO]): IO[A] = {
-
-    val error = new TimeoutException(after.toString)
-    timeoutTo(fa, after, IO.raiseError(error))
-  }
-
-  /** Creates a race condition between two functions (fa and timer.sleep()) that will let a program run until the timer
-   * expires
-   *
-   * Taken from: https://typelevel.org/cats-effect/datatypes/io.html#race-conditions--race--racepair
-   *
-   * @param fa       The function to race which must return type IO[A]
-   * @param after    The duration to let the function run
-   * @param fallback The function to run if fa fails
-   * @param timer    A default timer
-   * @param cs       A default ContextShift
-   * @tparam A The type of our result
-   * @return Returns the result of fa if it completes within @after or returns fallback (all IO[A])
-   */
-  def timeoutTo[A](fa: IO[A], after: FiniteDuration, fallback: IO[A])(
-    implicit timer: Timer[IO],
-    cs: ContextShift[IO]
-  ): IO[A] = {
-
-    IO.race(fa, timer.sleep(after)).flatMap {
-      case Left(a)  => IO.pure(a)
-      case Right(_) => fallback
-    }
-  }
 }

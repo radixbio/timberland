@@ -15,6 +15,7 @@ docker network create --attachable -d weaveworks/net-plugin:2.6.0 weave
 ./timberland runtime disable algs
 ./timberland runtime disable utils
 ./timberland runtime disable device_drivers
+./timberland runtime disable tui
 ./timberland runtime start
 
 TIMBERLAND_EXIT_CODE=$?

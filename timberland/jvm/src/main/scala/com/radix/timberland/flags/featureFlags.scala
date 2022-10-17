@@ -4,10 +4,9 @@ import java.net.InetAddress
 
 import cats.effect.{ContextShift, IO, Timer}
 import com.radix.timberland.launch.daemonutil
-import com.radix.timberland.launch.daemonutil.timeoutTo
 import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.timberland.runtime.AuthTokens
-import com.radix.timberland.util.LogTUI
+import com.radix.timberland.util.{LogTUI, Util}
 import com.radix.utils.helm
 import com.radix.utils.helm.http4s.Http4sConsulClient
 import com.radix.utils.helm.{ConsulOp, QueryResponse}
@@ -46,7 +45,7 @@ object featureFlags {
       "minio",
       "retool_pg_kafka_connector",
       "kafka_companions",
-      "retool",
+      "retool_postgres",
       "zookeeper"
     ),
     "device_drivers" -> Set(
@@ -55,12 +54,12 @@ object featureFlags {
       "opentrons",
       "multitrons",
       "hw_discovery",
-      "tf_exactive",
+      "tf_exactive"
     ),
     "algs" -> Set(
       "hmrpp_uservice",
       "dbpmjss_uservice",
-      "gi_uservice",
+      "gi_uservice"
     ),
     "utils" -> Set(
       "prism",
@@ -72,6 +71,7 @@ object featureFlags {
       "retool_pg_kafka_connector"
     ),
     "retool" -> Set(
+      "retool_postgres",
       "retool_pg_kafka_connector"
     )
   )
@@ -285,7 +285,7 @@ object featureFlags {
         IO(Console.print("The above changes will be written to consul/vault. Continue? [Y/n] "))
       } else IO.unit
       userInput <- if (pendingChangesExist) {
-        timeoutTo(IO(StdIn.readLine()), 30.seconds, IO.pure("y"))
+        Util.timeoutTo(IO(StdIn.readLine()), 30.seconds, IO.pure("y"))
       } else IO.pure("y")
     } yield {
       if (userInput != null && userInput.nonEmpty && userInput.toLowerCase != "y") sys.exit(0) else ()
