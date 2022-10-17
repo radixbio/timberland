@@ -27,7 +27,7 @@ echo "vm.max_map_count=262144" >> /etc/sysctl.conf
 
 if [ -f /opt/radix/timberland/exec/timberland ]; then
     cd /opt/radix/timberland/exec/
-    ./timberland runtime dns up
+    ./timberland dns up
 fi
 systemctl daemon-reload
 
@@ -39,7 +39,7 @@ sysctl net.ipv4.ip_forward=1
 %preun
 if [ -f /opt/radix/timberland/exec/timberland ]; then
     cd /opt/radix/timberland/exec/
-    ./timberland runtime dns down
+    ./timberland dns down
 fi
 rm -rf /opt/radix/terraform
 

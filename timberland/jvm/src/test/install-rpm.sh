@@ -24,16 +24,16 @@ yum install -y psmisc
 yum install -y ./timberland-rpm-all.rpm
 
 cd /opt/radix/timberland/exec
-./timberland runtime enable all
-./timberland runtime disable elemental
-./timberland runtime disable runtime
-./timberland runtime disable algs
-./timberland runtime disable utils
-./timberland runtime disable device_drivers
-./timberland runtime disable tui
-./timberland runtime disable retool
-./timberland runtime disable elasticsearch
-./timberland runtime start
+./timberland enable all
+./timberland disable elemental
+./timberland disable runtime
+./timberland disable algs
+./timberland disable utils
+./timberland disable device_drivers
+./timberland disable tui
+./timberland disable retool
+./timberland disable elasticsearch
+./timberland start
 
 TIMBERLAND_EXIT_CODE=$?
 echo "Timberland exit code: $TIMBERLAND_EXIT_CODE"

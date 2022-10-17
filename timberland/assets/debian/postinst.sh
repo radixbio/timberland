@@ -13,7 +13,7 @@ mkdir -p /opt/radix/elasticsearch_data
 
 if [ -f /opt/radix/timberland/exec/timberland ]; then
     cd /opt/radix/timberland/exec/
-    ./timberland runtime dns up
+    ./timberland dns up
 fi
 
 # WARNING: This following actions are not idempotent!

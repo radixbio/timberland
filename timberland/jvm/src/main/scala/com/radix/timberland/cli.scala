@@ -9,10 +9,6 @@ import scalaz.syntax.apply._
 
 sealed trait RadixCMD
 
-sealed trait Runtime extends RadixCMD
-
-sealed trait Local extends Runtime
-
 case class Start(
   loglevel: scribe.Level = scribe.Level.Debug,
   bindIP: Option[String] = None,
@@ -22,15 +18,15 @@ case class Start(
   username: Option[String] = None,
   password: Option[String] = None,
   serverMode: Boolean = false
-) extends Local
+) extends RadixCMD
 
-case object Stop extends Local
+case object Stop extends RadixCMD
 
-case object Nuke extends Local
+case object Nuke extends RadixCMD
 
-case object StartNomad extends Local
+case object StartNomad extends RadixCMD
 
-sealed trait DNS extends Runtime
+sealed trait DNS extends RadixCMD
 
 case object DNSUp extends DNS
 
@@ -42,30 +38,24 @@ case class FlagSet(
   remoteAddress: Option[String],
   username: Option[String],
   password: Option[String]
-) extends Runtime
+) extends RadixCMD
 
 case class FlagQuery(
   remoteAddress: Option[String],
   username: Option[String],
   password: Option[String]
-) extends Runtime
+) extends RadixCMD
 
 case class Update(
   remoteAddress: Option[String] = None,
   prefix: Option[String] = None,
   username: Option[String] = None,
   password: Option[String] = None
-) extends Local
+) extends RadixCMD
 
-case class AddUser(name: String, roles: List[String]) extends Runtime
+case class AddUser(name: String, roles: List[String]) extends RadixCMD
 
-case class AddRecipient(identifier: String, medium: MessageKind) extends Runtime
-
-sealed trait Prism extends RadixCMD
-
-case object PList extends Prism
-
-case class PPath(path: String) extends Prism
+case class AddRecipient(identifier: String, medium: MessageKind) extends RadixCMD
 
 sealed trait Oauth extends RadixCMD
 
@@ -101,7 +91,7 @@ object cli {
     )
   )
 
-  private val runtimeStart = subparser[Start](
+  private val start = subparser[Start](
     metavar("start"),
     command(
       "start",
@@ -235,7 +225,7 @@ object cli {
     )
   )
 
-  private val runtimeStop = subparser[Stop.type](
+  private val stop = subparser[Stop.type](
     metavar("stop"),
     command(
       "stop",
@@ -246,7 +236,7 @@ object cli {
     )
   )
 
-  private val runtimeNuke = subparser[Nuke.type](
+  private val nuke = subparser[Nuke.type](
     metavar("nuke"),
     command(
       "nuke",
@@ -257,7 +247,7 @@ object cli {
     )
   )
 
-  private val runtimeStartNomad = subparser[StartNomad.type](
+  private val startNomad = subparser[StartNomad.type](
     metavar("start_nomad"),
     command(
       "start_nomad",
@@ -268,12 +258,12 @@ object cli {
     )
   )
 
-  private val runtimeDnsDown = subparser[DNSDown.type](
+  private val dnsDown = subparser[DNSDown.type](
     metavar("down"),
     command("down", info(pure(DNSDown), progDesc("Remove Consul DNS from system DNS configuration")))
   )
 
-  private val runtimeDnsUp = subparser[DNSUp.type](
+  private val dnsUp = subparser[DNSUp.type](
     metavar("up"),
     command(
       "up",
@@ -284,18 +274,18 @@ object cli {
     )
   )
 
-  private val runtimeDns = subparser[DNS](
+  private val dns = subparser[DNS](
     metavar("dns"),
     command(
       "dns",
       info(
-        runtimeDnsDown.weaken[DNS] <|> runtimeDnsUp.weaken[DNS],
+        dnsDown.weaken[DNS] <|> dnsUp.weaken[DNS],
         progDesc("configure this machine's DNS for the Radix runtime")
       )
     )
   )
 
-  private val runtimeAddUser = subparser[AddUser](
+  private val addUser = subparser[AddUser](
     metavar("add_user"),
     command(
       "add_user",
@@ -309,7 +299,7 @@ object cli {
     )
   )
 
-  private val runtimeEnable = subparser[FlagSet](
+  private val enable = subparser[FlagSet](
     metavar("enable"),
     command(
       "enable",
@@ -348,7 +338,7 @@ object cli {
     )
   )
 
-  private val runtimeDisable = subparser[FlagSet](
+  private val disable = subparser[FlagSet](
     metavar("disable"),
     command(
       "disable",
@@ -387,7 +377,7 @@ object cli {
     )
   )
 
-  private val runtimeQuery = subparser[FlagQuery](
+  private val query = subparser[FlagQuery](
     metavar("query"),
     command(
       "query",
@@ -420,7 +410,7 @@ object cli {
     )
   )
 
-  private val runtimeUpdate = subparser[Update](
+  private val update = subparser[Update](
     metavar("update"),
     command(
       "update",
@@ -507,103 +497,22 @@ object cli {
     )
   )
 
-  private val runtimeCmds: List[Parser[Runtime]] = List(
-    runtimeStart,
-    runtimeStop,
-    runtimeNuke,
-    runtimeStartNomad,
-    runtimeDns,
-    runtimeAddUser,
-    runtimeEnable,
-    runtimeDisable,
-    runtimeQuery,
-    runtimeUpdate
-  ).map(_.weaken[Runtime])
-
-  private val runtime = subparser[Runtime](
-    metavar("runtime"),
-    command(
-      "runtime",
-      info(
-        runtimeCmds.reduce(_ <|> _),
-        progDescDoc(
-          Some(
-            Doc.foldDoc(
-              Seq(
-                Doc.text("Radix runtime commands:"),
-                Doc.linebreak,
-                Doc.linebreak,
-                Doc.text("To choose which components of the Radix runtime are enabled, run:"),
-                Doc.linebreak,
-                Doc.indent(
-                  2,
-                  Doc.foldDoc(
-                    Seq(
-                      Doc.text("timberland runtime enable"),
-                      Doc.linebreak,
-                      Doc.text("timberland runtime disable"),
-                      Doc.linebreak
-                    )
-                  )(Doc.append)
-                ),
-                Doc.linebreak,
-                Doc.text("To start the Radix runtime, run:"),
-                Doc.linebreak,
-                Doc.indent(2, Doc.text("timberland runtime start")),
-                Doc.linebreak,
-                Doc.linebreak,
-                Doc.text("To view information about the current system configuration, run:"),
-                Doc.linebreak,
-                Doc.indent(2, Doc.text("timberland runtime query")),
-                Doc.linebreak,
-                Doc.linebreak,
-                Doc.text("To update the components in the Radix runtime, run:"),
-                Doc.linebreak,
-                Doc.indent(2, Doc.text("timberland runtime update")),
-                Doc.linebreak,
-                Doc.linebreak,
-                Doc.text("To make this Radix installation controllable from a remote machine, run:"),
-                Doc.linebreak,
-                Doc.indent(2, Doc.text("timberland runtime add_user")),
-                Doc.linebreak,
-                Doc.linebreak,
-                Doc.text("To configure this machine's DNS for the Radix runtime, run:"),
-                Doc.linebreak,
-                Doc.indent(
-                  2,
-                  Doc.foldDoc(
-                    Seq(
-                      Doc.text("timberland runtime dns down"),
-                      Doc.linebreak,
-                      Doc.text("timberland runtime dns up"),
-                      Doc.linebreak
-                    )
-                  )(Doc.append)
-                ),
-                Doc.linebreak,
-                Doc.text("To stop or reset an existing Radix runtime installation, run:"),
-                Doc.linebreak,
-                Doc.indent(
-                  2,
-                  Doc.foldDoc(
-                    Seq(
-                      Doc.text("timberland runtime stop"),
-                      Doc.linebreak,
-                      Doc.text("timberland runtime nuke"),
-                      Doc.linebreak
-                    )
-                  )(Doc.append)
-                )
-              )
-            )(Doc.append)
-          )
-        )
-      )
-    )
-  ) <*> helper
+  private val cmds: List[Parser[RadixCMD]] = List(
+    oauth,
+    start,
+    stop,
+    nuke,
+    startNomad,
+    dns,
+    addUser,
+    enable,
+    disable,
+    query,
+    update
+  ).map(_.weaken[RadixCMD])
 
   val opts: ParserInfo[RadixCMD] = info(
-    (runtime.weaken[RadixCMD] <|> oauth.weaken[RadixCMD]) <*> helper,
+    cmds.reduce(_ <|> _) <*> helper,
     progDescDoc(
       Some(
         Doc.foldDoc(
@@ -611,11 +520,67 @@ object cli {
             Doc.text("Welcome to Timberland - The Radix Runtime Bootstrapper"),
             Doc.linebreak,
             Doc.linebreak,
-            Doc.text("To view info about starting, updating, and configuring the runtime, run:"),
+            Doc.text("To choose which components of the Radix runtime are enabled, run:"),
             Doc.linebreak,
-            Doc.indent(2, Doc.text("timberland runtime")),
+            Doc.indent(
+              2,
+              Doc.foldDoc(
+                Seq(
+                  Doc.text("timberland enable"),
+                  Doc.linebreak,
+                  Doc.text("timberland disable"),
+                  Doc.linebreak
+                )
+              )(Doc.append)
+            ),
+            Doc.linebreak,
+            Doc.text("To start the Radix runtime, run:"),
+            Doc.linebreak,
+            Doc.indent(2, Doc.text("timberland start")),
             Doc.linebreak,
             Doc.linebreak,
+            Doc.text("To view information about the current system configuration, run:"),
+            Doc.linebreak,
+            Doc.indent(2, Doc.text("timberland query")),
+            Doc.linebreak,
+            Doc.linebreak,
+            Doc.text("To update the components in the Radix runtime, run:"),
+            Doc.linebreak,
+            Doc.indent(2, Doc.text("timberland update")),
+            Doc.linebreak,
+            Doc.linebreak,
+            Doc.text("To make this Radix installation controllable from a remote machine, run:"),
+            Doc.linebreak,
+            Doc.indent(2, Doc.text("timberland add_user")),
+            Doc.linebreak,
+            Doc.linebreak,
+            Doc.text("To configure this machine's DNS for the Radix runtime, run:"),
+            Doc.linebreak,
+            Doc.indent(
+              2,
+              Doc.foldDoc(
+                Seq(
+                  Doc.text("timberland dns down"),
+                  Doc.linebreak,
+                  Doc.text("timberland dns up"),
+                  Doc.linebreak
+                )
+              )(Doc.append)
+            ),
+            Doc.linebreak,
+            Doc.text("To stop or reset an existing Radix runtime installation, run:"),
+            Doc.linebreak,
+            Doc.indent(
+              2,
+              Doc.foldDoc(
+                Seq(
+                  Doc.text("timberland stop"),
+                  Doc.linebreak,
+                  Doc.text("timberland nuke"),
+                  Doc.linebreak
+                )
+              )(Doc.append)
+            ),
             Doc.text("To view info about setting up oauth, run:"),
             Doc.linebreak,
             Doc.indent(2, Doc.text("timberland oauth"))

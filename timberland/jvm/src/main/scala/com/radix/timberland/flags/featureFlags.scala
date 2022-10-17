@@ -272,7 +272,7 @@ object featureFlags {
   }
 
   /**
-   * If you call `timberland runtime enable <flag>` and <flag> is has config options where destination = Nowhere,
+   * If you call `timberland enable <flag>` and <flag> is has config options where destination = Nowhere,
    * then this function will prompt you for those config options and call the associated hooks for <flag>
    * @param flagsToSet A list of flags that were enabled or disabled
    * @param addrs Service addresses
