@@ -4,6 +4,7 @@ echo 'Updating bazel dependencies. This will take about five minutes.'
 echo -ne "\033[0m"
 set -exu
 
+export PULLER_TIMEOUT=6000
 VERSION="v0.1-7"
 
 if [ "$(uname -s)" == "Linux" ]; then

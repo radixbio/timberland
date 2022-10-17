@@ -74,7 +74,7 @@ object runner {
               _ <-
                 if (force) {
                   implicit val blaze = ConsulVaultSSLContext.blaze
-                  val consulUri = Uri.unsafeFromString(serviceAddrs.consulAddr)
+                  val consulUri = Uri.unsafeFromString(s"https://${serviceAddrs.consulAddr}:8501")
                   val consul = new Http4sConsulClient[IO](consulUri, Some(authTokens.consulNomadToken))
                   List("terraform/.lock", "terraform/.lockinfo", "terraform").map(consul.kvDelete).sequence
                 } else IO.unit
@@ -204,21 +204,21 @@ object runner {
         case MakeConfig =>
           featureFlags.generateAllTfAndConfigFiles.unsafeRunSync()
 
-        case FlagConfig(flags, all, remoteAddress, username, password) =>
+        case FlagConfig(flags, all, remoteAddress, username, password, force) =>
           if (flags.isEmpty || flags.contains("all")) {
             configGen.setAllConfigValues(onlyMissing = !all).unsafeRunSync()
           } else {
             flags.map(configGen.setConfigValues(_, onlyMissing = !all)).sequence.unsafeRunSync()
           }
           if (os.exists(ConstPaths.bootstrapComplete)) {
-            cmdEval(Start(remoteAddress = remoteAddress, username = username, password = password))
+            cmdEval(Start(remoteAddress = remoteAddress, username = username, password = password, force = force))
           }
 
-        case FlagSet(flagNames, enable, remoteAddress, username, password) =>
+        case FlagSet(flagNames, enable, remoteAddress, username, password, force) =>
           featureFlags.setFlags(flagNames, enable).unsafeRunSync()
           featureFlags.generateAllTfAndConfigFiles.unsafeRunSync()
           if (os.exists(ConstPaths.bootstrapComplete)) {
-            cmdEval(Start(remoteAddress = remoteAddress, username = username, password = password))
+            cmdEval(Start(remoteAddress = remoteAddress, username = username, password = password, force = force))
           }
 
         case FlagQuery => featureFlags.query.unsafeRunSync()

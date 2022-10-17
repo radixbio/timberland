@@ -66,7 +66,8 @@ case class FlagConfig(
   all: Boolean,
   remoteAddress: Option[String],
   username: Option[String],
-  password: Option[String]
+  password: Option[String],
+  force: Boolean
 ) extends RadixCMD
 
 case class FlagSet(
@@ -74,7 +75,8 @@ case class FlagSet(
   enable: Boolean,
   remoteAddress: Option[String],
   username: Option[String],
-  password: Option[String]
+  password: Option[String],
+  force: Boolean
 ) extends RadixCMD
 
 case object FlagQuery extends RadixCMD
@@ -87,8 +89,8 @@ object cli {
     def weaken[B](implicit ev: A <:< B): F[B] = F.map(fa)(identity(_))
   }
 
-  private def FlagArgs[T]: ((List[String], Option[String], Option[String], Option[String]) => T) => Parser[T] =
-    ^^^(
+  private def FlagArgs[T]: ((List[String], Option[String], Option[String], Option[String], Boolean) => T) => Parser[T] =
+    ^^^^(
       many(
         strArgument(
           metavar("FLAGS"),
@@ -115,7 +117,13 @@ object cli {
           long("password"),
           help("Remote password (set locally with add_user cmd)")
         )
-      )
+      ),
+      optional(
+        switch(
+          long("force"),
+          help("Forcibly apply terraform changes despite any pending state locks.")
+        )
+      ).map(_.getOrElse(false))
     )(_)
 
   private val env = subparser[Env](
@@ -418,7 +426,7 @@ object cli {
     command(
       "config",
       info(
-        FlagArgs[FlagConfig](FlagConfig(_, false, _, _, _)) <*> optional(
+        FlagArgs[FlagConfig](FlagConfig(_, false, _, _, _, _)) <*> optional(
           switch(
             long("all"),
             help("Reconfigure all values, including the ones that already have a value")
@@ -436,7 +444,7 @@ object cli {
     command(
       "enable",
       info(
-        FlagArgs[FlagSet](FlagSet(_, true, _, _, _)),
+        FlagArgs[FlagSet](FlagSet(_, true, _, _, _, _)),
         progDesc("Enable components or features of the Radix runtime")
       )
     )
@@ -447,7 +455,7 @@ object cli {
     command(
       "disable",
       info(
-        FlagArgs[FlagSet](FlagSet(_, false, _, _, _)),
+        FlagArgs[FlagSet](FlagSet(_, false, _, _, _, _)),
         progDesc("Disable components or features of the Radix runtime")
       )
     )
