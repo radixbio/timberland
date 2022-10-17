@@ -1,9 +1,8 @@
 package com.radix.utils.tls
 
-import cats.effect.{IO, Resource}
+import cats.effect.{ConcurrentEffect, Effect, IO, Resource}
 import org.http4s.client.Client
 import org.http4s.client.blaze.BlazeClientBuilder
-
 import SSLContextThreadPool._
 
 object ConsulVaultSSLContext extends SSLContextBase {
@@ -23,14 +22,21 @@ object ConsulVaultSSLContext extends SSLContextBase {
     certPem: Option[String] = None,
     keyPem: Option[String] = None
   ): Unit = {
+    blazeOption = Some(makeBlaze[IO](caPem, certPem, keyPem))
+  }
+
+  def makeBlaze[F[_]](
+    caPem: Option[String] = None,
+    certPem: Option[String] = None,
+    keyPem: Option[String] = None
+  )(implicit F: ConcurrentEffect[F]): Resource[F, Client[F]] = {
     val roots = getRootCerts(caPem)
     val leaf = getLeafCert(certPem, keyPem)
     val sslContext = SSLContextCreator.getSslContext(leaf, roots)
-    val newBlaze = BlazeClientBuilder[IO](executionContext)
+    BlazeClientBuilder[F](executionContext)
       .withCheckEndpointAuthentication(false)
       .withSslContext(sslContext)
       .resource
-    blazeOption = Some(newBlaze)
   }
 
   override def getRootCerts(caPem: Option[String]): Seq[RootCert] = {
