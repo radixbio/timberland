@@ -122,17 +122,18 @@ object featureFlags {
       actualFlags = resolveSupersetFlags(flagsToSet, validFlags)
       localFlags <- getLocalFlags(persistentDir)
       totalFlags = localFlags ++ actualFlags
-      shouldPrompt = (defaultFlagMap ++ totalFlags)("interactive")
+      // If this map is empty and defined, it prevents stdin prompts and falls back to default values for all configs
+      nonInteractiveConfig = if ((defaultFlagMap ++ totalFlags)("interactive")) None else Some(Map.empty[String, String])
       shouldUpdateConsul <- tokens match {
         case Some(_) => isConsulUp()
         case None    => IO.pure(false)
       }
-      _ <- callNonpersistentFlagHooks(flagsToSet, shouldPrompt)
+      _ <- callNonpersistentFlagHooks(flagsToSet, nonInteractiveConfig)
       newFlags <-
         if (shouldUpdateConsul) {
           for {
             _ <-
-              if (shouldPrompt && confirm) {
+              if (nonInteractiveConfig.isEmpty && confirm) {
                 confirmFlags(persistentDir, shouldUpdateConsul, serviceAddrs, tokens, totalFlags)
               } else IO.unit
             _ <- clearLocalFlagFile(persistentDir, totalFlags)
@@ -164,7 +165,7 @@ object featureFlags {
    * @param flags The flags to push
    * @return The total set of all flags on Consul after pushing
    */
-  private def setConsulFlags(
+  def setConsulFlags(
     flags: Map[String, Boolean]
   )(implicit serviceAddrs: ServiceAddrs, tokens: AuthTokens): IO[Map[String, Boolean]] = {
     val consulUri = Uri.fromString(s"https://${serviceAddrs.consulAddr}:8501").toOption.get
@@ -269,7 +270,7 @@ object featureFlags {
    * @param persistentDir Timberland directory. Usually /opt/radix/timberland
    * @return A list of valid flags
    */
-  private def getValidFlags(persistentDir: os.Path, tokens: Option[AuthTokens])(implicit
+  def getValidFlags(persistentDir: os.Path, tokens: Option[AuthTokens])(implicit
     serviceAddrs: ServiceAddrs = ServiceAddrs()
   ): IO[Set[String]] = {
     val moduleFile = persistentDir / os.up / "terraform" / ".terraform" / "modules" / "modules.json"
@@ -295,20 +296,22 @@ object featureFlags {
    * If you call `timberland enable <flag>` and <flag> is has config options where destination = Nowhere,
    * then this function will prompt you for those config options and call the associated hooks for <flag>
    *
-   * @param flagsToSet A list of flags that were enabled or disabled
-   * @param addrs      Service addresses
+   * @param flagsToSet           A list of flags that were enabled or disabled
+   * @param addrs                Service addresses
+   * @param nonInteractiveConfig If defined, use this map of config values (falling back to default) instead of prompts
    * @return Nothing
    */
-  def callNonpersistentFlagHooks(flagsToSet: Map[String, Boolean], shouldPrompt: Boolean)(implicit
-    addrs: ServiceAddrs
-  ): IO[Unit] = {
+  def callNonpersistentFlagHooks(
+    flagsToSet: Map[String, Boolean],
+    nonInteractiveConfig: Option[Map[String, String]]
+  )(implicit addrs: ServiceAddrs): IO[Unit] = {
     val flagList = flagsToSet.filter(_._2).keys.toList
     for {
       configResponses <- flagConfig.getMissingParams(
         flagList,
         destination = Nowhere,
         curFlagToConfigMap = Map.empty,
-        shouldPrompt
+        nonInteractiveConfig
       )
       _ <- flagList
         .filter(config.flagConfigHooks.contains)

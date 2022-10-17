@@ -103,11 +103,12 @@ object flagConfig {
     persistentDir: os.Path,
     tokens: Option[AuthTokens] = None
   ): IO[TerraformConfigVars] = {
-    val shouldPrompt = (defaultFlagMap ++ flagMap)("interactive")
+    // Specifying an empty nonInteractiveConfig prevents stdin prompts and falls back to default values for all configs
+    val nonInteractiveConfig = if ((defaultFlagMap ++ flagMap)("interactive")) None else Some(Map.empty[String, String])
     val flagList = flagMap.filter(_._2).keys.toList
     for {
       partialFlagConfig <- readFlagConfig
-      totalFlagConfig <- addMissingParams(flagList, partialFlagConfig, shouldPrompt)
+      totalFlagConfig <- addMissingParams(flagList, partialFlagConfig, nonInteractiveConfig)
       _ <- writeFlagConfig(totalFlagConfig)
       _ <- executeHooks(flagList, totalFlagConfig)
     } yield TerraformConfigVars(
@@ -207,7 +208,7 @@ object flagConfig {
    *
    * @param configs The config to write
    */
-  private def writeFlagConfig(
+  def writeFlagConfig(
     configs: FlagConfigs
   )(implicit serviceAddrs: ServiceAddrs, persistentDir: os.Path, tokens: Option[AuthTokens]): IO[Unit] =
     for {
@@ -223,14 +224,19 @@ object flagConfig {
   /**
    * Prompts the user for any values specified in `config.flagConfigParams` but not in the passed `partialFlagMap`
    *
-   * @param flagList          A list of flags for which all configuration parameters should be defined
-   * @param partialFlagConfig A potentially incomplete FlagConfigs object
+   * @param flagList             A list of flags for which all configuration parameters should be defined
+   * @param partialFlagConfig    A potentially incomplete FlagConfigs object
+   * @param nonInteractiveConfig If defined, use this map of config values (falling back to default) instead of prompts
    * @return A FlagConfigs object containing a full set of configuration parameters for each enabled flag
    */
-  def addMissingParams(flagList: List[String], partialFlagConfig: FlagConfigs, prompt: Boolean): IO[FlagConfigs] = {
+  def addMissingParams(
+    flagList: List[String],
+    partialFlagConfig: FlagConfigs,
+    nonInteractiveConfig: Option[Map[String, String]]
+  ): IO[FlagConfigs] = {
     for {
-      newConsulData <- getMissingParams(flagList, destination = Consul, partialFlagConfig.consulData, prompt)
-      newVaultData <- getMissingParams(flagList, destination = Vault, partialFlagConfig.vaultData, prompt)
+      newConsulData <- getMissingParams(flagList, Consul, partialFlagConfig.consulData, nonInteractiveConfig)
+      newVaultData <- getMissingParams(flagList, Vault, partialFlagConfig.vaultData, nonInteractiveConfig)
     } yield partialFlagConfig ++ FlagConfigs(newConsulData, newVaultData)
   }
 
@@ -238,17 +244,17 @@ object flagConfig {
    * Helper method for `addMissingParams`
    * Prompts the user for vault or consul keys and builds a map with the responses
    *
-   * @param flagList           The list of flags to ask for config values for
-   * @param destination        Whether to write flags to consul, vault, or neither
-   * @param curFlagToConfigMap The current map of flags. Anything defined here will not be prompted
-   * @param shouldConfirm      Whether to prompt the user to confirm pushing changes to consul
+   * @param flagList             The list of flags to ask for config values for
+   * @param destination          Whether to write flags to consul, vault, or neither
+   * @param curFlagToConfigMap   The current map of flags. Anything defined here will not be prompted
+   * @param nonInteractiveConfig If defined, use this map of config values (falling back to default) instead of prompts
    * @return A map containing only the key/values that were prompted
    */
   def getMissingParams(
     flagList: List[String],
     destination: FlagConfigDestination,
     curFlagToConfigMap: Map[String, Map[String, Option[String]]],
-    shouldPrompt: Boolean
+    nonInteractiveConfig: Option[Map[String, String]]
   ): IO[Map[String, Map[String, Option[String]]]] = {
     flagList
       .filter(config.flagConfigParams.contains)
@@ -259,7 +265,7 @@ object flagConfig {
 
         val newConfigEntriesIO = missingKeys.toList.map { missingKey =>
           val configEntry = config.flagConfigParams(flagName).find(_.key == missingKey).get
-          promptUser(configEntry, shouldPrompt).map(missingKey -> _)
+          promptUser(configEntry, nonInteractiveConfig).map(missingKey -> _)
         }.sequence
         newConfigEntriesIO.map(newConfigEntries => flagName -> newConfigEntries.toMap)
       }
@@ -272,17 +278,21 @@ object flagConfig {
    * A default value (or null if `optional`) is used when an empty string is specified or the terminal is noninteractive
    *
    * @param entry The config entry specifying the prompt string, whether the value is optional, and a default value
+   * @param nonInteractiveConfig If defined, use this map of config values (falling back to default) instead of prompts
    * @return The response from stdin if the response is nonempty and the terminal is interactive
    */
-  private def promptUser(entry: FlagConfigEntry, shouldPrompt: Boolean): IO[Option[String]] = {
+  private def promptUser(
+    entry: FlagConfigEntry,
+    nonInteractiveConfig: Option[Map[String, String]]
+  ): IO[Option[String]] = {
     implicit val cs: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
     implicit val timer: Timer[IO] = IO.timer(ExecutionContext.global)
     for {
       _ <- LogTUI.acquireScreen()
-      userInput <-
-        if (shouldPrompt) {
-          Util.promptForString((if (entry.optional) "[Optional] " else "") + entry.prompt)
-        } else IO.pure(entry.default)
+      userInput <- nonInteractiveConfig match {
+        case Some(map) => IO.pure(map.get(entry.key).orElse(entry.default))
+        case None => Util.promptForString((if (entry.optional) "[Optional] " else "") + entry.prompt)
+      }
       _ <- LogTUI.releaseScreen()
       maybeUserInput <- IO {
         userInput.orElse(entry.default).orElse {
