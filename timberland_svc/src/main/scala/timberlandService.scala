@@ -19,6 +19,7 @@ import org.http4s.dsl.io._
 import org.http4s.circe._
 import org.http4s.headers._
 import org.http4s.server.blaze.BlazeServerBuilder
+import org.http4s.server.middleware.{CORS, CORSConfig}
 import org.http4s.syntax.all._
 
 case class TimberlandFlag(
@@ -49,10 +50,16 @@ object timberlandService extends IOApp {
   private def startTimberlandConfigServer(): IO[Nothing] =
     BlazeServerBuilder[IO]
       .bindHttp(7777, "localhost")
-      .withHttpApp(routes.orNotFound)
+      .withHttpApp(routesWithCORS)
       .resource.use(_ => IO.never)
       .start
       .flatMap(_.join)
+
+  private def routesWithCORS: Http[IO, IO] = CORS(routes.orNotFound, CORSConfig(
+    anyOrigin = false,
+    allowedOrigins = Set("https://localhost:1337", "http://localhost:1337"),
+    allowCredentials = false,
+    maxAge = 1.day.toSeconds))
 
   private def routes: HttpRoutes[IO] = HttpRoutes.of[IO] {
     case GET -> Root => getConfig()
