@@ -10,6 +10,7 @@ consul {
 
 vault {
   address = "https://vault.service.consul:8200"
+  renew_token = false
   ssl {
     enabled = true
     verify = false
@@ -25,6 +26,7 @@ template {
   error_on_missing_key = true
   perms = 0600
   backup = true
+  command = "sh -c 'systemctl reload nomad consul vault || true'"
 }
 
 template {
@@ -33,7 +35,7 @@ template {
   error_on_missing_key = true
   perms = 0600
   backup = true
-  command = "systemctl reload nomad"
+  command = "sh -c 'systemctl reload nomad || true'"
 }
 
 template {
@@ -42,7 +44,7 @@ template {
   error_on_missing_key = true
   perms = 0600
   backup = true
-  command = "systemctl reload nomad"
+  command = "sh -c 'systemctl reload nomad || true'"
 }
 
 template {
@@ -51,7 +53,7 @@ template {
   error_on_missing_key = true
   perms = 0600
   backup = true
-  command = "killall -SIGHUP consul"
+  command = "sh -c 'systemctl reload consul || true'"
 }
 
 template {
@@ -60,7 +62,7 @@ template {
   error_on_missing_key = true
   perms = 0600
   backup = true
-  command = "killall -SIGHUP consul"
+  command = "sh -c 'systemctl reload consul || true'"
 }
 
 template {
@@ -69,7 +71,6 @@ template {
   error_on_missing_key = true
   perms = 0600
   backup = true
-  command = "systemctl reload nomad"
 }
 
 template {
@@ -78,7 +79,6 @@ template {
   error_on_missing_key = true
   perms = 0600
   backup = true
-  command = "systemctl reload nomad"
 }
 
 // vault isn't always present, don't error if it's not running
@@ -88,7 +88,7 @@ template {
   error_on_missing_key = true
   perms = 0600
   backup = true
-  command = "killall -SIGHUP vault || true"
+  command = "sh -c 'systemctl reload vault || true'"
 }
 
 template {
@@ -97,7 +97,7 @@ template {
   error_on_missing_key = true
   perms = 0600
   backup = true
-  command = "killall -SIGHUP vault || true"
+  command = "sh -c 'systemctl reload vault || true'"
 }
 
 template {
@@ -106,6 +106,7 @@ template {
   error_on_missing_key = true
   perms = 0600
   backup = true
+  command = "sh -c 'systemctl reload vault || true'"
 }
 
 template {
@@ -114,6 +115,7 @@ template {
   error_on_missing_key = true
   perms = 0600
   backup = true
+  command = "sh -c 'systemctl reload vault || true'"
 }
 
 // Add template for vault token

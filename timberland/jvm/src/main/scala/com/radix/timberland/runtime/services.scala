@@ -55,7 +55,14 @@ object Services {
         }
       }
       certDir = os.root / "opt" / "radix" / "certs"
-      consulCliCertPemBak = certDir / "cli" / "cert.pem.bak"
+      consulTemplateReplacementCerts = List(
+        certDir / "ca" / "cert.pem.bak",
+        certDir / "vault" / "cert.pem.bak",
+        certDir / "vault" / "key.pem.bak",
+        certDir / "cli" / "cert.pem.bak",
+        certDir / "cli" / "key.pem.bak"
+      )
+
       intermediateAclTokenFile = RadPath.runtime / "timberland" / ".intermediate-acl-token"
       hasPartiallyBootstrapped <- IO(os.exists(intermediateAclTokenFile))
       consulToken <- makeOrGetIntermediateToken
@@ -64,8 +71,8 @@ object Services {
       remoteJoin = clientJoin | serverJoin
       _ <- if (setupACL) auth.writeTokenConfigs(persistentDir, consulToken) else IO.unit
       _ <- IO {
-        if (os.exists(consulCliCertPemBak)) {
-          os.remove(consulCliCertPemBak)
+        consulTemplateReplacementCerts.foreach { certBakPath =>
+          if (os.exists(certBakPath)) os.remove(certBakPath)
         }
       }
       _ <- startConsul(finalBindAddr, leaderNodeO, bootstrapExpect, clientJoin)
@@ -78,7 +85,7 @@ object Services {
       else IO.unit
       vaultToken <- IO((new VaultUtils).findVaultToken())
       _ <- startConsulTemplate(consulToken, vaultToken) // wait for consulCaCertPemBak
-      _ <- Util.waitForPathToExist(consulCliCertPemBak, 30.seconds)
+      _ <- consulTemplateReplacementCerts.map(Util.waitForPathToExist(_, 30.seconds)).parSequence
       _ <- if (remoteJoin)
         IO(
           os.copy.over(

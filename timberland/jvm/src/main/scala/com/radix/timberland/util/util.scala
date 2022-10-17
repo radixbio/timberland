@@ -164,7 +164,9 @@ object Util {
   def waitForSystemdString(serviceName: String, stringToFind: String, timeoutDuration: FiniteDuration): IO[Unit] = {
     def queryLoop(): IO[Boolean] =
       for {
-        journalctlLog <- exec(s"journalctl -e -n 20 -u $serviceName")
+        timestampOutput <- exec(s"systemctl show -p ActiveEnterTimestamp $serviceName").map(_.stdout)
+        timestamp = timestampOutput.split(" ").slice(1, 3).mkString(" ")
+        journalctlLog <- execArr(List("journalctl", "-e", "-u", serviceName, "--since", timestamp))
         lookupResult <- IO(journalctlLog.stdout.contains(stringToFind))
         _ <- lookupResult match {
           case false => IO.sleep(2.seconds) *> queryLoop
@@ -190,11 +192,14 @@ object Util {
   // needed because CommandResult can't be redirected and read, or even read multiple times...
   case class ProcOut(exitCode: Int, stdout: String, stderr: String)
 
-  def exec(command: String, cwd: Path = os.root): IO[ProcOut] = IO {
+  def exec(command: String, cwd: Path = os.root, env: Map[String, String] = Map.empty): IO[ProcOut] =
+    execArr(command.split(" "), cwd, env)
+
+  def execArr(command: Seq[String], cwd: Path = os.root, env: Map[String, String] = Map.empty): IO[ProcOut] = IO {
     scribe.info(s"Calling: $command")
     val res = os
-      .proc(command.split(' ')) // dodgy assumption, but fine for most uses
-      .call(cwd = cwd, check = false, stdout = os.Pipe, stderr = os.Pipe)
+      .proc(command) // dodgy assumption, but fine for most uses
+      .call(cwd = cwd, env = env, check = false, stdout = os.Pipe, stderr = os.Pipe)
     val stdout: String = res.out.text
     val stderr: String = res.err.text
     val output = ProcOut(res.exitCode, stdout, stderr)
