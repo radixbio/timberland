@@ -105,8 +105,9 @@ object flags {
         case _ =>
           for {
             localFlags <- getLocalFlags(persistentDir)
-            _ <- clearLocalFlagFile(persistentDir, localFlags)
-            newFlags <- setConsulFlags(localFlags ++ actualFlags, serviceAddrs)
+            totalFlags = localFlags ++ actualFlags
+            _ <- clearLocalFlagFile(persistentDir, totalFlags)
+            newFlags <- setConsulFlags(totalFlags, serviceAddrs)
           } yield ConsulFlagsUpdated(newFlags)
       }
     } yield newFlags
@@ -178,10 +179,10 @@ object flags {
   }
 
   /**
-   * Removes all flags except the dev flag from the local file. This is so that if another computer
+   * Removes all flags except special flags from the local file. This is so that if another computer
    * changes the feature flags on Consul, starting timberland on the original computer won't overwrite them
    * @param persistentDir Timberland directory. Usually /opt/radix/timberland
-   * @param contents Current contents of the local flag file (before clearing)
+   * @param contents List of all flags (used to persist special flags)
    * @return Nothing
    */
   private def clearLocalFlagFile(persistentDir: os.Path, contents: Map[String, Boolean]): IO[Unit] = {
@@ -190,7 +191,7 @@ object flags {
       val newJson = specialFlags.map(flag => flag -> {
         val defaultSpecialFlagVal = defaultFlagMap.getOrElse(flag, false)
         contents.getOrElse(flag, defaultSpecialFlagVal)
-      }).toMap.asJson.asString
+      }).toMap.asJson.toString()
 
       IO(os.write.over(flagFile resolveFrom persistentDir, newJson))
     } else IO.unit
