@@ -359,6 +359,7 @@ object Services {
       _ <-
         if (initialSetup) auth.writeConsulNomadTokenConfigs(RadPath.persistentDir, consulToken, vaultToken)
         else IO.unit
+      gossipKey <- auth.getGossipKey(vaultToken, leaderNodeO.getOrElse("127.0.0.1"))
 
       // START CONSUL TEMPLATE
       _ <- serviceController.configureConsulTemplate(consulToken, vaultToken, leaderNodeO)
@@ -376,7 +377,7 @@ object Services {
         else IO.unit
 
       // START CONSUL
-      _ <- setupConsul(finalBindAddr, leaderNodeO, bootstrapExpect, clientJoin)
+      _ <- setupConsul(finalBindAddr, gossipKey, leaderNodeO, bootstrapExpect, clientJoin)
       _ <- Util.waitForSystemdString("consul", "agent: Synced node info", 60.seconds)
       actorToken <- if (initialSetup) auth.setupConsulTokens(RadPath.persistentDir, consulToken) else IO("")
       _ <-
@@ -385,7 +386,7 @@ object Services {
       _ <- if (initialSetup) addConsulIntention(consulToken) else IO.unit
 
       // START NOMAD
-      _ <- setupNomad(finalBindAddr, leaderNodeO, bootstrapExpect, vaultToken, consulToken, serverJoin)
+      _ <- setupNomad(finalBindAddr, gossipKey, leaderNodeO, bootstrapExpect, vaultToken, consulToken, serverJoin)
       consulNomadToken <-
         if (initialSetup && !remoteJoin) {
           auth.setupNomadMasterToken(RadPath.persistentDir, consulToken)
@@ -431,12 +432,15 @@ object Services {
 
   def setupConsul(
     bindAddr: String,
+    gossipKey: String,
     leaderNodeO: Option[String],
     bootstrapExpect: Int,
     serverJoin: Boolean = false
   ): IO[Unit] = {
     val baseArgs =
-      s"""-bind=$bindAddr -advertise=$bindAddr -client=\\\"127.0.0.1 $bindAddr\\\" -config-dir=${(RadPath.persistentDir / "consul" / "config").toString}"""
+      s"""-bind=$bindAddr -advertise=$bindAddr -client=\\\"127.0.0.1 $bindAddr\\\" """ +
+      s"""-config-dir=${(RadPath.persistentDir / "consul" / "config").toString} """ +
+      s"""-encrypt=$gossipKey"""
     val clientJoin = leaderNodeO.isDefined && !serverJoin
     val remoteJoin = clientJoin || serverJoin
 
@@ -476,6 +480,7 @@ object Services {
 //  def startNomad(bindAddr: String, bootstrapExpect: Int, vaultToken: String, remoteJoin: Boolean = false): IO[Unit] = {
   def setupNomad(
     bindAddr: String,
+    gossipKey: String,
     leaderNodeO: Option[String],
     bootstrapExpect: Int,
     vaultToken: String,
@@ -502,7 +507,7 @@ object Services {
 
       case None => baseArgs
     }
-    val parameters: String = s"$baseArgsWithSeeds -bind=$bindAddr"
+    val parameters: String = s"$baseArgsWithSeeds -bind=$bindAddr -encrypt=$gossipKey"
     for {
       configureNomad <- serviceController.configureNomad(parameters, vaultToken, consulToken)
       procOut <- serviceController.restartNomad()

@@ -35,6 +35,36 @@ object auth {
     } else getLocalAuthTokens()
   }
 
+  def getGossipKey(vaultToken: String, vaultAddress: String): IO[String] = {
+    val vaultUri = Uri.fromString(s"https://$vaultAddress:8200").toOption.get
+    val vault = new Vault[IO](authToken = Some(vaultToken), baseUrl = vaultUri)
+    val gossipKeyOption = vault.getSecret(s"gossip-key").map {
+      case Right(KVGetResult(_, data)) =>
+        data.hcursor.get[String]("key").toOption
+      case Left(err) =>
+        scribe.warn(s"Error getting gossip key from vault\n" + err)
+        scribe.warn(s"Error message: ${err.getMessage}")
+        None
+    }
+    gossipKeyOption.flatMap {
+      case Some(key) => IO.pure(key)
+      case None =>
+        val consul = RadPath.persistentDir / "consul" / "consul"
+        val keygenCmd = s"$consul keygen"
+        for {
+          keygenResp <- Util.exec(keygenCmd)
+          key = keygenResp.stdout.stripSuffix("\n")
+          vaultPayload = CreateSecretRequest(data = Map("key" -> key).asJson, cas = None)
+          vaultResp <- vault.createSecret("gossip-key", vaultPayload)
+          _ = vaultResp match {
+            case Left(err) =>
+              scribe.warn(s"Warning, gossip key could not be saved to vault due to:\n" + err)
+            case _ => ()
+          }
+        } yield key
+    }
+  }
+
   private def getRemoteAuthTokens(serviceAddrs: ServiceAddrs, username: String, password: String): IO[AuthTokens] = {
     import com.radix.utils.tls.TrustEveryoneSSLContext.insecureBlaze
     implicit val blaze = insecureBlaze
