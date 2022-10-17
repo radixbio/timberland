@@ -10,7 +10,7 @@ import java.util.UUID
 import java.util.concurrent.Executors
 
 import com.radix.timberland.runtime.Services.serviceController
-import com.radix.timberland.flags.hooks.{awsAuthConfig, AWSAuthConfigFile}
+import com.radix.timberland.flags.hooks.{AWSAuthConfigFile, awsAuthConfig}
 import com.radix.timberland.radixdefs.ACLTokens
 import com.radix.timberland.util._
 import com.radix.utils.tls.ConsulVaultSSLContext
@@ -24,9 +24,9 @@ import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.{Failure, Success, Try}
-
 import io.circe.generic.auto._
 import io.circe.syntax._
+import os.ProcessInput
 
 trait ServiceControl {
   def restartConsul(): IO[Util.ProcOut] = ???
@@ -131,9 +131,24 @@ class LinuxServiceControl extends ServiceControl {
       _ = Investigator.reportHashiUpdate("Nomad", "Starting")
       _ = LogTUI.writeLog("spawning nomad via systemd")
       _ = os.write.over(RadPath.persistentDir / "nomad" / "nomad.env.conf", args)
-
+      _ <- clearStaleRules
     } yield ()
 
+  /**
+   * Clears CNI-created ip routing rules from netfilter
+   * Prevents this bug: https://github.com/hashicorp/nomad/issues/9558
+   * If this isn't called, statically allocated ports and ingress gateways won't work
+   */
+  private def clearStaleRules: IO[Unit] = for {
+    iptables <- Util.exec("iptables-save").map(_.stdout)
+    cleanedTables = iptables
+      .split("\n")
+      .filter(!_.contains("CNI-"))
+      .mkString("\n")
+    _ <- IO {
+      os.proc("iptables-restore").call(stdin = ProcessInput.makeSourceInput(cleanedTables))
+    }
+  } yield ()
 }
 
 class WindowsServiceControl extends ServiceControl {
