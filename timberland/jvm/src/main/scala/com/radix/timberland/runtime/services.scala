@@ -476,6 +476,10 @@ object Services {
     for {
       configureNomad <- serviceController.configureNomad(parameters, vaultToken, consulToken)
       procOut <- serviceController.restartNomad()
+      _ <- Util.waitForDNS("nomad.service.consul", 30.seconds).recoverWith(Function.unlift { _ =>
+        scribe.warn("Nomad did not exit cleanly. Restarting nomad systemd service...")
+        Some(serviceController.restartNomad().map(_ => ()))
+      })
       _ <- IO(LogTUI.event(NomadSystemdUp))
     } yield ()
   }

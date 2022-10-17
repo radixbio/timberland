@@ -268,8 +268,8 @@ object auth {
           val payload = CreateSecretRequest(data = Map("token" -> token).asJson, cas = None)
           vault.createSecret(s"tokens/${name}", payload).map {
             case Left(err) =>
-              scribe.error(s"Error saving ${name} token to vault\n" + err)
-              sys.exit(1)
+              scribe.warn(s"Warning, ${name} could not be saved to vault due to:\n" + err)
+              scribe.warn(s"This is most likely because the token already exists")
             case Right(_) => ()
           }
         }
