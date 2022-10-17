@@ -18,7 +18,7 @@ case class AWSAuthConfigFile(
 )
 
 object awsAuthConfig extends FlagHook {
-  val configFile = RadPath.runtime / "terraform" / ".aws-creds"
+  val configFile = RadPath.runtime / "timberland" / ".aws-creds"
 
   override def run(options: Map[String, Option[String]], _addrs: ServiceAddrs): IO[Unit] =
     (options.get("aws_access_key_id").flatten, options.get("aws_secret_access_key").flatten) match {
