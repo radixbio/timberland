@@ -1,6 +1,6 @@
 workspace(
     name = "monorepo",
-    managed_directories = {"@npm": ["interface/typescript/node_modules"]},
+    managed_directories = {"@npm": ["interface/node_modules"]},
 )
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file")
@@ -889,6 +889,6 @@ load("@build_bazel_rules_nodejs//:index.bzl", "yarn_install")
 yarn_install(
     # Name this npm so that Bazel Label references look like @npm//package
     name = "npm",
-    package_json = "//interface/typescript:package.json",
-    yarn_lock = "//interface/typescript:yarn.lock",
+    package_json = "//interface:package.json",
+    yarn_lock = "//interface:yarn.lock",
 )

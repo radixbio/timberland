@@ -482,9 +482,9 @@ pkg_tar(
 pkg_tar(
     name = "timberland-radix-ui",
     srcs = [
-        "//interface/typescript:build",
+        "//interface:build",
     ],
-    package_dir = "/opt/radix/interface/typescript/",
+    package_dir = "/opt/radix/interface/",
 )
 
 pkg_tar(
@@ -554,6 +554,7 @@ pkg_tar(
 pkg_tar(
     name = "timberland-full-tar",
     deps = [
+        ":timberland-radix-ui",
         ":timberland-services",
         ":timberland-slim-tar",
     ],
@@ -582,7 +583,6 @@ pkg_tar(
         ":timberland-networkd",
         ":timberland-nomad",
         ":timberland-nomad-config",
-        ":timberland-radix-ui",
         ":timberland-systemd-services",
         ":timberland-windows-startup-script",
         #        ":timberland-tcp-tunnel",
