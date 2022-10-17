@@ -55,6 +55,23 @@ client {
     path = "/opt/radix/device_drivers"
     read_only = false
   }
+
+  chroot_env {
+    "/bin" = "/bin",
+    "/opt/radix/timberland/resolv.conf" = "/etc/resolv.conf",
+    "/etc/ld.so.cache" = "/etc/ld.so.cache",
+    "/etc/ld.so.conf" = "/etc/ld.so.conf",
+    "/etc/ld.so.conf.d" = "/etc/ld.so.conf.d",
+    "/etc/passwd" = "/etc/passwd",
+    "/etc/sudoers" = "/etc/sudoers",
+    "/etc/hosts" = "/etc/hosts",
+    "/etc/java-11-openjdk" = "/etc/java-11-openjdk",
+    "/lib" = "/lib",
+    "/lib32" = "/lib32",
+    "/lib64" = "/lib64",
+    "/sbin" = "/sbin",
+    "/usr" = "/usr",
+  }
 }
 
 plugin "raw_exec" {

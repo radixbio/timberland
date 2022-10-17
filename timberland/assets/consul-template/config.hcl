@@ -11,6 +11,14 @@ vault {
 }
 
 template {
+  source = "/opt/radix/timberland/consul-template/resolv.conf.tpl"
+  destination = "/opt/radix/timberland/resolv.conf"
+  error_on_missing_key = true
+  perms = 0644
+  backup = true
+}
+
+template {
   source = "/opt/radix/timberland/consul-template/ca/cert.pem.tpl"
   destination = "/opt/radix/certs/ca/cert.pem"
   error_on_missing_key = true

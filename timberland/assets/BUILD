@@ -45,6 +45,7 @@ exports_files([
     "consul-template/vault/key.pem.tpl",
     "consul-template/cli/cert.pem.tpl",
     "consul-template/cli/key.pem.tpl",
+    "consul-template/resolv.conf.tpl",
     "consul-template/config.hcl",
     "consul-template/config-windows.hcl",
     "update/cloud_upload_config.sh",

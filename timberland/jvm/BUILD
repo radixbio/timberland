@@ -312,6 +312,14 @@ pkg_tar(
 )
 
 pkg_tar(
+    name = "timberland-consul-template-dns",
+    srcs = [
+        "//timberland/assets:consul-template/resolv.conf.tpl",
+    ],
+    package_dir = "/opt/radix/timberland/consul-template",
+)
+
+pkg_tar(
     name = "timberland-consul-template-ca",
     srcs = [
         "//timberland/assets:consul-template/ca/cert.pem.tpl",
@@ -491,6 +499,7 @@ pkg_tar(
         ":timberland-consul-template-ca",
         ":timberland-consul-template-cli",
         ":timberland-consul-template-consul",
+        ":timberland-consul-template-dns",
         ":timberland-consul-template-nomad",
         ":timberland-consul-template-vault",
         ":timberland-containernetworking-cni-plugin",
@@ -525,8 +534,7 @@ pkg_deb(
         "docker.io | docker-ce",
         "openjdk-11-jre-headless",
         "net-tools",
-        "avahi-utils",
-        "socat",
+        "avahi-utils"
     ],
     description_file = ":deb-description",
     maintainer = "Alex Hulbert",
