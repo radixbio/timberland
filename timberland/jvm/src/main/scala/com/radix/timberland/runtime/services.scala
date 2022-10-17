@@ -27,18 +27,21 @@ trait ServiceControl {
   def restartConsulTemplate(): IO[Util.ProcOut] = ???
   def startConsulTemplate(): IO[Util.ProcOut] = ???
   def restartNomad(): IO[Util.ProcOut] = ???
+  def restartTimberlandSvc(): IO[Util.ProcOut] = ???
   def restartVault(): IO[Util.ProcOut] = ???
   def refreshConsul()(implicit timer: Timer[IO]): IO[Util.ProcOut] = ???
   def refreshVault()(implicit timer: Timer[IO]): IO[Util.ProcOut] = ???
   def stopConsul(): IO[Util.ProcOut] = ???
   def stopConsulTemplate(): IO[Util.ProcOut] = ???
   def stopNomad(): IO[Util.ProcOut] = ???
+  def stopTimberlandSvc(): IO[Util.ProcOut] = ???
   def stopVault(): IO[Util.ProcOut] = ???
   def configureConsul(parameters: String): IO[Unit] = ???
   def appendParametersConsul(parameters: String): IO[Unit] = ???
   def configureConsulTemplate(parameters: String): IO[Unit] = ???
   def configureConsulTemplate(consulToken: String, vaultToken: String): IO[Unit] = ???
   def configureNomad(parameters: String, vaultToken: String, consulToken: String): IO[Unit] = ???
+  def configureTimberlandSvc(): IO[Unit] = ???
   def configureVault(parameters: String): IO[Unit] = ???
 }
 
@@ -46,10 +49,12 @@ class LinuxServiceControl extends ServiceControl {
   override def restartConsul(): IO[Util.ProcOut] = Util.exec("systemctl restart consul")
   override def restartConsulTemplate(): IO[Util.ProcOut] = Util.exec("systemctl restart consul-template")
   override def restartNomad(): IO[Util.ProcOut] = Util.exec("systemctl restart nomad")
+  override def restartTimberlandSvc(): IO[Util.ProcOut] = Util.exec("systemctl restart timberland-svc")
   override def restartVault(): IO[Util.ProcOut] = Util.exec("systemctl restart vault")
   override def stopConsul(): IO[Util.ProcOut] = Util.exec("systemctl stop consul")
   override def stopNomad(): IO[Util.ProcOut] = Util.exec("systemctl stop nomad")
   override def stopVault(): IO[Util.ProcOut] = Util.exec("systemctl stop vault")
+  override def stopTimberlandSvc(): IO[Util.ProcOut] = Util.exec("systemctl stop timberland-svc")
 
   override def configureConsul(parameters: String): IO[Unit] =
     for {
@@ -99,6 +104,8 @@ class LinuxServiceControl extends ServiceControl {
     } yield ()
   }
 
+  override def configureTimberlandSvc(): IO[Unit] = IO.unit
+
   override def startConsulTemplate(): IO[Util.ProcOut] = restartConsulTemplate()
   override def configureNomad(parameters: String, vaultToken: String, consulToken: String): IO[Unit] =
     for {
@@ -147,7 +154,7 @@ class WindowsServiceControl extends ServiceControl {
           .split(
             " "
           ) :+ "DisplayName=" :+ "Radix: Consul-Template for Timberland" :+ "binPath=" :+ s"${(RadPath.persistentDir / "consul-template" / "consul-template.exe").toString} -config=${(RadPath.persistentDir / "consul-template" / "config-windows.hcl")
-          .toString()} -vault-token=$vaultToken -consul-token=$consulToken"
+          .toString()} -vault-token=$vaultToken -consul-token=$consulToken -once"
       ) *> IO.unit
 
   override def restartConsul(): IO[Util.ProcOut] = stopConsul *> startConsul
@@ -155,6 +162,8 @@ class WindowsServiceControl extends ServiceControl {
   override def stopConsul(): IO[Util.ProcOut] = Util.exec("sc.exe stop consul") *> flushDNS
 
   def startConsul(): IO[Util.ProcOut] = flushDNS *> Util.exec("sc.exe start consul")
+
+  override def restartConsulTemplate(): IO[Util.ProcOut] = flushDNS *> stopConsulTemplate() *> startConsulTemplate()
 
   override def startConsulTemplate(): IO[Util.ProcOut] =
     flushDNS *>
@@ -195,6 +204,28 @@ class WindowsServiceControl extends ServiceControl {
   def startNomad(): IO[Util.ProcOut] = Util.exec("sc.exe start nomad")
   override def restartNomad(): IO[Util.ProcOut] = stopNomad *> startNomad
 
+  override def configureTimberlandSvc(): IO[Unit] = {
+    val javaHome = sys.env.getOrElse("JAVA_HOME", {
+      scribe.error("JAVA_HOME not set, can't find location of java.exe")
+      sys.exit(1)
+    })
+    val javaLoc = (os.Path(javaHome) / "bin" / "java.exe").toString()
+    val jarLoc = RadPath.persistentDir / "exec" / "timberland-svc-bin_deploy.jar"
+    Util.execArr(
+      "sc.exe create timberland-svc binpath="
+        .split(" ") :+ javaLoc
+    ) *>
+      Util.execArr(
+        "sc.exe config timberland-svc"
+          .split(
+            " "
+          ) :+ "DisplayName=" :+ "Radix: Timberland Service" :+ "binPath=" :+ s"""\"$javaLoc -jar $jarLoc\""""
+      ) *> IO.unit
+  }
+
+  def startTimberlandSvc(): IO[Util.ProcOut] = Util.exec("sc.exe start timberland-svc")
+  override def stopTimberlandSvc(): IO[Util.ProcOut] = Util.exec("sc.exe stop timberland-svc")
+  override def restartTimberlandSvc(): IO[Util.ProcOut] = stopTimberlandSvc *> startTimberlandSvc
 }
 class DarwinServiceControl extends ServiceControl {}
 
@@ -211,13 +242,15 @@ object Services {
   }
 
   /**
-   * This method actually initializes the runtime given a runtime algebra executor.
+   * This method actually initializes the runtime.
    * It parses and rewrites default nomad and consul configuration, discovers peers, and
    * actually bootstraps and starts consul and nomad
    *
-   * @param consulwd  what's the working directory where we can find the consul configuration and executable binary
-   * @param nomadwd   what's the working directory where we can find the nomad configuration and executable binary
-   * @param bindAddr are we binding to a specific host IP?
+   * @param bindAddr  IPv4 to bind if not the default route
+   * @param leaderNodeO  leader node, if applicable
+   * @param bootstrapExpect   number of nodes to expect for bootstrapping
+   * @param setupACL whether or not we should setup the ACLs for consul/nomad/etc
+   * @param serverJoin whether or not we should join as a server or client
    * @return a started consul and nomad
    */
   def startServices(
@@ -304,6 +337,8 @@ object Services {
         intermediateFile.setWritable(true, true)
         os.remove(intermediateAclTokenFile)
       } else ())
+      _ <- serviceController.configureTimberlandSvc()
+      _ <- serviceController.restartTimberlandSvc()
       _ <- IO(scribe.info("started services"))
     } yield AuthTokens(consulNomadToken, vaultToken)
 

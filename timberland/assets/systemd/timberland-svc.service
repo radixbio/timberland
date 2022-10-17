@@ -1,0 +1,11 @@
+[Unit]
+Description="Timberland Service"
+
+[Service]
+ExecStart=/usr/bin/java -jar /opt/radix/timberland/exec/timberland-svc-bin_deploy.jar
+KillMode=process
+Restart=on-failure
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

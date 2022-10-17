@@ -6,7 +6,7 @@ After=network-online.target
 ConditionFileNotEmpty=/opt/radix/timberland/consul/config/consul.json
 
 [Service]
-ExecStart=/opt/radix/timberland/consul-template/consul-template $CONSUL_TEMPLATE_CMD_ARGS
+ExecStart=/opt/radix/timberland/consul-template/consul-template $CONSUL_TEMPLATE_CMD_ARGS -once
 ExecReload=/bin/kill -HUP $MAINPID
 KillMode=process
 Restart=on-failure

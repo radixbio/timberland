@@ -261,6 +261,7 @@ pkg_tar(
         "wrappers/timberland",
         "//timberland/jvm:timberland-bin_deploy.jar",
         "//timberland/jvm:timberland-launcher_deploy.jar",
+        "//timberland_svc/jvm:timberland-svc-bin_deploy.jar",
     ],
     package_dir = "/opt/radix/timberland/exec",
 )
@@ -397,6 +398,7 @@ pkg_tar(
         "//timberland/assets:systemd/consul.service",
         "//timberland/assets:systemd/consul-template.service",
         "//timberland/assets:systemd/nomad.service",
+        "//timberland/assets:systemd/timberland-svc.service",
         "//timberland/assets:systemd/vault.service",
     ],
     package_dir = "/etc/systemd/system",
