@@ -65,6 +65,14 @@ object featureFlags {
     "utils" -> Set(
       "prism",
       "s3lts"
+    ),
+    "kafka" -> Set(
+      "kafka",
+      "kafka_companions",
+      "retool_pg_kafka_connector"
+    ),
+    "retool" -> Set(
+      "retool_pg_kafka_connector"
     )
   )
   // All flags that aren't tied to a specific module
@@ -297,7 +305,7 @@ object featureFlags {
   ): IO[Boolean] =
     for {
       localFlagFileContents <- featureFlags.getLocalFlags(persistentDir)
-      localFlags = featureFlags.defaultFlagMap ++ localFlagFileContents ++ extraFlags
+      localFlags = localFlagFileContents ++ extraFlags
       remoteFlags <- if (consulIsUp) {
         featureFlags.getConsulFlags(serviceAddrs, authTokens.get)
       } else IO.pure(Map[String, Boolean]())
@@ -306,18 +314,22 @@ object featureFlags {
       remoteFlagConfig <- if (consulIsUp) {
         new RemoteConfig()(serviceAddrs, authTokens.get).read()
       } else IO.pure(FlagConfigs())
-    } yield {
-      printCurrentFlags(remoteFlags, remoteFlagConfig)
-      printPendingFlagChanges(remoteFlags, remoteFlagConfig, localFlags, localFlagConfig)
-    }
 
-  private def printCurrentFlags(remoteFlags: Map[String, Boolean], remoteFlagConfig: FlagConfigs): Unit = {
+      _ <- if (consulIsUp) printCurrentFlags(remoteFlags, remoteFlagConfig, persistentDir) else IO.unit
+    } yield printPendingFlagChanges(remoteFlags, remoteFlagConfig, localFlags, localFlagConfig)
+
+  private def printCurrentFlags(
+    remoteFlags: Map[String, Boolean],
+    remoteFlagConfig: FlagConfigs,
+    persistentDir: os.Path
+  ): IO[Unit] = getValidFlags(persistentDir).map { validFlags =>
     LogTUI.printAfter("\nCurrent Flags:")
-    for (remoteFlag <- remoteFlags) {
-      val status = if (remoteFlag._2) AnsiColor.GREEN + "ENABLED" else AnsiColor.RED + "DISABLED"
-      LogTUI.printAfter(s"  ${remoteFlag._1}: $status${AnsiColor.RESET}")
-      val remoteConfigMap = remoteFlagConfig.vaultData.getOrElse(remoteFlag._1, Map.empty) ++
-        remoteFlagConfig.consulData.getOrElse(remoteFlag._1, Map.empty)
+    for (flagName <- validFlags) {
+      val isFlagEnabledOnRemote = remoteFlags.getOrElse(flagName, defaultFlagMap.getOrElse(flagName, false))
+      val status = if (isFlagEnabledOnRemote) AnsiColor.GREEN + "ENABLED" else AnsiColor.RED + "DISABLED"
+      LogTUI.printAfter(s"  $flagName: $status${AnsiColor.RESET}")
+      val remoteConfigMap = remoteFlagConfig.vaultData.getOrElse(flagName, Map.empty) ++
+        remoteFlagConfig.consulData.getOrElse(flagName, Map.empty)
       for (remoteConfigEntry <- remoteConfigMap) if (remoteConfigEntry._2.isDefined) {
         LogTUI.printAfter(s"    ${remoteConfigEntry._1} = ${remoteConfigEntry._2.get}")
       }
@@ -330,9 +342,7 @@ object featureFlags {
     localFlags: Map[String, Boolean],
     localFlagConfig: FlagConfigs
   ): Boolean = {
-    LogTUI.printAfter(AnsiColor.BOLD)
-    LogTUI.printAfter(s"Pending Local Flag Changes:")
-    val haveChangedList = for (localFlag <- localFlags) yield {
+    val pendingChangeLines = localFlags.flatMap { localFlag =>
       val flagName = localFlag._1
       val isEnabled = localFlag._2
       val resetStr = AnsiColor.RESET + AnsiColor.BOLD
@@ -343,23 +353,22 @@ object featureFlags {
       val configDelta = localCfgMap.filter { tuple =>
         tuple._2.isDefined && (!(remoteCfgMap contains tuple._1) || remoteCfgMap(tuple._1) != tuple._2)
       }
-      val originalValue = remoteFlags.get(flagName)
-      val hasChanges = originalValue.isEmpty || originalValue.get != isEnabled || configDelta.contains(flagName)
+      val wasEnabled = remoteFlags.getOrElse(flagName, defaultFlagMap.getOrElse(flagName, false))
+      val hasChanges = wasEnabled != isEnabled
       if (hasChanges) {
-        val fromStatus = originalValue match {
-          case Some(true)  => AnsiColor.GREEN + "ENABLED"
-          case Some(false) => AnsiColor.RED + "DISABLED"
-          case None        => AnsiColor.YELLOW + "UNSET"
-        }
+        val fromStatus = if (wasEnabled) AnsiColor.GREEN + "ENABLED" else AnsiColor.RED + "DISABLED"
         val toStatus = if (isEnabled) AnsiColor.GREEN_B + "ENABLED" else AnsiColor.RED_B + "DISABLED"
-        LogTUI.printAfter(s"  $flagName: $fromStatus$resetStr -> $toStatus$resetStr")
-        for (changedConfigEntry <- configDelta) {
-          LogTUI.printAfter(s"    ${changedConfigEntry._1} = ${changedConfigEntry._2.get}")
-        }
-      }
-      hasChanges
+        val statusLine = s"  $flagName: $fromStatus$resetStr -> $toStatus$resetStr"
+        val cfgLines = configDelta.map(changedCfgEntry => s"    ${changedCfgEntry._1} = ${changedCfgEntry._2.get}")
+        statusLine +: cfgLines.toList
+      } else Iterable.empty
     }
-    LogTUI.printAfter(AnsiColor.RESET)
-    remoteFlags.nonEmpty && haveChangedList.exists(b => b)
+    if (pendingChangeLines.nonEmpty) {
+      LogTUI.printAfter(AnsiColor.BOLD)
+      LogTUI.printAfter(s"Pending Local Flag Changes:")
+      pendingChangeLines.foreach(LogTUI.printAfter)
+      LogTUI.printAfter(AnsiColor.RESET)
+    }
+    remoteFlags.nonEmpty && pendingChangeLines.nonEmpty
   }
 }
