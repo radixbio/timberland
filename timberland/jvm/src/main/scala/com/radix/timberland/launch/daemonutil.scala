@@ -27,7 +27,7 @@ import io.circe.{DecodingFailure, Json}
 import org.http4s.Uri
 import org.http4s.client.Client
 import os.{proc, ProcessOutput}
-import utils.tls.ConsulVaultSSLContext.blaze
+import com.radix.utils.tls.ConsulVaultSSLContext.blaze
 
 import scala.io.{Source, StdIn}
 

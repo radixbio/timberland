@@ -1,4 +1,4 @@
-package utils.tls
+package com.radix.utils.tls
 
 import cats.effect.{ContextShift, IO, Resource, Timer}
 import org.http4s.client.Client

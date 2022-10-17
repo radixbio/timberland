@@ -18,7 +18,7 @@ import org.http4s.{Header, Status, Uri}
 import org.http4s.client.blaze.BlazeClientBuilder
 import io.circe.syntax._
 import os.CommandResult
-import utils.tls.ConsulVaultSSLContext.blaze
+import com.radix.utils.tls.ConsulVaultSSLContext.blaze
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.ExecutionContext.Implicits.global

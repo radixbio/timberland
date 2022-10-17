@@ -15,7 +15,7 @@ import org.http4s.implicits._
 import org.http4s.Uri
 import org.http4s.client.blaze.BlazeClientBuilder
 import org.http4s.implicits._
-import utils.tls.ConsulVaultSSLContext.blaze
+import com.radix.utils.tls.ConsulVaultSSLContext.blaze
 
 import com.radix.timberland.util.RadPath
 

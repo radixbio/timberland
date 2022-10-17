@@ -16,7 +16,7 @@ import io.circe.{Parser => _}
 import optparse_applicative._
 import optparse_applicative.types.Parser
 import org.http4s.implicits._
-import utils.tls.ConsulVaultSSLContext._
+import com.radix.utils.tls.ConsulVaultSSLContext._
 import scalaz.syntax.apply._
 
 import scala.concurrent.ExecutionContext.global

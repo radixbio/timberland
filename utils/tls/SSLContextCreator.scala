@@ -1,4 +1,4 @@
-package utils.tls
+package com.radix.utils.tls
 
 import java.io.{ByteArrayInputStream, StringReader}
 import java.security.cert.{Certificate, CertificateFactory}
@@ -14,7 +14,6 @@ case class RootCert(id: String, cert: Certificate)
 
 object SSLContextCreator {
   def getSslContext(implicit leafCert: LeafCert, rootCerts: Seq[RootCert]): SSLContext = {
-    println("Getting the ssl context")
     val rng = new SecureRandom
     rng.nextInt()
     val ctx = SSLContext.getInstance("TLSv1.2")

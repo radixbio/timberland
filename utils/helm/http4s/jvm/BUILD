@@ -8,6 +8,9 @@ scala_library(
     resources = ["resources/reference.conf"],
     visibility = ["//visibility:public"],
     exports = [
+        "//utils/helm/core/shared:helm-core-lib",
+        "//utils/helm/http4s/shared:helm-interfaces",
+        "//utils/tls:consul-tls",
         "@third_party//3rdparty/jvm/co/fs2:fs2_core",
         "@third_party//3rdparty/jvm/co/fs2:fs2_io",
         "@third_party//3rdparty/jvm/co/fs2:fs2_reactive_streams",
@@ -21,10 +24,10 @@ scala_library(
         "@third_party//3rdparty/jvm/org/http4s:http4s_circe",
         "@third_party//3rdparty/jvm/org/http4s:http4s_core",
         "@third_party//3rdparty/jvm/org/typelevel:cats_effect",
-        "//utils/helm/core/shared:helm-core-lib",
-        "//utils/helm/http4s/shared:helm-interfaces",
     ],
     deps = [
+        "//utils/helm/core/shared:helm-core-lib",
+        "//utils/helm/http4s/shared:helm-interfaces",
         "@third_party//3rdparty/jvm/co/fs2:fs2_core",
         "@third_party//3rdparty/jvm/co/fs2:fs2_io",
         "@third_party//3rdparty/jvm/co/fs2:fs2_reactive_streams",
@@ -38,8 +41,6 @@ scala_library(
         "@third_party//3rdparty/jvm/org/http4s:http4s_circe",
         "@third_party//3rdparty/jvm/org/http4s:http4s_core",
         "@third_party//3rdparty/jvm/org/typelevel:cats_effect",
-        "//utils/helm/core/shared:helm-core-lib",
-        "//utils/helm/http4s/shared:helm-interfaces",
     ],
 )
 
@@ -51,7 +52,6 @@ scala_test(
     resources = ["src/test/resources/logback-test.xml"],
     deps = [
         ":helm-http4s",
-	"//utils/tls:consul-tls",
         "@third_party//3rdparty/jvm/com/dimafeng:testcontainers_scala",
         "@third_party//3rdparty/jvm/org/scalacheck",
         "@third_party//3rdparty/jvm/org/scalatestplus:scalatestplus_scalacheck",

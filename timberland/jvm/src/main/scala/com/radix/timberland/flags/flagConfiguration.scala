@@ -21,7 +21,7 @@ import io.circe.parser.decode
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder}
 import org.http4s.Uri
-import utils.tls.ConsulVaultSSLContext._
+import com.radix.utils.tls.ConsulVaultSSLContext._
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.ExecutionContext.Implicits.global

@@ -12,7 +12,7 @@ import java.util.concurrent.Executors
 import ammonite.ops.Path
 import com.radix.timberland.radixdefs._
 import com.radix.timberland.util._
-import utils.tls.ConsulVaultSSLContext
+import com.radix.utils.tls.ConsulVaultSSLContext
 
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext

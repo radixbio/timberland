@@ -9,7 +9,7 @@ import com.radix.utils.helm.{CatalogListNodesForServiceResponse, ConsulOp, Healt
 import org.http4s.Uri.uri
 import org.http4s.client.Client
 import org.http4s.client.blaze.BlazeClientBuilder
-import utils.tls.ConsulVaultSSLContext._
+import com.radix.utils.tls.ConsulVaultSSLContext._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._

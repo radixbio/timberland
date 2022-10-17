@@ -15,7 +15,7 @@ import io.circe.parser.{decode, parse}
 import io.circe.syntax._
 import io.circe.{Decoder, Json}
 import org.http4s.Uri
-import utils.tls.ConsulVaultSSLContext._
+import com.radix.utils.tls.ConsulVaultSSLContext._
 
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext
