@@ -10,6 +10,7 @@ import java.util.UUID
 import java.util.concurrent.Executors
 
 import com.radix.timberland.runtime.Services.serviceController
+import com.radix.timberland.flags.hooks.{awsAuthConfig, AWSAuthConfigFile}
 import com.radix.timberland.util._
 import com.radix.utils.tls.ConsulVaultSSLContext
 
@@ -17,6 +18,9 @@ import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.{Failure, Success, Try}
+
+import io.circe.generic.auto._
+import io.circe.syntax._
 
 trait ServiceControl {
   def restartConsul(): IO[Util.ProcOut] = ???
@@ -34,7 +38,7 @@ trait ServiceControl {
   def appendParametersConsul(parameters: String): IO[Unit] = ???
   def configureConsulTemplate(parameters: String): IO[Unit] = ???
   def configureConsulTemplate(consulToken: String, vaultToken: String): IO[Unit] = ???
-  def configureNomad(parameters: String, vaultToken: String): IO[Unit] = ???
+  def configureNomad(parameters: String, vaultToken: String, consulToken: String): IO[Unit] = ???
   def configureVault(parameters: String): IO[Unit] = ???
 }
 
@@ -96,9 +100,9 @@ class LinuxServiceControl extends ServiceControl {
   }
 
   override def startConsulTemplate(): IO[Util.ProcOut] = restartConsulTemplate()
-  override def configureNomad(parameters: String, vaultToken: String): IO[Unit] =
+  override def configureNomad(parameters: String, vaultToken: String, consulToken: String): IO[Unit] =
     for {
-      args <- IO(s"""NOMAD_CMD_ARGS=$parameters -config=${RadPath.persistentDir}/nomad/config
+      args <- IO(s"""NOMAD_CMD_ARGS=$parameters -config=${RadPath.persistentDir}/nomad/config -consul-token=$consulToken
                              |VAULT_TOKEN=$vaultToken
                              |""".stripMargin)
 
@@ -163,7 +167,7 @@ class WindowsServiceControl extends ServiceControl {
       _ <- IO(ConsulVaultSSLContext.refreshCerts())
     } yield procOut
 
-  override def configureNomad(parameters: String, vaultToken: String): IO[Unit] =
+  override def configureNomad(parameters: String, vaultToken: String, consulToken: String): IO[Unit] =
     IO(
       os.copy.over(
         RadPath.runtime / "timberland" / "nomad" / "nomad-windows.hcl",
@@ -178,7 +182,7 @@ class WindowsServiceControl extends ServiceControl {
         "sc.exe config nomad"
           .split(
             " "
-          ) :+ "DisplayName=" :+ "Nomad for Radix Timberland" :+ "binPath=" :+ s"${(RadPath.persistentDir / "nomad" / "nomad.exe").toString} agent $parameters  -config=${(RadPath.persistentDir / "nomad" / "config").toString} -vault-token=$vaultToken"
+          ) :+ "DisplayName=" :+ "Nomad for Radix Timberland" :+ "binPath=" :+ s"${(RadPath.persistentDir / "nomad" / "nomad.exe").toString} agent $parameters  -config=${(RadPath.persistentDir / "nomad" / "config").toString} -vault-token=$vaultToken -consul-token=$consulToken"
       ) *> IO.unit
   override def stopNomad(): IO[Util.ProcOut] = Util.exec("sc.exe stop nomad")
 
@@ -241,6 +245,12 @@ object Services {
       intermediateAclTokenFile = RadPath.runtime / "timberland" / ".intermediate-acl-token"
       hasPartiallyBootstrapped <- IO(os.exists(intermediateAclTokenFile))
       consulToken <- makeOrGetIntermediateToken
+      _ <- IO {
+        if (setupACL && !os.exists(awsAuthConfig.configFile)) {
+          os.write(awsAuthConfig.configFile, AWSAuthConfigFile(credsExistInVault = false).asJson.toString)
+        }
+      }
+
       clientJoin = (leaderNodeO.isDefined && !serverJoin)
       remoteJoin = clientJoin | serverJoin
       _ <- if (setupACL) auth.writeTokenConfigs(RadPath.persistentDir, consulToken) else IO.unit
@@ -271,7 +281,7 @@ object Services {
       else IO.unit
       _ <- serviceController.refreshConsul()
       _ <- if (!remoteJoin) serviceController.refreshVault() else IO.unit
-      _ <- setupNomad(finalBindAddr, leaderNodeO, bootstrapExpect, vaultToken, serverJoin)
+      _ <- setupNomad(finalBindAddr, leaderNodeO, bootstrapExpect, vaultToken, consulToken, serverJoin)
       consulNomadToken <- if (setupACL & !remoteJoin) {
         auth.setupNomadMasterToken(RadPath.persistentDir, consulToken)
       } else if (setupACL & remoteJoin)
@@ -372,6 +382,7 @@ object Services {
     leaderNodeO: Option[String],
     bootstrapExpect: Int,
     vaultToken: String,
+    consulToken: String,
     serverJoin: Boolean = false
   ): IO[Unit] = {
     val clientJoin = leaderNodeO.isDefined & !serverJoin
@@ -395,7 +406,7 @@ object Services {
     }
     val parameters: String = s"$baseArgsWithSeeds -bind=$bindAddr"
     for {
-      configureNomad <- serviceController.configureNomad(parameters, vaultToken)
+      configureNomad <- serviceController.configureNomad(parameters, vaultToken, consulToken)
       procOut <- serviceController.restartNomad()
       _ <- IO(LogTUI.event(NomadSystemdUp))
     } yield ()

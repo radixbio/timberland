@@ -23,6 +23,7 @@ exports_files([
     "systemd/nomad.service",
     "systemd/vault.service",
     "systemd/vault.env.conf",
+    "vault/aws-cred-role.json",
     "vault/tls-cert-role.json",
     "vault/tls-cert-policy.hcl",
     "vault/read-aws-policy.hcl",
@@ -51,6 +52,10 @@ exports_files([
     "update/cloud_upload_config.sh",
     "terraform/main/variables.tf",
     "terraform/main/outputs.tf",
+
+    # AWS KEYS MODULE
+    "terraform/aws_keys/main.tf",
+    "terraform/aws_keys/outputs.tf",
 
     # APPRISE MODULE
     "terraform/apprise/apprise.tmpl",

@@ -4,6 +4,18 @@ variable "have_upstream_creds" {
   default = false
 }
 
+variable "aws_access_key" {
+  description = "Upstream AWS access key"
+  type = string
+  default = null
+}
+
+variable "aws_secret_key" {
+  description = "Upstream AWS secret key"
+  type = string
+  default = null
+}
+
 variable "prefix" {
   description = "Job name prefix"
   type = string

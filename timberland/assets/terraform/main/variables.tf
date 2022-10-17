@@ -82,6 +82,12 @@ variable "vault_address" {
   default = "vault.service.consul"
 }
 
+variable "vault_token" {
+  description = "Token used for communication with vault"
+  type = string
+  default = ""
+}
+
 variable "acl_token" {
   description = "Token used for communication with nomad and consul"
   type = string

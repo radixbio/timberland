@@ -6,12 +6,15 @@ import java.net.UnknownHostException
 import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
 import com.radix.timberland.flags.flagConfig
+import com.radix.timberland.flags.hooks.{awsAuthConfig, AWSAuthConfigFile}
 import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.timberland.runtime.AuthTokens
 import com.radix.timberland.util.{Util, _}
 import com.radix.utils.helm.http4s.Http4sNomadClient
 import com.radix.utils.helm.{NomadOp, NomadReadRaftConfigurationResponse}
-import io.circe.parser.parse
+import io.circe.parser.{decode, parse}
+import io.circe.syntax._
+import io.circe.generic.auto._
 import io.circe.{DecodingFailure, Json}
 import org.xbill.DNS
 
@@ -26,37 +29,6 @@ case object AllDaemonsStarted extends DaemonState
 package object daemonutil {
   private[this] implicit val timer: Timer[IO] = IO.timer(global)
   private[this] implicit val cs: ContextShift[IO] = IO.contextShift(global)
-
-  val osname = System.getProperty("os.name").toLowerCase match {
-    case mac if mac.contains("mac")             => "darwin"
-    case linux if linux.contains("linux")       => "linux"
-    case windows if windows.contains("windows") => "windows"
-  }
-  val arch = System.getProperty("os.arch") match {
-    case x86 if x86.toLowerCase.contains("amd64") || x86.toLowerCase.contains("x86") => x86
-    case aarch64 if aarch64.contains("aarch64")                                      => aarch64
-    case x @ _                                                                       => x
-  }
-  val jreVersion = System.getProperty("java.runtime.version")
-
-  def ensureSupported(): IO[Unit] =
-    for {
-      // ensure JDK 11
-      _ <- if (!jreVersion.startsWith("11."))
-        IO.raiseError(new RuntimeException("JRE 11 is the only supported runtime environment."))
-      else IO.unit
-
-      // ensure 64b
-      _ <- if (!List("amd64", "x86", "aarch64").contains(arch))
-        IO.raiseError(new RuntimeException("aarch64 and amd64 are the only supported CPU architectures."))
-      else IO.unit
-
-      // ensure win10
-      _ <- if (osname.contains("windows") && !System.getProperty("os.name").endsWith("10"))
-        IO.raiseError(new RuntimeException("Windows 10 is the only supported Windows version."))
-      else IO.unit
-
-    } yield ()
 
   val execDir = RadPath.runtime / "timberland" / "terraform"
 
@@ -105,31 +77,6 @@ package object daemonutil {
     for {
       state <- NomadOp.nomadReadRaftConfiguration().foldMap(interp)
     } yield state
-  }
-
-  def handleRegistryAuth(options: Map[String, Option[String]], addrs: ServiceAddrs): IO[Unit] = {
-    for {
-      _ <- IO(LogTUI.writeLog("Reg auth handler invoked!"))
-      success <- containerRegistryLogin(
-        options.getOrElse("ID", None),
-        options.getOrElse("TOKEN", None),
-        options.getOrElse("URL", Some("registry.gitlab.com")).get
-      )
-      _ <- if (success != 0) IO(scribe.warn("Container registry login was not successful!")) else IO(Unit)
-    } yield ()
-  }
-
-  def containerRegistryLogin(regUser: Option[String], regToken: Option[String], regAddress: String): IO[Int] = {
-    val user = if (regUser.nonEmpty) regUser else sys.env.get("CONTAINER_REG_USER")
-    val token = if (regToken.nonEmpty) regToken else sys.env.get("CONTAINER_REG_TOKEN")
-    (user, token) match {
-      case (None, _) => scribe.warn("No user/id provided for container registry, not logging in"); IO(-1)
-      case (_, None) => scribe.warn("No password/token provided for container registry, not logging in"); IO(-1)
-      case (Some(user), Some(token)) =>
-        for {
-          procOut <- Util.exec(s"docker login $regAddress -u $user -p $token")
-        } yield procOut.exitCode
-    }
   }
 
   def getServiceIps(): IO[ServiceAddrs] = {
@@ -330,6 +277,7 @@ package object daemonutil {
       s"-var='prefix=${getPrefix(integrationTest)}' " +
         s"-var='test=$integrationTest' " +
         s"-var='acl_token=${tokens.consulNomadToken}' " +
+        s"-var='vault_token=${tokens.vaultToken}' " +
         s"-var='consul_address=${serviceAddrs.consulAddr}' " +
         s"-var='nomad_address=${serviceAddrs.nomadAddr}' " +
         s"-var='vault_address=${serviceAddrs.vaultAddr}' " +
@@ -363,10 +311,11 @@ package object daemonutil {
       )
     } yield applyExitCode
 
-    if (integrationTest)
-      mkTmpDir *> initTerraform(integrationTest, Some(tokens.consulNomadToken)) *> show.flatMap(LogTUI.plan) *> apply
-    else
-      initTerraform(integrationTest, Some(tokens.consulNomadToken)) *> show.flatMap(LogTUI.plan) *> apply
+    val proc = writeAWSCredsToVault *>
+      initTerraform(integrationTest, Some(tokens.consulNomadToken)) *>
+      show.flatMap(LogTUI.plan) *>
+      apply
+    if (integrationTest) mkTmpDir *> proc else proc
   }
 
   /**
@@ -416,6 +365,21 @@ package object daemonutil {
       )
     } yield ()
   }
+
+  def writeAWSCredsToVault(implicit tokens: AuthTokens): IO[Unit] =
+    for {
+      authCfg <- IO(decode[AWSAuthConfigFile](os.read(awsAuthConfig.configFile)).toTry.get)
+      _ <- (authCfg.pendingKey, authCfg.pendingSecret) match {
+        case (Some(accessKey), Some(secretKey)) =>
+          val vault = RadPath.runtime / "timberland" / "vault" / "vault"
+          val caPath = RadPath.runtime / "certs" / "ca" / "cert.pem"
+          val env = Map("VAULT_TOKEN" -> tokens.vaultToken, "VAULT_CACERT" -> caPath.toString)
+          val newConfig = AWSAuthConfigFile(credsExistInVault = true)
+          Util.exec(s"$vault write aws/config/root access_key=$accessKey secret_key=$secretKey", env = env) *>
+            IO(os.write.over(awsAuthConfig.configFile, newConfig.asJson.toString))
+        case _ => IO.unit
+      }
+    } yield ()
 
   def stopTerraform(integrationTest: Boolean): IO[Int] = {
     val workingDir = getTerraformWorkDir(integrationTest)

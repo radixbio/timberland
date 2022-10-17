@@ -2,19 +2,18 @@ package com.radix.timberland.flags
 
 import java.io.File
 
-import cats.effect.{ContextShift, IO, Resource, Timer}
+import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
 import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.timberland.runtime.AuthTokens
 
 import scala.concurrent.duration._
-import com.radix.timberland.util.{RegisterProvider, Util, VaultUtils}
+import com.radix.timberland.util.Util
 import com.radix.utils.helm
 import com.radix.utils.helm.http4s.Http4sConsulClient
-import com.radix.utils.helm.http4s.vault.Vault
+import com.radix.utils.helm.http4s.vault.{Vault => VaultSession}
 import com.radix.utils.helm.vault.{CreateSecretRequest, KVGetResult, VaultErrorResponse}
 import com.radix.utils.helm.{ConsulOp, QueryResponse}
-import io.circe.generic.auto._
 import io.circe.generic.semiauto._
 import io.circe.parser.decode
 import io.circe.syntax._
@@ -26,18 +25,23 @@ import scala.concurrent.ExecutionContext
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.io.StdIn
 
+sealed trait FlagConfigDestination
+case object Vault extends FlagConfigDestination
+case object Consul extends FlagConfigDestination
+case object Nowhere extends FlagConfigDestination
+
 /**
  * A configurable parameter for a flag
  *
  * @param key          The name to be used in consul/vault when storing the config parameter
- * @param isSensitive  If true, the flag will be stored in vault instead of consul kv
+ * @param destination  The location for the config parameter to be stored in. One of Consul, Vault, or Nowhere
  * @param prompt       A prompt shown to the user when asking for the value of the config parameter
  * @param default      An optional value used when empty string is specified or when running non-interactively
  * @param terraformVar If specified, the value will be bound to a terraform variable with this name
  */
 case class FlagConfigEntry(
   key: String,
-  isSensitive: Boolean,
+  destination: FlagConfigDestination,
   prompt: String,
   default: Option[String] = None,
   optional: Boolean = false,
@@ -151,7 +155,7 @@ object flagConfig {
         val consulCfg = configs.consulData.getOrElse(flagName, Map.empty)
         val vaultCfg = configs.vaultData.getOrElse(flagName, Map.empty)
         if (config.flagConfigHooks contains flagName) {
-          config.flagConfigHooks(flagName).map(f => f(consulCfg ++ vaultCfg, serviceAddrs)).parSequence
+          config.flagConfigHooks(flagName).run(consulCfg ++ vaultCfg, serviceAddrs)
         } else IO.unit
       }
       .sequence
@@ -222,8 +226,8 @@ object flagConfig {
    */
   def addMissingParams(flagList: List[String], partialFlagConfig: FlagConfigs): IO[FlagConfigs] = {
     for {
-      newConsulData <- getMissingParams(flagList, sensitive = false, partialFlagConfig.consulData)
-      newVaultData <- getMissingParams(flagList, sensitive = true, partialFlagConfig.vaultData)
+      newConsulData <- getMissingParams(flagList, destination = Consul, partialFlagConfig.consulData)
+      newVaultData <- getMissingParams(flagList, destination = Vault, partialFlagConfig.vaultData)
     } yield partialFlagConfig ++ FlagConfigs(newConsulData, newVaultData)
   }
 
@@ -236,15 +240,15 @@ object flagConfig {
    * @param curFlagToConfigMap The current map of flags. Anything defined here will not be prompted
    * @return A map containing only the key/values that were prompted
    */
-  private def getMissingParams(
+  def getMissingParams(
     flagList: List[String],
-    sensitive: Boolean,
+    destination: FlagConfigDestination,
     curFlagToConfigMap: Map[String, Map[String, Option[String]]]
   ): IO[Map[String, Map[String, Option[String]]]] = {
     flagList
       .filter(config.flagConfigParams.contains)
       .map { flagName =>
-        val totalKeysForFlag = config.flagConfigParams(flagName).filter(_.isSensitive == sensitive).map(_.key)
+        val totalKeysForFlag = config.flagConfigParams(flagName).filter(_.destination == destination).map(_.key)
         val curKeysForFlag = curFlagToConfigMap.getOrElse(flagName, Map.empty).keys
         val missingKeys = totalKeysForFlag.toSet -- curKeysForFlag.toSet
 
@@ -321,34 +325,6 @@ class LocalConfig(implicit persistentDir: os.Path) {
   }
 }
 
-class OauthConfig {
-  private implicit val cs: ContextShift[IO] = IO.contextShift(global)
-
-  def handler(options: Map[String, Option[String]], addrs: ServiceAddrs): IO[Unit] =
-    (options.get("GOOGLE_OAUTH_ID"), options.get("GOOGLE_OAUTH_SECRET")) match {
-      case (Some(Some(a: String)), Some(Some(b: String))) =>
-        for {
-          test <- writeConfigToVault(a, b, addrs)
-        } yield test
-      case _ => IO()
-    }
-
-  private def writeConfigToVault(OAUTH_ID: String, OAUTH_SECRET: String, serviceAddrs: ServiceAddrs): IO[String] =
-    for {
-      vaultToken <- IO(new VaultUtils().findVaultToken())
-      vaultUri = Uri.fromString(s"https://${serviceAddrs.vaultAddr}:8200").toOption.get
-      vaultSession = new Vault[IO](authToken = Some(vaultToken), baseUrl = vaultUri)
-      oauthConfigRequest = CreateSecretRequest(
-        data = RegisterProvider("google", OAUTH_ID, OAUTH_SECRET).asJson,
-        cas = None
-      )
-      writeOauthConfig <- vaultSession.createOauthSecret("oauth2/google/config", oauthConfigRequest)
-    } yield writeOauthConfig match {
-      case Left(VaultErrorResponse(_ @x)) => x.get(0).getOrElse("empty error resp")
-      case Right(())                      => "ok json decode"
-    }
-}
-
 class RemoteConfig(implicit serviceAddrs: ServiceAddrs, tokens: AuthTokens) {
   private implicit val cs: ContextShift[IO] = IO.contextShift(global)
 
@@ -368,7 +344,7 @@ class RemoteConfig(implicit serviceAddrs: ServiceAddrs, tokens: AuthTokens) {
 
   private def readFromVault(): IO[Map[String, Map[String, Option[String]]]] = {
     val vaultUri = Uri.fromString(s"https://${serviceAddrs.vaultAddr}:8200").toOption.get
-    val vault = new Vault[IO](authToken = Some(tokens.vaultToken), baseUrl = vaultUri)
+    val vault = new VaultSession[IO](authToken = Some(tokens.vaultToken), baseUrl = vaultUri)
     vault.getSecret("flag-config").map {
       case Right(KVGetResult(_, json))        => json.as[Map[String, Map[String, Option[String]]]].getOrElse(Map.empty)
       case Left(VaultErrorResponse(Vector())) => Map.empty
@@ -389,7 +365,7 @@ class RemoteConfig(implicit serviceAddrs: ServiceAddrs, tokens: AuthTokens) {
 
   private def writeToVault(configs: FlagConfigs): IO[Unit] = {
     val vaultUri = Uri.fromString(s"https://${serviceAddrs.vaultAddr}:8200").toOption.get
-    val vault = new Vault[IO](authToken = Some(tokens.vaultToken), baseUrl = vaultUri)
+    val vault = new VaultSession[IO](authToken = Some(tokens.vaultToken), baseUrl = vaultUri)
     val secretReq = CreateSecretRequest(data = configs.vaultData.asJson, cas = None)
     if (configs.vaultData.nonEmpty) {
       vault.createSecret("flag-config", secretReq).map {

@@ -274,6 +274,35 @@ class VaultUtils {
           env = env
         )
 
+      Util
+        .proc(
+          vault,
+          "secrets",
+          "enable",
+          s"-address=https://$vaultAddr:8200",
+          "aws"
+        )
+        .call(
+          stdout = os.Inherit,
+          stderr = os.Inherit,
+          env = env
+        )
+
+      Util
+        .proc(
+          vault,
+          "write",
+          s"-address=https://$vaultAddr:8200",
+          "aws/roles/aws-cred",
+          "credential_type=iam_user",
+          s"policy_document=@${vaultPath / "aws-cred-role.json"}"
+        )
+        .call(
+          stdout = os.Inherit,
+          stderr = os.Inherit,
+          env = env
+        )
+
       List("tls-cert", "remote-access", "read-flag-config", "read-consul-ui", "read-certs").map(policy =>
         Util
           .proc(

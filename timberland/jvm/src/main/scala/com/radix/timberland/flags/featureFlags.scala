@@ -3,6 +3,7 @@ package com.radix.timberland.flags
 import java.net.InetAddress
 
 import cats.effect.{ContextShift, IO, Timer}
+import cats.implicits._
 import com.radix.timberland.launch.daemonutil
 import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.timberland.runtime.AuthTokens
@@ -106,6 +107,7 @@ object featureFlags {
         case Some(_) => isConsulUp()
         case None    => IO.pure(false)
       }
+      _ <- callNonpersistentFlagHooks(flagsToSet)
       newFlags <- if (shouldUpdateConsul) {
         for {
           localFlags <- getLocalFlags(persistentDir)
@@ -260,6 +262,26 @@ object featureFlags {
         .filter(name => name.nonEmpty)
         .toSet
     }
+  }
+
+  /**
+   * If you call `timberland runtime enable <flag>` and <flag> is has config options where destination = Nowhere,
+   * then this function will prompt you for those config options and call the associated hooks for <flag>
+   * @param flagsToSet A list of flags that were enabled or disabled
+   * @param addrs Service addresses
+   * @return Nothing
+   */
+  def callNonpersistentFlagHooks(flagsToSet: Map[String, Boolean])(implicit addrs: ServiceAddrs): IO[Unit] = {
+    val flagList = flagsToSet.filter(_._2).keys.toList
+    for {
+      configResponses <- flagConfig.getMissingParams(flagList, destination = Nowhere, curFlagToConfigMap = Map.empty)
+      _ <- flagList
+        .filter(config.flagConfigHooks.contains)
+        .map { flagName =>
+          config.flagConfigHooks(flagName).run(configResponses.getOrElse(flagName, Map.empty), addrs)
+        }
+        .parSequence
+    } yield ()
   }
 
   /**

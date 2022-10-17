@@ -19,27 +19,6 @@ job "${prefix}minio-job" {
         change_signal = "SIGUSR1"
       }
 
-      template {
-        data = <<EOF
-      {{with secret "secret/flag-config"}}
-      {{ if .Data.data.minio.aws_access_key_id}}
-            MINIO_ACCESS_KEY = "{{.Data.data.minio.aws_access_key_id}}"
-      {{else}}
-      	    MINIO_ACCESS_KEY = "minio-access-key"
-      {{end}}
-      {{end}}
-      {{with secret "secret/flag-config"}}
-      {{ if .Data.data.minio.aws_secret_access_key}}
-            MINIO_SECRET_KEY = "{{.Data.data.minio.aws_secret_access_key}}"
-      {{else}}
-            MINIO_SECRET_KEY = "minio-secret-key"
-      {{end}}
-      {{end}}
-    EOF
-        destination = "secrets/file.env"
-        env = true
-      }
-
       config {
         image = "minio/minio:latest"
         auth_soft_fail = false
@@ -60,7 +39,9 @@ job "${prefix}minio-job" {
       env = {
         "MINIO_NOTIFY_KAFKA_ENABLE" = "true",
         "MINIO_NOTIFY_KAFKA_BROKERS" = "${prefix}kafka-daemons-kafka-kafka.service.consul:29092",
-        "MINIO_NOTIFY_KAFKA_TOPIC" = "bucketevents"
+        "MINIO_NOTIFY_KAFKA_TOPIC" = "bucketevents",
+        "MINIO_ACCESS_KEY" = "${have_upstream_creds ? aws_access_key : "minio-access-key"}",
+        "MINIO_SECRET_KEY" = "${have_upstream_creds ? aws_secret_key : "minio-secret-key"}"
       }
 
       kill_timeout = "5s"
@@ -124,27 +105,10 @@ job "${prefix}minio-job" {
         volumes = ["/opt/radix/minio_data_remote:/data"]
         cap_add = []
       }
-
       driver = "docker"
-      template {
-        data = <<EOF
-      {{with secret "secret/flag-config"}}
-      {{ if .Data.data.minio.aws_access_key_id}}
-            MINIO_ACCESS_KEY = "{{.Data.data.minio.aws_access_key_id}}"
-      {{else}}
-      	     MINIO_ACCESS_KEY = "minio-access-key"
-      {{end}}
-      {{end}}
-      {{with secret "secret/flag-config"}}
-      {{ if .Data.data.minio.aws_secret_access_key}}
-            MINIO_SECRET_KEY = "{{.Data.data.minio.aws_secret_access_key}}"
-      {{else}}
-            MINIO_SECRET_KEY = "minio-secret-key"
-      {{end}}
-      {{end}}
-    EOF
-        destination = "secrets/file.env"
-        env = true
+      env = {
+        "MINIO_ACCESS_KEY" = "${have_upstream_creds ? aws_access_key : "minio-access-key"}",
+        "MINIO_SECRET_KEY" = "${have_upstream_creds ? aws_secret_key : "minio-secret-key"}"
       }
 
       kill_timeout = "5s"

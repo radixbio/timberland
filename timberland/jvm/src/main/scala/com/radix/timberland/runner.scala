@@ -5,6 +5,7 @@ import java.io.File
 import ammonite.ops._
 import cats.effect.{ContextShift, IO}
 import cats.implicits._
+import com.radix.timberland.flags.hooks.ensureSupported
 import com.radix.timberland.flags.{RemoteConfig, _}
 import com.radix.timberland.launch.daemonutil
 import com.radix.timberland.radixdefs.ServiceAddrs
@@ -68,7 +69,7 @@ object runner {
                   import ammonite.ops._
                   System.setProperty("dns.server", remoteAddress.getOrElse("127.0.0.1"))
 
-                  val createWeaveNetwork = if (daemonutil.osname != "windows") for {
+                  val createWeaveNetwork = if (ensureSupported.osname != "windows") for {
                     _ <- IO(scribe.info("Creating weave network"))
                     _ <- IO(os.proc("/usr/bin/sudo /sbin/sysctl -w vm.max_map_count=262144".split(' ')).spawn())
                     pluginList <- IO(
@@ -137,7 +138,7 @@ object runner {
                     defaultServiceAddrs = ServiceAddrs()
                     clientJoin = (leaderNode.isDefined && !serverJoin)
                     remoteJoin = clientJoin | serverJoin
-                    windowsCheck = if (daemonutil.osname == "windows" & !remoteJoin)
+                    windowsCheck = if (ensureSupported.osname == "windows" & !remoteJoin)
                       throw new UnsupportedOperationException(
                         "Windows only supports joining, you must pass a leader node."
                       )

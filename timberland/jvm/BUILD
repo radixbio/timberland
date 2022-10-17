@@ -67,6 +67,11 @@ timberland_core_srcs = [
     "src/main/scala/com/radix/timberland/flags/config.scala",
     "src/main/scala/com/radix/timberland/flags/featureFlags.scala",
     "src/main/scala/com/radix/timberland/flags/flagConfiguration.scala",
+    "src/main/scala/com/radix/timberland/flags/hooks/awsAuthConfig.scala",
+    "src/main/scala/com/radix/timberland/flags/hooks/dockerAuthConfig.scala",
+    "src/main/scala/com/radix/timberland/flags/hooks/ensureSupported.scala",
+    "src/main/scala/com/radix/timberland/flags/hooks/FlagHook.scala",
+    "src/main/scala/com/radix/timberland/flags/hooks/oauthConfig.scala",
     "src/main/scala/com/radix/timberland/runtime/install.scala",
     "src/main/scala/com/radix/timberland/runtime/services.scala",
     "src/main/scala/com/radix/timberland/util/VaultStarter.scala",
@@ -97,9 +102,10 @@ scala_library(
 
 scala_library(
     name = "timberland-update-lib",
-    srcs = ["src/main/scala/com/radix/timberland/util/UpdateJobSpecs.scala",
-
-    "src/main/scala/com/radix/timberland/defns.scala",],
+    srcs = [
+        "src/main/scala/com/radix/timberland/defns.scala",
+        "src/main/scala/com/radix/timberland/util/UpdateJobSpecs.scala",
+    ],
     exports = [
         ":timberland-dependencies",
         "@third_party//3rdparty/jvm/io/circe:circe_core",
@@ -208,6 +214,7 @@ pkg_tar(
                "//timberland/assets:vault/read-consul-ui-policy.hcl",
                "//timberland/assets:vault/read-flag-config-policy.hcl",
                "//timberland/assets:vault/remote-access-policy.hcl",
+               "//timberland/assets:vault/aws-cred-role.json",
                "//timberland/assets:vault/tls-cert-policy.hcl",
                "//timberland/assets:vault/tls-cert-role.json",
                "//timberland/assets:vault/vault_config.conf",
@@ -551,6 +558,18 @@ terraform_module(
 )
 
 terraform_module(
+    name = "aws_keys-terraform",
+    jobname = "aws_keys",
+    module_spec = [
+        'source = "/opt/radix/timberland/terraform/modules/aws_keys"',
+    ],
+    terraform_files = [
+        "//timberland/assets:terraform/aws_keys/main.tf",
+        "//timberland/assets:terraform/aws_keys/outputs.tf",
+    ],
+)
+
+terraform_module(
     name = "elasticsearch-terraform",
     jobname = "elasticsearch",
     module_spec = [
@@ -640,7 +659,9 @@ terraform_module(
         'source = "/opt/radix/timberland/terraform/modules/minio"',
         "prefix = var.prefix",
         "test = var.test",
-        "have_upstream_creds = contains(var.defined_config_vars, \"minio.aws_access_key_id\") && contains(var.defined_config_vars, \"minio.aws_secret_access_key\")",
+        "have_upstream_creds = module.aws_keys.have_upstream_creds",
+        "aws_access_key = module.aws_keys.aws_access_key",
+        "aws_secret_key = module.aws_keys.aws_secret_key",
     ],
     nomad_template = "//timberland/assets:terraform/minio/minio.tmpl",
     terraform_files = [
@@ -800,6 +821,7 @@ terraform_provider(
     address = "https://${var.vault_address}:8200"
     ca_cert_file = var.tls_ca_file
     version = "2.11.0"
+    token = var.vault_token
 }
 """,
 )
@@ -814,6 +836,7 @@ terraform_deployment(
     ],
     resources = [
         ":apprise-terraform",
+        ":aws_keys-terraform",
         ":elasticsearch-terraform",
         ":es_kafka_connector-terraform",
         ":kafka-terraform",
