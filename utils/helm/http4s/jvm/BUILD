@@ -47,7 +47,12 @@ scala_library(
 scala_test(
     name = "helm-test",
     srcs = glob(
-        ["src/test/scala/**/*.scala"],
+        include = ["src/test/scala/**/*.scala"],
+        exclude = [
+            "src/test/scala/NomadOpTests.scala",
+            "src/test/scala/Integration.scala",
+            "src/test/scala/VaultSpec.scala",
+        ],
     ),
     resources = ["src/test/resources/logback-test.xml"],
     deps = [

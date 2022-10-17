@@ -191,10 +191,10 @@ dependencies:
       modules: [ "actor", "actor-testkit-typed", "actor-typed", "cluster", "cluster-typed",
         "distributed-data", "persistence", "persistence-query", "persistence-tck",
         "persistence-typed", "protobuf", "remote", "slf4j", "stream", "stream-typed", "testkit" ]
-      version: "2.5.31"
+      version: "2.6.15"
     akka-http:
       lang: scala
-      version: "10.1.11"
+      version: "10.2.5"
     akka-stream-kafka:
       lang: scala
       version: "1.1.0"
@@ -423,7 +423,7 @@ dependencies:
   org.scalactic:
     scalactic:
       lang: scala
-      version: "3.0.9"
+      version: "3.1.4"
 
   org.scalameta:
     scalameta:
@@ -433,7 +433,10 @@ dependencies:
   org.scalatest:
     scalatest:
       lang: scala
-      version: "3.0.9"
+      version: "3.1.4"
+    scalatest-shouldmatchers:
+      lang: scala
+      version: "3.1.0-M2"
 
   org.scalatestplus:
     scalatestplus-scalacheck:

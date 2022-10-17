@@ -296,12 +296,12 @@ load("@io_bazel_rules_scala//testing:scalatest.bzl", "scalatest_repositories", "
 scala_repositories(
     overriden_artifacts = {
         "io_bazel_rules_scala_scalatest": {
-            "artifact": "org.scalatest:scalatest_2.13:3.0.9",
-            "sha256": "6a0d2c3ee32a4010f95dc2cae084b95a1d8c4bc75491326bbbf1c173f1400b8b",
+            "artifact": "org.scalatest:scalatest_2.13:3.1.4",
+            "sha256": "60ec218647411a9262e40bd50433db67d4ab97fd01c56b7e281872951f7bfcc7",
         },
         "io_bazel_rules_scala_scalactic": {
-            "artifact": "org.scalactic:scalactic_2.13:3.0.9",
-            "sha256": "93072ee4ed5e31e3d1e4e4cd159bfc6d0765a627a3c884234e30841555ad7c62",
+            "artifact": "org.scalactic:scalactic_2.13:3.1.4",
+            "sha256": "be6859e48ecaa7ad00bd3520d958909830ad6c30fdd69f9811f19f67d9315e83",
         },
     },
 )
