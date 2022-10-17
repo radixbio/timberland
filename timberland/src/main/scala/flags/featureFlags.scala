@@ -69,7 +69,11 @@ case object featureFlags {
   def writeFlagsJson: IO[Unit] = for {
     tfModuleNames <- tfParser.getModuleList
     flagList = tfModuleNames.toSet ++ HOOKS.keySet ++ SHARED_FLAGS
-    flagMap = flagList.map(flag => flag -> DEFAULT_FLAG_NAMES.contains(flag)).toMap
+    oldFlagMap <- IO(os.exists(FLAGS_JSON)).flatMap {
+      case true => featureFlags.flags
+      case false => IO.pure(Map.empty[String, Boolean])
+    }
+    flagMap = flagList.map(flag => flag -> DEFAULT_FLAG_NAMES.contains(flag)).toMap ++ oldFlagMap
     flagJson = Map("feature_flags" -> flagMap).asJson
     _ <- IO(os.write.over(RadPath.runtime / "config" / "flags.json", flagJson.toString()))
   } yield ()
