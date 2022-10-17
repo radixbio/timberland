@@ -1,10 +1,10 @@
 package com.radix.utils.tls
 
 import java.io.{ByteArrayInputStream, StringReader}
-import java.security.cert.{Certificate, CertificateFactory}
+import java.security.cert.{Certificate, CertificateException, CertificateFactory, X509Certificate}
 import java.security.{KeyStore, KeyStoreException, PrivateKey, SecureRandom, Security}
 
-import javax.net.ssl.{KeyManager, KeyManagerFactory, SSLContext, TrustManager, TrustManagerFactory}
+import javax.net.ssl.{KeyManager, KeyManagerFactory, SSLContext, TrustManagerFactory, X509TrustManager}
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.bouncycastle.openssl.{PEMKeyPair, PEMParser}
 import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter
@@ -17,7 +17,7 @@ object SSLContextCreator {
     val rng = new SecureRandom
     rng.nextInt()
     val ctx = SSLContext.getInstance("TLSv1.2")
-    ctx.init(getKeyManagers, getTrustStore, rng)
+    ctx.init(getKeyManagers, Array(getTrustStore), rng)
     ctx
   }
 
@@ -52,15 +52,36 @@ object SSLContextCreator {
     factory.getKeyManagers
   }
 
-  private def getTrustStore(implicit rootCerts: Seq[RootCert]): Array[TrustManager] = {
+  private def getTrustStore(implicit rootCerts: Seq[RootCert]): X509TrustManager = {
     val keyStore = KeyStore.getInstance(KeyStore.getDefaultType)
     keyStore.load(null)
     for (rootCert <- rootCerts) {
       keyStore.setCertificateEntry(rootCert.id, rootCert.cert)
     }
 
-    val trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm)
-    trustManagerFactory.init(keyStore)
-    trustManagerFactory.getTrustManagers
+    val customTrustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm)
+    customTrustManagerFactory.init(keyStore)
+    val customTrustManager = getX509TrustManager(customTrustManagerFactory)
+
+    val defaultTrustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm)
+    defaultTrustManagerFactory.init(null.asInstanceOf[KeyStore])
+    val defaultTrustManager = getX509TrustManager(defaultTrustManagerFactory)
+
+    mergeTrustManagers(defaultTrustManager, customTrustManager)
   }
+
+  private def getX509TrustManager(trustManagerFactory: TrustManagerFactory): X509TrustManager =
+    trustManagerFactory.getTrustManagers.find(_.isInstanceOf[X509TrustManager]).get.asInstanceOf[X509TrustManager]
+
+  private def mergeTrustManagers(defaultTm: X509TrustManager, customTm: X509TrustManager): X509TrustManager =
+    new X509TrustManager() {
+      override def getAcceptedIssuers: Array[X509Certificate] = defaultTm.getAcceptedIssuers
+
+      override def checkServerTrusted(chain: Array[X509Certificate], authType: String): Unit =
+        try customTm.checkServerTrusted(chain, authType)
+        catch { case _: CertificateException => defaultTm.checkServerTrusted(chain, authType) }
+
+      override def checkClientTrusted(chain: Array[X509Certificate], authType: String): Unit =
+        defaultTm.checkClientTrusted(chain, authType)
+    }
 }
