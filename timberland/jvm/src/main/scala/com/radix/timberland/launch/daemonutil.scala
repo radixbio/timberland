@@ -316,7 +316,7 @@ package object daemonutil {
       )
     } yield applyExitCode
 
-    val proc = awsAuthConfig.writeAWSCredsToVault *>
+    val proc = awsAuthConfig.writeMinioAndAWSCredsToVault *>
       oktaAuthConfig.writeOktaCredsToVault *>
       initTerraform(integrationTest, Some(tokens.consulNomadToken)) *>
       show.flatMap(LogTUI.plan) *>

@@ -594,18 +594,6 @@ pkg_tar(
 )
 
 terraform_module(
-    name = "aws_keys-terraform",
-    jobname = "aws_keys",
-    module_spec = [
-        'source = "/opt/radix/timberland/terraform/modules/aws_keys"',
-    ],
-    terraform_files = [
-        "//timberland/assets:terraform/aws_keys/main.tf",
-        "//timberland/assets:terraform/aws_keys/outputs.tf",
-    ],
-)
-
-terraform_module(
     name = "elasticsearch-terraform",
     jobname = "elasticsearch",
     module_spec = [
@@ -719,9 +707,6 @@ terraform_module(
         'source = "/opt/radix/timberland/terraform/modules/minio"',
         "prefix = var.prefix",
         "test = var.test",
-        "have_upstream_creds = module.aws_keys.have_upstream_creds",
-        "aws_access_key = module.aws_keys.aws_access_key",
-        "aws_secret_key = module.aws_keys.aws_secret_key",
     ],
     nomad_template = "//timberland/assets:terraform/minio/minio.tmpl",
     terraform_files = [
@@ -857,7 +842,6 @@ terraform_deployment(
         ":terraform-vault",
     ],
     resources = [
-        ":aws_keys-terraform",
         ":elasticsearch-terraform",
         ":es_kafka_connector-terraform",
         ":kafka-terraform",

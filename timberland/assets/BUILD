@@ -54,10 +54,6 @@ exports_files([
     # WINDOWS
     "windows/postinst.bat",
 
-    # AWS KEYS MODULE
-    "terraform/aws_keys/main.tf",
-    "terraform/aws_keys/outputs.tf",
-
     # ZOOKEEPER MODULE
     "terraform/zookeeper/zookeeper.tmpl",
     "terraform/zookeeper/main.tf",

@@ -5,10 +5,11 @@ import cats.syntax.all._
 import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.timberland.runtime.AuthTokens
 import com.radix.timberland.util.{RadPath, Util}
-
 import io.circe.syntax._
 import io.circe.parser.decode
 import io.circe.generic.auto._
+
+import scala.util.Random
 
 case class AWSAuthConfigFile(
   credsExistInVault: Boolean,
@@ -31,19 +32,23 @@ object awsAuthConfig extends FlagHook {
       case _ => IO.unit
     }
 
-  def writeAWSCredsToVault(implicit tokens: AuthTokens): IO[Unit] =
+  def writeMinioAndAWSCredsToVault(implicit tokens: AuthTokens): IO[Unit] = {
+    val vault = RadPath.runtime / "timberland" / "vault" / "vault"
+    val caPath = RadPath.runtime / "certs" / "ca" / "cert.pem"
+    val env = Map("VAULT_TOKEN" -> tokens.vaultToken, "VAULT_CACERT" -> caPath.toString)
+    val minioAccessKey = Random.alphanumeric.take(20).toList.mkString
+    val minioSecretKey = Random.alphanumeric.take(20).toList.mkString
+    val minioKeysCmd = s"$vault kv put -cas=0 secret/minio-creds access_key=$minioAccessKey secret_key=$minioSecretKey"
     for {
       authCfg <- IO(decode[AWSAuthConfigFile](os.read(configFile)).toTry.get)
+      _ <- Util.exec(minioKeysCmd, env = env)
       _ <- (authCfg.pendingKey, authCfg.pendingSecret) match {
-        case (Some(accessKey), Some(secretKey)) =>
-          val vault = RadPath.runtime / "timberland" / "vault" / "vault"
-          val caPath = RadPath.runtime / "certs" / "ca" / "cert.pem"
-          val env = Map("VAULT_TOKEN" -> tokens.vaultToken, "VAULT_CACERT" -> caPath.toString)
+        case (Some(awsAccessKey), Some(awsSecretKey)) =>
           val newConfig = AWSAuthConfigFile(credsExistInVault = true)
-          Util.exec(s"$vault write aws/config/root access_key=$accessKey secret_key=$secretKey", env = env) *>
+          Util.exec(s"$vault write aws/config/root access_key=$awsAccessKey secret_key=$awsSecretKey", env = env) *>
             IO(os.write.over(awsAuthConfig.configFile, newConfig.asJson.toString))
         case _ => IO.unit
       }
     } yield ()
-
+  }
 }
