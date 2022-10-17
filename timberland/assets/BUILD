@@ -2,6 +2,7 @@ exports_files([
     "consul/consul.json",
     "consul/default-policy.hcl",
     "debian/postinst.sh",
+    "debian/postrm.sh",
     "debian/prerm.sh",
     "nomad/config/nomad.hcl",
     "nomad/config/elasticsearch/unicast_hosts.tpl",

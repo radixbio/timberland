@@ -502,6 +502,7 @@ pkg_deb(
     maintainer = "Alex Hulbert",
     package = "radix-timberland",
     postinst = "//timberland/assets:debian/postinst.sh",
+    postrm = "//timberland/assets:debian/postrm.sh",
     prerm = "//timberland/assets:debian/prerm.sh",
     version = "0.1",
 )
