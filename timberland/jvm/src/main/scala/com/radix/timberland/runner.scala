@@ -14,268 +14,15 @@ import com.radix.utils.helm.http4s.vault.Vault
 import com.radix.timberland.util.{UpdateModules, VaultStarter}
 import io.circe.{Parser => _}
 import optparse_applicative._
-import optparse_applicative.types.Parser
 import org.http4s.implicits._
 import com.radix.utils.tls.ConsulVaultSSLContext._
 import scalaz.syntax.apply._
 
 import scala.concurrent.ExecutionContext.global
 import scala.concurrent.duration._
-import scala.io.AnsiColor
 import scala.io.StdIn.readLine
 
-sealed trait RadixCMD
-
-sealed trait Runtime extends RadixCMD
-
-sealed trait Local extends Runtime
-
-case class Start(
-  dummy: Boolean = false,
-  loglevel: scribe.Level = scribe.Level.Debug,
-  bindIP: Option[String] = None,
-  consulSeeds: Option[String] = None,
-  remoteAddress: Option[String] = None,
-  prefix: Option[String] = None,
-  username: Option[String] = None,
-  password: Option[String] = None
-) extends Local
-
-case object Stop extends Local
-
-case object Nuke extends Local
-
-case object StartNomad extends Local
-
-case class Update(
-  remoteAddress: Option[String] = None,
-  prefix: Option[String] = None,
-  username: Option[String] = None,
-  password: Option[String] = None
-) extends Local
-
-sealed trait DNS extends Runtime
-
-case class DNSUp(service: Option[String], bindIP: Option[String]) extends DNS
-
-case class DNSDown(service: Option[String], bindIP: Option[String]) extends DNS
-
-case class FlagSet(
-  flags: List[String],
-  enable: Boolean,
-  remoteAddress: Option[String],
-  username: Option[String],
-  password: Option[String]
-) extends Runtime
-
-case class FlagQuery(remoteAddress: Option[String], username: Option[String], password: Option[String]) extends Runtime
-
-case class AddUser(name: String, roles: List[String]) extends Runtime
-
-sealed trait Prism extends RadixCMD
-
-case object PList extends Prism
-
-case class PPath(path: String) extends Prism
-
-sealed trait Oauth extends RadixCMD
-
-case object GoogleSheets extends Oauth
-
-case class ScriptHead(cmd: RadixCMD)
-
 object runner {
-
-  implicit class Weakener[F[_], A](fa: F[A])(implicit F: scalaz.Functor[F]) {
-    def weaken[B](implicit ev: A <:< B): F[B] = fa.map(identity(_))
-  }
-
-  val runtime = subparser[Runtime](
-    command(
-      "runtime",
-      info(
-        subparser[Runtime](
-          command(
-            "start",
-            info(
-              switch(long("dry-run"), help("whether to run the mock interpreter")).map({ flag =>
-                Start(flag)
-              }) <*>
-                optional(strOption(long("debug"), help("what debug level the service should run at"))).map(debug => {
-                  exist: Start =>
-                    debug match {
-                      case Some("debug") => exist.copy(loglevel = scribe.Level.Debug)
-                      case Some("error") => exist.copy(loglevel = scribe.Level.Error)
-                      case Some("info")  => exist.copy(loglevel = scribe.Level.Info)
-                      case Some("trace") => exist.copy(loglevel = scribe.Level.Trace)
-                      case Some(flag)    => throw new IllegalArgumentException(s"$flag isn't a valid loglevel")
-                      case None          => exist
-                    }
-                }) <*> optional(
-                strOption(
-                  long("force-bind-ip"),
-                  help("force services to use the specified subnet and IP (in form \"192.168.1.5\")")
-                )
-              ).map(subnet => {
-                exist: Start =>
-                  subnet match {
-                    case str @ Some(_) => exist.copy(bindIP = str)
-                    case None          => exist
-                  }
-              }) <*> optional(
-                strOption(
-                  long("consul-seeds"),
-                  help("comma separated list of seed nodes for consul (maps to retry_join in consul.json)")
-                )
-              ).map(seeds => {
-                exist: Start =>
-                  seeds match {
-                    case list @ Some(_) => exist.copy(consulSeeds = list)
-                    case None           => exist
-                  }
-              }) <*> optional(strOption(long("remote-address"), help("remote consul address")))
-                .map(ra => { exist: Start => exist.copy(remoteAddress = ra) }) <*> optional(
-                strOption(long("prefix"), help("Nomad job prefix"))
-              ).map(prefix => {
-                exist: Start =>
-                  prefix match {
-                    case Some(_) => exist.copy(prefix = prefix)
-                    case None    => exist
-                  }
-              }) <*> optional(strOption(long("username"), help("timberland username")))
-                .map(username => {
-                  exist: Start =>
-                    username match {
-                      case Some(_) => exist.copy(username = username)
-                      case None    => exist
-                    }
-                }) <*> optional(strOption(long("password"), help("timberland password")))
-                .map(password => {
-                  exist: Start =>
-                    password match {
-                      case Some(_) => exist.copy(password = password)
-                      case None    => exist
-                    }
-                }),
-              progDesc("start the radix core services on the current system")
-            )
-          ),
-          command("stop", info(pure(Stop), progDesc("stop services across all nodes"))),
-          command("nuke", info(pure(Nuke), progDesc("remove radix core services from the node"))),
-          command("start_nomad", info(pure(StartNomad), progDesc("start a nomad job"))),
-          command(
-            "dns",
-            info(
-              subparser[DNS](
-                command(
-                  "up",
-                  info(
-                    ^(optional(strOption(long("service"))), optional(strOption(long("force-bind-ip"))))(DNSUp),
-                    progDesc("inject consul into dns resolution")
-                  )
-                ),
-                command(
-                  "down",
-                  info(
-                    ^(optional(strOption(long("service"))), optional(strOption(long("force-bind-ip"))))(DNSDown),
-                    progDesc("deinject consul from dns resolution")
-                  )
-                )
-              ).weaken[Runtime]
-            )
-          ),
-          command(
-            "add_user",
-            info(
-              ^(
-                strArgument(metavar("NAME")),
-                many(strArgument(metavar("[POLICIES...]")))
-              )(AddUser)
-            )
-          ),
-          command(
-            "enable",
-            info(
-              ^^^(
-                many(strArgument(metavar("FLAGS"))),
-                optional(strOption(long("remote-address"), help("remote consul address"))),
-                optional(strOption(long("username"), help("timberland username"))),
-                optional(strOption(long("password"), help("timberland password")))
-              )(FlagSet(_, true, _, _, _)),
-              progDesc("enable feature flags")
-            )
-          ),
-          command(
-            "disable",
-            info(
-              ^^^(
-                many(strArgument(metavar("FLAGS"))),
-                optional(strOption(long("remote-address"), help("remote consul address"))),
-                optional(strOption(long("username"), help("timberland username"))),
-                optional(strOption(long("password"), help("timberland password")))
-              )(FlagSet(_, false, _, _, _)),
-              progDesc("disable feature flags")
-            )
-          ),
-          command(
-            "query",
-            info(
-              ^^(
-                optional(strOption(long("remote-address"), help("remote consul address"))),
-                optional(strOption(long("username"), help("timberland username"))),
-                optional(strOption(long("password"), help("timberland password")))
-              )(FlagQuery),
-              progDesc("query current state of feature flags")
-            )
-          ),
-          command(
-            "update",
-            info(
-              pure(Update()) <*> optional(strOption(long("remote-address"), help("remote consul address")))
-                .map(ra => { exist: Update => exist.copy(remoteAddress = ra) }) <*> optional(
-                strOption(long("prefix"), help("Nomad job prefix"))
-              ).map(prefix => {
-                exist: Update =>
-                  prefix match {
-                    case Some(_) => exist.copy(prefix = prefix)
-                    case None    => exist.copy(prefix = Some(daemonutil.getPrefix(false)))
-                  }
-              }) <*> optional(strOption(long("username"), help("timberland username")))
-                .map(username => {
-                  exist: Update =>
-                    username match {
-                      case Some(_) => exist.copy(username = username)
-                      case None    => exist
-                    }
-                }) <*> optional(strOption(long("password"), help("timberland password")))
-                .map(password => {
-                  exist: Update =>
-                    password match {
-                      case Some(_) => exist.copy(password = password)
-                      case None    => exist
-                    }
-                })
-            )
-          )
-        ),
-        progDesc("radix runtime component")
-      )
-    )
-  ) <*> helper
-
-  val oauth = subparser[Oauth](
-    command(
-      "oauth",
-      info(
-        subparser[Oauth](command("google-sheets", info(pure(GoogleSheets), progDesc("set up a google sheets token"))))
-      )
-    )
-  )
-
-  val res: Parser[RadixCMD] = runtime.weaken[RadixCMD] <|> oauth.weaken[RadixCMD]
-
-  val opts =
-    info(res <*> helper, progDesc("Welcome to Timberland"), header(""))
 
   var sudopw: Option[String] = None
 
@@ -479,8 +226,8 @@ object runner {
                 .withHandler(minimumLevel = Some(scribe.Level.Debug))
                 .replace()
               val dns_set = dns match {
-                case DNSUp(service, bindIP)   => launch.dns.up()
-                case DNSDown(service, bindIP) => launch.dns.down()
+                case DNSUp   => launch.dns.up()
+                case DNSDown => launch.dns.down()
               }
               dns_set.unsafeRunSync()
             }
@@ -563,7 +310,7 @@ object runner {
     }
 
     try {
-      cmdEval(execParser(args, "timberland", opts))
+      cmdEval(execParser(args, "timberland", cli.opts))
     } catch {
       case os.SubprocessException(result) => sys.exit(result.exitCode)
     }
