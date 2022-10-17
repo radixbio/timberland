@@ -26,7 +26,7 @@ import scala.sys.process.Process
  * An abstract class that should act as the parent class for any integration tests. Note that any subclasses should
  * {@code override lazy val featureFlags = Map(...)} in order to bring up the appropriate services with Terraform.
  */
-abstract class TimberlandIntegration extends AsyncFlatSpec with Matchers with BeforeAndAfterAll {
+trait TimberlandIntegration extends AsyncFlatSpec with Matchers with BeforeAndAfterAll {
 
   val ConsulPort = 8501
   val NomadPort = 4646
@@ -96,10 +96,10 @@ abstract class TimberlandIntegration extends AsyncFlatSpec with Matchers with Be
     nomadR.use(recur).unsafeRunSync()
   }
 
-  val nomadR: Resource[IO, NomadOp ~> IO] = BlazeClientBuilder[IO](implicitly[ExecutionContext]).resource
+  val nomadR: Resource[IO, NomadOp ~> IO] = blaze
     .map(client =>
       new Http4sNomadClient[IO](
-        baseUri = Uri.unsafeFromString("http://nomad.service.consul:4646"),
+        baseUri = Uri.unsafeFromString("https://nomad.service.consul:4646"),
         client = client,
         accessToken = Some(tokens.consulNomadToken)
       )

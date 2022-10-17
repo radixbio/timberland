@@ -58,7 +58,7 @@ scala_library(
     ],
 )
 
-#TODO @sibblegp make this go away
+#TODO collapse the namespace, so "core_srcs" aren't from launch/, runtime/, util/...
 #it's shared dependencies that timberland the commandline tool
 #has with the in-container process
 timberland_core_srcs = [
@@ -500,7 +500,7 @@ sh_test(
 
 scala_library(
     name = "synthetic-integration-lib",
-    srcs = ["src/test/integration/src/integration.scala"],
+    srcs = ["src/test/integration/src/TimberlandIntegration.scala"],
     visibility = ["//visibility:public"],
     exports = [
         "//timberland/jvm:timberland-lib",
@@ -516,7 +516,7 @@ scala_library(
 
 scala_test(
     name = "synthetic-integration",
-    srcs = ["src/test/integration/src/startup.scala"],
+    srcs = ["src/test/integration/src/TimberlandIntegrationSpec.scala"],
     tags = ["v1integration"],
     #NOTE: use this tag for all the integration tests so that it can be run with --jobs=1,
     #giving both caching and exclusivity
@@ -834,6 +834,7 @@ terraform_deployment(
         "//device_drivers/tf-exactive/jvm:tf_exactive-terraform",
         "//runtime/jvm:runtime-terraform",
         "//sensors/elemental/jvm:elemental-terraform",
+        "//utils/bunny_uservice/jvm:bunny_uservice-terraform",
         "//utils/prism-uservice/jvm:prism-terraform",
         "//utils/s3lts:s3lts-terraform",
         "//vm/jvm:vm-terraform",

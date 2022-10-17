@@ -64,7 +64,8 @@ object featureFlags {
     ),
     "utils" -> Set(
       "prism",
-      "s3lts"
+      "s3lts",
+      "bunny_uservice"
     ),
     "kafka" -> Set(
       "kafka",
