@@ -41,7 +41,7 @@ cd /opt/radix/timberland/exec || exit 1
 ./timberland disable elasticsearch
 ./timberland disable nginx
 ./timberland start
-./timberland enable nginx
+# ./timberland enable nginx
 # this is necessary because terraform fills in the nginx template with the currently services
 
 TIMBERLAND_EXIT_CODE=$?
