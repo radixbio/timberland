@@ -38,17 +38,13 @@ object UpdateModules {
   val PROVIDER = "PROVIDER=(.*)".r.unanchored
   val API_TOKEN = "API_TOKEN=(.*)".r.unanchored
 
-  def parseConfig(prefix: Option[String]): CloudModule = {
+  def parseConfig(): CloudModule = {
     val lines = os.read(TemplateFiles.config_file).split('\n')
 
     def _parse(info: CloudModule, line: String): CloudModule = {
       line match {
         case ORGNAME(name) => info.copy(orgname = name)
-        case MODULE(name) =>
-          prefix match {
-            case Some(prefixString) => info.copy(modname = prefixString + name)
-            case None               => info.copy(modname = name)
-          }
+        case MODULE(name) => info.copy(modname = name)
         case PROVIDER(name)   => info.copy(provider = name)
         case API_TOKEN(token) => info.copy(api_token = token)
         case _                => info
@@ -184,11 +180,12 @@ object UpdateModules {
     })
 
   // TODO make version specifiable?
-  def run(terraformTask: IO[Boolean], prefix: Option[String]): IO[Unit] = {
+  def run(terraformTask: IO[Boolean], namespace: Option[String]): IO[Unit] = {
     val timestamp = DateTimeFormatter.ofPattern("YY-MM-dd-hh-mm").format(LocalDateTime.now())
     val module_backup = os.root / "opt" / "radix" / "timberland" / s"terraform_modules_backup_$timestamp"
 
-    val modInfo = parseConfig(prefix)
+    // TODO: This probably doesn't work with nomad namespaces
+    val modInfo = parseConfig()
 
     val tar_file = os.root / "opt" / "radix" / "timberland" / "terraform" / "new_terraform_config.tar"
 

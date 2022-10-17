@@ -83,8 +83,8 @@ variable "s3lts_quorum_size" {
   default = 1
 }
 
-variable "prefix" {
-  description = "Job name prefix"
+variable "namespace" {
+  description = "Job namespace"
   type = string
   default = ""
 }

@@ -1,4 +1,5 @@
-job "${prefix}yugabyte-masters" {
+job "yugabyte-masters" {
+  namespace = "${namespace}"
   all_at_once = false
 
   constraint {
@@ -66,7 +67,7 @@ job "${prefix}yugabyte-masters" {
     service {
       name = "yb-master-${i}-head"
       port = 7000
-      tags = ["${prefix}", "user"]
+      tags = ["user"]
       address_mode = "auto"
 
       connect {
@@ -89,7 +90,7 @@ job "${prefix}yugabyte-masters" {
     service {
       name = "yb-masters-rpc-${i}"
       port = ${ 7100 + i }
-      tags = ["${prefix}", "system"]
+      tags = ["system"]
       address_mode = "auto"
 
       connect {
@@ -131,7 +132,6 @@ ${ i == j ? "" : <<-EOT
   }
 %{ endfor ~}
 
-  namespace = "default"
   priority = 50
   region = "global"
   type = "service"

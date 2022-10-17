@@ -1,4 +1,5 @@
-job "${prefix}yugabyte-tservers" {
+job "yugabyte-tservers" {
+  namespace = "${namespace}"
   all_at_once = false
 
   constraint {
@@ -106,7 +107,7 @@ EOH
     service {
       name = "yb-tserver-${i}-head"
       port = 9000
-      tags = ["${prefix}", "user"]
+      tags = ["user"]
       address_mode = "auto"
 
       connect {
@@ -128,7 +129,7 @@ EOH
     service {
         name = "yb-tserver-${i}-yedis"
         port = 6379
-        tags = ["${prefix}", "system"]
+        tags = ["system"]
         address_mode = "auto"
 
         connect {
@@ -141,7 +142,7 @@ EOH
     service {
       name = "yb-tserver-connect-${i}"
       port = ${ 9100 + i }
-      tags = ["${prefix}", "system"]
+      tags = ["system"]
       address_mode = "auto"
 
       connect {
@@ -179,7 +180,6 @@ ${ i == j ? "" : <<-EOT
   }
 %{ endfor ~}
 
-  namespace = "default"
   priority = 50
   region = "global"
   type = "service"

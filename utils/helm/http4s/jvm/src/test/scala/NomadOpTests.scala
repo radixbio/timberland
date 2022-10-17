@@ -72,7 +72,7 @@ class NomadOpTests extends FlatSpec  with ForAllTestContainer {
   }
 
 
-  it should "return the description of jobs in Nomad that match prefix" in {
+  it should "return the description of jobs in Nomad that match namespace" in {
 
     val nomadJobs = interp(NomadOp.NomadListJobs()).unsafeRunSync
     println(nomadJobs.head)

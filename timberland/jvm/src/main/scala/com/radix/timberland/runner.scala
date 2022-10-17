@@ -47,7 +47,7 @@ object runner {
               bindIP,
               leaderNode,
               remoteAddress,
-              prefix,
+              namespace,
               username,
               password,
               serverJoin
@@ -85,7 +85,7 @@ object runner {
             for {
               _ <- if (featureFlags.getOrElse("tui", true)) LogTUI.startTUI() else IO.unit
               _ <- IO(LogTUI.writeLog(s"using flags: $featureFlags"))
-              tfStatus <- daemonutil.runTerraform(featureFlags, prefix = prefix)(serviceAddrs, authTokens)
+              tfStatus <- daemonutil.runTerraform(featureFlags, namespace = namespace)(serviceAddrs, authTokens)
               _ <- IO {
                 tfStatus match {
                   case 0 => true
@@ -202,7 +202,7 @@ object runner {
             IO(scribe.info("Stopped."))).unsafeRunSync
           sys.exit(0)
 
-        case Update(remoteAddress, prefix, username, password) =>
+        case Update(remoteAddress, namespace, username, password) =>
           scribe.Logger.root
             .clearHandlers()
             .clearModifiers()
@@ -242,7 +242,7 @@ object runner {
                 for {
                   _ <- startTUIOnFlag *>
                     UpdateModules
-                      .run(consulExistsProc, prefix = prefix)
+                      .run(consulExistsProc, namespace)
                       .handleErrorWith(err => LogTUI.endTUI(Some(err))) *>
                     LogTUI.endTUI()
                 } yield ()

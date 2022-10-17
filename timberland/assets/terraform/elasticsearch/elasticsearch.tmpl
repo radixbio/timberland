@@ -1,4 +1,5 @@
-job "${prefix}elasticsearch" {
+job "elasticsearch" {
+  namespace = "${namespace}"
   all_at_once = false
 
   constraint {
@@ -95,7 +96,7 @@ EOH
     service {
       name = "es-transport-${i}"
       port = ${ 9300 + i }
-      tags = ["elasticsearch","transport", "${prefix}", "system"]
+      tags = ["elasticsearch","transport", "system"]
       address_mode = "auto"
 
       connect {
@@ -130,7 +131,7 @@ ${ i == j ? "" : <<-EOT
     service {
       name = "es-rest-${i}"
       port = 9200
-      tags = ["elasticsearch","rest", "${prefix}", "system"]
+      tags = ["elasticsearch","rest", "system"]
       address_mode = "auto"
 
       connect {
@@ -151,7 +152,6 @@ ${ i == j ? "" : <<-EOT
   }
 %{ endfor ~}
 
-  namespace = "default"
   priority = 50
   region = "global"
   type = "service"

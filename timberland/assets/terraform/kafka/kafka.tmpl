@@ -1,4 +1,5 @@
-job "${prefix}kafka-daemons" {
+job "kafka-daemons" {
+  namespace = "${namespace}"
   all_at_once = false
 
   constraint {
@@ -82,7 +83,7 @@ job "${prefix}kafka-daemons" {
     service {
       name = "kafka-${i}"
       port = ${ 9092 + i }
-      tags = ["kafka-quorum","kafka-plaintext", "${prefix}", "system"]
+      tags = ["kafka-quorum","kafka-plaintext", "system"]
       address_mode = "auto"
 
       connect {
@@ -125,7 +126,6 @@ job "${prefix}kafka-daemons" {
 
 %{ endfor ~}
 
-  namespace = "default"
   priority = 50
   region = "global"
   type = "service"

@@ -1,4 +1,5 @@
-job "${prefix}yugabyte-kafka-connector" {
+job "yugabyte-kafka-connector" {
+  namespace = "${namespace}"
   all_at_once = false
   datacenters = ["dc1"]
 
@@ -97,7 +98,6 @@ job "${prefix}yugabyte-kafka-connector" {
         }
   }
 
-  namespace = "default"
   priority = 50
   region = "global"
   type = "batch"

@@ -1,4 +1,5 @@
-job "${prefix}zookeeper-daemons" {
+job "zookeeper-daemons" {
+  namespace = "${namespace}"
   all_at_once = false
 
   constraint {
@@ -211,7 +212,7 @@ EOH
     service {
       name = "zookeeper-client-${i}"
       port = 2181
-      tags = ["zookeeper-quorum","zookeeper-client", "${prefix}", "system"]
+      tags = ["zookeeper-quorum","zookeeper-client", "system"]
       address_mode = "auto"
 
       connect {
@@ -246,7 +247,7 @@ EOH
     service {
       name = "zookeeper-follower-${i}"
       port = ${2888+i}
-      tags = ["zookeeper-quorum","zookeeper-follower", "${prefix}", "system"]
+      tags = ["zookeeper-quorum","zookeeper-follower", "system"]
       address_mode = "auto"
 
       connect {
@@ -270,7 +271,7 @@ EOH
     service {
       name = "zookeeper-othersrvs-${i}"
       port = ${3888+i}
-      tags = ["zookeeper-quorum","zookeeper-othersrvs", "${prefix}", "system"]
+      tags = ["zookeeper-quorum","zookeeper-othersrvs", "system"]
       address_mode = "auto"
 
       connect {
@@ -292,7 +293,6 @@ EOH
   }
 %{ endfor ~}
 
-  namespace = "default"
   priority = 50
   region = "global"
   type = "service"

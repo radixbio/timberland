@@ -16,8 +16,8 @@ variable "aws_secret_key" {
   default = null
 }
 
-variable "prefix" {
-  description = "Job name prefix"
+variable "namespace" {
+  description = "Job namespace"
   type = string
   default = ""
 }

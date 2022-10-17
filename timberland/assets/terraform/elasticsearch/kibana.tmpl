@@ -1,4 +1,5 @@
-job "${prefix}kibana" {
+job "kibana" {
+  namespace = "${namespace}"
   all_at_once = false
 
   constraint {
@@ -64,7 +65,7 @@ job "${prefix}kibana" {
     service {
       name = "kibana"
       port = "kibanax"
-      tags = ["kibana","http", "${prefix}", "user"]
+      tags = ["kibana","http", "user"]
       address_mode = "auto"
 
       connect {
@@ -82,7 +83,6 @@ job "${prefix}kibana" {
     }
   }
 
-  namespace = "default"
   priority = 50
   region = "global"
   type = "service"

@@ -60,8 +60,8 @@ final class Http4sNomadClient[F[_]](
     case NomadOp.NomadCreateJobFromHCL(hcl, enforceIndex, jobModifyIndex, policyOverride) =>
       nomadCreateJobFromHCL(hcl, enforceIndex, jobModifyIndex, policyOverride): F[A]
 
-    case NomadOp.NomadListJobs(prefix, index, wait) =>
-      nomadListJobs(prefix, index, wait)
+    case NomadOp.NomadListJobs(namespace, index, wait) =>
+      nomadListJobs(namespace, index, wait)
     case NomadOp.NomadReadRaftConfiguration(maxWait) => nomadCReadRaftConfiguration((maxWait))
     case NomadOp.NomadStopJob(job, purge)            => nomadStopJob(job, purge)
     case NomadOp.NomadListAllocations()              => nomadListAllocations()
@@ -180,15 +180,15 @@ final class Http4sNomadClient[F[_]](
   }
 
   def nomadListJobs(
-    prefix: String = "",
+    namespace: String = "*",
     index: Option[Long] = None,
     wait: Option[Interval] = None
   ): F[List[NomadListJobsResponse]] = {
     for {
-      _ <- F.delay(log.debug(s"listing nomad jobs: $prefix"))
+      _ <- F.delay(log.debug(s"listing nomad jobs: $namespace"))
 
       jobUri = (baseUri / "v1" / "jobs")
-        .+?(name = "prefix", prefix)
+        .+?(name = "namespace", namespace)
         .+??("index", index)
         .+??("wait", wait.map(Interval.toString))
 
@@ -200,7 +200,7 @@ final class Http4sNomadClient[F[_]](
       response <- client.expectOr[List[NomadListJobsResponse]](req)(handleNomadErrorResponse)
 
     } yield {
-      log.debug(s"nomad response for list jobs $prefix was $response")
+      log.debug(s"nomad response for list jobs $namespace was $response")
       response
     }
 

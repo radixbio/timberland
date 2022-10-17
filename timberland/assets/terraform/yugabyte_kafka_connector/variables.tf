@@ -4,8 +4,8 @@ variable "test" {
   default = false
 }
 
-variable "prefix" {
-  description = "Job name prefix"
+variable "namespace" {
+  description = "Job namespace"
   type = string
   default = ""
 }

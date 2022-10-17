@@ -223,7 +223,7 @@ object Investigator {
 
   def getServiceNamesForJob(job: JobStatus)(implicit get: String => IO[Json]): IO[List[JobStatus#ServiceStatus]] =
     for {
-      jobInfo <- get(s"https://nomad.service.consul:4646/v1/job/${job.JobID}")
+      jobInfo <- get(s"https://nomad.service.consul:4646/v1/job/${job.jobName}")
       names = root.TaskGroups.each.Services.each.Name.string.getAll(jobInfo)
       statuses = names.map(name => job.ServiceStatus(name, "fetching health checks from consul"))
       _ = if (statuses.isEmpty) {
@@ -277,9 +277,8 @@ case class HashistackStatus(service: String, status: String, statusDescription: 
   val render: String = helpRender(service.capitalize, "", status, styleMap, statusDescription)
 }
 
-case class JobStatus(JobID: String, Status: String, StatusDescription: String) extends StatusUpdate { // hideChildren parameter?
-  private val prefix = daemonutil.getPrefix(false)
-  val jobName: String = if (JobID.startsWith(prefix)) JobID.slice(prefix.length, JobID.length) else JobID
+case class JobStatus(jobName: String, Status: String, StatusDescription: String) extends StatusUpdate { // hideChildren parameter?
+  private val namespace = daemonutil.getNamespace(integration = false)
   override val toString = s"$jobName job status $Status, ($StatusDescription)"
   val key: String = jobName
   val spinner = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏" // https://github.com/helloIAmPau/node-spinner/blob/master/spinners.json

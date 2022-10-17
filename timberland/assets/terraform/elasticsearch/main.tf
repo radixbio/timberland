@@ -1,11 +1,11 @@
 resource "nomad_job" "elasticsearch" {
   count = var.enable ? 1 : 0
-  jobspec = templatefile("/opt/radix/timberland/terraform/modules/elasticsearch/elasticsearch.tmpl", {quorum_size = var.quorum_size, dev = var.dev, prefix = var.prefix, test = var.test})
+  jobspec = templatefile("/opt/radix/timberland/terraform/modules/elasticsearch/elasticsearch.tmpl", {quorum_size = var.quorum_size, dev = var.dev, namespace = var.namespace, test = var.test})
 }
 
 resource "nomad_job" "kibana" {
   count = var.enable ? 1 : 0
-  jobspec = templatefile("/opt/radix/timberland/terraform/modules/elasticsearch/kibana.tmpl", {prefix = var.prefix, test = var.test, dev = var.dev, quorum_size = var.quorum_size})
+  jobspec = templatefile("/opt/radix/timberland/terraform/modules/elasticsearch/kibana.tmpl", {namespace = var.namespace, test = var.test, dev = var.dev, quorum_size = var.quorum_size})
 }
 
 data "consul_service_health" "es_health" {

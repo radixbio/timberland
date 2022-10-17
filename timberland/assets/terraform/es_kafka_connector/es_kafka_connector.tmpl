@@ -1,4 +1,5 @@
-job "${prefix}es-kafka-connector" {
+job "es-kafka-connector" {
+  namespace = "${namespace}"
   all_at_once = false
   datacenters = ["dc1"]
 
@@ -95,7 +96,6 @@ job "${prefix}es-kafka-connector" {
     }
   }
 
-  namespace = "default"
   priority = 50
   region = "global"
   type = "batch"

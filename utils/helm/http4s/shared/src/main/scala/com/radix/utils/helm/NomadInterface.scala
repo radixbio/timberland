@@ -30,7 +30,7 @@ trait NomadInterface[F[_]] extends (NomadOp ~> F) {
   ): F[QueryResponse[List[NomadCreateJobResponse]]]
 
   def nomadListJobs(
-    prefix: String = "",
+    namespace: String = "",
     index: Option[Long] = None,
     wait: Option[Interval] = None
   ): F[List[NomadListJobsResponse]]

@@ -14,7 +14,7 @@ case class Start(
   bindIP: Option[String] = None,
   leaderNode: Option[String] = None,
   remoteAddress: Option[String] = None,
-  prefix: Option[String] = None,
+  namespace: Option[String] = None,
   username: Option[String] = None,
   password: Option[String] = None,
   serverMode: Boolean = false
@@ -48,7 +48,7 @@ case class FlagQuery(
 
 case class Update(
   remoteAddress: Option[String] = None,
-  prefix: Option[String] = None,
+  namespace: Option[String] = None,
   username: Option[String] = None,
   password: Option[String] = None
 ) extends RadixCMD
@@ -168,14 +168,14 @@ object cli {
 
           optional(
             strOption(
-              metavar("PREFIX"),
-              long("prefix"),
-              help("Custom prefix for Nomad jobs")
+              metavar("NAMESPACE"),
+              long("namespace"),
+              help("Namespace for Nomad jobs")
             )
-          ).map(prefix => {
+          ).map(namespace => {
             exist: Start =>
-              prefix match {
-                case Some(_) => exist.copy(prefix = prefix)
+              namespace match {
+                case Some(_) => exist.copy(namespace = namespace)
                 case None    => exist
               }
           }) <*>
@@ -428,15 +428,15 @@ object cli {
 
           optional(
             strOption(
-              metavar("PREFIX"),
-              long("prefix"),
-              help("Custom prefix for Nomad jobs")
+              metavar("NAMESPACE"),
+              long("namespace"),
+              help("Namespace for Nomad jobs")
             )
-          ).map(prefix => {
+          ).map(namespace => {
             exist: Update =>
-              prefix match {
-                case Some(_) => exist.copy(prefix = prefix)
-                case None    => exist.copy(prefix = Some(daemonutil.getPrefix(false)))
+              namespace match {
+                case Some(_) => exist.copy(namespace = namespace)
+                case None    => exist.copy(namespace = Some(daemonutil.getNamespace(false)))
               }
           }) <*>
 

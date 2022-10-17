@@ -15,7 +15,7 @@ data "vault_generic_secret" "minio_creds" {
 resource "nomad_job" "minio" {
   count = var.enable ? 1 : 0
   jobspec = templatefile("/opt/radix/timberland/terraform/modules/minio/minio.tmpl", {
-    prefix = var.prefix,
+    namespace = var.namespace,
     test = var.test,
     have_upstream_creds = local.have_upstream_creds,
     aws_access_key = local.have_upstream_creds ? data.vault_aws_access_credentials.creds[0].access_key : null,

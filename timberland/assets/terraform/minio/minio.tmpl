@@ -1,4 +1,5 @@
-job "${prefix}minio-job" {
+job "minio-job" {
+  namespace = "${namespace}"
   all_at_once = false
 
   constraint {
@@ -54,7 +55,7 @@ ${ !have_upstream_creds ? "" : <<EOH
     service {
       name = "minio-remote-service"
       port = 9000
-      tags = ["minio", "remote", "${prefix}", "user"]
+      tags = ["minio", "remote", "user"]
       address_mode = "auto"
 
       connect {
@@ -276,7 +277,7 @@ EOH
     service {
       name = "minio-local-service"
       port = 9000
-      tags = ["minio", "local", "${prefix}", "user"]
+      tags = ["minio", "local", "user"]
       address_mode = "auto"
 
       connect {
@@ -301,7 +302,6 @@ EOH
     }
   }
 
-  namespace = "default"
   priority = 50
   region = "global"
   type = "service"

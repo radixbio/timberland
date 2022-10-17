@@ -14,7 +14,7 @@ import com.radix.timberland.flags.hooks.{awsAuthConfig, AWSAuthConfigFile}
 import com.radix.timberland.radixdefs.ACLTokens
 import com.radix.timberland.util._
 import com.radix.utils.tls.ConsulVaultSSLContext
-import org.http4s.Header
+import org.http4s.{Header, Uri}
 import org.http4s.Method.POST
 import org.http4s.client.dsl.io._
 import org.http4s.implicits._
@@ -385,6 +385,7 @@ object Services {
       else {
         auth.getMasterToken
       }
+      _ <- if (initialSetup) addNomadNamespace(consulNomadToken) else IO.unit
       _ <- if (!remoteJoin) auth.storeTokensInVault(ACLTokens(masterToken = consulNomadToken, actorToken = actorToken))
       else IO.unit
       _ <- if (serverJoin) serviceController.appendParametersConsul("-server") // add -server to consul invocation
@@ -518,6 +519,22 @@ object Services {
       _ <- Investigator.reportHashiUpdate("Vault", "Service started")
     } yield ()
 
+  }
+
+  private def addNomadNamespace(aclToken: String): IO[Unit] = {
+    for {
+      namespaceRaw <- IO(os.read(RadPath.runtime / "timberland" / "release-name.txt"))
+      namespace = namespaceRaw.stripSuffix("\n")
+      req = POST(
+        Map("Name" -> namespace).asJson.toString(),
+        Uri.unsafeFromString("https://nomad.service.consul:4646/v1/namespace/" + namespace),
+        Header("X-Nomad-Token", aclToken)
+      )
+      status <- ConsulVaultSSLContext.blaze.use(_.status(req))
+      _ <- IO {
+        if (status.code != 200) scribe.warn("Error adding nomad namespace: " + status.reason)
+      }
+    } yield ()
   }
 
   private def addConsulIntention(consulToken: String): IO[Unit] = {

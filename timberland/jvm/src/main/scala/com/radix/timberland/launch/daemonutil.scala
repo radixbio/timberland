@@ -76,10 +76,10 @@ package object daemonutil {
     if (is_integration) RadPath.temp / "terraform" else os.root / "opt" / "radix" / "terraform"
   }
 
-  private val prefixFile = RadPath.runtime / "timberland" / "release-name.txt"
+  private val namespaceFile = RadPath.runtime / "timberland" / "release-name.txt"
 
-  def getPrefix(integration: Boolean): String = {
-    if (integration) "integration-" else os.read(prefixFile).stripLineEnd + "-"
+  def getNamespace(integration: Boolean): String = {
+    if (integration) "integration" else os.read(namespaceFile).stripLineEnd
   }
 
   /** Start up the specified daemons (or all or a combination) based upon the passed parameters. Will immediately exit
@@ -87,11 +87,11 @@ package object daemonutil {
    *
    * @param featureFlags    A map specifying which modules to enable
    * @param integrationTest Whether to run terraform for integration tests
-   * @param prefix          An optional prefix to prepend to job names
+   * @param namespace          An optional nomad namespace
    * @return Returns an IO of DaemonState and since the function is blocking/recursive, the only return value is
    *         AllDaemonsStarted
    */
-  def runTerraform(featureFlags: Map[String, Boolean], integrationTest: Boolean = false, prefix: Option[String] = None)(
+  def runTerraform(featureFlags: Map[String, Boolean], integrationTest: Boolean = false, namespace: Option[String] = None)(
     implicit serviceAddrs: ServiceAddrs = ServiceAddrs(),
     tokens: AuthTokens
   ): IO[Int] = {
@@ -105,7 +105,7 @@ package object daemonutil {
     implicit val tokensOption: Option[AuthTokens] = Some(tokens)
 
     val variables =
-      s"-var='prefix=${getPrefix(integrationTest)}' " +
+      s"-var='namespace=${getNamespace(integrationTest)}' " +
         s"-var='test=$integrationTest' " +
         s"-var='acl_token=${tokens.consulNomadToken}' " +
         s"-var='vault_token=${tokens.vaultToken}' " +
