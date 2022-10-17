@@ -2,16 +2,15 @@ package com.radix.timberland
 
 import io.circe.{Parser => _, _}
 import matryoshka.data.Fix
-
 import java.io.File
-import scala.io.StdIn.readLine
 
+import scala.io.StdIn.readLine
 import scala.concurrent.duration._
 import ammonite.ops._
 import cats.effect.IO
 import cats.implicits._
 import com.radix.timberland.launch.daemonutil
-import com.radix.timberland.runtime.{Mock, Run}
+import com.radix.timberland.runtime.{ConsulFlagsUpdated, FlagsStoredLocally, Mock, Run, flags}
 import io.circe.{Parser => _}
 import optparse_applicative._
 import optparse_applicative.types.Parser
@@ -25,7 +24,7 @@ import util.Util
  * |     |- native <RADIX_MONOREPO_DIR>
  * |     |- install <RADIX_MONOREPO_DIR>
  * |- runtime|
- * |- start [debug] [dry-run] [force-bind-ip] [dev] [vault] [es] [core] [service-port] [registry-listener-port] [no-restart] [username] [password]
+ * |- start [debug] [dry-run] [force-bind-ip] [dev] [vault] [es] [core] [remote-address] [service-port] [registry-listener-port] [no-restart] [username] [password]
  * |- stop
  * |- trace
  * |- nuke
@@ -73,16 +72,9 @@ case class Start(
                   loglevel: scribe.Level = scribe.Level.Debug,
                   bindIP: Option[String] = None,
                   consulSeeds: Option[String] = None,
-                  dev: Boolean = false,
-                  core: Boolean = false,
-                  vault: Boolean = false,
-                  es: Boolean = false,
-                  yugabyte: Boolean = false,
-                  retool: Boolean = false,
-                  elemental: Boolean = false,
+                  remoteAddress: Option[String] = None,
                   servicePort: Int = 9092,
                   registryListenerPort: Int = 8081,
-                  norestart: Boolean = false,
                   username: Option[String] = None,
                   password: Option[String] = None,
                   upstreamAccessKey: Option[String] = None,
@@ -100,6 +92,10 @@ sealed trait DNS extends Runtime
 case class DNSUp(service: Option[String], bindIP: Option[String]) extends DNS
 
 case class DNSDown(service: Option[String], bindIP: Option[String]) extends DNS
+
+case class FlagCmd(flags: List[String], enable: Boolean, remoteAddress: Option[String]) extends Runtime
+
+case object TestPrint extends Runtime
 
 sealed trait Prism extends RadixCMD
 
@@ -176,47 +172,12 @@ object runner {
                       case list@Some(_) => exist.copy(consulSeeds = list)
                       case None => exist
                     }
-                }) <*> optional(switch(long("dev"), help("force services to start in development mode"))).map(dev => { exist: Start =>
-                dev match {
-                  case bool@Some(true) => exist.copy(dev = bool.get)
-                  case _ => exist
-                }
-              }) <*> optional(switch(long("no-restart"), help("Don't start/restart nomad and consul"))).map(norestart => { exist: Start =>
-                norestart match {
-                  case bool@Some(true) => exist.copy(norestart = bool.get)
-                  case _ => exist
-                }
-              }) <*> optional(switch(long("core"), help("start core services"))).map(core => { exist: Start =>
-                core match {
-                  case bool@Some(true) => exist.copy(core = bool.get)
-                  case _ => exist
-                }
-              }) <*> optional(switch(long("vault"), help("start vault only"))).map(vault => { exist: Start =>
-                vault match {
-                  case bool@Some(true) => exist.copy(vault = bool.get)
-                  case _ => exist
-                }
-              }) <*> optional(switch(long("es"), help("start elasticsearch only"))).map(es => { exist: Start =>
-                es match {
-                  case bool@Some(true) => exist.copy(es = bool.get)
-                  case _ => exist
-                }
-              }) <*> optional(switch(long("yugabyte"), help("start yugabyte only"))).map(yugabyte => { exist: Start =>
-                yugabyte match {
-                  case bool@Some(true) => exist.copy(yugabyte = bool.get)
-                  case _ => exist
-                }
-              }) <*> optional(switch(long("retool"), help("start retool only"))).map(retool => { exist: Start =>
-                retool match {
-                  case bool@Some(true) => exist.copy(retool = bool.get)
-                  case _ => exist
-                }
-              }) <*> optional(switch(long("elemental"), help("start elemental only"))).map(elemental => { exist: Start =>
-                elemental match {
-                  case bool@Some(true) => exist.copy(elemental = bool.get)
-                  case _ => exist
-                }
               }) <*> optional(
+                strOption(long("remote-address"),
+                  help("remote consul address")))
+                .map(ra => { exist: Start =>
+                  exist.copy(remoteAddress = ra)
+                }) <*> optional(
                 intOption(long("service-port"),
                   help("Kafka service port")))
                 .map(sp => { exist: Start =>
@@ -285,7 +246,15 @@ object runner {
                   progDesc("deinject consul from dns resolution"))
               ),
             ).weaken[Runtime])
-          )
+          ),
+          command("enable", info(^(
+            many(strArgument(metavar("FLAGS"))),
+            optional(strOption(long("remote-address"), help("remote consul address")))
+          )(FlagCmd(_, true, _)), progDesc("enable feature flags"))),
+          command("disable", info(^(
+            many(strArgument(metavar("FLAGS"))),
+            optional(strOption(long("remote-address"), help("remote consul address")))
+          )(FlagCmd(_, false, _)), progDesc("disable feature flags")))
         ),
         progDesc("radix runtime component")
       )
@@ -393,7 +362,7 @@ object runner {
             case local: Local =>
               local match {
                 case Nuke => Right(Unit)
-                case cmd@Start(dummy, loglevel, bindIP, consulSeedsO, dev, core, vault, es, yugabyte, retool, elemental, servicePort, registryListenerPort, norestart, username, password, upstreamAccessKey, upstreamSecretKey) => {
+                case cmd@Start(dummy, loglevel, bindIP, consulSeedsO, remoteAddress, servicePort, registryListenerPort, username, password, upstreamAccessKey, upstreamSecretKey) => {
                   scribe.Logger.root
                     .clearHandlers()
                     .clearModifiers()
@@ -401,43 +370,20 @@ object runner {
                     .replace()
                   scribe.info(s"starting runtime with $cmd")
 
-                  launch.dns.up()
-
                   import ammonite.ops._
-                  var bootstrapExpect: Int = 3
-                  if (dev) {
-                    bootstrapExpect = 1
-                  }
-
-                  var startCore = core
-                  var startVault = vault
-                  var startEs = es
-                  var startRetool = retool
-                  var startYugabyte = yugabyte
-                  var startElemental = elemental
-
-                  if (!startCore && !startVault && !startEs && !startRetool && !startYugabyte && !startElemental) {
-                    startCore = true
-                    startVault = true
-                    startEs = true
-                    startRetool = true
-                    startYugabyte = true
-                    startElemental = false
-                  }
-
-                  scribe.info(s"******* CORE: $startCore")
+                  System.setProperty("dns.server", remoteAddress.getOrElse("127.0.0.1"))
 
                   if (dummy) {
                     implicit val host = new Mock.RuntimeNolaunch[IO]
                     Right(
                       println(Run
-                        .initializeRuntimeProg[IO](Path(consul.toPath.getParent), Path(nomad.toPath.getParent), bindIP, consulSeedsO, bootstrapExpect)
+                        .initializeRuntimeProg[IO](Path(consul.toPath.getParent), Path(nomad.toPath.getParent), bindIP, consulSeedsO, 0)
                         .unsafeRunSync)
                     )
                     System.exit(0)
                   } else {
                     scribe.info("Creating weave network")
-                    val prog = for {
+                    val createWeaveNetwork = for {
                       _ <- IO(os.proc("/usr/bin/sudo /sbin/sysctl -w vm.max_map_count=262144".split(' ')).spawn())
                       pluginList <- IO(os.proc("/usr/bin/docker plugin ls".split(' ')).call(cwd = os.root, check = false))
                       _ <- pluginList.out.string.contains("weaveworks/net-plugin:2.6.0") match {
@@ -451,28 +397,44 @@ object runner {
                     } yield ()
 
                     implicit val host = new Run.RuntimeServicesExec[IO]
-                    val res = if (!norestart) {
+                    val startNomadAndConsul = for {
+                      localFlags <- flags.getLocalFlags(Path(persistentdir))
 
-                        prog *> Run
-                          .initializeRuntimeProg[IO](Path(consul.toPath.getParent), Path(nomad.toPath.getParent), bindIP, consulSeedsO, bootstrapExpect)
-                    } else prog
+                      consulPath = Path(consul.toPath.getParent)
+                      nomadPath = Path(nomad.toPath.getParent)
+                      bootstrapExpect = if (localFlags.getOrElse("dev", true)) 1 else 3
+
+                      _ <- if (localFlags.getOrElse("no_restart", false)) IO.unit else {
+                        IO(scribe.info(s"***********DAEMON SIZE${bootstrapExpect}***************")) *>
+                        Run.initializeRuntimeProg[IO](consulPath, nomadPath, bindIP, consulSeedsO, bootstrapExpect)
+                      }
+                    } yield ()
+
                     scribe.info("Launching daemons")
-                    scribe.info(s"***********DAEMON SIZE${bootstrapExpect}***************")
+                    val bootstrap = for {
+                      _ <- createWeaveNetwork
+                      _ <- startNomadAndConsul
+                      _ <- daemonutil.waitForDNS("nomad.service.consul", 2.minutes)
 
-                    val waitForNomadAndApplyTerraformAndMaybeUnsealVault = if(startVault) {
-                      res *>
-                        daemonutil.waitForDNS("nomad.service.consul", 2.minutes) *>
-                        daemonutil.runTerraform(integrationTest = false, dev = dev, core = startCore, yugabyteStart = startYugabyte, vaultStart = startVault, esStart = startEs, retoolStart = startRetool, elementalStart = startElemental, upstreamAccessKey, upstreamSecretKey) *>
-                        daemonutil.waitForQuorum(core = startCore, yugabyteStart = startYugabyte, vaultStart = startVault, esStart = startEs, retoolStart = startRetool, elementalStart = startElemental) *>
-                        daemonutil.unsealVault(dev = dev)
-                    } else {
-                      res *>
-                        daemonutil.waitForDNS("nomad.service.consul", 2.minutes) *>
-                        daemonutil.runTerraform(integrationTest = false, dev = dev, core = startCore, yugabyteStart = startYugabyte, vaultStart = startVault, esStart = startEs, retoolStart = startRetool, elementalStart = startElemental, upstreamAccessKey, upstreamSecretKey) *>
-                        daemonutil.waitForQuorum(core = startCore, yugabyteStart = startYugabyte, vaultStart = startVault, esStart = startEs, retoolStart = startRetool, elementalStart = startElemental)
-                    }
+                      flagUpdateResp <- flags.updateFlags(Path(persistentdir))
+                      featureFlags = flagUpdateResp.asInstanceOf[ConsulFlagsUpdated].flags
 
-                    waitForNomadAndApplyTerraformAndMaybeUnsealVault.unsafeRunSync
+                      _ <- daemonutil.runTerraform(featureFlags, integrationTest = false, upstreamAccessKey, upstreamSecretKey)
+                      _ <- daemonutil.waitForQuorum(featureFlags)
+
+                      _ <- if (featureFlags.getOrElse("vault", false)) {
+                        daemonutil.unsealVault(featureFlags.getOrElse("dev", true))
+                      } else IO.unit
+                    } yield ()
+
+                    val remoteBootstrap = for {
+                      serviceAddrs <- daemonutil.getServiceIps(remoteAddress.getOrElse("127.0.0.1"))
+                      featureFlags <- flags.getConsulFlags(serviceAddrs)
+                      _ <- daemonutil.runTerraform(featureFlags, integrationTest = false, upstreamAccessKey, upstreamSecretKey, serviceAddrs)
+                      // TODO: Call Ilia's updated vault code here
+                    } yield ()
+
+                    if (remoteAddress.isDefined) remoteBootstrap.unsafeRunSync() else bootstrap.unsafeRunSync()
                     sys.exit(0)
                   }
                 }
@@ -500,6 +462,33 @@ object runner {
                 case DNSDown(service, bindIP) => launch.dns.down()
               }
               dns_set.unsafeRunSync()
+            }
+            case FlagCmd(flagNames, enable, remoteAddress) => {
+              val flagMap = flagNames.map((_, enable)).toMap
+
+              val localProc = for {
+                flagUpdateResp <- flags.updateFlags(Path(persistentdir), flagMap)
+                _ <- flagUpdateResp match {
+                  case ConsulFlagsUpdated(featureFlags) =>
+                    daemonutil.runTerraform(featureFlags, integrationTest = false, None, None) *>
+                    daemonutil.waitForQuorum(featureFlags)
+                  case FlagsStoredLocally() =>
+                    IO.unit
+                }
+              } yield ()
+
+              val remoteProc = for {
+                serviceAddrs <- daemonutil.getServiceIps(remoteAddress.getOrElse(""))
+                flagUpdateResp <- flags.updateFlags(Path(persistentdir), flagMap, serviceAddrs)
+                _ <- flagUpdateResp match {
+                  case ConsulFlagsUpdated(featureFlags) =>
+                    daemonutil.runTerraform(featureFlags, integrationTest = false, None, None, serviceAddrs)
+                  case FlagsStoredLocally() =>
+                    IO(scribe.warn("Could not connect to remote consul instance. Flags stored locally."))
+                }
+              } yield ()
+
+              if (remoteAddress.isDefined) remoteProc.unsafeRunSync() else localProc.unsafeRunSync()
             }
           }
 

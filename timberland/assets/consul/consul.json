@@ -9,7 +9,7 @@
   "bootstrap_expect": 3,
   "addresses": {
     "http": "0.0.0.0",
-    "dns": "127.0.0.1",
+    "dns": "127.0.0.1 {{ GetPrivateIP }}",
     "grpc": "0.0.0.0"
   },
   "connect": {

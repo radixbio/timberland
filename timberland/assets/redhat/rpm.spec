@@ -58,6 +58,16 @@ rm {timberland-full-tar.tar}
 /opt/radix/timberland/terraform/apprise/main.tf
 /opt/radix/timberland/terraform/apprise/outputs.tf
 /opt/radix/timberland/terraform/apprise/variables.tf
+/opt/radix/timberland/terraform/runtime
+/opt/radix/timberland/terraform/runtime/runtime.tmpl
+/opt/radix/timberland/terraform/runtime/main.tf
+/opt/radix/timberland/terraform/runtime/outputs.tf
+/opt/radix/timberland/terraform/runtime/variables.tf
+/opt/radix/timberland/terraform/s3lts
+/opt/radix/timberland/terraform/s3lts/s3lts.tmpl
+/opt/radix/timberland/terraform/s3lts/main.tf
+/opt/radix/timberland/terraform/s3lts/outputs.tf
+/opt/radix/timberland/terraform/s3lts/variables.tf
 /opt/radix/timberland/terraform/kafka
 /opt/radix/timberland/terraform/kafka/kafka.tmpl
 /opt/radix/timberland/terraform/kafka/main.tf

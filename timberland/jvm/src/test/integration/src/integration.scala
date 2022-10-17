@@ -34,13 +34,15 @@ abstract class TimberlandIntegration
   implicit val T: Timer[IO] = IO.timer(implicitly[ExecutionContext])
 
   val quorumsize = 1
-  val dev = true
-  val core = true
-  val yugabyte = false
-  val vault = false
-  val retool = false
-  val elemental = false
-  val elk = false
+  val featureFlags = Map(
+    "dev" -> true,
+    "core" -> true,
+    "yugabyte" -> false,
+    "vault" -> false,
+    "retool" -> false,
+    "elemental" -> false,
+    "es" -> false
+  )
 
   val nomadR: Resource[IO, NomadOp ~> IO] = BlazeClientBuilder[IO](implicitly[ExecutionContext]).resource
     .map(new Http4sNomadClient[IO](baseUri = Uri.unsafeFromString("http://nomad.service.consul:4646"), _))
@@ -55,8 +57,8 @@ abstract class TimberlandIntegration
     // Make sure Consul and Nomad are up
     val res = daemonutil.waitForDNS("consul.service.consul", 1.minutes) *>
       daemonutil.waitForDNS("_nomad._http.service.consul", 1.minutes) *>
-      daemonutil.runTerraform(integrationTest = true, dev = dev, core = core, yugabyteStart = yugabyte, vaultStart = vault, esStart = elk, retoolStart = retool, elementalStart = elemental, None, None) *>
-      daemonutil.waitForQuorum(core, yugabyte, vault, elk, retool, elemental)
+      daemonutil.runTerraform(featureFlags, integrationTest = true, None, None) *>
+      daemonutil.waitForQuorum(featureFlags)
     res.unsafeRunSync()
   }
 
@@ -110,7 +112,7 @@ abstract class TimberlandIntegration
     assert(check("nomad"))
     assert(check("nomad-client"))
   }
-  if (core) it should "bring up dev services" in {
+  if (featureFlags("core")) it should "bring up dev services" in {
     assert(check("apprise-apprise-apprise"))
     assert(check("zookeeper-daemons-zookeeper-zookeeper"))
     assert(check("kafka-daemons-kafka-kafka"))
@@ -121,19 +123,19 @@ abstract class TimberlandIntegration
     assert(check("minio-job-minio-group-minio-local"))
     assert(check("minio-job-minio-group-nginx-minio"))
   }
-  if (retool) it should "bring up retool" in {
+  if (featureFlags("retool")) it should "bring up retool" in {
     assert(check("retool-retool-postgres"))
     assert(check("retool-retool-retool-main"))
   }
-  if (yugabyte) it should "bring up yugabyte" in {
+  if (featureFlags("yugabyte")) it should "bring up yugabyte" in {
     assert(check("yugabyte-yugabyte-ybmaster"))
     assert(check("yugabyte-yugabyte-ybtserver"))
   }
-  if (vault) it should "bring up vault" in {
+  if (featureFlags("vault")) it should "bring up vault" in {
     assert(check("vault"))
     assert(check("vault-daemon-vault-vault"))
   }
-  if (elk) it should "bring up elasticsearch/kibana" in {
+  if (featureFlags("es")) it should "bring up elasticsearch/kibana" in {
     assert(check("elasticsearch-elasticsearch-es-generic-node"))
     assert(check("elasticsearch-kibana-kibana"))
   }

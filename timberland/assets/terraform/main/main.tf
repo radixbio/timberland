@@ -1,23 +1,22 @@
 terraform {
   backend "consul" {
-    address = "consul.service.consul:8500"
     scheme  = "http"
     path    = "terraform"
   }
 }
 
 provider "consul" {
-  address = "http://consul.service.consul:8500"
+  address = "http://${var.consul_address}:8500"
   version = "~> 2.7"
 }
 
 provider "nomad" {
-  address = "http://nomad.service.consul:4646"
+  address = "http://${var.nomad_address}:4646"
   version = "~> 1.4"
 }
 
 module "apprise" {
-  enable = var.launch_apprise
+  enable = contains(var.feature_flags, "apprise")
   // count is not supported for modules yet - https://github.com/hashicorp/terraform/issues/17519
   // instead, we have to pass a boolean and use count on each resource within the module
   // but the count variable inside modules is coming in terraform 0.13!!
@@ -30,17 +29,27 @@ module "apprise" {
 }
 
 module "elasticsearch" {
-  enable = var.launch_es
+  enable = contains(var.feature_flags, "elasticsearch")
 
   source = "/opt/radix/timberland/terraform/elasticsearch"
 
-  dev = var.dev
+  dev = contains(var.feature_flags, "dev")
+  test = var.test
+  prefix = var.prefix
+}
+
+module "elemental" {
+  enable = contains(var.feature_flags, "elemental")
+
+  source = "/opt/radix/timberland/terraform/elemental"
+
+  dev = contains(var.feature_flags, "dev")
   test = var.test
   prefix = var.prefix
 }
 
 module "es_kafka_connector" {
-  enable = var.launch_es && var.launch_kafka_companions
+  enable = contains(var.feature_flags, "es_kafka_connector")
 
   source = "/opt/radix/timberland/terraform/es_kafka_connector"
 
@@ -52,11 +61,11 @@ module "es_kafka_connector" {
 }
 
 module "kafka" {
-  enable = var.launch_kafka
+  enable = contains(var.feature_flags, "kafka")
 
   source = "/opt/radix/timberland/terraform/kafka"
 
-  dev = var.dev
+  dev = contains(var.feature_flags, "dev")
   test = var.test
   prefix = var.prefix
   quorum_size = var.kafka_quorum_size
@@ -66,11 +75,11 @@ module "kafka" {
 }
 
 module "kafka_companions" {
-  enable = var.launch_kafka_companions
+  enable = contains(var.feature_flags, "kafka_companions")
 
   source = "/opt/radix/timberland/terraform/kafka_companions"
 
-  dev = var.dev
+  dev = contains(var.feature_flags, "dev")
   test = var.test
   prefix = var.prefix
   quorum_size = var.kafka_companions_quorum_size
@@ -80,7 +89,7 @@ module "kafka_companions" {
 }
 
 module "minio" {
-  enable = var.launch_minio
+  enable = contains(var.feature_flags, "minio")
 
   source = "/opt/radix/timberland/terraform/minio"
 
@@ -92,7 +101,7 @@ module "minio" {
 }
 
 module "retool_pg_kafka_connector" {
-  enable = var.launch_kafka_companions && var.launch_retool
+  enable = contains(var.feature_flags, "retool_pg_kafka_connector")
 
   source = "/opt/radix/timberland/terraform/retool_pg_kafka_connector"
 
@@ -104,17 +113,33 @@ module "retool_pg_kafka_connector" {
 }
 
 module "retool_postgres" {
-  enable = var.launch_retool
+  enable = contains(var.feature_flags, "retool_postgres")
 
   source = "/opt/radix/timberland/terraform/retool"
 
-  dev = var.dev
+  dev = contains(var.feature_flags, "dev")
+  test = var.test
+  prefix = var.prefix
+}
+
+module "runtime" {
+  enable = contains(var.feature_flags, "runtime")
+  source = "/opt/radix/timberland/terraform/runtime"
+
+  test = var.test
+  prefix = var.prefix
+}
+
+module "s3lts" {
+  enable = contains(var.feature_flags, "s3lts")
+  source = "/opt/radix/timberland/terraform/s3lts"
+
   test = var.test
   prefix = var.prefix
 }
 
 module "vault" {
-  enable = var.launch_vault
+  enable = contains(var.feature_flags, "vault")
 
   source = "/opt/radix/timberland/terraform/vault"
 
@@ -124,18 +149,18 @@ module "vault" {
 }
 
 module "yugabyte" {
-  enable = var.launch_yugabyte
+  enable = contains(var.feature_flags, "yugabyte")
 
   source = "/opt/radix/timberland/terraform/yugabyte"
 
-  dev = var.dev
+  dev = contains(var.feature_flags, "dev")
   prefix = var.prefix
   test = var.test
   quorum_size = var.yugabyte_quorum_size
 }
 
 module "yb_kafka_connector" {
-  enable = var.launch_yugabyte && var.launch_kafka_companions
+  enable = contains(var.feature_flags, "yb_kafka_connector")
 
   source = "/opt/radix/timberland/terraform/yugabyte_kafka_connector"
 
@@ -147,12 +172,12 @@ module "yb_kafka_connector" {
 }
 
 module "zookeeper" {
-  enable = var.launch_zookeeper
+  enable = contains(var.feature_flags, "zookeeper")
 
   source = "/opt/radix/timberland/terraform/zookeeper"
 
   test = var.test
-  dev = var.dev
+  dev = contains(var.feature_flags, "dev")
   prefix = var.prefix
   quorum_size = var.zookeeper_quorum_size
 }

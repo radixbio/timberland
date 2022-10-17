@@ -22,6 +22,7 @@ scala_library(
         "//3rdparty/jvm/com/github/xuwei_k:optparse_applicative",
         "//3rdparty/jvm/com/lihaoyi:ammonite_ops",
         "//3rdparty/jvm/com/outr:scribe",
+        "//3rdparty/jvm/dnsjava",
         "//3rdparty/jvm/org/scala_lang/modules:scala_parser_combinators",
         "//shared/shared/shared/shared:shared-shared",
         "//utils/helm:helm-jvm",
@@ -201,6 +202,28 @@ pkg_tar(
         "//timberland/assets:terraform/apprise/variables.tf",
     ],
     package_dir = "/opt/radix/timberland/terraform/apprise",
+)
+
+pkg_tar(
+    name = "timberland-terraform-runtime-module",
+    srcs = [
+        "//timberland/assets:terraform/runtime/main.tf",
+        "//timberland/assets:terraform/runtime/outputs.tf",
+        "//timberland/assets:terraform/runtime/runtime.tmpl",
+        "//timberland/assets:terraform/runtime/variables.tf",
+    ],
+    package_dir = "/opt/radix/timberland/terraform/runtime",
+)
+
+pkg_tar(
+    name = "timberland-terraform-s3lts-module",
+    srcs = [
+        "//timberland/assets:terraform/s3lts/main.tf",
+        "//timberland/assets:terraform/s3lts/outputs.tf",
+        "//timberland/assets:terraform/s3lts/s3lts.tmpl",
+        "//timberland/assets:terraform/s3lts/variables.tf",
+    ],
+    package_dir = "/opt/radix/timberland/terraform/s3lts",
 )
 
 pkg_tar(
@@ -437,6 +460,8 @@ pkg_tar(
         ":timberland-terraform-plugins",
         ":timberland-terraform-retool-module",
         ":timberland-terraform-retool-pg-kafka-connector-module",
+        ":timberland-terraform-runtime-module",
+        ":timberland-terraform-s3lts-module",
         ":timberland-terraform-vault-module",
         ":timberland-terraform-yugabyte-kafka-connector-module",
         ":timberland-terraform-yugabyte-module",
@@ -454,7 +479,7 @@ pkg_deb(
         "net-tools",
     ],
     description = "Radix Timberland deploy file",
-    maintainer = "Alex Wied",
+    maintainer = "Alex Hulbert",
     package = "radix-timberland",
     postinst = "//timberland/assets:debian/postinst.sh",
     prerm = "//timberland/assets:debian/prerm.sh",
@@ -478,9 +503,9 @@ sh_binary(
         "persist",
     ],
     data = [
+        "src/test/service_test.py",
         "src/test/install-deb.sh",
         "src/test/install-rpm.sh",
-        "src/test/service_test.py",
         ":radix-timberland_0.1_amd64.deb",
         ":timberland-rpm-amd64.rpm",
     ],
@@ -494,9 +519,9 @@ sh_test(
         "src/test/ci.sh",
     ],
     data = [
+        "src/test/service_test.py",
         "src/test/install-deb.sh",
         "src/test/install-rpm.sh",
-        "src/test/service_test.py",
         ":radix-timberland_0.1_amd64.deb",
         ":timberland-rpm-amd64.rpm",
     ],

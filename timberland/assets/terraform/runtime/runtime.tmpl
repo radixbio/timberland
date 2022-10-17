@@ -1,0 +1,42 @@
+job "runtime" {
+  all_at_once = false
+  datacenters = ["dc1"]
+  group "runtime" {
+    count = 3
+    task "bootstrap" {
+      config {
+        image = "bazel/runtime/jvm:runtime-bootstrap-docker"
+        auth_soft_fail = false
+        hostname = "radix-runtime-bootstrap-$${NOMAD_ALLOC_INDEX}"
+        network_mode = "weave"
+        port_map = {"cluster" = 2552}
+      }
+      driver = "docker"
+      env = {
+        "TCP_AKKA_PORT" = "2552",
+        "HOSTNAME" = "runtime-bootstrap-discovery-$${NOMAD_ALLOC_INDEX}.service.consul"
+      }
+      kill_timeout = "10s"
+      kill_signal = "SIGINT"
+      leader = false
+      resources {
+        cpu = 100
+        memory = 512
+        network {
+          mbits = 10
+          port "cluster" { }
+        }
+      }
+      service {
+        name = "runtime-bootstrap-discovery-$${NOMAD_ALLOC_INDEX}"
+        port = "cluster"
+        address_mode = "auto"
+      }
+      shutdown_delay = "0s"
+    }
+  }
+  namespace = "default"
+  priority = 50
+  region = "global"
+  type = "service"
+}

@@ -17,6 +17,7 @@ import io.circe.syntax._
 
 import sys.process._
 import java.io.{File, PrintWriter}
+import java.net.UnknownHostException
 
 import com.radix.utils.helm.ConsulOp.CatalogListNodesForService
 
@@ -25,14 +26,17 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, TimeoutException, duration}
 import com.radix.utils.helm.elemental.{ElementalOps, UPNotRetrieved, UPNotSet, UPRetrieved, UPSet}
-import java.net.{InetAddress, UnknownHostException}
-
-import os.Path
+import org.xbill.DNS
+import com.radix.timberland.runtime.flags
 
 sealed trait DaemonState
 case object AllDaemonsStarted extends DaemonState
 
 case class RegisterProvider(provider: String, client_id: String, client_secret: String)
+
+case class ServiceAddrs(consulAddr: String = "consul.service.consul",
+                        nomadAddr: String = "nomad.service.consul",
+                        vaultAddr: String = "vault.service.consul")
 
 /** A holder class for combining a task with it's associated tags that need to be all checked for Daemon Availability
   *
@@ -104,21 +108,38 @@ package object daemonutil {
    * @param timeoutDuration How long to wait before throwing an exception
    */
   def waitForDNS(dnsName: String, timeoutDuration: FiniteDuration): IO[Unit] = {
-    def queryLoop(): IO[Unit] = for {
-      lookupResult <- IO(InetAddress.getAllByName(dnsName)).attempt
-      _ <- lookupResult match {
-        case Left(_: UnknownHostException) => IO(Console.println(s"[$dnsName] Host not found (yet)")) *> IO.sleep(2.seconds) *> queryLoop
-        case Left(err: Throwable) => IO(Console.println(s"[$dnsName] Unexpected result")) *> IO.raiseError(err)
-        case Right(addresses: Array[InetAddress]) => addresses match {
-          case Array() => IO(Console.println(s"[$dnsName] Successful yet empty DNS response")) *> IO.sleep(2.seconds) *> queryLoop
-          case _ => IO(Console.println(s"[$dnsName] Found DNS record(s): ${addresses.map(_.getHostAddress).mkString(", ")}"))
-        }
-      }
+    val dnsQuery = new DNS.Lookup(dnsName, DNS.Type.SRV, DNS.DClass.IN)
+
+    def queryProg(): IO[Unit] = for {
+      _ <- IO(Console.println(s"Waiting for DNS: $dnsName"))
+      dnsAnswers <- IO(Option(dnsQuery.run.toSeq).getOrElse(Seq.empty))
+      _ <- if(dnsQuery.getResult != DNS.Lookup.SUCCESSFUL || dnsAnswers.isEmpty)
+        IO.sleep(1.seconds) *> queryProg
+      else
+        IO(Console.println(s"Found DNS record: $dnsName"))
     } yield ()
 
-    timeout(queryLoop, timeoutDuration) *> IO.unit
+    timeout(queryProg, timeoutDuration) *> IO.unit
   }
 
+  def getServiceIps(remoteConsulDnsAddress: String): IO[ServiceAddrs] = {
+    def queryDns(host: String) = IO {
+      try {
+        DNS.Address.getByName(host).getHostAddress
+      } catch {
+        case _: UnknownHostException => {
+          scribe.error(s"Cannot resolve ip address of $host")
+          sys.exit(1)
+        }
+      }
+    }
+
+    for {
+      consulAddr <- queryDns("consul.service.consul")
+      nomadAddr <- queryDns("nomad.service.consul")
+      // vaultAddr <- queryDns("vault.service.consul")
+    } yield ServiceAddrs(consulAddr, nomadAddr)
+  }
 
   def getTerraformWorkDir(is_integration: Boolean): File = {
     if(is_integration) new File("/tmp/radix/terraform") else new File("/opt/radix/terraform")
@@ -137,19 +158,13 @@ package object daemonutil {
    * @return Returns an IO of DaemonState and since the function is blocking/recursive, the only return value is
    *         AllDaemonsStarted
    */
-  def runTerraform(integrationTest: Boolean,
-                   dev: Boolean,
-                   core: Boolean,
-                   yugabyteStart: Boolean,
-                   vaultStart: Boolean,
-                   esStart: Boolean,
-                   retoolStart: Boolean,
-                   elementalStart: Boolean,
+  def runTerraform(featureFlags: Map[String, Boolean],
+                   integrationTest: Boolean,
                    upstreamAccessKey: Option[String],
-                   upstreamSecretKey: Option[String]): IO[Int] = {
+                   upstreamSecretKey: Option[String],
+                   serviceAddrs: ServiceAddrs = ServiceAddrs()): IO[Int] = {
     val workingDir = getTerraformWorkDir(integrationTest)
     val mkTmpDirCommand = Seq("bash", "-c", "rm -rf /tmp/radix && mkdir -p /tmp/radix/terraform")
-    val initCommand = Seq(s"$execDir/terraform", "init", "-plugin-dir", s"$execDir/plugins", "-from-module", s"$execDir/main")
 
     val prefix = if(integrationTest) "integration-" else {
       val home = sys.env.getOrElse("HOME", "")
@@ -157,22 +172,14 @@ package object daemonutil {
       if(file.exists) Process(Seq("git", "rev-parse", "--abbrev-ref", "HEAD"), Some(new File(s"$home/monorepo"))).!!.trim.toLowerCase.replaceAll("/", "-") + "-" else ""
     }
 
-    val variables: String =
+    val variables =
       s"-var='prefix=$prefix' " +
       s"-var='test=$integrationTest' " +
-      s"-var='dev=$dev' " +
-      s"-var='launch_minio=$core' " +
-      s"-var='launch_apprise=$core' " +
-      s"-var='launch_zookeeper=$core' " +
-      s"-var='launch_kafka=$core' " +
-      s"-var='launch_kafka_companions=$core' " +
-      s"-var='launch_yugabyte=$yugabyteStart' " +
-      s"-var='launch_vault=$vaultStart' " +
-      s"-var='launch_es=$esStart' " +
-      s"-var='launch_retool=$retoolStart' " +
-      s"-var='launch_elemental=$elementalStart' " +
       s"-var='minio_upstream_access_key=${upstreamAccessKey.getOrElse("minio-access-key")}' " +
-      s"-var='minio_upstream_secret_key=${upstreamSecretKey.getOrElse("minio-secret-key")}' "
+      s"-var='minio_upstream_secret_key=${upstreamSecretKey.getOrElse("minio-secret-key")}' " +
+      s"-var='consul_address=${serviceAddrs.consulAddr}' " +
+      s"-var='nomad_address=${serviceAddrs.nomadAddr}' " +
+      s"""-var='feature_flags=["${featureFlags.filter(_._2).keys.mkString("""","""")}"]'"""
 
     //TODO don't spawn another bash shell
     val applyCommand = Seq("bash", "-c", s"$execDir/terraform apply -auto-approve " + variables)
@@ -181,22 +188,35 @@ package object daemonutil {
       mkDirExitCode <- IO(Process(mkTmpDirCommand) !)
     } yield mkDirExitCode
 
-    val init = for {
-      _ <- IO(Console.println(s"Init command: ${initCommand.mkString(" ")}"))
-      initExitCode <- IO(Process(initCommand, Some(workingDir)) !)
-    } yield initExitCode
-
     val apply = for {
       _ <- IO(Console.println(s"Apply command: ${applyCommand.mkString(" ")}"))
       applyExitCode <- IO(Process(applyCommand, Some(workingDir)) !)
     } yield applyExitCode
 
-    if(integrationTest) return mkTmpDir *> init *> apply
-
-    if(workingDir.listFiles.isEmpty)
-      init *> apply
+    if(integrationTest)
+      mkTmpDir *> initTerraform(integrationTest, true, serviceAddrs) *> apply
     else
-      apply
+      initTerraform(integrationTest, true, serviceAddrs) *> apply
+  }
+
+  def initTerraform(integrationTest: Boolean,
+                    connectToBackend: Boolean,
+                    serviceAddrs: ServiceAddrs = ServiceAddrs()): IO[Unit] = {
+    val initAgainCommand = Seq(
+      s"$execDir/terraform", "init",
+      "-plugin-dir", s"$execDir/plugins",
+      s"-backend=$connectToBackend",
+      s"-backend-config=address=${serviceAddrs.consulAddr}:8500"
+    )
+    val initFirstCommand = initAgainCommand ++ Seq("-from-module", s"$execDir/main")
+    val workingDir = getTerraformWorkDir(integrationTest)
+
+    for {
+      alreadyInitialized <- IO(workingDir.listFiles.nonEmpty)
+      initCommand = if (alreadyInitialized) initAgainCommand else initFirstCommand
+      _ <- if (connectToBackend) IO(Console.println(s"Init command: ${initCommand.mkString(" ")}")) else IO.unit
+      _ <- IO(os.proc(initCommand).call(cwd = os.Path(workingDir), check = false))
+    } yield ()
   }
 
   def stopTerraform(integrationTest: Boolean): IO[Int] = {
@@ -207,62 +227,17 @@ package object daemonutil {
     IO(ret.exitCode)
   }
 
-  def waitForQuorum(core: Boolean,
-                    yugabyteStart: Boolean,
-                    vaultStart: Boolean,
-                    esStart: Boolean,
-                    retoolStart: Boolean,
-                    elementalStart: Boolean): IO[DaemonState] = {
-    val coreServices = Vector(
-      "zookeeper-daemons-zookeeper-zookeeper",
-      "kafka-companion-daemons-kafkaCompanions-kSQL",
-      "kafka-companion-daemons-kafkaCompanions-kafkaConnect",
-      "kafka-companion-daemons-kafkaCompanions-kafkaRestProxy",
-      "kafka-companion-daemons-kafkaCompanions-schemaRegistry",
-      "kafka-daemons-kafka-kafka",
-      "minio-job-minio-group-nginx-minio",
-      "apprise-apprise-apprise",
-    )
-
-    val yugabyteServices = Vector(
-      "yugabyte-yugabyte-ybmaster",
-      "yugabyte-yugabyte-ybtserver",
-    )
-
-    //don't include "vault" because it will get tested later when it gets unsealed
-    val vaultServices = Vector(
-      "vault-daemon-vault-vault",
-    )
-
-    val elasticSearchServices = Vector(
-      "elasticsearch-elasticsearch-es-generic-node",
-      "elasticsearch-kibana-kibana",
-    )
-
-    val retoolServices = Vector(
-      "retool-retool-postgres",
-      "retool-retool-retool-main",
-    )
-
-    val elementalServices = Vector(
-      "elemental-machines-em-em",
-    )
-
-    val allEnabledServices = Vector(
-      (coreServices, core),
-      (yugabyteServices, yugabyteStart),
-      (vaultServices, vaultStart),
-      (elasticSearchServices, esStart),
-      (retoolServices, retoolStart),
-      (elementalServices, elementalStart)
-    ).flatMap { case (service, enabled) => if(enabled) Some(service) else None }.flatten
-
+  def waitForQuorum(featureFlags: Map[String, Boolean]): IO[DaemonState] = {
     implicit val cs: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
     implicit val timer: Timer[IO] = IO.timer(ExecutionContext.global)
 
-    val waitForAllServices = allEnabledServices.parTraverse { service => waitForDNS(s"$service.service.consul", 5.minutes) }
+    val enabledServices = featureFlags.toList.flatMap {
+      case (feature, enabled) => if (enabled) flags.flagServiceMap.getOrElse(feature, Vector()) else Vector()
+    }
 
-    waitForAllServices *> IO(AllDaemonsStarted)
+    enabledServices.parTraverse { service =>
+      waitForDNS(s"$service.service.consul", 5.minutes)
+    } *> IO.pure(AllDaemonsStarted)
   }
 
   def unsealVault(dev: Boolean): IO[Unit] = {

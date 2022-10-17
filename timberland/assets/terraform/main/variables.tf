@@ -16,76 +16,10 @@ variable "test" {
   default = false
 }
 
-variable "dev" {
-  description = "Whether the runtime is being launched in dev mode"
-  type = bool
-  default = true //false
-}
-
-variable "launch_apprise" {
-  description = "Whether the apprise job should be submitted"
-  type = bool
-  default = true
-}
-
-variable "launch_es" {
-  description = "Whether the elasticsearch job should be submitted"
-  type = bool
-  default = false
-}
-
-variable "launch_elemental" {
-  description = "Whether the elemental job should be submitted"
-  type = bool
-  default = true
-}
-
-variable "launch_es_kafka_connector" {
-  description = "Whether the elasticsearch/kafka connector job should be submitted"
-  type = bool
-  default = true
-}
-
-variable "launch_kafka" {
-  description = "Whether the kafka job should be submitted"
-  type = bool
-  default = true
-}
-
-variable "launch_kafka_companions" {
-  description = "Whether the kafka companions job should be submitted"
-  type = bool
-  default = true
-}
-
-variable "launch_minio" {
-  description = "Whether the minio job should be submitted"
-  type = bool
-  default = true
-}
-
-variable "launch_retool" {
-  description = "Whether the retool job should be submitted"
-  type = bool
-  default = true
-}
-
-variable "launch_vault" {
-  description = "Whether the vault job should be submitted"
-  type = bool
-  default = true
-}
-
-variable "launch_yugabyte" {
-  description = "Whether the yugabyte head node job should be submitted"
-  type = bool
-  default = true
-}
-
-variable "launch_zookeeper" {
-  description = "Whether the zookeeper job should be submitted"
-  type = bool
-  default = true
+variable "feature_flags" {
+  description = "A list of feature flags to enable"
+  type = list(string)
+  default = []
 }
 
 variable "kafka_quorum_size" {
@@ -146,4 +80,16 @@ variable "prefix" {
   description = "Job name prefix"
   type = string
   default = ""
+}
+
+variable "consul_address" {
+  description = "Resolved ip of consul"
+  type = string
+  default = "consul.service.consul"
+}
+
+variable "nomad_address" {
+  description = "Resolved ip of nomad"
+  type = string
+  default = "nomad.service.consul"
 }
