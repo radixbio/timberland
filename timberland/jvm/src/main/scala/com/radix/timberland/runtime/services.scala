@@ -183,6 +183,7 @@ object Run {
       consulNomadToken <- F.liftIO(auth.setupNomadMasterToken(persistentDir, consulToken))
 
       _ <- F.liftIO(auth.storeMasterTokenInVault(consulNomadToken))
+      _ <- F.delay { os.write.over(persistentDir / ".bootstrap-complete", "\n") }
 
       // _ <- F.liftIO(Run.putStrLn("started consul, nomad, and vault"))
     } yield AuthTokens(consulNomadToken, vaultToken)

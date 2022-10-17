@@ -324,9 +324,9 @@ object runner {
 
                     // Called when consul/nomad/vault are on localhost
                     val localBootstrap = for {
-                      isConsulUp <- daemonutil.isPortUp(8500)
+                      hasBootstrapped <- IO(os.exists(persistentDirPath / ".bootstrap-complete"))
                       serviceAddrs = ServiceAddrs()
-                      authTokens <- if (isConsulUp) {
+                      authTokens <- if (hasBootstrapped) {
                         auth.getAuthTokens(isRemote = false, serviceAddrs, username, password)
                       } else {
                         // daemonutil.containerRegistryLogin(containerRegistryUser, containerRegistryToken) *>
@@ -391,7 +391,7 @@ object runner {
                 _ <- IO(scribe.warn("Could not connect to remote consul instance. Flags stored locally."))
               } yield ()
 
-              daemonutil.isPortUp(8500).flatMap {
+              IO(os.exists(persistentDirPath / ".bootstrap-complete")).flatMap {
                 case true => consulExistsProc
                 case false => noConsulProc
               }.unsafeRunSync()
@@ -410,6 +410,10 @@ object runner {
               sys.exit(0)
 
             case AddUser(name, policies) =>
+              if (!os.exists(persistentDirPath / ".bootstrap-complete")) {
+                Console.err.println("Please run timberland runtime start before adding a new user")
+                sys.exit(1)
+              }
               val policiesWithDefault = if (policies.nonEmpty) policies else List("remote-access")
               val vaultToken = (new VaultUtils).findVaultToken()
               implicit val contextShift: ContextShift[IO] = IO.contextShift(global)

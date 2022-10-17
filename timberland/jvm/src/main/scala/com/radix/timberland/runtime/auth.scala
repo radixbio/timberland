@@ -128,7 +128,11 @@ object auth {
       _ <- waitForConsul(consulToken)
 
       defaultPolicyCreationCmd = s"$consul acl policy create -token=$consulToken -name=dns-requests -rules=@${consulDir}/default-policy.hcl"
-      _ <- exec(defaultPolicyCreationCmd)
+      response <- exec(defaultPolicyCreationCmd)
+      _ <- if (response.exitCode != 0) {
+        Console.err.println("Partial bootstrap detected! Please reinstall timberland before continuing")
+        sys.exit(1)
+      } else IO.unit
 
       defaultTokenCreationCmd = s"$consul acl token create -token=$consulToken -description=DNS -policy-name=dns-requests"
       defaultTokenCreationCmdRes <- exec(defaultTokenCreationCmd)
