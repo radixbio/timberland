@@ -1,5 +1,3 @@
-load("//tools:docker.bzl", "dockerize_scala")
-
 scala_library(
     name = "consul-tls",
     srcs = [

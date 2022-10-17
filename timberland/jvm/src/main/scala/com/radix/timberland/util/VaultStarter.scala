@@ -318,7 +318,7 @@ object VaultUtils {
           stderr = os.ProcessOutput(LogTUI.vault),
           env = env
         )
-      List("tls-cert", "remote-access", "read-flag-config", "actor-acl-token", "read-certs", "read-message-targets")
+      List("tls-cert", "remote-access", "read-flag-config", "actor-acl-token", "read-message-targets")
         .map(policy =>
           Util
             .proc(

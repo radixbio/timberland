@@ -39,7 +39,7 @@ object featureFlags {
 
   // A list of flags which don't have any relation to modules
   private val specialFlags =
-    Set("dev", "google-oauth", "docker-auth", "okta-auth", "tui", "remote_images", "custom_tag")
+    Set("dev", "google-oauth", "docker-auth", "okta-auth", "tui", "remote_images")
 
   // A map from flag name to a list of module names // may no longer necessary?
   private val flagSupersets = Map(

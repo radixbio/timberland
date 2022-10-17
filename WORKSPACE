@@ -178,6 +178,37 @@ java_library(
 )
 
 http_archive(
+    name = "proguard",
+    build_file_content = """
+package(default_visibility = ["//visibility:public"])
+
+java_import(
+    name = "proguard-jar",
+    jars = [
+        "proguard-7.0.1/lib/proguard.jar",
+    ]
+)
+java_library(
+    name = "proguard-lib",
+    runtime_deps = [
+        ":proguard-jar"
+    ]
+)
+java_binary(
+    name = "proguard",
+    main_class = "proguard.ProGuard",
+    runtime_deps = [
+        ":proguard-lib"
+    ]
+)
+
+    """,
+    sha256 = "b7fd1ee6da650b392ab9fe619f0bfd01f1fe8272620d9471fcfc7908b5216d71",
+    url = "https://github.com/Guardsquare/proguard/releases/download/v7.0.1/proguard-7.0.1.tar.gz",
+)
+
+
+http_archive(
     name = "io_bazel_rules_scala",
     sha256 = "c75f3f6725369171f7a670767a28fd488190070fc9f31d882d9b7a61caffeb26",
     strip_prefix = "rules_scala-%s" % rules_scala_version,
@@ -224,7 +255,8 @@ load(
 )
 
 scala_register_toolchains()
-
+#uncomment this for a ton of linter output
+#register_toolchains("//tools:my_scala_toolchain")
 load(
     "@io_bazel_rules_scala//scala:scala.bzl",
     "scala_repositories",

@@ -6,6 +6,7 @@ load("//tools:workspace_status.bzl", "workspace_status")
 load("//tools:windows.bzl", "pkg_msi")
 load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
 load("//tools:rpm.bzl", "rpm_package")
+load("//tools:proguard.bzl", "services_pkg_tar")
 
 package(
     default_visibility = ["//visibility:public"],
@@ -193,7 +194,6 @@ pkg_tar(
     srcs = [
                "//timberland/assets:vault/read-message-targets-policy.hcl",
                "//timberland/assets:systemd/vault.env.conf",
-               "//timberland/assets:vault/read-certs-policy.hcl",
                "//timberland/assets:vault/actor-acl-token-policy.hcl",
                "//timberland/assets:vault/read-flag-config-policy.hcl",
                "//timberland/assets:vault/remote-access-policy.hcl",
@@ -410,28 +410,49 @@ pkg_tar(
     package_dir = "/etc/networkd-dispatcher/routable.d",
 )
 
-pkg_tar(
-    name = "timberland-devdrivers",
-    srcs = [
-        "//device_drivers/hw_discovery/jvm:hw-discovery-bin_deploy.jar",
-        "//device_drivers/ln2/jvm:ln2-bin_deploy.jar",
-        #"//device_drivers/messaging/jvm:messaging-bin_deploy.jar",
-        "//device_drivers/multitrons/jvm:multitrons-bin_deploy.jar",
-        "//device_drivers/mock_bioreactor/jvm:mock-bioreactor-bin_deploy.jar",
-        "//device_drivers/opentrons/jvm:opentrons-bin_deploy.jar",
-        "//device_drivers/quantstudio/jvm:quantstudio-bin_deploy.jar",
-        "//device_drivers/tf-exactive/jvm:tfexactive-bin",
-        "//device_drivers/tf-exactive/jvm:tfexactive-bin.jar",
-        "//device_drivers/tf-exactive/jvm:tfexactive-bin_deploy.jar",
-        "//device_drivers/elemental/gateway/jvm:elemental-gateway-bin_deploy.jar",
-        "//device_drivers/elemental/kafka_bridge/jvm:elemental_bridge-bin_deploy.jar",
-        "//device_drivers/kafka_connectors/osipi/jvm:kafka_connect_osipi-bin_deploy.jar",
-        "//device_drivers/kafka_connectors/elastic/jvm:kafka_connect_elastic-bin_deploy.jar",
-        "//device_drivers/kafka_connectors/yugabyte/jvm:kafka_connect_yugabyte-bin_deploy.jar",
-        "//device_drivers/minifors2/jvm:minifors2-bin_deploy.jar",
-        "//device_drivers/eve/jvm:eve-bin_deploy.jar",
-    ],
-    package_dir = "/opt/radix/device_drivers/",
+timberland_services = [
+    "//algs/common/algs-mega-uservice/jvm:algs-mega-uservice-bin_deploy.jar",
+    "//device_drivers/elemental/gateway/jvm:elemental-gateway-bin_deploy.jar",
+    "//device_drivers/elemental/kafka_bridge/jvm:elemental_bridge-bin_deploy.jar",
+    "//device_drivers/eve/jvm:eve-bin_deploy.jar",
+    "//device_drivers/hw_discovery/jvm:hw-discovery-bin_deploy.jar",
+    "//device_drivers/kafka_connectors/elastic/jvm:kafka_connect_elastic-bin_deploy.jar",
+    "//device_drivers/kafka_connectors/osipi/jvm:kafka_connect_osipi-bin_deploy.jar",
+    "//device_drivers/kafka_connectors/yugabyte/jvm:kafka_connect_yugabyte-bin_deploy.jar",
+    "//device_drivers/ln2/jvm:ln2-bin_deploy.jar",
+    "//device_drivers/messaging/jvm:messaging-bin_deploy.jar",
+    "//device_drivers/mock_bioreactor/jvm:mock-bioreactor-bin_deploy.jar",
+    "//device_drivers/minifors2/jvm:minifors2-bin_deploy.jar",
+    "//device_drivers/multitrons/jvm:multitrons-bin_deploy.jar",
+    "//device_drivers/olditrons/jvm:olditrons-bin_deploy.jar",
+    "//device_drivers/opentrons/jvm:opentrons-bin_deploy.jar",
+    "//device_drivers/quantstudio/jvm:quantstudio-bin_deploy.jar",
+    "//device_drivers/tecan/jvm:tecan-bin_deploy.jar",
+    # "//device_drivers/tf-exactive/jvm:tfexactive-bin",
+    # "//device_drivers/tf-exactive/jvm:tfexactive-bin.jar",
+    "//device_drivers/tf-exactive/jvm:tfexactive-bin_deploy.jar",
+    "//runtime/jvm:runtime-bootstrap_deploy.jar",
+    "//utils/api/jvm:api-bin_deploy.jar",
+    "//utils/bunny_uservice/jvm:bunny-uservice-bin_deploy.jar",
+    "//utils/healthcheck:healthcheck-bin_deploy.jar",
+    "//utils/prism-uservice/jvm:prism-uservice-bin_deploy.jar",
+    "//utils/rainbowuservice/jvm:rainbow-uservice-bin_deploy.jar",
+    "//utils/s3lts:syncer-bin_deploy.jar",
+    "//vm/jvm:vm-bin_deploy.jar",
+]
+
+services_pkg_tar(
+    name = "timberland-services-proguard",
+    srcs = timberland_services,
+    package_dir = "/opt/radix/minio_data/service-jars/",
+    use_proguard = True,
+)
+
+services_pkg_tar(
+    name = "timberland-services",
+    srcs = timberland_services,
+    package_dir = "/opt/radix/minio_data/service-jars/",
+    use_proguard = False,
 )
 
 # These jars are distinct from the ones on the devdrivers target above. While the deploy jars above
@@ -488,7 +509,23 @@ pkg_tar(
 )
 
 pkg_tar(
+    name = "timberland-full-tar-proguard",
+    deps = [
+        ":timberland-services-proguard",
+        ":timberland-slim-tar",
+    ],
+)
+
+pkg_tar(
     name = "timberland-full-tar",
+    deps = [
+        ":timberland-services",
+        ":timberland-slim-tar",
+    ],
+)
+
+pkg_tar(
+    name = "timberland-slim-tar",
     deps = [
         ":release-name-tar",
         ":terraform-full-deploy",
@@ -504,7 +541,6 @@ pkg_tar(
         ":timberland-consul-template-nomad",
         ":timberland-consul-template-vault",
         ":timberland-containernetworking-cni-plugin",
-        ":timberland-devdrivers",
         ":timberland-exec",
         ":timberland-networkd",
         ":timberland-nomad",
@@ -517,7 +553,7 @@ pkg_tar(
 
 pkg_msi(
     name = "timberland-windows",
-    data = ":timberland-full-tar",
+    data = ":timberland-full-tar-proguard",
     data_base_dir = "./opt/radix",
     description = "Radix_Timberland_deployment",
     manufacturer = "Radix_Labs",
@@ -535,11 +571,29 @@ pkg_deb(
         "docker.io | docker-ce",
         "openjdk-11-jre-headless",
         "net-tools",
-        "avahi-utils"
+        "avahi-utils",
     ],
     description_file = ":deb-description",
     maintainer = "Alex Hulbert",
     package = "radix-timberland",
+    postinst = "//timberland/assets:debian/postinst.sh",
+    prerm = "//timberland/assets:debian/prerm.sh",
+    version = "0.1",  # filename will have a blank version bc file can't be read at analysis time
+)
+
+pkg_deb(
+    name = "timberland-slim-deb",
+    architecture = "all",
+    data = ":timberland-slim-tar",
+    depends = [
+        "docker.io | docker-ce",
+        "openjdk-11-jre-headless",
+        "net-tools",
+        "avahi-utils",
+    ],
+    description_file = ":deb-description",
+    maintainer = "Dhash Shrivathsa et al",
+    package = "radix-timberland-slim",
     postinst = "//timberland/assets:debian/postinst.sh",
     prerm = "//timberland/assets:debian/prerm.sh",
     version = "0.1",  # filename will have a blank version bc file can't be read at analysis time
@@ -846,10 +900,10 @@ terraform_deployment(
         "//device_drivers/tf-exactive/jvm:tf_exactive-terraform",
         "//runtime/jvm:runtime-terraform",
         "//utils/api/jvm:web-interface",
-        "//utils/rainbowuservice/jvm:rainbow-terraform",
         "//utils/bunny_uservice/jvm:bunny_uservice-terraform",
         "//utils/healthcheck:healthcheck-terraform",
         "//utils/prism-uservice/jvm:prism-terraform",
+        "//utils/rainbowuservice/jvm:rainbow-terraform",
         "//utils/s3lts:s3lts-terraform",
         "//vm/jvm:vm-terraform",
     ],

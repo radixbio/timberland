@@ -33,6 +33,14 @@ data "consul_service_health" "minio_local_health" {
   wait_for = "600s"
 }
 
+data "consul_service_health" "nginx_minio_health" {
+  count = var.enable ? 1 : 0
+  name = "nginx-minio"
+  passing = true
+  depends_on = [nomad_job.minio]
+  wait_for = "600s"
+}
+
 data "consul_service_health" "minio_remote_health" {
   count = var.enable && var.have_upstream_creds ? 1 : 0
   name = "minio-remote-service"

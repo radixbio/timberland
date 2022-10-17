@@ -149,8 +149,14 @@ variable "tls_nomad_key_file" {
   default = ""
 }
 
-variable "custom_tag" {
-  description = "Branch name / tag to use when retrieving images from the Gitlab repository"
+variable "nexus_username" {
+  description = "Nexus package repo username"
   type = string
-  default = "nonspecified"
+  default = null
+}
+
+variable "nexus_password" {
+  description = "Nexus package repo password"
+  type = string
+  default = null
 }

@@ -51,11 +51,6 @@ client {
     read_only = false
   }
 
-  host_volume "device_drivers" {
-    path = "/opt/radix/device_drivers"
-    read_only = false
-  }
-
   chroot_env {
     "/bin" = "/bin",
     "/opt/radix/timberland/resolv.conf" = "/etc/resolv.conf",
@@ -71,6 +66,8 @@ client {
     "/lib64" = "/lib64",
     "/sbin" = "/sbin",
     "/usr" = "/usr",
+    "/opt/radix/certs/ca/cert.pem" = "/opt/radix/certs/ca/cert.pem"
+    "/opt/radix/certs/cli" = "/opt/radix/certs/cli"
   }
 }
 

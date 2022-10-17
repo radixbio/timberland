@@ -53,7 +53,9 @@ trait ServiceControl {
 
 class LinuxServiceControl extends ServiceControl {
   override def restartConsul(): IO[Util.ProcOut] = Util.exec("systemctl restart consul")
-  override def restartConsulTemplate(): IO[Util.ProcOut] = Util.exec("systemctl restart consul-template")
+  override def restartConsulTemplate(): IO[Util.ProcOut] =
+    Util.exec("killall -9 consul-template") *> // Sometimes consul-template hangs for a minute when restarted
+    Util.exec("systemctl restart consul-template")
   override def restartNomad(): IO[Util.ProcOut] = Util.exec("systemctl restart nomad")
   override def restartTimberlandSvc(): IO[Util.ProcOut] = Util.exec("systemctl restart timberland-svc")
   override def restartVault(): IO[Util.ProcOut] = Util.exec("systemctl restart vault")

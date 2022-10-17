@@ -1,4 +1,3 @@
-load("//tools:docker.bzl", "dockerize_scala")
 load("//tools:terraform.bzl", "terraform_module")
 
 scala_library(

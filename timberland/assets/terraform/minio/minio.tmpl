@@ -240,6 +240,10 @@ EOH
         static = 1339
         to = 1339
       }
+      port "minio_local" {
+        to = 9000
+        static = 9000
+      }
     }
 
     service {
@@ -260,16 +264,12 @@ EOH
       }
 
       check {
-        address_mode = "host"
-        grpc_use_tls = true
-        initial_status = "critical"
-        interval = "10s"
-        method = "GET"
-        port = "nginx"
-        timeout = "2s"
         type = "http"
-        path = "/health"
-        tls_skip_verify = false
+        name = "nginx-minio-health"
+        path = "/minio/health/live"
+        interval = "30s"
+        timeout = "5s"
+        expose = true
       }
     }
 

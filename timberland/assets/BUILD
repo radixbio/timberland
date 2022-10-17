@@ -27,7 +27,6 @@ exports_files([
     "vault/actor-acl-token-policy.hcl",
     "vault/nomad-server-policy.hcl",
     "vault/read-flag-config-policy.hcl",
-    "vault/read-certs-policy.hcl",
     "vault/remote-access-policy.hcl",
     "vault/read-message-targets-policy.hcl",
     "vault/vault_config.conf",

@@ -22,7 +22,7 @@ template {
   source = "/opt/radix/timberland/consul-template/ca/cert.pem.tpl"
   destination = "/opt/radix/certs/ca/cert.pem"
   error_on_missing_key = true
-  perms = 0600
+  perms = 0644
   backup = true
   command = "sh -c 'systemctl reload nomad consul vault || true'"
 }
@@ -118,7 +118,7 @@ template {
   source = "/opt/radix/timberland/consul-template/cli/cert.pem.tpl"
   destination = "/opt/radix/certs/cli/cert.pem"
   error_on_missing_key = true
-  perms = 0600
+  perms = 0644
   backup = true
   command = "sh -c 'systemctl reload vault || true'"
 }
@@ -127,7 +127,7 @@ template {
   source = "/opt/radix/timberland/consul-template/cli/key.pem.tpl"
   destination = "/opt/radix/certs/cli/key.pem"
   error_on_missing_key = true
-  perms = 0600
+  perms = 0644
   backup = true
   command = "sh -c 'systemctl reload vault || true'"
 }

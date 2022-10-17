@@ -182,6 +182,24 @@ case object config {
         prompt = "Okta API token"
       )
     ),
+    "remote_images" -> List(
+      FlagConfigEntry(
+        key = "nexus_username",
+        destination = Vault,
+        prompt = "Nexus Repository Username",
+        terraformVar = Some("nexus_username"),
+        optional = true,
+        default = Some("admin")
+      ),
+      FlagConfigEntry(
+        key = "nexus_password",
+        destination = Vault,
+        prompt = "Nexus Repository Password",
+        terraformVar = Some("nexus_password"),
+        optional = true,
+        default = Some("radix789")
+      )
+    ),
     "docker-auth" -> List(
       FlagConfigEntry(
         key = "ID",
@@ -206,16 +224,6 @@ case object config {
         optional = true,
         default = Some("registry.gitlab.com")
       )
-    ),
-    "custom_tag" -> List(
-      FlagConfigEntry(
-        key = "TAG",
-        destination = Consul,
-        prompt = "Branch/tag of images to retrieve from Radix repository",
-        optional = true,
-        default = None,
-        terraformVar = Some("custom_tag")
-      )
     )
   )
 
@@ -231,7 +239,7 @@ case object config {
 
   // The list of flags that are enabled by default - "tui" only enabled by default on linux/amd64
   val flagDefaults
-    : List[String] = (List("ensure-supported", "core", "dev", "docker-auth", "remote_images") ++ (if (ensureSupported.osname == "linux" & ensureSupported.arch == "amd64")
+    : List[String] = (List("ensure-supported", "core", "dev", "docker-auth") ++ (if (ensureSupported.osname == "linux" & ensureSupported.arch == "amd64")
                                                                                                     List("tui")
                                                                                                   else List()))
 }
