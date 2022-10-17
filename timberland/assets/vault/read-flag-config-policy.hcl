@@ -1,3 +1,3 @@
-path "secret/data/flag-config" {
+path "secret/flag-config" {
   capabilities = ["list", "read"]
 }

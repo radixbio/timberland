@@ -231,6 +231,8 @@ object LogTUI {
   def debugprint(s: String): Unit = Unit
 
   var isActive = false
+  var printerFiber: Option[Fiber[IO, Unit]] = None
+
   val ec = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(1))
   implicit val timer = IO.timer(ec)
 
@@ -251,27 +253,37 @@ object LogTUI {
 
 
   /** *
-  * Turns on the LogTUI display.  Returns a CancelToken that must
-  * be used to "turn off" the display when Timberland is done.
+  * Turns on the LogTUI display.
   * */
-  def activate(): IO[IO[Unit]] =
-    for {
-      _ <- IO({isActive = true})
+  def startTUI(): IO[Unit] =
+    if (isActive) IO.unit else for {
+      _ <- IO { isActive = true }
       _ <- IO.shift(cs)
       printer <- Printer.beginIterPrint.start
-    } yield printer.cancel
+      _ <- IO(this.printerFiber = Some(printer))
+    } yield ()
 
   /*
-  * Prints out all messages stored in calls to LogTUI.printAfter()
-  * Should be called immediately after the LogTUI thread is cancelled
+  * Cancels LogTUI fiber and prints out all messages stored in calls to LogTUI.printAfter()
   * */
-  def end_tui(was_successful: Boolean): IO[Unit] = {
-    println("\n\n\n") // Clear screen?
-    for {line <- denouement} println(line)
-    println("")
-    if (was_successful) println("Complete\n\n") else println("Encountered errors\n\n")
-    IO(Unit)
-  }
+  def endTUI(error: Option[Throwable] = None): IO[Unit] = if (isActive) for {
+    _ <- IO { isActive = false }
+    _ <- if (error.isEmpty) IO.sleep(2.seconds) else IO.unit
+    _ <- printerFiber.get.cancel.toIO
+    _ <- IO {
+      Console.flush()
+      denouement.foreach(println)
+      println()
+      if (error.isEmpty) {
+        println("Complete")
+      } else {
+        println("Encountered Errors")
+        println("Startup hit exception:")
+        println(error.get)
+      }
+      println("\n")
+    }
+  } yield () else IO.unit
 
 
   def writeLog(output: String): Unit = {

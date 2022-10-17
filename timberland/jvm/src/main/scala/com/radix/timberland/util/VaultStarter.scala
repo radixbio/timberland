@@ -48,7 +48,9 @@ case class RegisterProvider(provider: String, client_id: String, client_secret: 
 
 
 class VaultUtils {
-  def storeVaultSealAndToken(key: String, token: String): String = {
+  implicit val contextShift: ContextShift[IO] = IO.contextShift(global)
+
+  def storeVaultSealAndToken(key: String, token: String): IO[Unit] = IO {
     // if HOME isn't set, use /tmp (file still owed / readable only by root)
     val prefix = "/opt/radix/timberland"
     val tokenFile = new File(prefix + "/.vault-token")
@@ -67,7 +69,6 @@ class VaultUtils {
     tokenFile.setReadable(false, true)
     tokenFile.setWritable(false, false)
     tokenFile.setExecutable(false, false)
-    token
   }
 
   def findVaultSeal(): String = {
@@ -101,7 +102,7 @@ class VaultUtils {
       stdout = os.ProcessOutput(LogTUI.vault),
       stderr = os.ProcessOutput(LogTUI.vault),
       env = Map("VAULT_TOKEN" -> vaultToken))
-    List("nomad-server", "read-flag-config", "read-consul-ui").map(policy =>
+    List("nomad-server", "read-flag-config", "read-consul-ui", "remote-access").map(policy =>
       os.proc("/opt/radix/timberland/vault/vault",
         "policy",
         "write",
@@ -113,6 +114,19 @@ class VaultUtils {
         env = Map("VAULT_TOKEN" -> vaultToken))
     )
   })
+
+  def storeVaultTokenInVault(vaultToken: String): IO[Unit] = {
+    BlazeClientBuilder[IO](global).resource.use { client =>
+      val vaultSession = new VaultSession[IO](Some(vaultToken), uri"http://127.0.0.1:8200", client)
+      val req = CreateSecretRequest(data = Map("token" -> vaultToken).asJson, cas = None)
+      vaultSession.createSecret("vault-admin-token", req) map {
+        case Left(err) =>
+          Console.err.println("Error writing vault token\n" + err)
+          sys.exit(1)
+        case _ => ()
+      }
+    }
+  }
 
   def findVaultToken(): String = {
     val token = sys.env.get("VAULT_TOKEN") match {
@@ -350,10 +364,11 @@ class VaultStarter {
           case VaultNotInitalized => IO.pure(VaultSealed)
           case VaultInitialized(vaultSeal, rootToken) => {
             for {
-              _ <- IO(vaultUtils.storeVaultSealAndToken(vaultSeal, rootToken))
+              _ <- vaultUtils.storeVaultSealAndToken(vaultSeal, rootToken)
               vaultResp <- waitOnVaultUnseal(vaultSeal, rootToken)
               setupVault <- vaultUtils.setupVault()
               oauthPlugin <- initializeGoogleOauthPlugin(rootToken, baseUrl)
+              _ <- vaultUtils.storeVaultTokenInVault(rootToken)
             } yield vaultResp
           }
           case VaultAlreadyInitialized => {

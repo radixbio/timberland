@@ -7,8 +7,8 @@ import cats.effect.{ContextShift, IO, Resource, Timer}
 import cats.implicits._
 import cats.~>
 import com.radix.timberland.launch.daemonutil
-import com.radix.timberland.runtime.Run
-import com.radix.timberland.flags.flags
+import com.radix.timberland.runtime.AuthTokens
+import com.radix.timberland.flags.featureFlags.resolveSupersetFlags
 import com.radix.timberland.util.VaultUtils
 import com.radix.utils.helm.{ConsulOp, HealthStatus, NomadOp}
 import com.radix.utils.helm.http4s.{Http4sConsulClient, Http4sNomadClient}
@@ -31,7 +31,7 @@ abstract class TimberlandIntegration
 
   val ConsulPort = 8500
   val NomadPort = 4646
-  val accessToken: String = getMasterToken()
+  implicit val tokens: AuthTokens = getTokens()
 
   override implicit val executionContext: ExecutionContext =
     ExecutionContext.fromExecutor(Executors.newWorkStealingPool(20))
@@ -54,21 +54,23 @@ abstract class TimberlandIntegration
     "elasticsearch" -> false
   )
 
-  private lazy val resolvedFlags = flags.resolveSupersetFlags(featureFlags)
+  private lazy val resolvedFlags = resolveSupersetFlags(featureFlags)
 
   /**
    * Get the master token for Consul/Nomad by querying Vault. This is needed for consulR and nomadR to communicate with
    * the Consul and Nomad HTTP APIs.
    *
-   * @return The master ACL token for Consul/Nomad.
+   * @return An object containing the vault token and master ACL token for Consul/Nomad.
    */
-  def getMasterToken(): String = {
+  def getTokens(): AuthTokens = {
     val vaultToken = new VaultUtils().findVaultToken()
     val getCommand = "/opt/radix/timberland/vault/vault kv get -address=http://vault.service.consul:8200 secret/consul-ui-token".split(" ")
-    Process(getCommand, None, "VAULT_TOKEN" -> vaultToken).lineStream.find(_.contains("token")) match {
+    val consulNomadTokenProc = Process(getCommand, None, "VAULT_TOKEN" -> vaultToken)
+    val consulNomadToken = consulNomadTokenProc.lineStream.find(_.contains("token")) match {
       case Some(line) => line.split("\\s+")(1)
       case None => ""
     }
+    AuthTokens(consulNomadToken, vaultToken)
   }
 
   /**
@@ -91,7 +93,11 @@ abstract class TimberlandIntegration
   }
 
   val nomadR: Resource[IO, NomadOp ~> IO] = BlazeClientBuilder[IO](implicitly[ExecutionContext]).resource
-    .map(new Http4sNomadClient[IO](baseUri = Uri.unsafeFromString("http://nomad.service.consul:4646"), _, accessToken = Some(accessToken)))
+    .map(client => new Http4sNomadClient[IO](
+      baseUri = Uri.unsafeFromString("http://nomad.service.consul:4646"),
+      client = client,
+      accessToken = Some(tokens.consulNomadToken)
+    ))
 
   override def beforeAll(): Unit = {
     super.beforeAll()
@@ -101,8 +107,8 @@ abstract class TimberlandIntegration
     // Make sure Consul and Nomad are up before using terraform
     val res = daemonutil.waitForDNS("consul.service.consul", 1.minutes) *>
       daemonutil.waitForDNS("nomad.service.consul", 1.minutes) *>
-      daemonutil.runTerraform(resolvedFlags, accessToken, integrationTest = true, None) *> IO(println(resolvedFlags)) *>
-      daemonutil.waitForQuorum(resolvedFlags, true)
+      daemonutil.runTerraform(resolvedFlags, integrationTest = true, None) *> IO(println(resolvedFlags)) *>
+      daemonutil.waitForQuorum(resolvedFlags)
     res.unsafeRunSync()
   }
 
@@ -117,7 +123,11 @@ abstract class TimberlandIntegration
   }
 
   val consulR: Resource[IO, ConsulOp ~> IO] = BlazeClientBuilder[IO](implicitly[ExecutionContext]).resource
-    .map(new Http4sConsulClient[IO](baseUri = Uri.unsafeFromString("http://consul.service.consul:8500"), _, accessToken = Some(accessToken)))
+    .map(client => new Http4sConsulClient[IO](
+      baseUri = Uri.unsafeFromString("http://consul.service.consul:8500"),
+      client = client,
+      accessToken = Some(tokens.consulNomadToken)
+    ))
 
   /**
    * Checks if the service is registered in consul and all its health checks are passing, so that we can use its DNS

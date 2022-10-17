@@ -6,6 +6,7 @@ import cats.effect.{ContextShift, IO}
 import cats.implicits._
 import com.radix.timberland.launch.daemonutil
 import com.radix.timberland.radixdefs.ServiceAddrs
+import com.radix.timberland.runtime.AuthTokens
 import com.radix.utils.helm
 import com.radix.utils.helm.http4s.Http4sConsulClient
 import com.radix.utils.helm.{ConsulOp, QueryResponse}
@@ -23,7 +24,7 @@ case class FlagsStoredLocally() extends FlagUpdateResponse
 
 case class ModuleDefinition(key: String, source: String, dir: String)
 
-object flags {
+object featureFlags {
   private implicit val cs: ContextShift[IO] = IO.contextShift(global)
   private implicit val moduleDecoder: Decoder[ModuleDefinition] =
     Decoder.forProduct3("Key", "Source", "Dir")(ModuleDefinition.apply)
@@ -48,17 +49,19 @@ object flags {
    * If Consul is up, this also pushes pending changes in the local flag file. If flags is empty,
    * this function only pushes the pending changes.
    * @param persistentDir Timberland directory. Usually /opt/radix/timberland/terraform
+   * @param tokens Contains the consul token used to update flags. If this isn't set, the function
+   *               will always write to the local flag file
    * @param flagsToSet A map of new flags to push
-   * @return If Consul is up, the current state of all feature flags
+   * @return The current state of all known feature flags
    */
   def updateFlags(persistentDir: os.Path,
-                  masterToken: Option[String],
+                  tokens: Option[AuthTokens],
                   flagsToSet: Map[String, Boolean] = Map.empty)
-                 (implicit serviceAddrs: ServiceAddrs = ServiceAddrs()): IO[FlagUpdateResponse] = {
+                 (implicit serviceAddrs: ServiceAddrs = ServiceAddrs()): IO[Map[String, Boolean]] = {
     for {
       validFlags <- validateFlags(persistentDir, flagsToSet)
       actualFlags = resolveSupersetFlags(flagsToSet, validFlags)
-      shouldUpdateConsul <- masterToken match {
+      shouldUpdateConsul <- tokens match {
         case Some(_) => isConsulUp()
         case None => IO.pure(false)
       }
@@ -67,19 +70,18 @@ object flags {
           localFlags <- getLocalFlags(persistentDir)
           totalFlags = localFlags ++ actualFlags
           _ <- clearLocalFlagFile(persistentDir, totalFlags)
-          newFlags <- setConsulFlags(masterToken.get, totalFlags)
-        } yield ConsulFlagsUpdated(newFlags)
+          newFlags <- setConsulFlags(totalFlags)(serviceAddrs, tokens.get)
+        } yield newFlags
       } else {
-        setLocalFlags(persistentDir, actualFlags) *> IO.pure(FlagsStoredLocally())
+        setLocalFlags(persistentDir, actualFlags)
       }
     } yield newFlags
   }
 
-  def getConsulFlags(masterToken: String)
-                    (implicit serviceAddrs: ServiceAddrs = ServiceAddrs()): IO[Map[String, Boolean]] = {
+  def getConsulFlags(implicit serviceAddrs: ServiceAddrs, tokens: AuthTokens): IO[Map[String, Boolean]] = {
     BlazeClientBuilder[IO](global).resource.use { client =>
       val consulUri = Uri.fromString(s"http://${serviceAddrs.consulAddr}:8500").toOption.get
-      val interpreter = new Http4sConsulClient[IO](consulUri, client, Some(masterToken))
+      val interpreter = new Http4sConsulClient[IO](consulUri, client, Some(tokens.consulNomadToken))
       val getFeaturesOp = ConsulOp.kvGetJson[Map[String, Boolean]]("features", None, None)
       val flagDefaults = resolveSupersetFlags(config.flagDefaults.map(_ -> true).toMap)
       for {
@@ -98,14 +100,14 @@ object flags {
    * @param flags The flags to push
    * @return The total set of all flags on Consul after pushing
    */
-  private def setConsulFlags(masterToken: String, flags: Map[String, Boolean])
-                            (implicit serviceAddrs: ServiceAddrs = ServiceAddrs()): IO[Map[String, Boolean]] = {
+  private def setConsulFlags(flags: Map[String, Boolean])
+                            (implicit serviceAddrs: ServiceAddrs, tokens: AuthTokens): IO[Map[String, Boolean]] = {
     BlazeClientBuilder[IO](global).resource.use { client =>
       val consulUri = Uri.fromString(s"http://${serviceAddrs.consulAddr}:8500").toOption.get
-      val interpreter = new Http4sConsulClient[IO](consulUri, client, Some(masterToken))
+      val interpreter = new Http4sConsulClient[IO](consulUri, client, Some(tokens.consulNomadToken))
       val setFeaturesOp = ConsulOp.kvSetJson("features", _: Map[String, Boolean])
       for {
-        curFlags <- getConsulFlags(masterToken)
+        curFlags <- getConsulFlags
         _ <- helm.run(interpreter, setFeaturesOp(curFlags ++ flags))
       } yield curFlags ++ flags
     }
@@ -140,13 +142,13 @@ object flags {
    * @param flags The flags to set in the local flag file
    * @return The updated contents of the flag file
    */
-  private def setLocalFlags(persistentDir: os.Path, flags: Map[String, Boolean]): IO[Unit] = {
+  private def setLocalFlags(persistentDir: os.Path, flags: Map[String, Boolean]): IO[Map[String, Boolean]] = {
     for {
       oldFlags <- getLocalFlags(persistentDir)
       newFlags = oldFlags ++ flags
       newFlagsJson = newFlags.asJson.toString()
       _ <- IO(os.write.over(flagFile resolveFrom persistentDir, newFlagsJson))
-    } yield ()
+    } yield newFlags
   }
 
   /**

@@ -39,4 +39,11 @@ trait VaultInterface[F[_]] {
   def createOauthSecret(name: String, req: CreateSecretRequest): F[Either[VaultError, Unit]]
 
   def getOauthSecret(name: String): F[Either[VaultError, KVOauthGetResult]]
+
+  def createUser(username: String, password: String, policies: List[String]): F[Either[VaultError, Unit]]
+
+  def login(username: String, password: String): F[Either[VaultError, LoginResponse]]
+
+  def enableAuthMethod(authMethod: String): F[Either[VaultError, Unit]]
+
 }

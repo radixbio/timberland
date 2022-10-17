@@ -9,6 +9,7 @@ import java.nio.file.Paths
 import java.util.UUID
 import java.util.concurrent.Executors
 
+import ammonite.ops.Path
 import com.radix.timberland.radixdefs._
 import com.radix.timberland.util._
 
@@ -168,10 +169,10 @@ object Run {
 
       consulToken = UUID.randomUUID().toString
       persistentDir = consulwd / os.up
-      _ <- F.liftIO(acl.writeTokenConfigs(persistentDir, consulToken))
+      _ <- F.liftIO(auth.writeTokenConfigs(persistentDir, consulToken))
 
       consulRestartProc <- H.startConsul(finalBindAddr, consulSeedsO, bootstrapExpect)
-      _ <- F.liftIO(acl.setupDefaultConsulToken(persistentDir, consulToken))
+      _ <- F.liftIO(auth.setupDefaultConsulToken(persistentDir, consulToken))
 
       vaultRestartProc <- H.startVault(finalBindAddr)
       vaultSealStatus <- F.liftIO {
@@ -179,10 +180,12 @@ object Run {
       }
       vaultToken <- F.liftIO( IO((new VaultUtils).findVaultToken()))
       nomadRestartProc <- H.startNomad(finalBindAddr, bootstrapExpect, vaultToken)
+      consulNomadToken <- F.liftIO(auth.setupNomadMasterToken(persistentDir, consulToken))
 
-      masterToken <- F.liftIO(acl.setupNomadMasterToken(persistentDir, consulToken))
-      //      _ <- F.liftIO(Run.putStrLn("started consul, nomad, and vault"))
-    } yield masterToken
+      _ <- F.liftIO(auth.storeMasterTokenInVault(consulNomadToken))
+
+      // _ <- F.liftIO(Run.putStrLn("started consul, nomad, and vault"))
+    } yield AuthTokens(consulNomadToken, vaultToken)
   }
 
   class RuntimeServicesExec[F[_]](implicit F: Effect[F]) extends NetworkInfoExec[F] with RuntimeServicesAlg[F] {

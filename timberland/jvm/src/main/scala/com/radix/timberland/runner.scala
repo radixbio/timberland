@@ -3,16 +3,19 @@ package com.radix.timberland
 import java.io.File
 
 import ammonite.ops._
-import cats.effect.IO
+import cats.effect.{ContextShift, IO}
 import cats.implicits._
-import com.radix.timberland.flags.{ConsulFlagsUpdated, FlagsStoredLocally, flagConfig}
+import com.radix.timberland.flags._
 import com.radix.timberland.launch.daemonutil
 import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.timberland.runtime._
-import com.radix.timberland.util.{LogTUI, LogTUIWriter, VaultStarter}
+import com.radix.timberland.util.{LogTUI, LogTUIWriter, VaultStarter, VaultUtils}
+import com.radix.utils.helm.http4s.vault.Vault
 import io.circe.{Parser => _}
 import optparse_applicative._
 import optparse_applicative.types.Parser
+import org.http4s.implicits._
+import org.http4s.client.blaze.BlazeClientBuilder
 import scalaz.syntax.apply._
 
 import scala.concurrent.ExecutionContext.global
@@ -31,10 +34,9 @@ case class Start(
                   bindIP: Option[String] = None,
                   consulSeeds: Option[String] = None,
                   remoteAddress: Option[String] = None,
-                  servicePort: Int = 9092,
-                  accessToken: Option[String] = None,
-                  registryListenerPort: Int = 8081,
-                  prefix: Option[String] = None
+                  prefix: Option[String] = None,
+                  username: Option[String] = None,
+                  password: Option[String] = None,
                 ) extends Local
 
 case object Stop extends Local
@@ -53,8 +55,11 @@ case class FlagCmd(
                     flags: List[String],
                     enable: Boolean,
                     remoteAddress: Option[String],
-                    accessToken: Option[String]
+                    username: Option[String],
+                    password: Option[String]
                   ) extends Runtime
+
+case class AddUser(name: String, roles: List[String]) extends Runtime
 
 sealed trait Prism extends RadixCMD
 
@@ -117,27 +122,6 @@ object runner {
                 .map(ra => { exist: Start =>
                   exist.copy(remoteAddress = ra)
                 }) <*> optional(
-                intOption(long("service-port"),
-                  help("Kafka service port")))
-                .map(sp => { exist: Start =>
-                  sp match {
-                    case str@Some(_) => exist.copy(servicePort = str.get)
-                    case None => exist
-                  }
-                }) <*> optional(
-                strOption(long("token"),
-                  help("ACL access token")))
-                .map(token => { exist: Start =>
-                  exist.copy(accessToken = token)
-                }) <*> optional(
-                intOption(long("registry-listener-port"),
-                  help("Kafka registry listener port")))
-                .map(rlp => { exist: Start =>
-                  rlp match {
-                    case str@Some(_) => exist.copy(registryListenerPort = rlp.get)
-                    case None => exist
-                  }
-                }) <*> optional(
                 strOption(long("prefix"),
                   help("Nomad job prefix")))
                 .map(prefix => { exist: Start =>
@@ -145,7 +129,23 @@ object runner {
                     case Some(_) => exist.copy(prefix = prefix)
                     case None => exist
                   }
-                }) ,
+                }) <*> optional(
+                strOption(long("username"),
+                  help("vault user name")))
+                .map(username => { exist: Start =>
+                  username match {
+                    case Some(_) => exist.copy(username = username)
+                    case None => exist
+                  }
+                }) <*> optional(
+                strOption(long("password"),
+                  help("vault password")))
+                .map(password => { exist: Start =>
+                  password match {
+                    case Some(_) => exist.copy(password = password)
+                    case None => exist
+                  }
+                }),
               progDesc("start the radix core services on the current system")
             )
           ),
@@ -165,16 +165,22 @@ object runner {
               ),
             ).weaken[Runtime])
           ),
-          command("enable", info(^^(
+          command("add_user", info(^(
+            strArgument(metavar("NAME")),
+            many(strArgument(metavar("[POLICIES...]")))
+          )(AddUser))),
+          command("enable", info(^^^(
             many(strArgument(metavar("FLAGS"))),
             optional(strOption(long("remote-address"), help("remote consul address"))),
-            optional(strOption(long("token"), help("ACL access token")))
-          )(FlagCmd(_, true, _, _)), progDesc("enable feature flags"))),
-          command("disable", info(^^(
+            optional(strOption(long("username"), help("vault username"))),
+            optional(strOption(long("password"), help("vault password")))
+          )(FlagCmd(_, true, _, _, _)), progDesc("enable feature flags"))),
+          command("disable", info(^^^(
             many(strArgument(metavar("FLAGS"))),
             optional(strOption(long("remote-address"), help("remote consul address"))),
-            optional(strOption(long("token"), help("ACL access token")))
-          )(FlagCmd(_, false, _, _)), progDesc("disable feature flags")))
+            optional(strOption(long("username"), help("vault username"))),
+            optional(strOption(long("password"), help("vault password")))
+          )(FlagCmd(_, false, _, _, _)), progDesc("disable feature flags")))
         ),
         progDesc("radix runtime component")
       )
@@ -220,13 +226,15 @@ object runner {
       case _ => "arm"
     }
 
-    val persistentdir = "/opt/radix/timberland/" // TODO make configurable
+    val persistentDirStr = "/opt/radix/timberland/" // TODO make configurable
+    implicit val persistentDirPath = Path(persistentDirStr)
+
     val systemdDir = "/opt/radix/systemd/"
-    val appdatadir = new File(persistentdir)
-    val consul = new File(persistentdir + "/consul/consul")
-    val nomad = new File(persistentdir + "/nomad/nomad")
-    val vault = new File(persistentdir + "/vault/vault")
-    val nginx = new File(persistentdir + "/nginx/")
+    val appdatadir = new File(persistentDirStr )
+    val consul = new File(persistentDirStr + "/consul/consul")
+    val nomad = new File(persistentDirStr  + "/nomad/nomad")
+    val vault = new File(persistentDirStr  + "/vault/vault")
+    val nginx = new File(persistentDirStr  + "/nginx/")
     nginx.mkdirs
     val minio = new File("/opt/radix/minio_data/")
     minio.mkdirs
@@ -243,11 +251,7 @@ object runner {
             case local: Local =>
               local match {
                 case Nuke => Right(Unit)
-                case cmd@Start(
-                  dummy, loglevel, bindIP, consulSeedsO, remoteAddress, servicePort,
-                  accessToken, registryListenerPort,
-                  prefix
-                ) => {
+                case cmd@Start(dummy, loglevel, bindIP, consulSeedsO, remoteAddress, prefix, username, password) => {
                   scribe.Logger.root
                     .clearHandlers()
                     .clearModifiers()
@@ -267,8 +271,8 @@ object runner {
                     )
                     System.exit(0)
                   } else {
-                    scribe.info("Creating weave network")
                     val createWeaveNetwork = for {
+                      _ <- IO(scribe.info("Creating weave network"))
                       _ <- IO(os.proc("/usr/bin/sudo /sbin/sysctl -w vm.max_map_count=262144".split(' ')).spawn())
                       pluginList <- IO(os.proc("/usr/bin/docker plugin ls".split(' ')).call(cwd = os.root, check = false))
                       _ <- pluginList.out.string.contains("weaveworks/net-plugin:2.6.0") match {
@@ -278,83 +282,56 @@ object runner {
                         }
                         case false => IO.pure(scribe.info("Weave plugin not installed. Skipping creation of weave network."))
                       }
-
                     } yield ()
 
                     implicit val host = new Run.RuntimeServicesExec[IO]
                     val startServices = for {
-                      localFlags <- flags.flags.getLocalFlags(Path(persistentdir))
+                      _ <- IO(scribe.info("Launching daemons"))
+                      localFlags <- featureFlags.getLocalFlags(persistentDirPath)
+                      // Starts LogTUI before `startLogTuiAndRunTerraform` is called
+                      _ <- if (localFlags.getOrElse("tui", true)) LogTUI.startTUI() else IO.unit
                       consulPath = Path(consul.toPath.getParent)
                       nomadPath = Path(nomad.toPath.getParent)
                       bootstrapExpect = if (localFlags.getOrElse("dev", true)) 1 else 3
-                      consulUp <- daemonutil.isPortUp(8500)
-                      masterToken <- (consulUp, accessToken) match {
-                        // If consul is up and token is specified, skip the service setup
-                        case (true, Some(token)) => IO.pure(token)
-                        // If consul is down and no token is specified, do the service setup
-                        case (false, None) =>
-                          //                          IO(scribe.info(s"***********DAEMON SIZE${bootstrapExpect}***************")) *>
-                          Run.initializeRuntimeProg[IO](consulPath, nomadPath, bindIP, consulSeedsO, bootstrapExpect)
-                        case (true, None) =>
-                          LogTUI.printAfter("Please provide an access token to connect to the existing nomad/consul instances")
-                          throw new RuntimeException("Missing access token")
-                        case (false, Some(token)) =>
-                          LogTUI.printAfter("System has not been bootstrapped, so an access token cannot be specified")
-                          throw new RuntimeException("Cannot use provided access token")
+                      tokens <- Run.initializeRuntimeProg[IO](consulPath, nomadPath, bindIP, consulSeedsO, bootstrapExpect)
+                    } yield tokens
+
+                    def startLogTuiAndRunTerraform(featureFlags: Map[String, Boolean],
+                                                   serviceAddrs: ServiceAddrs,
+                                                   authTokens: AuthTokens,
+                                                   waitForQuorum: Boolean) =
+                      for {
+                        _ <- if (featureFlags.getOrElse("tui", true)) LogTUI.startTUI() else IO.unit
+                        _ <- IO(LogTUI.writeLog(s"using flags: $featureFlags"))
+                        _ <- daemonutil.runTerraform(featureFlags, prefix=prefix)(serviceAddrs, authTokens)
+                        _ <- if (waitForQuorum) daemonutil.waitForQuorum(featureFlags) else IO.unit
+                      } yield ()
+
+                    // Called when consul/nomad/vault are on localhost
+                    val localBootstrap = for {
+                      isConsulUp <- daemonutil.isPortUp(8500)
+                      serviceAddrs = ServiceAddrs()
+                      authTokens <- if (isConsulUp) {
+                        auth.getAuthTokens(isRemote = false, serviceAddrs, username, password)
+                      } else {
+                        // daemonutil.containerRegistryLogin(containerRegistryUser, containerRegistryToken) *>
+                        flagConfig.promptForDefaultConfigs *> createWeaveNetwork *> startServices
                       }
-                    } yield masterToken
-
-
-                    val runFlagQueries = for {
-                      flagDefaults <- IO(flags.flags.resolveSupersetFlags(flags.config.flagDefaults.map(_ -> true).toMap))
-                      localFlags <- (flags.flags.getLocalFlags(Path(persistentdir)))
-                      allFlags <- IO(localFlags ++ flagDefaults)
-                      serviceAddrs <- IO(new ServiceAddrs)
-                      partialFlagConfig <- flags.flagConfig.readFlagConfig(None)(serviceAddrs, Path(persistentdir))
-                      configs <- flags.flagConfig.addMissingParams(allFlags.filter(_._2).keys.toList, partialFlagConfig)
-                      _ <- new flags.LocalConfig()(Path(persistentdir)).write(configs)
-                      _ <- IO(LogTUI.writeLog(s"using flags: ${allFlags} with ${configs}"))
-                    } yield localFlags
-
-                    val runServicesAndModules = for {
-                      _ <- createWeaveNetwork
-//                      _ <- daemonutil.containerRegistryLogin(containerRegistryUser, containerRegistryToken)
-                      masterToken <- startServices
-                      _ <- daemonutil.waitForDNS("vault.service.consul", 1.minute)
-                      _ <- acl.storeMasterTokenInVault(Path(persistentdir), masterToken)
-
-                      flagUpdateResp <- flags.flags.updateFlags(Path(persistentdir), Some(masterToken))
-                      featureFlags = flagUpdateResp.asInstanceOf[ConsulFlagsUpdated].flags
-                      _ <- IO(LogTUI.writeLog(s"using featureFlags: ${featureFlags} with ${flagUpdateResp}"))
-
-                      _ <- daemonutil.runTerraform(featureFlags, masterToken, integrationTest = false, prefix)
-                      _ <- daemonutil.waitForQuorum(featureFlags)
+                      featureFlags <- featureFlags.updateFlags(persistentDirPath, Some(authTokens))(serviceAddrs)
+                      _ <- startLogTuiAndRunTerraform(featureFlags, serviceAddrs, authTokens, waitForQuorum = true)
                     } yield ()
 
-                    //                    scribe.info("Launching daemons")
-                    val bootstrap = for {
-                      flags <- runFlagQueries
-                      stop_tui <- if (flags.getOrElse("tui", true)) LogTUI.activate() else IO(IO(Unit))
-                      _ <- runServicesAndModules.handleErrorWith(err =>
-                        stop_tui *> LogTUI.end_tui(false) *> IO(println(s"Startup hit exception: ${err.toString()}")) *> IO(sys.exit(1)))
-                      _ <- IO(LogTUI.isActive = false) *> IO.sleep(2.seconds)(IO.timer(global)) *> stop_tui *> LogTUI.end_tui(true)
-                    } yield ()
-
+                    // Called when consul/vault/nomad are not on localhost
                     val remoteBootstrap = for {
-                      serviceAddrs <- daemonutil.getServiceIps(remoteAddress.getOrElse("127.0.0.1"))
-                      masterToken = accessToken.get
-                      featureFlags <- flags.flags.getConsulFlags(masterToken)(serviceAddrs)
-                      _ <- (new VaultStarter).initializeAndUnsealAndSetupVault()
-                      _ <- daemonutil.runTerraform(featureFlags, masterToken, integrationTest = false, prefix)(serviceAddrs)
+                      serviceAddrs <- daemonutil.getServiceIps()
+                      authTokens <- auth.getAuthTokens(isRemote = true, serviceAddrs, username, password)
+                      featureFlags <- featureFlags.getConsulFlags(serviceAddrs, authTokens)
+                      _ <- startLogTuiAndRunTerraform(featureFlags, serviceAddrs, authTokens, waitForQuorum = false)
                     } yield ()
 
-                    (remoteAddress, accessToken) match {
-                      case (Some(_), Some(_)) => remoteBootstrap.unsafeRunSync()
-                      case (None, _) => bootstrap.unsafeRunSync()
-                      case (Some(_), None) =>
-                        scribe.error("Access token required for remote instances")
-                        sys.exit(1)
-                    }
+                    val bootstrapIO = if (remoteAddress.isDefined) remoteBootstrap else localBootstrap
+                    val bootstrap = bootstrapIO.handleErrorWith(err => LogTUI.endTUI(Some(err))) *> LogTUI.endTUI()
+                    bootstrap.unsafeRunSync()
                     sys.exit(0)
                   }
                 }
@@ -379,44 +356,47 @@ object runner {
               }
               dns_set.unsafeRunSync()
             }
-            case FlagCmd(flagNames, enable, remoteAddress, accessToken) => {
+            case FlagCmd(flagNames, enable, remoteAddress, username, password) => {
               System.setProperty("dns.server", remoteAddress.getOrElse("127.0.0.1"))
-              val flagMap = flagNames.map((_, enable)).toMap
+              val flagsToSet = flagNames.map((_, enable)).toMap
 
-              val localProc = for {
-                flagUpdateResp <- flags.flags.updateFlags(Path(persistentdir), accessToken, flagMap)
-                _ <- flagUpdateResp match {
-                  case ConsulFlagsUpdated(featureFlags) =>
-                    daemonutil.runTerraform(featureFlags, accessToken.get, integrationTest = false, None) *>
-                      daemonutil.waitForQuorum(featureFlags)
-                  case FlagsStoredLocally() =>
-                    flagConfig.updateFlagConfig(flagMap, None)(ServiceAddrs(), Path(persistentdir))
-                }
+              val consulExistsProc = for {
+                serviceAddrs <- if (remoteAddress.isDefined) daemonutil.getServiceIps() else IO.pure(ServiceAddrs())
+                authTokens <- auth.getAuthTokens(isRemote = remoteAddress.isDefined, serviceAddrs, username, password)
+                flagMap <- featureFlags.updateFlags(persistentDirPath, Some(authTokens), flagsToSet)(serviceAddrs)
+                _ <- daemonutil.runTerraform(flagMap)(serviceAddrs, authTokens) // calls updateFlagConfig
+                _ <- if (remoteAddress.isEmpty) daemonutil.waitForQuorum(flagMap) else IO.unit
               } yield ()
 
-              val remoteProc = for {
-                serviceAddrs <- daemonutil.getServiceIps(remoteAddress.getOrElse(""))
-                flagUpdateResp <- flags.flags.updateFlags(Path(persistentdir), accessToken, flagMap)(serviceAddrs)
-                _ <- flagUpdateResp match {
-                  case ConsulFlagsUpdated(featureFlags) =>
-                    daemonutil.runTerraform(featureFlags, accessToken.get, integrationTest = false, None)(serviceAddrs)
-                  case FlagsStoredLocally() =>
-                    flagConfig.updateFlagConfig(flagMap, None)(serviceAddrs, Path(persistentdir)) *>
-                      IO(scribe.warn("Could not connect to remote consul instance. Flags stored locally."))
-                }
+              val noConsulProc = for {
+                flagMap <- featureFlags.updateFlags(persistentDirPath, None, flagsToSet)
+                _ <- flagConfig.updateFlagConfig(flagMap)
+                _ <- IO(scribe.warn("Could not connect to remote consul instance. Flags stored locally."))
               } yield ()
 
-              (remoteAddress, accessToken) match {
-                case (Some(_), Some(_)) => remoteProc.unsafeRunSync()
-                case (None, Some(_)) => localProc.unsafeRunSync()
-                case (None, None) =>
-                  scribe.warn("No access token specified. Writing to local flag file")
-                  localProc.unsafeRunSync()
-                case (Some(_), None) =>
-                  scribe.error("Please provide a valid access token for the remote instances")
-                  sys.exit(1)
-              }
+              daemonutil.isPortUp(8500).flatMap {
+                case true => consulExistsProc
+                case false => noConsulProc
+              }.unsafeRunSync()
             }
+
+            case AddUser(name, policies) =>
+              val policiesWithDefault = if (policies.nonEmpty) policies else List("remote-access")
+              val vaultToken = (new VaultUtils).findVaultToken()
+              implicit val contextShift: ContextShift[IO] = IO.contextShift(global)
+              BlazeClientBuilder[IO](global).resource.use { client =>
+                val vault = new Vault[IO](Some(vaultToken), uri"http://127.0.0.1:8200", client)
+                for {
+                  password <- IO(System.console.readPassword("Password> ").mkString)
+                  _ <- vault.enableAuthMethod("userpass")
+                  res <- vault.createUser(name, password, policiesWithDefault)
+                } yield res match {
+                  case Right(_) => ()
+                  case Left(err) =>
+                    println(err)
+                    sys.exit(1)
+                }
+              }.unsafeRunSync()
           }
         case oauth: Oauth =>
           oauth match {

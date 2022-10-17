@@ -99,10 +99,10 @@ class Vault[F[_]: ConcurrentEffect](authToken: Option[String], baseUrl: Uri, bla
     submitRequest(Request[F](method = GET, uri = appendPath(baseUrl / "v1", pluginPath) / "creds" / credentialName, headers = baseHeaders))
 
   override def createSecret(name: String, req: CreateSecretRequest): F[Either[VaultError, Unit]] =
-    submitRequestNoResponse(Request[F](method = POST, uri = baseUrl / "v1" / "secret" / "data" / name, headers = baseHeaders).withEntity(req.asJson))
+    submitRequestNoResponse(Request[F](method = POST, uri = baseUrl / "v1" / "secret" / name, headers = baseHeaders).withEntity(req.asJson))
 
   override def getSecret(name: String): F[Either[VaultError, KVGetResult]] = {
-    submitRequest(Request[F](method = GET, uri = baseUrl / "v1" / "secret" / "data" / name, headers = baseHeaders))
+    submitRequest(Request[F](method = GET, uri = baseUrl / "v1" / "secret" / name, headers = baseHeaders))
   }
 
   override def createOauthSecret(name: String, req: CreateSecretRequest): F[Either[VaultError, Unit]] =
@@ -112,4 +112,18 @@ class Vault[F[_]: ConcurrentEffect](authToken: Option[String], baseUrl: Uri, bla
     submitRequest(Request[F](method = GET, uri = appendPath(baseUrl / "v1", name), headers = baseHeaders))
   }
 
+  override def createUser(name: String, password: String, policies: List[String]): F[Either[VaultError, Unit]] = {
+    val req = CreateUserRequest(password, policies)
+    submitRequestNoResponse(Request[F](method = POST, uri = baseUrl / "v1" / "auth" / "userpass" / "users" / name, headers = baseHeaders).withEntity(req.asJson))
+  }
+
+  override def login(username: String, password: String): F[Either[VaultError, LoginResponse]] = {
+    val req = Map("password" -> password)
+    submitRequest(Request[F](method = POST, uri = baseUrl / "v1" / "auth" / "userpass" / "login" / username, headers = baseHeaders).withEntity(req.asJson))
+  }
+
+  override def enableAuthMethod(authMethod: String): F[Either[VaultError, Unit]] = {
+    val req = Map("type" -> authMethod)
+    submitRequestNoResponse(Request[F](method = POST, uri = baseUrl / "v1" / "sys" / "auth" / authMethod, headers = baseHeaders).withEntity(req.asJson))
+  }
 }

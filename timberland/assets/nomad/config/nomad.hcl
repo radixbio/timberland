@@ -68,3 +68,7 @@ consul {
 acl {
   enabled = true
 }
+
+advertise {
+  http = "{{if GetAllInterfaces | include \"name\" \"srv0\"}}{{GetAllInterfaces | include \"name\" \"srv0\" | limit 1 | attr \"address\"}}{{else}}{{GetPrivateIP}}{{end}}"
+}

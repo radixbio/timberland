@@ -21,14 +21,14 @@ job "${prefix}minio-job" {
 
       template {
         data = <<EOF
-      {{with secret "secret/data/flag-config"}}
+      {{with secret "secret/flag-config"}}
       {{ if .Data.data.minio.aws_access_key_id}}
             MINIO_ACCESS_KEY = "{{.Data.data.minio.aws_access_key_id}}"
       {{else}}
       	    MINIO_ACCESS_KEY = "minio-access-key"
       {{end}}
       {{end}}
-      {{with secret "secret/data/flag-config"}}
+      {{with secret "secret/flag-config"}}
       {{ if .Data.data.minio.aws_secret_access_key}}
             MINIO_SECRET_KEY = "{{.Data.data.minio.aws_secret_access_key}}"
       {{else}}
@@ -128,14 +128,14 @@ job "${prefix}minio-job" {
       driver = "docker"
       template {
         data = <<EOF
-      {{with secret "secret/data/flag-config"}}
+      {{with secret "secret/flag-config"}}
       {{ if .Data.data.minio.aws_access_key_id}}
             MINIO_ACCESS_KEY = "{{.Data.data.minio.aws_access_key_id}}"
       {{else}}
       	     MINIO_ACCESS_KEY = "minio-access-key"
       {{end}}
       {{end}}
-      {{with secret "secret/data/flag-config"}}
+      {{with secret "secret/flag-config"}}
       {{ if .Data.data.minio.aws_secret_access_key}}
             MINIO_SECRET_KEY = "{{.Data.data.minio.aws_secret_access_key}}"
       {{else}}

@@ -21,6 +21,7 @@ exports_files([
     "vault/nomad-server-policy.hcl",
     "vault/read-consul-ui-policy.hcl",
     "vault/read-flag-config-policy.hcl",
+    "vault/remote-access-policy.hcl",
     "vault/vault_config.conf",
     "terraform/main/main.tf",
     "terraform/main/variables.tf",

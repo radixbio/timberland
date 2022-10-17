@@ -4,8 +4,11 @@ import java.io.File
 
 import cats.effect.{ContextShift, IO, Resource, Timer}
 import cats.implicits._
+import com.radix.timberland.flags.featureFlags.resolveSupersetFlags
 import com.radix.timberland.radixdefs.ServiceAddrs
+import com.radix.timberland.runtime.AuthTokens
 import com.radix.timberland.launch.daemonutil.timeoutTo
+
 import scala.concurrent.duration._
 import com.radix.timberland.util.{RegisterProvider, VaultUtils}
 import com.radix.utils.helm
@@ -88,18 +91,30 @@ object flagConfig {
    * @return A map of terraform variables and a list of defined config parameters
    *         in the form flagName.configName (e.g. minio.aws_access_key_id)
    */
-  def updateFlagConfig(flagMap: Map[String, Boolean], masterToken: Option[String])
-                      (implicit serviceAddrs: ServiceAddrs, persistentDir: os.Path): IO[TerraformConfigVars] = {
+  def updateFlagConfig(flagMap: Map[String, Boolean])(implicit serviceAddrs: ServiceAddrs = ServiceAddrs(),
+                                                      persistentDir: os.Path,
+                                                      tokens: Option[AuthTokens] = None
+                                                     ): IO[TerraformConfigVars] = {
     val flagList = flagMap.filter(_._2).keys.toList
     for {
-      partialFlagConfig <- readFlagConfig(masterToken)
+      partialFlagConfig <- readFlagConfig
       totalFlagConfig <- addMissingParams(flagList, partialFlagConfig)
-      _ <- writeFlagConfig(totalFlagConfig, masterToken)
+      _ <- writeFlagConfig(totalFlagConfig)
       _ <- executeHooks(flagList, totalFlagConfig)
     } yield TerraformConfigVars(
       parseTerraformVars(totalFlagConfig.consulData) ++ parseTerraformVars(totalFlagConfig.vaultData),
       getDefinedParams(totalFlagConfig.consulData) ++ getDefinedParams(totalFlagConfig.vaultData)
     )
+  }
+
+  /**
+   * Prompts for default flag configuration parameters and writes them to the local config file
+   */
+  def promptForDefaultConfigs(implicit serviceAddrs: ServiceAddrs = ServiceAddrs(),
+                              persistentDir: os.Path
+                             ): IO[TerraformConfigVars] = {
+    val defaultFlags = resolveSupersetFlags(config.flagDefaults.map(_ -> true).toMap)
+    updateFlagConfig(defaultFlags)
   }
 
   /**
@@ -153,15 +168,18 @@ object flagConfig {
   /**
    * Reads the local (and potentially remote) flag configuration maps.
    * Local values take precedence over remote ones
-   *
+   * @param authTokens Used to read data from consul and vault. If this isn't specified,
+   *                   data will only be read from the local config.json file
    * @return A flagConfig object containing the current accessible configuration
    */
-  def readFlagConfig(masterToken: Option[String])
-                    (implicit serviceAddrs: ServiceAddrs, persistentDir: os.Path): IO[FlagConfigs] = {
+  def readFlagConfig(implicit serviceAddrs: ServiceAddrs,
+                     persistentDir: os.Path,
+                     authTokens: Option[AuthTokens]
+                    ): IO[FlagConfigs] = {
     val topCfg = new LocalConfig().read()
-    val bottomCfg = masterToken match {
-      case Some(token) => flags.isConsulUp().flatMap {
-        case true => new RemoteConfig(token).read()
+    val bottomCfg = authTokens match {
+      case Some(tokens) => featureFlags.isConsulUp().flatMap {
+        case true => new RemoteConfig()(serviceAddrs, tokens).read()
         case false => IO.pure(FlagConfigs())
       }
       case None => IO.pure(FlagConfigs())
@@ -175,13 +193,18 @@ object flagConfig {
    *
    * @param configs The config to write
    */
-  private def writeFlagConfig(configs: FlagConfigs, masterToken: Option[String])
-                             (implicit serviceAddrs: ServiceAddrs, persistentDir: os.Path): IO[Unit] =
-    flags.isConsulUp().flatMap {
-      case true if masterToken.isDefined =>
-        new RemoteConfig(masterToken.get).write(configs) *> new LocalConfig().clear()
-      case _ => new LocalConfig().write(configs)
-    }
+  private def writeFlagConfig(configs: FlagConfigs)(implicit serviceAddrs: ServiceAddrs,
+                                                    persistentDir: os.Path,
+                                                    tokens: Option[AuthTokens]
+                                                   ): IO[Unit] =
+    for {
+      shouldWriteRemote <- if (tokens.isDefined) featureFlags.isConsulUp() else IO.pure(false)
+      _ <- if (shouldWriteRemote) {
+        new RemoteConfig()(serviceAddrs, tokens.get).write(configs) *> new LocalConfig().clear()
+      } else {
+        new LocalConfig().write(configs)
+      }
+    } yield ()
 
   /**
    * Prompts the user for any values specified in `config.flagConfigParams` but not in the passed `partialFlagMap`
@@ -253,7 +276,6 @@ object flagConfig {
   }
 }
 
-
 class LocalConfig(implicit persistentDir: os.Path) {
   private implicit val cfgDecoder: Decoder[FlagConfigs] = deriveDecoder[FlagConfigs]
   private implicit val cfgEncoder: Encoder[FlagConfigs] = deriveEncoder[FlagConfigs]
@@ -307,7 +329,7 @@ class OauthConfig {
   }
 }
 
-class RemoteConfig(masterToken: String)(implicit serviceAddrs: ServiceAddrs) {
+class RemoteConfig(implicit serviceAddrs: ServiceAddrs, tokens: AuthTokens) {
   private implicit val cs: ContextShift[IO] = IO.contextShift(global)
   private implicit val blaze: Resource[IO, Client[IO]] = BlazeClientBuilder[IO](global).resource
 
@@ -315,7 +337,7 @@ class RemoteConfig(masterToken: String)(implicit serviceAddrs: ServiceAddrs) {
 
   private def readFromConsul(): IO[Map[String, Map[String, Option[String]]]] = blaze.use { client =>
     val consulUri = Uri.fromString(s"http://${serviceAddrs.consulAddr}:8500").toOption.get
-    val interpreter = new Http4sConsulClient[IO](consulUri, client, Some(masterToken))
+    val interpreter = new Http4sConsulClient[IO](consulUri, client, Some(tokens.consulNomadToken))
     val getCfgOp = ConsulOp.kvGetJson[Map[String, Map[String, Option[String]]]]("flag-config", None, None)
     helm.run(interpreter, getCfgOp).map {
       case Right(QueryResponse(Some(flagConfig), _, _, _)) => flagConfig
@@ -327,12 +349,9 @@ class RemoteConfig(masterToken: String)(implicit serviceAddrs: ServiceAddrs) {
   }
 
   private def readFromVault(): IO[Map[String, Map[String, Option[String]]]] = blaze.use { client =>
-    for {
-      vaultToken <- IO(new VaultUtils().findVaultToken())
-      vaultUri = Uri.fromString(s"http://${serviceAddrs.consulAddr}:8200").toOption.get
-      vault = new Vault[IO](authToken = Some(vaultToken), baseUrl = vaultUri, blazeClient = client)
-      cfgJsonStr <- vault.getSecret("flag-config")
-    } yield cfgJsonStr match {
+    val vaultUri = Uri.fromString(s"http://${serviceAddrs.consulAddr}:8200").toOption.get
+    val vault = new Vault[IO](authToken = Some(tokens.vaultToken), baseUrl = vaultUri, blazeClient = client)
+    vault.getSecret("flag-config").map {
       case Right(KVGetResult(_, json)) => json.as[Map[String, Map[String, Option[String]]]].getOrElse(Map.empty)
       case Left(VaultErrorResponse(Vector())) => Map.empty
       case Left(err) =>
@@ -346,25 +365,21 @@ class RemoteConfig(masterToken: String)(implicit serviceAddrs: ServiceAddrs) {
 
   private def writeToConsul(configs: FlagConfigs): IO[Unit] = blaze.use { client =>
     val consulUri = Uri.fromString(s"http://${serviceAddrs.consulAddr}:8500").toOption.get
-    val interpreter = new Http4sConsulClient[IO](consulUri, client, Some(masterToken))
+    val interpreter = new Http4sConsulClient[IO](consulUri, client, Some(tokens.consulNomadToken))
     helm.run(interpreter, ConsulOp.kvSetJson("flag-config", configs.consulData))
   }
 
   private def writeToVault(configs: FlagConfigs): IO[Unit] = blaze.use { client =>
-    for {
-      vaultToken <- IO(new VaultUtils().findVaultToken())
-      // NOTE: Assumes consulAddr == vaultAddr
-      vaultUri = Uri.fromString(s"http://${serviceAddrs.consulAddr}:8200").toOption.get
-      vault = new Vault[IO](authToken = Some(vaultToken), baseUrl = vaultUri, blazeClient = client)
-      secretReq = CreateSecretRequest(data = configs.vaultData.asJson, cas = None)
-      response <- if (configs.vaultData.isEmpty) IO.pure(Right()) else {
-        vault.createSecret("flag-config", secretReq)
+    val vaultUri = Uri.fromString(s"http://${serviceAddrs.consulAddr}:8200").toOption.get
+    val vault = new Vault[IO](authToken = Some(tokens.vaultToken), baseUrl = vaultUri, blazeClient = client)
+    val secretReq = CreateSecretRequest(data = configs.vaultData.asJson, cas = None)
+    if (configs.vaultData.nonEmpty) {
+      vault.createSecret("flag-config", secretReq).map {
+        case Right(_) => ()
+        case Left(err) =>
+          Console.err.println("Error connecting to vault\n" + err)
+          sys.exit(1)
       }
-    } yield response match {
-      case Right(_) => ()
-      case Left(err) =>
-        Console.err.println("Error connecting to vault\n" + err)
-        sys.exit(1)
-    }
+    } else IO.unit
   }
 }

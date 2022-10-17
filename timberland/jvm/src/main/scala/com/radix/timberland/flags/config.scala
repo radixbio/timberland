@@ -28,11 +28,13 @@ case object config {
         key = "username",
         isSensitive = true,
         prompt = "Elemental Machines Username",
+        optional = true
       ),
       FlagConfigEntry(
         key = "password",
         isSensitive = true,
         prompt = "Elemental Machines Password",
+        optional = true
       ),
     ),
     "google-oauth" -> List(
@@ -73,7 +75,6 @@ case object config {
       )
     )
   )
-
 
   // Defines functions that get run for
   val flagConfigHooks: Map[String, List[(Map[String, Option[String]], ServiceAddrs) => IO[Unit]]] =

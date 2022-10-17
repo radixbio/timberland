@@ -9,9 +9,10 @@
   "bootstrap_expect": 3,
   "addresses": {
     "http": "0.0.0.0",
-    "dns": "127.0.0.1 {{ GetPrivateIP }}",
+    "dns": "127.0.0.1 {{if GetAllInterfaces | include \"name\" \"srv0\"}}{{GetAllInterfaces | include \"name\" \"srv0\" | limit 1 | attr \"address\"}}{{else}}{{GetPrivateIP}}{{end}}",
     "grpc": "0.0.0.0"
   },
+  "advertise_addr": "{{if GetAllInterfaces | include \"name\" \"srv0\"}}{{GetAllInterfaces | include \"name\" \"srv0\" | limit 1 | attr \"address\"}}{{else}}{{GetPrivateIP}}{{end}}",
   "connect": {
     "enabled": true
   },

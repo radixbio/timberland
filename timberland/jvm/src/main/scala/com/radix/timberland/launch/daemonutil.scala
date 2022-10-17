@@ -15,6 +15,7 @@ import org.http4s.implicits._
 
 import sys.process._
 import com.radix.timberland.radixdefs.ServiceAddrs
+import com.radix.timberland.runtime.AuthTokens
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{ExecutionContext, TimeoutException}
@@ -85,7 +86,6 @@ package object daemonutil {
     } yield state
   }
 
-
   def handleRegistryAuth(options: Map[String, Option[String]], addrs: ServiceAddrs): IO[Unit] = {
     for {
       _ <- IO(println("Reg auth handler!"))
@@ -106,7 +106,7 @@ package object daemonutil {
     }
   }
 
-  def getServiceIps(remoteConsulDnsAddress: String): IO[ServiceAddrs] = {
+  def getServiceIps(): IO[ServiceAddrs] = {
     def queryDns(host: String) = IO {
       try {
         DNS.Address.getByName(host).getHostAddress
@@ -254,26 +254,27 @@ package object daemonutil {
    * after submitting the job to Nomad via Terraform.
    *
    * @param featureFlags A map specifying which modules to enable
-   * @param masterToken  The access token used to communicate with consul/nomad
+   * @param integrationTest Whether to run terraform for integration tests
+   * @param prefix An optional prefix to prepend to job names
    * @return Returns an IO of DaemonState and since the function is blocking/recursive, the only return value is
    *         AllDaemonsStarted
    */
   def runTerraform(featureFlags: Map[String, Boolean],
-                   masterToken: String,
-                   integrationTest: Boolean,
-                   prefix: Option[String]
-                  )(implicit serviceAddrs: ServiceAddrs = ServiceAddrs()): IO[Int] = {
+                   integrationTest: Boolean = false,
+                   prefix: Option[String] = None
+                  )(implicit serviceAddrs: ServiceAddrs = ServiceAddrs(), tokens: AuthTokens): IO[Int] = {
     val workingDir = getTerraformWorkDir(integrationTest)
     val mkTmpDirCommand = Seq("bash", "-c", "rm -rf /tmp/radix && mkdir -p /tmp/radix/terraform")
 
     updatePrefixFile(prefix)
 
     implicit val persistentDir: os.Path = os.Path("/opt/radix/timberland")
+    implicit val tokensOption: Option[AuthTokens] = Some(tokens)
 
     val variables =
       s"-var='prefix=${getPrefix(integrationTest)}' " +
         s"-var='test=$integrationTest' " +
-        s"-var='acl_token=$masterToken' " +
+        s"-var='acl_token=${tokens.consulNomadToken}' " +
         s"-var='consul_address=${serviceAddrs.consulAddr}' " +
         s"-var='nomad_address=${serviceAddrs.nomadAddr}' " +
         s"""-var='feature_flags=["${featureFlags.filter(_._2).keys.mkString("""","""")}"]' """
@@ -287,7 +288,7 @@ package object daemonutil {
       variables)
 
     val apply = for {
-      flagConfig <- flagConfig.updateFlagConfig(featureFlags, Some(masterToken))
+      flagConfig <- flagConfig.updateFlagConfig(featureFlags)
       configEntriesStr = flagConfig.configVars.map(kv => s"-var='${kv._1}=${kv._2}'").mkString(" ")
       definedVarsStr = s"""-var='defined_config_vars=["${flagConfig.definedVars.mkString("""","""")}"]'"""
       configStr = s"$configEntriesStr $definedVarsStr "
@@ -300,9 +301,9 @@ package object daemonutil {
     } yield applyExitCode
 
     if (integrationTest)
-      mkTmpDir *> initTerraform(integrationTest, Some(masterToken)) *> show.flatMap(LogTUI.plan) *> apply
+      mkTmpDir *> initTerraform(integrationTest, Some(tokens.consulNomadToken)) *> show.flatMap(LogTUI.plan) *> apply
     else
-      initTerraform(integrationTest, Some(masterToken)) *> show.flatMap(LogTUI.plan) *> apply
+      initTerraform(integrationTest, Some(tokens.consulNomadToken)) *> show.flatMap(LogTUI.plan) *> apply
   }
 
   /**
