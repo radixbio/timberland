@@ -4,7 +4,8 @@ resource "nomad_job" "nginx" {
     prefix = var.prefix,
     services = var.dev ? data.consul_services.svc_list.names : [
       "minio-remote-service",
-      "minio-local-service"
+      "minio-local-service",
+      "messaging-slack-button-callback"
       # "kibana",
       # "ui",
       # "api"
