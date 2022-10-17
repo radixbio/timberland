@@ -464,6 +464,7 @@ object runner {
               dns_set.unsafeRunSync()
             }
             case FlagCmd(flagNames, enable, remoteAddress) => {
+              System.setProperty("dns.server", remoteAddress.getOrElse("127.0.0.1"))
               val flagMap = flagNames.map((_, enable)).toMap
 
               val localProc = for {

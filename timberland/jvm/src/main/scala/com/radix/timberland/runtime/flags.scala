@@ -35,9 +35,8 @@ object flags {
   // A map from flag name to a list of module names
   private val flagSupersets = Map(
     "core" -> Set(
-      "apprise", "elasticsearch", "es_kafka_connector", "kafka", "kafka_companions",
-      "minio", "retool_pg_kafka_connector", "retool_postgres", "runtime", "s3lts",
-      "vault", "yugabyte", "yb_kafka_connector", "zookeeper"
+      "apprise", "kafka", "kafka_companions", "minio", "retool_pg_kafka_connector",
+      "retool_postgres", "vault", "zookeeper"
     )
   )
   // The default values for all flags

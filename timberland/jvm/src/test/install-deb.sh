@@ -11,6 +11,8 @@ done
 cd /opt/radix/timberland/exec
 docker network create --attachable -d weaveworks/net-plugin:2.6.0 weave  --ip-range 10.32.0.0/12 --subnet 10.32.0.0/12
 echo -n "Vu6nzjx8T_sy14pxrepu" | docker login registry.gitlab.com -u radix-timberland-ci --password-stdin
+./timberland runtime enable all
+./timberland runtime disable elemental
 ./timberland runtime start
 
 sleep 3
