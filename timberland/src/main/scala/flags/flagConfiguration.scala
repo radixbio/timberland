@@ -1,9 +1,9 @@
 package com.radix.timberland.flags
 
 import java.io.File
-
 import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
+import com.radix.timberland.flags.featureFlags.{defaultFlagMap, getLocalFlags}
 import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.timberland.runtime.AuthTokens
 
@@ -23,7 +23,6 @@ import com.radix.utils.tls.ConsulVaultSSLContext._
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.io.StdIn
 
 sealed trait FlagConfigDestination
 case object Vault extends FlagConfigDestination
@@ -104,10 +103,11 @@ object flagConfig {
     persistentDir: os.Path,
     tokens: Option[AuthTokens] = None
   ): IO[TerraformConfigVars] = {
+    val shouldPrompt = (defaultFlagMap ++ flagMap)("interactive")
     val flagList = flagMap.filter(_._2).keys.toList
     for {
       partialFlagConfig <- readFlagConfig
-      totalFlagConfig <- addMissingParams(flagList, partialFlagConfig)
+      totalFlagConfig <- addMissingParams(flagList, partialFlagConfig, shouldPrompt)
       _ <- writeFlagConfig(totalFlagConfig)
       _ <- executeHooks(flagList, totalFlagConfig)
     } yield TerraformConfigVars(
@@ -122,8 +122,10 @@ object flagConfig {
   def promptForDefaultConfigs(implicit
     serviceAddrs: ServiceAddrs = ServiceAddrs(),
     persistentDir: os.Path
-  ): IO[TerraformConfigVars] =
-    updateFlagConfig(featureFlags.defaultFlagMap)
+  ): IO[TerraformConfigVars] = for {
+    localFlags <- getLocalFlags(persistentDir)
+    configVars <- updateFlagConfig(featureFlags.defaultFlagMap ++ localFlags)
+  } yield configVars
 
   /**
    * Uses `terraformVar` in `config.flagConfigParams` to create a map of terraform variable name to config value
@@ -225,10 +227,10 @@ object flagConfig {
    * @param partialFlagConfig A potentially incomplete FlagConfigs object
    * @return A FlagConfigs object containing a full set of configuration parameters for each enabled flag
    */
-  def addMissingParams(flagList: List[String], partialFlagConfig: FlagConfigs): IO[FlagConfigs] = {
+  def addMissingParams(flagList: List[String], partialFlagConfig: FlagConfigs, prompt: Boolean): IO[FlagConfigs] = {
     for {
-      newConsulData <- getMissingParams(flagList, destination = Consul, partialFlagConfig.consulData)
-      newVaultData <- getMissingParams(flagList, destination = Vault, partialFlagConfig.vaultData)
+      newConsulData <- getMissingParams(flagList, destination = Consul, partialFlagConfig.consulData, prompt)
+      newVaultData <- getMissingParams(flagList, destination = Vault, partialFlagConfig.vaultData, prompt)
     } yield partialFlagConfig ++ FlagConfigs(newConsulData, newVaultData)
   }
 
@@ -237,14 +239,16 @@ object flagConfig {
    * Prompts the user for vault or consul keys and builds a map with the responses
    *
    * @param flagList           The list of flags to ask for config values for
-   * @param sensitive          If true, only vault config parameters will be prompted. If false, only consul parameters
+   * @param destination        Whether to write flags to consul, vault, or neither
    * @param curFlagToConfigMap The current map of flags. Anything defined here will not be prompted
+   * @param shouldConfirm      Whether to prompt the user to confirm pushing changes to consul
    * @return A map containing only the key/values that were prompted
    */
   def getMissingParams(
     flagList: List[String],
     destination: FlagConfigDestination,
-    curFlagToConfigMap: Map[String, Map[String, Option[String]]]
+    curFlagToConfigMap: Map[String, Map[String, Option[String]]],
+    shouldPrompt: Boolean
   ): IO[Map[String, Map[String, Option[String]]]] = {
     flagList
       .filter(config.flagConfigParams.contains)
@@ -255,7 +259,7 @@ object flagConfig {
 
         val newConfigEntriesIO = missingKeys.toList.map { missingKey =>
           val configEntry = config.flagConfigParams(flagName).find(_.key == missingKey).get
-          promptUser(configEntry).map(missingKey -> _)
+          promptUser(configEntry, shouldPrompt).map(missingKey -> _)
         }.sequence
         newConfigEntriesIO.map(newConfigEntries => flagName -> newConfigEntries.toMap)
       }
@@ -270,38 +274,22 @@ object flagConfig {
    * @param entry The config entry specifying the prompt string, whether the value is optional, and a default value
    * @return The response from stdin if the response is nonempty and the terminal is interactive
    */
-  private def promptUser(entry: FlagConfigEntry, timeout: FiniteDuration = 30.seconds): IO[Option[String]] = {
-    // if (entry.optional) {IO{entry.default}} else { // nice for testing! maybe use the dev flag?
+  private def promptUser(entry: FlagConfigEntry, shouldPrompt: Boolean): IO[Option[String]] = {
     implicit val cs: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
     implicit val timer: Timer[IO] = IO.timer(ExecutionContext.global)
     for {
       _ <- LogTUI.acquireScreen()
-      _ <- IO(Console.print((if (entry.optional) "[Optional] " else "") + entry.prompt + "> "))
-      userInput <- Util.timeoutTo(IO(StdIn.readLine()), timeout, IO.pure(null))
+      userInput <- if (shouldPrompt) {
+        Util.promptForString((if (entry.optional) "[Optional] " else "") + entry.prompt)
+      } else IO.pure(entry.default)
       _ <- LogTUI.releaseScreen()
-      maybeDefault <- IO {
-        entry.default match {
-          case Some(value) => Some(value)
-          case None        => None
-        }
-      }
       maybeUserInput <- IO {
-        userInput match {
-          case null | "" =>
-            if (entry.optional) {
-              for {
-                // necessary so the next prompt doesn't print on the same line
-                // wrong IO nesting?
-                _ <- IO(Console.println(" [timed out]"))
-              } yield ()
-              maybeDefault
-            } else
-              Some(entry.default.getOrElse {
-                Console.err.println("\nConfig option not specified with no available fallback value, quitting")
-                sys.exit(1)
-              })
-          case response: String => {
-            Some(response)
+        userInput.orElse(entry.default).orElse {
+          if (entry.optional) {
+            None
+          } else {
+            Console.err.println("\nConfig option not specified with no available fallback value, quitting")
+            sys.exit(1)
           }
         }
       }

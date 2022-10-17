@@ -389,6 +389,8 @@ object LogTUI {
       }
     } yield ()
 
+
+
   /**
    * Empty the status update queue, keep the latest status update for each status key, print them in the right order.
    * @param prevStatuses

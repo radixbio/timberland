@@ -20,7 +20,7 @@ import org.http4s.Uri
 import scala.concurrent.ExecutionContext
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
-import scala.io.{AnsiColor, StdIn}
+import scala.io.AnsiColor
 
 sealed trait FlagUpdateResponse
 
@@ -39,7 +39,7 @@ object featureFlags {
 
   // A list of flags which don't have any relation to modules
   private val specialFlags =
-    Set("dev", "google-oauth", "docker-auth", "okta-auth", "tui", "remote_images")
+    Set("dev", "google-oauth", "docker-auth", "okta-auth", "tui", "remote_images", "interactive")
 
   // A map from flag name to a list of module names // may no longer necessary?
   private val flagSupersets = Map(
@@ -116,19 +116,21 @@ object featureFlags {
     for {
       validFlags <- validateFlags(persistentDir, flagsToSet, tokens)(serviceAddrs)
       actualFlags = resolveSupersetFlags(flagsToSet, validFlags)
+      localFlags <- getLocalFlags(persistentDir)
+      totalFlags = localFlags ++ actualFlags
+      shouldPrompt = (defaultFlagMap ++ totalFlags)("interactive")
       shouldUpdateConsul <- tokens match {
         case Some(_) => isConsulUp()
         case None    => IO.pure(false)
       }
-      _ <- callNonpersistentFlagHooks(flagsToSet)
+      _ <- callNonpersistentFlagHooks(flagsToSet, shouldPrompt)
       newFlags <-
         if (shouldUpdateConsul) {
           for {
-            localFlags <- getLocalFlags(persistentDir)
-            totalFlags = localFlags ++ actualFlags
             _ <-
-              if (confirm) confirmFlags(persistentDir, shouldUpdateConsul, serviceAddrs, tokens, totalFlags)
-              else IO.unit
+              if (shouldPrompt && confirm) {
+                confirmFlags(persistentDir, shouldUpdateConsul, serviceAddrs, tokens, totalFlags)
+              } else IO.unit
             _ <- clearLocalFlagFile(persistentDir, totalFlags)
             newFlags <- setConsulFlags(totalFlags)(serviceAddrs, tokens.get)
           } yield newFlags
@@ -293,10 +295,16 @@ object featureFlags {
    * @param addrs      Service addresses
    * @return Nothing
    */
-  def callNonpersistentFlagHooks(flagsToSet: Map[String, Boolean])(implicit addrs: ServiceAddrs): IO[Unit] = {
+  def callNonpersistentFlagHooks(flagsToSet: Map[String, Boolean], shouldPrompt: Boolean)
+                                (implicit addrs: ServiceAddrs): IO[Unit] = {
     val flagList = flagsToSet.filter(_._2).keys.toList
     for {
-      configResponses <- flagConfig.getMissingParams(flagList, destination = Nowhere, curFlagToConfigMap = Map.empty)
+      configResponses <- flagConfig.getMissingParams(
+        flagList,
+        destination = Nowhere,
+        curFlagToConfigMap = Map.empty,
+        shouldPrompt
+      )
       _ <- flagList
         .filter(config.flagConfigHooks.contains)
         .map { flagName =>
@@ -334,17 +342,12 @@ object featureFlags {
     for {
       pendingChangesExist <- printFlagInfo(persistentDir, consulIsUp, serviceAddrs, authTokens, extraFlags)
       _ <- LogTUI.acquireScreen()
-      _ <-
-        if (pendingChangesExist) {
-          IO(Console.print("The above changes will be written to consul/vault. Continue? [Y/n] "))
-        } else IO.unit
-      userInput <-
-        if (pendingChangesExist) {
-          Util.timeoutTo(IO(StdIn.readLine()), 30.seconds, IO.pure("y"))
-        } else IO.pure("y")
+      shouldContinue <- if (pendingChangesExist) {
+        Util.promptForBool("The above changes will be written to consul/vault. Continue?")
+      } else IO.pure(true)
       _ <- LogTUI.releaseScreen()
     } yield {
-      if (userInput != null && userInput.nonEmpty && userInput.toLowerCase != "y") sys.exit(0) else ()
+      if (shouldContinue) () else sys.exit(0)
     }
   }
 

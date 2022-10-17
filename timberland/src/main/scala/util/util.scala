@@ -2,7 +2,6 @@ package com.radix.timberland.util
 
 import java.io.{File, FileInputStream, FileNotFoundException, FileOutputStream, IOException}
 import java.net.{InetAddress, NetworkInterface, ServerSocket, UnknownHostException}
-
 import ammonite.ops._
 import cats.effect.{ContextShift, IO, Resource, Timer}
 import com.radix.utils.tls.ConsulVaultSSLContext.blaze
@@ -15,10 +14,26 @@ import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.TimeoutException
 import scala.concurrent.duration._
+import scala.io.StdIn
 
 object Util {
   private[this] implicit val timer: Timer[IO] = IO.timer(global)
   private[this] implicit val cs: ContextShift[IO] = IO.contextShift(global)
+
+  def promptForString(prompt: String, timeout: FiniteDuration = 30.seconds): IO[Option[String]] = {
+    IO(Console.print(prompt + "> "))
+      .flatMap { _ => timeoutTo(IO(StdIn.readLine()), timeout, IO.pure(null)) }
+      .map {
+        case null | "" => None
+        case str => Some(str)
+      }
+  }
+
+  def promptForBool(prompt: String, default: Boolean = true): IO[Boolean] = {
+    IO(Console.print(prompt + (if (default) " [Y/n] " else " [y/N] ")))
+      .flatMap { _ => timeoutTo(IO(StdIn.readLine()), 30.seconds, IO.pure(if (default) "y" else "n")) }
+      .map(res => res != null && res.nonEmpty && res.toLowerCase != "y")
+  }
 
   /**
    * Let a specified function run for a specified period of time before interrupting it and raising an error. This
