@@ -8,6 +8,7 @@ import com.radix.timberland.launch.daemonutil
 import com.radix.timberland.radixdefs.ServiceAddrs
 import com.radix.timberland.runtime._
 import com.radix.timberland.util.{RadPath, Util, VaultStarter, VaultUtils}
+import com.radix.utils.helm.http4s.Http4sConsulClient
 import com.radix.utils.helm.http4s.vault.Vault
 import com.radix.utils.helm.vault.UnsealRequest
 import io.circe.{Json, Parser => _}
@@ -15,9 +16,10 @@ import io.circe.parser.parse
 import optparse_applicative._
 import org.http4s.implicits._
 import com.radix.utils.tls.ConsulVaultSSLContext._
-import com.radix.utils.tls.TrustEveryoneSSLContext
+import com.radix.utils.tls.{ConsulVaultSSLContext, TrustEveryoneSSLContext}
 import io.circe.syntax.EncoderOps
 import org.http4s.Uri
+
 import scala.concurrent.ExecutionContext.global
 import scala.concurrent.duration._
 
@@ -36,7 +38,8 @@ object runner {
               datacenter,
               username,
               password,
-              serverJoin
+              serverJoin,
+              force
             ) =>
           scribe.Logger.root
             .clearHandlers()
@@ -69,6 +72,12 @@ object runner {
             authTokens: AuthTokens
           ) =
             for {
+              _ <- if (force) {
+                implicit val blaze = ConsulVaultSSLContext.blaze
+                val consulUri = Uri.unsafeFromString(serviceAddrs.consulAddr)
+                val consul = new Http4sConsulClient[IO](consulUri, Some(authTokens.consulNomadToken))
+                List("terraform/.lock", "terraform/.lockinfo", "terraform").map(consul.kvDelete).sequence
+              } else IO.unit
               tfStatus <- daemonutil.runTerraform(namespace, datacenter)(serviceAddrs, authTokens)
               _ <- IO {
                 tfStatus match {
@@ -256,6 +265,10 @@ object runner {
           }
           sys.exit(0)
 
+        case Reload =>
+          Services.stopServices().unsafeRunSync()
+          cmdEval(AfterStartup)
+
         case AfterStartup =>
           if (!os.exists(ConstPaths.bootstrapComplete)) {
             scribe.error("Timberland not yet initialized")
@@ -281,8 +294,10 @@ object runner {
             // If vault is not installed, just query the remote vault for tokens
             hasLocalVault = args.leaderNode.isEmpty || args.serverMode
             tokens <- if (hasLocalVault) restartVaultAndGetTokens else auth.recoverRunContext(args).map(_._2)
-            _ <- Services.serviceController.runConsulTemplate(tokens.consulNomadToken, tokens.vaultToken, None, args.datacenter)
+            vaultAddr = if (hasLocalVault) None else args.leaderNode.map(host => s"https://$host:8200")
+            _ <- Services.serviceController.runConsulTemplate(tokens.consulNomadToken, tokens.vaultToken, vaultAddr, args.datacenter)
             _ <- Services.serviceController.restartConsul()
+            _ <- Util.waitForPortUp(8501, 30.seconds)
             _ <- Services.serviceController.restartNomad()
             _ <- Services.serviceController.restartTimberlandSvc()
           } yield ()

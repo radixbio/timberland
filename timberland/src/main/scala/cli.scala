@@ -19,7 +19,8 @@ case class Start(
   datacenter: String = "dc1",
   username: Option[String] = None,
   password: Option[String] = None,
-  serverMode: Boolean = false
+  serverMode: Boolean = false,
+  force: Boolean = false
 ) extends RadixCMD
 object Start {
   implicit val encoder: Encoder[Start] = deriveEncoder
@@ -47,6 +48,8 @@ case class WanJoin(
 case class Env(fish: Boolean) extends RadixCMD
 
 case object AfterStartup extends RadixCMD
+
+case object Reload extends RadixCMD
 
 case object Stop extends RadixCMD
 
@@ -281,6 +284,19 @@ object cli {
           }) <*>
 
           optional(
+            switch(
+              long("force"),
+              help("Forcibly apply terraform changes despite any pending state locks.")
+            )
+          ).map(force => {
+            exist: Start =>
+              force match {
+                case Some(_ @value) => exist.copy(force = value)
+                case None           => exist
+              }
+          }) <*>
+
+          optional(
             strOption(
               metavar("USERNAME"),
               long("username"),
@@ -319,6 +335,17 @@ object cli {
       info(
         pure(AfterStartup),
         progDesc("Unseals vault and makes sure all hashicorp services are running")
+      )
+    )
+  )
+
+  private val reload = subparser[Reload.type](
+    metavar("reload"),
+    command(
+      "reload",
+      info(
+        pure(Reload),
+        progDesc("Stops and restarts all components of timberland (without restarting the services themselves)")
       )
     )
   )
@@ -442,6 +469,7 @@ object cli {
     stop,
     env,
     afterStartup,
+    reload,
     dns,
     makeConfig,
     addUser,

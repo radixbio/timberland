@@ -1,7 +1,7 @@
 [Unit]
 Description="Timberland After Startup Hook"
-Wants=vault.service
-After=vault.service
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 ExecStart=/opt/radix/timberland/exec/timberland after_startup
