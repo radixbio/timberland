@@ -101,7 +101,8 @@ trait ConsulInterface[F[_]] extends (ConsulOp ~> F) {
     lockdelay: Option[Duration],
     node: Option[String],
     checks: Option[NonEmptyList[HealthCheckParameter]],
-    behavior: Option[String]
+    behavior: Option[String],
+    ttl: Option[String]
   ): F[UUID]
 
   def getSessionInfo(session: UUID): F[SessionResponse]

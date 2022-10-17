@@ -86,8 +86,8 @@ final class Http4sConsulClient[F[_]](
     case ConsulOp.AgentEnableMaintenanceMode(id, enable, reason) =>
       agentEnableMaintenanceMode(id, enable, reason)
     case ConsulOp
-          .SessionCreate(name, datacenter, lockDelay, node, checks, behavior) =>
-      sessionCreate(name, datacenter, lockDelay, node, checks, behavior)
+          .SessionCreate(name, datacenter, lockDelay, node, checks, behavior, ttl) =>
+      sessionCreate(name, datacenter, lockDelay, node, checks, behavior, ttl)
     case ConsulOp.CatalogListNodesForService(service, tag) =>
       catalogListNodesForService(service, tag)
   }
@@ -641,7 +641,8 @@ final class Http4sConsulClient[F[_]](
     lockdelay: Option[Duration],
     node: Option[String],
     checks: Option[NonEmptyList[HealthCheckParameter]],
-    behavior: Option[String]
+    behavior: Option[String],
+    ttl: Option[String]
   ): F[UUID] =
     for {
       _ <- F.delay(log.debug(s"PUTting $name in /session/create"))
@@ -661,7 +662,8 @@ final class Http4sConsulClient[F[_]](
             ("LockDelay", lockdelay.asJson),
             ("Node", node.asJson),
             ("Behavior", behavior.asJson),
-            ("Checks", checks.map(_.toList).asJson)
+            ("Checks", checks.map(_.toList).asJson),
+            ("TTL", ttl.asJson)
           )
           json.dropNullValues.toString
         },
