@@ -1,17 +1,15 @@
 package com.radix.timberland.util
 
-import scala.concurrent.{Await, Future}
+import scala.io.StdIn
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
 import ammonite.ops._
 import ammonite.ops.ImplicitWd._
-import cats.effect.{IO, SyncIO}
-import cats.effect.Resource
+import cats.effect.{ContextShift, IO, Resource, SyncIO, Timer}
 import cats.implicits._
-import cats.implicits._
-import cats.effect.ContextShift
-import java.io.{File, FileInputStream, FileOutputStream}
-import java.net.{InetAddress, NetworkInterface}
+import java.io.{File, FileInputStream, FileOutputStream, IOException}
+import java.net.{InetAddress, NetworkInterface, ServerSocket}
+
 
 object Util {
   def putStrLn(str: String): IO[Unit] = IO(scribe.info(str))

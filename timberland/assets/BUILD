@@ -1,5 +1,6 @@
 exports_files([
     "consul/consul.json",
+    "consul/default-policy.hcl",
     "debian/postinst.sh",
     "debian/prerm.sh",
     "nomad/connect/postgres_source.sh",

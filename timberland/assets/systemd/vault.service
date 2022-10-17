@@ -8,7 +8,7 @@ After=consul.service
 
 [Service]
 ExecReload=/bin/kill -HUP $MAINPID
-ExecStart=/opt/radix/timberland/vault/vault server $VAULT_CMD_ARGS -config /opt/radix/timberland/vault/vault_config.conf
+ExecStart=/opt/radix/timberland/vault/vault server $VAULT_CMD_ARGS
 KillMode=process
 KillSignal=SIGINT
 LimitNOFILE=65536

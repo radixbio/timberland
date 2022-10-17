@@ -26,6 +26,7 @@ abstract class TimberlandIntegration
 
   val ConsulPort = 8500
   val NomadPort = 4646
+  val accessToken = "00000000-0000-0000-0000-000000000000"
 
   override implicit val executionContext: ExecutionContext =
     ExecutionContext.fromExecutor(Executors.newWorkStealingPool(20))
@@ -57,7 +58,7 @@ abstract class TimberlandIntegration
     // Make sure Consul and Nomad are up
     val res = daemonutil.waitForDNS("consul.service.consul", 1.minutes) *>
       daemonutil.waitForDNS("_nomad._http.service.consul", 1.minutes) *>
-      daemonutil.runTerraform(featureFlags, integrationTest = true) *>
+      daemonutil.runTerraform(featureFlags, accessToken, integrationTest = true) *>
       daemonutil.waitForQuorum(featureFlags)
     res.unsafeRunSync()
   }

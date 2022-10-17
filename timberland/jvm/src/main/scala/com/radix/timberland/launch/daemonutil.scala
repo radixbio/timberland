@@ -1,7 +1,7 @@
 package com.radix.timberland.launch
 
-import java.io.File
-import java.net.{InetAddress, UnknownHostException}
+import java.io.{File, IOException, PrintWriter}
+import java.net.{InetAddress, ServerSocket, UnknownHostException}
 
 import cats.effect.{ContextShift, IO, Resource, Timer}
 import cats.implicits._
@@ -13,20 +13,17 @@ import org.http4s.client.blaze.BlazeClientBuilder
 import org.http4s.implicits._
 
 import sys.process._
-import java.io.{File, PrintWriter}
-import java.net.UnknownHostException
-
 import com.radix.timberland.radixdefs.ServiceAddrs
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.{ExecutionContext, TimeoutException}
 import scala.concurrent.duration._
-import scala.io.StdIn
-import scala.sys.process._
-import scala.concurrent.{ExecutionContext, TimeoutException, duration}
 import org.xbill.DNS
 import com.radix.timberland.runtime.flags
 import org.http4s.Uri
 import org.http4s.client.Client
+
+import scala.io.StdIn
 
 sealed trait DaemonState
 
@@ -44,7 +41,6 @@ package object daemonutil {
   private[this] implicit val timer: Timer[IO] = IO.timer(global)
   private[this] implicit val cs: ContextShift[IO] = IO.contextShift(global)
   private[this] implicit val blaze: Resource[IO, Client[IO]] =  BlazeClientBuilder[IO](global).resource
-
 
   def checkNomadState(implicit interp: Http4sNomadClient[IO]): IO[NomadReadRaftConfigurationResponse] = {
     for {
@@ -67,8 +63,7 @@ package object daemonutil {
     for {
       consulAddr <- queryDns("consul.service.consul")
       nomadAddr <- queryDns("nomad.service.consul")
-      vaultAddr <- queryDns("vault.service.consul")
-    } yield ServiceAddrs(consulAddr, nomadAddr, vaultAddr)
+    } yield ServiceAddrs(consulAddr, nomadAddr)
   }
 
   def getTerraformWorkDir(is_integration: Boolean): File = {
@@ -78,16 +73,13 @@ package object daemonutil {
   /** Start up the specified daemons (or all or a combination) based upon the passed parameters. Will immediately exit
    * after submitting the job to Nomad via Terraform.
    *
-   * @param quorumSize  How many running and valid copies of a Job Group there should be across the specified services
-   * @param dev         Whether to run in dev mode. This is used in conjunction with quorumSize to adjust variables sent to
-   *                    the daemon to start it in development mode
-   * @param core        Whether to start core services (Zookeeper, Kafka, Kafka Companions)
-   * @param esStart     Whether to start Elasticsearch
-   * @param retoolStart Whether to start retool
+   * @param featureFlags A map specifying which modules to enable
+   * @param masterToken The access token used to communicate with consul/nomad
    * @return Returns an IO of DaemonState and since the function is blocking/recursive, the only return value is
    *         AllDaemonsStarted
    */
   def runTerraform(featureFlags: Map[String, Boolean],
+                   masterToken: String,
                    integrationTest: Boolean
                   )(implicit serviceAddrs: ServiceAddrs = ServiceAddrs()): IO[Int] = {
     val workingDir = getTerraformWorkDir(integrationTest)
@@ -102,9 +94,9 @@ package object daemonutil {
     val variables =
       s"-var='prefix=$prefix' " +
       s"-var='test=$integrationTest' " +
+      s"-var='acl_token=$masterToken' " +
       s"-var='consul_address=${serviceAddrs.consulAddr}' " +
       s"-var='nomad_address=${serviceAddrs.nomadAddr}' " +
-      s"-var='vault_address=${serviceAddrs.vaultAddr}' " +
       s"""-var='feature_flags=["${featureFlags.filter(_._2).keys.mkString("""","""")}"]' """
 
     val mkTmpDir = for {
@@ -124,10 +116,11 @@ package object daemonutil {
           case null => "input=literal_null"
           case x => x
         }
+        // NOTE: This makes the assumption that vaultAddr == consulAddr
         os.proc("/opt/radix/timberland/vault/vault",
           "kv",
           "put",
-          s"-address=http://${serviceAddrs.vaultAddr}:8200",
+          s"-address=http://${serviceAddrs.consulAddr}:8200",
           "secret/aws/s3",
           s"$creds").call(stdout = os.Inherit, stderr = os.Inherit, env = Map ("VAULT_TOKEN" -> vaultToken))
       }
@@ -140,14 +133,14 @@ package object daemonutil {
     } yield applyExitCode
 
     if(integrationTest)
-      mkTmpDir *> initTerraform(integrationTest, true) *> apply
+      mkTmpDir *> initTerraform(integrationTest, Some(masterToken)) *> apply
     else
-      initTerraform(integrationTest, true) *> apply
+      initTerraform(integrationTest, Some(masterToken)) *> apply
   }
 
   def checkVaultHasCredentials(token: String, path: String, contains: String)
                               (implicit serviceAddrs: ServiceAddrs): IO[Boolean] = {
-      blaze.use(implicit client => {
+    blaze.use(implicit client => {
       val vaultUri = Uri.fromString(s"http://vault.service.consul:8200").toOption.get
       val vaultSession: VaultSession[IO] = new VaultSession[IO](authToken = Some(token),
         baseUrl = vaultUri,
@@ -162,21 +155,34 @@ package object daemonutil {
     })
   }
 
-  def initTerraform(integrationTest: Boolean, connectToBackend: Boolean)
+  /**
+   * Runs the terraform init command
+   * @param integrationTest Runs init in a temporary directory
+   * @param backendMasterToken ACL token to access consul. If this isn't specified, terraform won't connect to consul
+   * @param serviceAddrs Contains addresses for consul and nomad
+   * @return Nothing
+   */
+  def initTerraform(integrationTest: Boolean, backendMasterToken: Option[String])
                    (implicit serviceAddrs: ServiceAddrs = ServiceAddrs()): IO[Unit] = {
+    val backendVars = if (backendMasterToken.isDefined) Seq(
+      s"-backend-config=address=${serviceAddrs.consulAddr}:8500",
+      s"-backend-config=access_token=${backendMasterToken.get}",
+      s"-var='acl_token=${backendMasterToken.get}'"
+    ) else Seq.empty
     val initAgainCommand = Seq(
       s"$execDir/terraform", "init",
       "-plugin-dir", s"$execDir/plugins",
-      s"-backend=$connectToBackend",
-      s"-backend-config=address=${serviceAddrs.consulAddr}:8500"
-    )
+      s"-backend=${backendMasterToken.isDefined}"
+    ) ++ backendVars
     val initFirstCommand = initAgainCommand ++ Seq("-from-module", s"$execDir/main")
     val workingDir = getTerraformWorkDir(integrationTest)
 
     for {
       alreadyInitialized <- IO(workingDir.listFiles.nonEmpty)
       initCommand = if (alreadyInitialized) initAgainCommand else initFirstCommand
-      _ <- if (connectToBackend) IO(Console.println(s"Init command: ${initCommand.mkString(" ")}")) else IO.unit
+      _ <- if (backendMasterToken.isEmpty) IO.unit else IO {
+        Console.println(s"Init command: ${initCommand.mkString(" ")}")
+      }
       _ <- IO(os.proc(initCommand).call(cwd = os.Path(workingDir), check = false))
     } yield ()
   }
@@ -221,6 +227,23 @@ package object daemonutil {
     } yield ()
 
     timeout(queryProg, timeoutDuration) *> IO.unit
+  }
+
+  /**
+   *
+   * @param port The port number to check (on localhost)
+   * @return Whether the port is up
+   */
+  def isPortUp(port: Int): IO[Boolean] = IO {
+    val socket =
+      try {
+        val serverSocket = new ServerSocket(port)
+        serverSocket.setReuseAddress(true)
+        Some(serverSocket)
+      } catch {
+        case _: IOException => None
+      }
+    socket.map(_.close()).isEmpty
   }
 
   /** Let a specified function run for a specified period of time before interrupting it and raising an error. This

@@ -44,6 +44,9 @@ scala_library(
 timberland_core_srcs = [
     "src/main/scala/com/radix/timberland/defns.scala",
     "src/main/scala/com/radix/timberland/launch/consulutil.scala",
+    "src/main/scala/com/radix/timberland/launch/daemonutil.scala",
+    "src/main/scala/com/radix/timberland/runtime/acl.scala",
+    "src/main/scala/com/radix/timberland/runtime/flags.scala",
     "src/main/scala/com/radix/timberland/runtime/install.scala",
     "src/main/scala/com/radix/timberland/runtime/services.scala",
     "src/main/scala/com/radix/timberland/util/VaultStarter.scala",
@@ -152,11 +155,19 @@ pkg_tar(
 pkg_tar(
     name = "timberland-consul",
     srcs = [
-        "//timberland/assets:consul/consul.json",
+        "//timberland/assets:consul/default-policy.hcl",
         "//timberland/assets:systemd/consul.env.conf",
         "@consul",
     ],
     package_dir = "/opt/radix/timberland/consul",
+)
+
+pkg_tar(
+    name = "timberland-consul-config",
+    srcs = [
+        "//timberland/assets:consul/consul.json",
+    ],
+    package_dir = "/opt/radix/timberland/consul/config",
 )
 
 pkg_tar(
@@ -454,6 +465,7 @@ pkg_tar(
     name = "timberland-full-tar",
     deps = [
         ":timberland-consul",
+        ":timberland-consul-config",
         ":timberland-devdrivers",
         ":timberland-exec",
         ":timberland-networkd",

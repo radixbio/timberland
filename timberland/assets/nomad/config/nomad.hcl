@@ -58,13 +58,13 @@ plugin "docker" {
   }
 }
 
-
 plugin "java" {
 }
-
 
 consul {
   address = "localhost:8500"
 }
 
-
+acl {
+  enabled = true
+}

@@ -87,3 +87,9 @@ variable "vault_address" {
   type = string
   default = "nomad.service.consul"
 }
+
+variable "acl_token" {
+  description = "Token used for communication with nomad and consul"
+  type = string
+  default = ""
+}

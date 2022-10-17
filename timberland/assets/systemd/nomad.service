@@ -12,7 +12,7 @@ After=network-online.target
 
 [Service]
 ExecReload=/bin/kill -HUP $MAINPID
-ExecStart=/opt/radix/timberland/nomad/nomad agent $NOMAD_CMD_ARGS -config /opt/radix/timberland/nomad/config
+ExecStart=/opt/radix/timberland/nomad/nomad agent $NOMAD_CMD_ARGS
 KillMode=process
 KillSignal=SIGINT
 LimitNOFILE=65536

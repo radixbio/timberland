@@ -8,15 +8,18 @@ terraform {
 provider "consul" {
   address = "http://${var.consul_address}:8500"
   version = "~> 2.7"
+  token = var.acl_token
 }
 
 provider "nomad" {
   address = "http://${var.nomad_address}:4646"
   version = "~> 1.4"
+  secret_id = var.acl_token
 }
 
 provider "vault" {
-  address = "http://${var.vault_address}:8200"
+  // NOTE: This makes the assumption that vaultAddr == consulAddr
+  address = "http://${var.consul_address}:8200"
   version = "2.11.0"
 }
 

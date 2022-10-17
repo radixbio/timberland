@@ -10,6 +10,7 @@ import ammonite.ops._
 import cats.effect.IO
 import cats.implicits._
 import com.radix.timberland.launch.daemonutil
+import com.radix.timberland.runtime.acl
 import com.radix.timberland.runtime.{ConsulFlagsUpdated, FlagsStoredLocally, Mock, Run, flags}
 import io.circe.{Parser => _}
 import optparse_applicative._
@@ -74,6 +75,7 @@ case class Start(
                   consulSeeds: Option[String] = None,
                   remoteAddress: Option[String] = None,
                   servicePort: Int = 9092,
+                  accessToken: Option[String] = None,
                   registryListenerPort: Int = 8081,
                   username: Option[String] = None,
                   password: Option[String] = None,
@@ -91,9 +93,12 @@ case class DNSUp(service: Option[String], bindIP: Option[String]) extends DNS
 
 case class DNSDown(service: Option[String], bindIP: Option[String]) extends DNS
 
-case class FlagCmd(flags: List[String], enable: Boolean, remoteAddress: Option[String]) extends Runtime
-
-case object TestPrint extends Runtime
+case class FlagCmd(
+                    flags: List[String],
+                    enable: Boolean,
+                    remoteAddress: Option[String],
+                    accessToken: Option[String]
+                  ) extends Runtime
 
 sealed trait Prism extends RadixCMD
 
@@ -184,6 +189,11 @@ object runner {
                     case None => exist
                   }
                 }) <*> optional(
+                strOption(long("token"),
+                  help("ACL access token")))
+                .map(token => { exist: Start =>
+                  exist.copy(accessToken = token)
+                }) <*> optional(
                 intOption(long("registry-listener-port"),
                   help("Kafka registry listener port")))
                 .map(rlp => { exist: Start =>
@@ -227,14 +237,16 @@ object runner {
               ),
             ).weaken[Runtime])
           ),
-          command("enable", info(^(
+          command("enable", info(^^(
             many(strArgument(metavar("FLAGS"))),
-            optional(strOption(long("remote-address"), help("remote consul address")))
-          )(FlagCmd(_, true, _)), progDesc("enable feature flags"))),
-          command("disable", info(^(
+            optional(strOption(long("remote-address"), help("remote consul address"))),
+            optional(strOption(long("token"), help("ACL access token")))
+          )(FlagCmd(_, true, _, _)), progDesc("enable feature flags"))),
+          command("disable", info(^^(
             many(strArgument(metavar("FLAGS"))),
-            optional(strOption(long("remote-address"), help("remote consul address")))
-          )(FlagCmd(_, false, _)), progDesc("disable feature flags")))
+            optional(strOption(long("remote-address"), help("remote consul address"))),
+            optional(strOption(long("token"), help("ACL access token")))
+          )(FlagCmd(_, false, _, _)), progDesc("disable feature flags")))
         ),
         progDesc("radix runtime component")
       )
@@ -346,7 +358,7 @@ object runner {
             case local: Local =>
               local match {
                 case Nuke => Right(Unit)
-                case cmd@Start(dummy, loglevel, bindIP, consulSeedsO, remoteAddress, servicePort, registryListenerPort, username, password) => {
+                case cmd@Start(dummy, loglevel, bindIP, consulSeedsO, remoteAddress, servicePort, accessToken, registryListenerPort, username, password) => {
                   scribe.Logger.root
                     .clearHandlers()
                     .clearModifiers()
@@ -381,40 +393,59 @@ object runner {
                     } yield ()
 
                     implicit val host = new Run.RuntimeServicesExec[IO]
-                    val startNomadAndConsul = for {
+                    val startServices = for {
                       localFlags <- flags.getLocalFlags(Path(persistentdir))
 
                       consulPath = Path(consul.toPath.getParent)
                       nomadPath = Path(nomad.toPath.getParent)
                       bootstrapExpect = if (localFlags.getOrElse("dev", true)) 1 else 3
 
-                      _ <- if (localFlags.getOrElse("no_restart", false)) IO.unit else {
-                        IO(scribe.info(s"***********DAEMON SIZE${bootstrapExpect}***************")) *>
-                        Run.initializeRuntimeProg[IO](consulPath, nomadPath, bindIP, consulSeedsO, bootstrapExpect)
+                      consulUp <- daemonutil.isPortUp(8500)
+                      masterToken <- (consulUp, accessToken) match {
+                        // If consul is up and token is specified, skip the service setup
+                        case (true, Some(token)) => IO.pure(token)
+                        // If consul is down and no token is specified, do the service setup
+                        case (false, None) =>
+                          IO(scribe.info(s"***********DAEMON SIZE${bootstrapExpect}***************")) *>
+                            Run.initializeRuntimeProg[IO](consulPath, nomadPath, bindIP, consulSeedsO, bootstrapExpect)
+                        case (true, None) =>
+                          scribe.error("Please provide an access token to connect to the existing nomad/consul instances")
+                          sys.exit(1)
+                        case (false, Some(token)) =>
+                          scribe.error("System has not been bootstrapped, so an access token cannot be specified")
+                          sys.exit(1)
                       }
-                    } yield ()
+                    } yield masterToken
 
                     scribe.info("Launching daemons")
                     val bootstrap = for {
                       _ <- createWeaveNetwork
-                      _ <- startNomadAndConsul
-                      _ <- daemonutil.waitForDNS("nomad.service.consul", 2.minutes)
+                      masterToken <- startServices
+                      _ <- acl.storeMasterTokenInVault(Path(persistentdir), masterToken)
 
-                      flagUpdateResp <- flags.updateFlags(Path(persistentdir))
+                      flagUpdateResp <- flags.updateFlags(Path(persistentdir), Some(masterToken))
                       featureFlags = flagUpdateResp.asInstanceOf[ConsulFlagsUpdated].flags
 
-                      _ <- daemonutil.runTerraform(featureFlags, integrationTest = false)
+                      _ <- daemonutil.runTerraform(featureFlags, masterToken, integrationTest = false)
                       _ <- daemonutil.waitForQuorum(featureFlags)
                     } yield ()
 
                     val remoteBootstrap = for {
                       serviceAddrs <- daemonutil.getServiceIps(remoteAddress.getOrElse("127.0.0.1"))
-                      featureFlags <- flags.getConsulFlags(serviceAddrs)
+                      masterToken = accessToken.get
+                      featureFlags <- flags.getConsulFlags(masterToken)(serviceAddrs)
+
                       _ <- (new VaultStarter).initializeAndUnsealAndSetupVault()
-                      _ <- daemonutil.runTerraform(featureFlags, integrationTest = false)(serviceAddrs)
+                      _ <- daemonutil.runTerraform(featureFlags, masterToken, integrationTest = false)(serviceAddrs)
                     } yield ()
 
-                    if (remoteAddress.isDefined) remoteBootstrap.unsafeRunSync() else bootstrap.unsafeRunSync()
+                    (remoteAddress, accessToken) match {
+                      case (Some(_), Some(_)) => remoteBootstrap.unsafeRunSync()
+                      case (None, _) => bootstrap.unsafeRunSync()
+                      case (Some(_), None) =>
+                        scribe.error("Access token required for remote instances")
+                        sys.exit(1)
+                    }
                     sys.exit(0)
                   }
                 }
@@ -443,15 +474,15 @@ object runner {
               }
               dns_set.unsafeRunSync()
             }
-            case FlagCmd(flagNames, enable, remoteAddress) => {
+            case FlagCmd(flagNames, enable, remoteAddress, accessToken) => {
               System.setProperty("dns.server", remoteAddress.getOrElse("127.0.0.1"))
               val flagMap = flagNames.map((_, enable)).toMap
 
               val localProc = for {
-                flagUpdateResp <- flags.updateFlags(Path(persistentdir), flagMap)
+                flagUpdateResp <- flags.updateFlags(Path(persistentdir), accessToken, flagMap)
                 _ <- flagUpdateResp match {
                   case ConsulFlagsUpdated(featureFlags) =>
-                    daemonutil.runTerraform(featureFlags, integrationTest = false) *>
+                    daemonutil.runTerraform(featureFlags, accessToken.get, integrationTest = false) *>
                     daemonutil.waitForQuorum(featureFlags)
                   case FlagsStoredLocally() =>
                     IO.unit
@@ -460,16 +491,25 @@ object runner {
 
               val remoteProc = for {
                 serviceAddrs <- daemonutil.getServiceIps(remoteAddress.getOrElse(""))
-                flagUpdateResp <- flags.updateFlags(Path(persistentdir), flagMap)(serviceAddrs)
+                flagUpdateResp <- flags.updateFlags(Path(persistentdir), accessToken, flagMap)(serviceAddrs)
                 _ <- flagUpdateResp match {
                   case ConsulFlagsUpdated(featureFlags) =>
-                    daemonutil.runTerraform(featureFlags, integrationTest = false)(serviceAddrs)
+                    daemonutil.runTerraform(featureFlags, accessToken.get, integrationTest = false)(serviceAddrs)
                   case FlagsStoredLocally() =>
                     IO(scribe.warn("Could not connect to remote consul instance. Flags stored locally."))
                 }
               } yield ()
 
-              if (remoteAddress.isDefined) remoteProc.unsafeRunSync() else localProc.unsafeRunSync()
+              (remoteAddress, accessToken) match {
+                case (Some(_), Some(_)) => remoteProc.unsafeRunSync()
+                case (None, Some(_)) => localProc.unsafeRunSync()
+                case (None, None) =>
+                  scribe.warn("No access token specified. Writing to local flag file")
+                  localProc.unsafeRunSync()
+                case (Some(_), None) =>
+                  scribe.error("Please provide a valid access token for the remote instances")
+                  sys.exit(1)
+              }
             }
           }
 

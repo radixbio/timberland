@@ -6,6 +6,7 @@ import cats.implicits._
 import java.io.FileWriter
 import java.net.{InetAddress, InetSocketAddress, Socket}
 import java.nio.file.Paths
+import java.util.UUID
 import java.util.concurrent.Executors
 
 import com.radix.timberland.radixdefs._
@@ -165,14 +166,23 @@ object Run {
         }
       }
 
+      consulToken = UUID.randomUUID().toString
+      persistentDir = consulwd / os.up
+      _ <- F.liftIO(acl.writeTokenConfigs(persistentDir, consulToken))
+
       consulRestartProc <- H.startConsul(finalBindAddr, consulSeedsO, bootstrapExpect)
+      _ <- F.liftIO(acl.setupDefaultConsulToken(persistentDir, consulToken))
+
       vaultRestartProc <- H.startVault(finalBindAddr)
       vaultToken <- F.liftIO {
         (new VaultStarter).initializeAndUnsealAndSetupVault()
       }
+
       nomadRestartProc <- H.startNomad(finalBindAddr, bootstrapExpect, vaultToken)
-      _ <- F.liftIO(Run.putStrLn("started consul and nomad"))
-    } yield (consulRestartProc, vaultRestartProc, nomadRestartProc)
+      masterToken <- F.liftIO(acl.setupNomadMasterToken(persistentDir, consulToken))
+
+      _ <- F.liftIO(Run.putStrLn("started consul, nomad, and vault"))
+    } yield masterToken
   }
 
   class RuntimeServicesExec[F[_]](implicit F: Effect[F]) extends NetworkInfoExec[F] with RuntimeServicesAlg[F] {
@@ -196,9 +206,11 @@ object Run {
 
     override def startConsul(bind_addr: String, consulSeedsO: Option[String], bootstrapExpect: Int): F[Unit] =
       F.delay {
+        val persistentDir = "/opt/radix/timberland"
         scribe.info("spawning consul via systemd")
 
-        val baseArgs = s"-bind=$bind_addr -bootstrap-expect=$bootstrapExpect" //TODO enable dev mode in such a way that it doesn't break schema-registry
+        //TODO enable dev mode in such a way that it doesn't break schema-registry
+        val baseArgs = s"-bind=$bind_addr -bootstrap-expect=$bootstrapExpect -config-dir=$persistentDir/consul/config"
 
         val baseArgsWithSeeds = consulSeedsO match {
           case Some(seedString) =>
@@ -210,7 +222,7 @@ object Run {
           case None => baseArgs
         }
 
-        val envFilePath = Paths.get("/opt/radix/timberland/consul/consul.env.conf") // TODO make configurable
+        val envFilePath = Paths.get(s"$persistentDir/consul/consul.env.conf") // TODO make configurable
         val envFileHandle = envFilePath.toFile
         val writer = new FileWriter(envFileHandle)
         writer.write(s"CONSUL_CMD_ARGS=$baseArgsWithSeeds")
@@ -224,13 +236,14 @@ object Run {
     override def startNomad(bind_addr: String, bootstrapExpect: Int, vaultToken: String): F[Unit] = {
 
       F.delay {
+        val persistentDir = "/opt/radix/timberland"
         val args: String =
-          s"""NOMAD_CMD_ARGS=-bind=$bind_addr -bootstrap-expect=$bootstrapExpect
+          s"""NOMAD_CMD_ARGS=-bind=$bind_addr -bootstrap-expect=$bootstrapExpect -config=$persistentDir/nomad/config
              |VAULT_TOKEN=$vaultToken
              |""".stripMargin
         scribe.info("spawning nomad via systemd")
 
-        val envFilePath = Paths.get("/opt/radix/timberland/nomad/nomad.env.conf") // TODO make configurable
+        val envFilePath = Paths.get(s"$persistentDir/nomad/nomad.env.conf") // TODO make configurable
         val envFileHandle = envFilePath.toFile
         val writer = new FileWriter(envFileHandle)
         writer.write(args)
@@ -241,13 +254,14 @@ object Run {
     }
 
     def startVault(bind_addr: String): F[Unit] = {
+      val persistentDir = "/opt/radix/timberland"
       val args: String =
-        s"""VAULT_CMD_ARGS=-address=http://${bind_addr}:8200""".stripMargin
+        s"""VAULT_CMD_ARGS=-address=http://${bind_addr}:8200 -config=$persistentDir/vault/vault_config.conf""".stripMargin
 
       F.delay {
         scribe.info("spawning vault via systemd")
 
-        val envFilePath = Paths.get("/opt/radix/timberland/vault/vault.env.conf")
+        val envFilePath = Paths.get(s"$persistentDir/vault/vault.env.conf")
         val envFileHandle = envFilePath.toFile
         val writer = new FileWriter(envFileHandle)
         writer.write(args)

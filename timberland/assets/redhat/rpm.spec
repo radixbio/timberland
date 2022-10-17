@@ -24,7 +24,8 @@ tar -xvf {timberland-full-tar.tar}
 rm {timberland-full-tar.tar}
 
 %files
-/opt/radix/timberland/consul/consul.json
+/opt/radix/timberland/consul/config/consul.json
+/opt/radix/timberland/consul/default-policy.hcl
 /opt/radix/timberland/consul/consul.env.conf
 /opt/radix/timberland/consul/consul
 /opt/radix/timberland/exec/timberland

@@ -10,6 +10,7 @@ import com.radix.utils.helm.http4s.vault.{Vault => VaultSession}
 import com.radix.utils.helm.vault._
 import io.circe.generic.auto._
 import io.circe.syntax._
+import org.http4s.implicits._
 import org.http4s.Uri
 import org.http4s.client.blaze.BlazeClientBuilder
 import org.http4s.implicits._
@@ -384,8 +385,7 @@ class VaultStarter {
    * @return IO[String] - the Vault token.
    */
   def initializeAndUnsealAndSetupVault()(implicit serviceAddrs: ServiceAddrs = ServiceAddrs()): IO[String] = {
-    val vaultIp = if (serviceAddrs.vaultAddr == "vault.service.consul") "127.0.0.1" else serviceAddrs.vaultAddr
-    val vaultBaseUrl = Uri.fromString(s"http://$vaultIp:8200").toOption.get
+    val vaultBaseUrl = uri"http://127.0.0.1:8200"
     val starter = new VaultStarter()
     val unseal = for {
       vaultUnseal <- starter.initializeAndUnsealVault(vaultBaseUrl)

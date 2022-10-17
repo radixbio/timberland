@@ -32,7 +32,7 @@ object flags {
   private val flagFile = os.rel / "terraform" / "flags.json"
 
   // A list of flags which don't have any relation to modules
-  private val specialFlags = Set("dev", "no_restart")
+  private val specialFlags = Set("dev")
   // A map from flag name to a list of module names
   private val flagSupersets = Map(
     "core" -> Set(
@@ -90,13 +90,18 @@ object flags {
    * @return If Consul is up, the current state of all feature flags
    */
   def updateFlags(persistentDir: os.Path,
+                  masterToken: Option[String],
                   flagsToSet: Map[String, Boolean] = Map.empty)
                  (implicit serviceAddrs: ServiceAddrs = ServiceAddrs()): IO[FlagUpdateResponse] = {
     for {
       validFlags <- validateFlags(persistentDir, flagsToSet)
       actualFlags = resolveSupersetFlags(flagsToSet, validFlags)
-      consulDnsResponse <- IO(InetAddress.getAllByName(serviceAddrs.consulAddr)).attempt
+      consulDnsResponse <- masterToken match {
+        case Some(_) => IO(InetAddress.getAllByName(serviceAddrs.consulAddr)).attempt
+        case None => IO.pure(Left())
+      }
       newFlags <- consulDnsResponse match {
+        // no consul, empty response from consul, or no access token defined
         case Left(_) | Right(Array()) =>
           setLocalFlags(persistentDir, actualFlags) *>
           IO.pure(FlagsStoredLocally())
@@ -105,16 +110,17 @@ object flags {
             localFlags <- getLocalFlags(persistentDir)
             totalFlags = localFlags ++ actualFlags
             _ <- clearLocalFlagFile(persistentDir, totalFlags)
-            newFlags <- setConsulFlags(totalFlags)
+            newFlags <- setConsulFlags(masterToken.get, totalFlags)
           } yield ConsulFlagsUpdated(newFlags)
       }
     } yield newFlags
   }
 
-  def getConsulFlags(implicit serviceAddrs: ServiceAddrs = ServiceAddrs()): IO[Map[String, Boolean]] = {
+  def getConsulFlags(masterToken: String)
+                    (implicit serviceAddrs: ServiceAddrs = ServiceAddrs()): IO[Map[String, Boolean]] = {
     BlazeClientBuilder[IO](global).resource.use { client =>
       val consulUri = Uri.fromString(s"http://${serviceAddrs.consulAddr}:8500").toOption.get
-      val interpreter = new Http4sConsulClient[IO](consulUri, client)
+      val interpreter = new Http4sConsulClient[IO](consulUri, client, Some(masterToken))
       val getFeaturesOp = ConsulOp.kvGetJson[Map[String, Boolean]]("features", None, None)
       for {
         features <- helm.run(interpreter, getFeaturesOp)
@@ -132,14 +138,14 @@ object flags {
    * @param flags The flags to push
    * @return The total set of all flags on Consul after pushing
    */
-  private def setConsulFlags(flags: Map[String, Boolean])
+  private def setConsulFlags(masterToken: String, flags: Map[String, Boolean])
                             (implicit serviceAddrs: ServiceAddrs = ServiceAddrs()): IO[Map[String, Boolean]] = {
     BlazeClientBuilder[IO](global).resource.use { client =>
       val consulUri = Uri.fromString(s"http://${serviceAddrs.consulAddr}:8500").toOption.get
-      val interpreter = new Http4sConsulClient[IO](consulUri, client)
+      val interpreter = new Http4sConsulClient[IO](consulUri, client, Some(masterToken))
       val setFeaturesOp = ConsulOp.kvSetJson("features", _: Map[String, Boolean])
       for {
-        curFlags <- getConsulFlags()
+        curFlags <- getConsulFlags(masterToken)
         _ <- helm.run(interpreter, setFeaturesOp(curFlags ++ flags))
       } yield curFlags ++ flags
     }
@@ -220,7 +226,7 @@ object flags {
   private def getValidFlags(persistentDir: os.Path): IO[Set[String]] = {
     val moduleFile = persistentDir / os.up / "terraform" / ".terraform" / "modules" / "modules.json"
     for {
-      _ <- daemonutil.initTerraform(false, false)
+      _ <- daemonutil.initTerraform(false, None)
       modulesText <- IO(os.read(moduleFile))
     } yield {
       val modulesJson = parse(modulesText).getOrElse(Json.Null)

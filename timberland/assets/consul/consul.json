@@ -19,5 +19,10 @@
     "dns": 53,
     "grpc": 8502
   },
-  "recursors": ["8.8.8.8"]
+  "recursors": ["8.8.8.8"],
+  "acl": {
+    "enabled": true,
+    "default_policy": "deny",
+    "enable_token_persistence": true
+  }
 }
