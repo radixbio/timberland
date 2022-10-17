@@ -1004,6 +1004,18 @@ packer_deps()
 #)
 
 http_file(
+    name = "virtio_win_drivers",
+    urls = ["https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/virtio-win.iso"],
+    sha256 = "8d17ae343e60f0463ce0393035c6efe209d213cf1938d0a25ce09fc55a666e7b"
+)
+
+http_file(
+    name = "windows10_x64",
+    urls = ["https://software-download.microsoft.com/download/sg/444969d5-f34g-4e03-ac9d-1f9786c69161/19044.1288.211006-0501.21h2_release_svc_refresh_CLIENTENTERPRISEEVAL_OEMRET_x64FRE_en-us.iso"],
+    sha256 = "69efac1df9ec8066341d8c9b62297ddece0e6b805533fdb6dd66bc8034fba27a"
+)
+
+http_file(
     name = "ubuntu18046_x64",
     sha256 = "f5cbb8104348f0097a8e513b10173a07dbc6684595e331cb06f93f385d0aecf6",
     urls = ["http://3.239.240.126/iso/base-operating-systems/ubuntu-18.04.6-server-amd64.iso"],
